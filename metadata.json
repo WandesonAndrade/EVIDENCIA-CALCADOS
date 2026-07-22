@@ -1,0 +1,6 @@
+{
+  "name": "Evidência Calçados",
+  "description": "Catálogo de calçados premium com controle de estoque, painel de administração multinível (Administrador e Vendedor), histórico de compras e finalização integrada pelo WhatsApp.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
