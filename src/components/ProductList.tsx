@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { Product } from '../types';
-import { Eye, Timer, Percent, ChevronLeft, ChevronRight, Sparkles, Heart, CreditCard, ShieldCheck } from 'lucide-react';
+import { Eye, Timer, Percent, ChevronLeft, ChevronRight, Sparkles, Heart, CreditCard } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface ProductCardProps {
@@ -291,41 +291,8 @@ export const ProductList: React.FC = () => {
   const activeLaunchIndex = Math.min(currentLaunchIndex, maxLaunchIndex);
 
   return (
-    <section id="catalog-products-section" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-10">
+    <section id="catalog-products-section" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-10">
       
-      {/* Indicator Bar: MobLink ERP Connection (Glassmorphism Badge) */}
-      <motion.div 
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className={`p-4 rounded-2xl border backdrop-blur-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs shadow-lg ${
-          isDark 
-            ? 'bg-slate-900/60 border-slate-800/80 text-slate-300' 
-            : 'bg-white/70 border-slate-200/80 text-slate-600'
-        }`}
-      >
-        <div className="flex items-center space-x-3">
-          <span className="relative flex h-3 w-3 shrink-0">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
-          </span>
-          <div>
-            <span className={`font-bold mr-1.5 ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
-              Vitrine Conectada MobLink ERP:
-            </span>
-            <span className="text-slate-400 hidden md:inline">
-              Preços e estoque atualizados em tempo real diretamente do sistema comercial.
-            </span>
-          </div>
-        </div>
-
-        <div className="flex items-center space-x-2 self-end sm:self-auto">
-          <ShieldCheck className="h-4 w-4 text-emerald-500" />
-          <span className="text-[10px] font-mono px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-500 font-bold border border-emerald-500/20 tracking-wider">
-            SYNC ATIVO
-          </span>
-        </div>
-      </motion.div>
-
       {/* Categorias em Destaque: Navegação Horizontal Fluida (Scroll Suave & Scrollbar Oculta) */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">

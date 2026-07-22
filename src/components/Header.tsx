@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { ShoppingBag, Search, User, LogOut, LayoutDashboard, History, ChevronDown, Heart, Sun, Moon, Sparkles } from 'lucide-react';
+import { ShoppingBag, Search, User, LogOut, LayoutDashboard, History, ChevronDown, Heart, Sun, Moon, Sparkles, Flame, Sparkle, Tag } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 export const Header: React.FC = () => {
@@ -31,30 +31,32 @@ export const Header: React.FC = () => {
 
   const getNavLinkClass = (tab: string) => {
     const isActive = currentView === 'category-page' && selectedMenuTab === tab;
-    return `relative text-xs sm:text-sm font-bold tracking-widest transition-all cursor-pointer whitespace-nowrap px-4 py-2 rounded-full ${
+    return `relative text-xs sm:text-sm font-black tracking-widest uppercase transition-all cursor-pointer px-4 py-1.5 rounded-full flex items-center space-x-1.5 ${
       isActive 
         ? isDark
-          ? 'text-amber-400 bg-amber-400/10 border border-amber-400/30 shadow-[0_0_15px_rgba(245,158,11,0.25)] font-black'
-          : 'text-slate-900 bg-slate-100 border border-slate-200/80 font-black shadow-xs'
+          ? 'text-amber-400 bg-amber-400/10 border border-amber-400/30 shadow-[0_0_15px_rgba(245,158,11,0.25)]'
+          : 'text-slate-900 bg-slate-100 border border-slate-200/80 shadow-xs'
         : isDark
-          ? 'text-slate-300 hover:text-amber-400 hover:bg-slate-800/40'
-          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+          ? 'text-slate-300 hover:text-amber-400 hover:bg-slate-800/50'
+          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
     }`;
   };
 
   return (
     <header 
       id="store-header" 
-      className={`sticky top-0 z-40 border-b backdrop-blur-xl transition-all duration-300 ${
+      className={`sticky top-0 z-40 border-b backdrop-blur-2xl transition-all duration-300 ${
         isDark 
-          ? 'bg-[#0B0F19]/85 border-slate-800/80 text-white shadow-lg shadow-black/20' 
-          : 'bg-white/85 border-slate-200/80 text-slate-800 shadow-xs'
+          ? 'bg-[#0B0F19]/90 border-slate-800/80 text-white shadow-xl shadow-black/30' 
+          : 'bg-white/90 border-slate-200/80 text-slate-800 shadow-sm'
       }`}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-20 gap-6">
+        
+        {/* LINHA SUPERIOR (TIER 1): Logo + Busca Proeminente + Ações do Usuário */}
+        <div className="flex items-center justify-between h-16 sm:h-20 gap-4">
           
-          {/* Logo */}
+          {/* Logo Marca Evidência Calçados */}
           <motion.div 
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
@@ -62,69 +64,42 @@ export const Header: React.FC = () => {
             className="flex items-center space-x-2.5 cursor-pointer shrink-0"
             onClick={() => setCurrentView('home')}
           >
-            <div className={`w-9 h-9 rounded-xl flex items-center justify-center border shadow-sm ${
-              isDark ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-amber-400/20' : 'bg-slate-900 text-white border-slate-800'
+            <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-2xl flex items-center justify-center border shadow-md ${
+              isDark 
+                ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-amber-400/20' 
+                : 'bg-slate-900 text-white border-slate-800'
             }`}>
-              <Sparkles className="h-5 w-5" />
+              <Sparkles className="h-5 w-5 sm:h-5.5 sm:w-5.5" />
             </div>
-            <span className={`text-xl font-black tracking-tight ${
+            <span className={`text-xl sm:text-2xl font-black tracking-tight ${
               isDark ? 'text-slate-100' : 'text-slate-900'
             }`}>
               Evidência <span className={isDark ? 'text-amber-400 font-light' : 'text-slate-500 font-light'}>Calçados</span>
             </span>
           </motion.div>
 
-          {/* Clean Navbar Macro-Departamentos (Espaçamento e Respiro Visual) */}
-          <nav id="main-nav" className="hidden lg:flex items-center space-x-4 lg:space-x-6 xl:space-x-8">
-            <button 
-              onClick={() => handleMenuClick('lançamentos')}
-              className={getNavLinkClass('lançamentos')}
-            >
-              LANÇAMENTOS
-            </button>
-
-            <button 
-              onClick={() => handleMenuClick('feminino')}
-              className={getNavLinkClass('feminino')}
-            >
-              FEMININO
-            </button>
-
-            <button 
-              onClick={() => handleMenuClick('masculino')}
-              className={getNavLinkClass('masculino')}
-            >
-              MASCULINO
-            </button>
-
-            <button 
-              onClick={() => handleMenuClick('ofertas')}
-              className={getNavLinkClass('ofertas')}
-            >
-              OFERTAS
-            </button>
-          </nav>
-
-          {/* Search Bar & Utilities Aligned Right */}
-          <div className="flex items-center space-x-3 flex-1 max-w-md justify-end lg:flex-initial">
-
-            {/* Search Input (Glassmorphic glow on focus) */}
-            <div className="relative w-full max-w-xs hidden sm:block">
+          {/* Barra de Pesquisa Proeminente & Larga (Centro) */}
+          <div className="flex-1 max-w-xl mx-2 sm:mx-6 hidden sm:block">
+            <div className="relative w-full">
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Buscar calçado ou acessório..."
-                className={`w-full pl-9 pr-4 py-2 text-xs border rounded-full focus:outline-none transition-all duration-200 ${
+                placeholder="Buscar calçados, sapatos, sapatênis, botas ou acessórios..."
+                className={`w-full pl-11 pr-5 py-2.5 text-xs sm:text-sm border rounded-full focus:outline-none transition-all duration-300 shadow-sm ${
                   isDark
-                    ? 'bg-slate-900/80 border-slate-800 text-slate-100 placeholder-slate-500 focus:border-amber-400/80 focus:shadow-[0_0_15px_rgba(245,158,11,0.2)]'
-                    : 'bg-slate-100/80 border-slate-200 rounded-full focus:border-slate-400 focus:bg-white text-slate-800 placeholder-slate-400 focus:shadow-md'
+                    ? 'bg-slate-900/90 border-slate-800 text-slate-100 placeholder-slate-400 focus:border-amber-400/90 focus:bg-slate-950 focus:shadow-[0_0_20px_rgba(245,158,11,0.25)]'
+                    : 'bg-slate-100/90 border-slate-200/90 rounded-full focus:border-slate-400 focus:bg-white text-slate-900 placeholder-slate-400 focus:shadow-md'
                 }`}
               />
-              <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+              <Search className="absolute left-4 top-3 h-4 w-4 text-slate-400" />
             </div>
+          </div>
 
-            {/* Theme Toggle Button */}
+          {/* Ícones de Utilidade & Conta (Direita) */}
+          <div className="flex items-center space-x-2.5 sm:space-x-3 shrink-0">
+
+            {/* Alternador de Tema Escuro/Claro */}
             <motion.button
               whileTap={{ scale: 0.9, rotate: 180 }}
               id="theme-toggle-button"
@@ -139,7 +114,7 @@ export const Header: React.FC = () => {
               {isDark ? <Sun className="h-4.5 w-4.5" /> : <Moon className="h-4.5 w-4.5" />}
             </motion.button>
 
-            {/* Wishlist/Favorites Button */}
+            {/* Botão Meus Favoritos */}
             <motion.button
               whileTap={{ scale: 0.9 }}
               id="favorites-button"
@@ -159,7 +134,7 @@ export const Header: React.FC = () => {
               )}
             </motion.button>
 
-            {/* Shopping Cart Button */}
+            {/* Botão Carrinho de Compras */}
             <motion.button
               whileTap={{ scale: 0.9 }}
               id="cart-button"
@@ -178,7 +153,7 @@ export const Header: React.FC = () => {
               )}
             </motion.button>
 
-            {/* Admin / Seller Dashboard Icon */}
+            {/* Painel Administrativo (Vendedor/Admin) */}
             {currentUser && (currentUser.role === 'admin' || currentUser.role === 'seller') && (
               <motion.button
                 whileTap={{ scale: 0.9 }}
@@ -195,7 +170,7 @@ export const Header: React.FC = () => {
               </motion.button>
             )}
 
-            {/* User Profile / Auth Toggle with Glass Dropdown */}
+            {/* Perfil do Usuário com Dropdown */}
             {currentUser ? (
               <div className="relative">
                 <motion.button
@@ -318,6 +293,60 @@ export const Header: React.FC = () => {
 
           </div>
         </div>
+
+        {/* Campo de Busca no Mobile (abaixo da linha 1 apenas em telas pequenas) */}
+        <div className="pb-3 sm:hidden">
+          <div className="relative w-full">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Buscar calçados ou acessórios..."
+              className={`w-full pl-9 pr-4 py-2 text-xs border rounded-full focus:outline-none transition-all ${
+                isDark
+                  ? 'bg-slate-900 border-slate-800 text-slate-100 placeholder-slate-500 focus:border-amber-400'
+                  : 'bg-slate-100 border-slate-200 text-slate-800 placeholder-slate-400'
+              }`}
+            />
+            <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
+          </div>
+        </div>
+
+        {/* LINHA INFERIOR (TIER 2): Barra de Navegação Dedicada aos Macro-Departamentos */}
+        <div className={`border-t py-2 flex items-center justify-center overflow-x-auto no-scrollbar ${
+          isDark ? 'border-slate-800/60' : 'border-slate-200/60'
+        }`}>
+          <nav id="macro-departments-nav" className="flex items-center space-x-6 sm:space-x-10 md:space-x-14 py-0.5">
+            <button 
+              onClick={() => handleMenuClick('lançamentos')}
+              className={getNavLinkClass('lançamentos')}
+            >
+              LANÇAMENTOS
+            </button>
+
+            <button 
+              onClick={() => handleMenuClick('feminino')}
+              className={getNavLinkClass('feminino')}
+            >
+              FEMININO
+            </button>
+
+            <button 
+              onClick={() => handleMenuClick('masculino')}
+              className={getNavLinkClass('masculino')}
+            >
+              MASCULINO
+            </button>
+
+            <button 
+              onClick={() => handleMenuClick('ofertas')}
+              className={getNavLinkClass('ofertas')}
+            >
+              OFERTAS
+            </button>
+          </nav>
+        </div>
+
       </div>
     </header>
   );

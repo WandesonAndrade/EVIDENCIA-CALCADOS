@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
-import { ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowRight, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface Slide {
@@ -58,6 +58,8 @@ export const Hero: React.FC = () => {
   const [isPaused, setIsPaused] = useState(false);
   const autoplayTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  const isDark = theme === 'dark';
+
   // Auto-play effect
   useEffect(() => {
     if (!isPaused) {
@@ -73,13 +75,13 @@ export const Hero: React.FC = () => {
     };
   }, [isPaused]);
 
-  const handleNext = (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleNext = (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
     setCurrentSlide(prev => (prev + 1) % SLIDES.length);
   };
 
-  const handlePrev = (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handlePrev = (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
     setCurrentSlide(prev => (prev - 1 + SLIDES.length) % SLIDES.length);
   };
 
@@ -90,128 +92,129 @@ export const Hero: React.FC = () => {
   const handleSlideAction = (tabKey: string) => {
     setSelectedMenuTab(tabKey);
     setCurrentView('category-page');
-    
-    // Scroll smoothly to top
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   return (
     <div 
       id="hero-banner" 
-      className="relative bg-slate-950 text-white overflow-hidden rounded-2xl mx-4 sm:mx-6 lg:mx-8 my-6 h-[400px] sm:h-[420px] md:h-[460px] group/hero shadow-xl border border-slate-900"
+      className="relative overflow-hidden rounded-3xl mx-4 sm:mx-6 lg:mx-8 my-6 min-h-[500px] sm:min-h-[540px] md:min-h-[580px] lg:h-[65vh] shadow-2xl border border-slate-800/80 group/hero select-none"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
     >
-      {/* Background Slides with crossfade animation */}
+      {/* Background Image Slides with Smooth Motion Zoom & Crossfade */}
       <div className="absolute inset-0 w-full h-full">
         <AnimatePresence mode="wait">
           <motion.div
             key={currentSlide}
-            initial={{ opacity: 0, scale: 1.05 }}
+            initial={{ opacity: 0, scale: 1.08 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.98 }}
-            transition={{ duration: 0.8, ease: 'easeInOut' }}
+            transition={{ duration: 0.9, ease: [0.25, 1, 0.5, 1] }}
             className="absolute inset-0 w-full h-full"
           >
-            {/* Background Image overlay */}
-            <div className="absolute inset-0 opacity-40 mix-blend-multiply bg-slate-950">
-              <img 
-                src={SLIDES[currentSlide].image} 
-                alt={SLIDES[currentSlide].title} 
-                className="w-full h-full object-cover select-none"
-              />
-            </div>
-            {/* Radial and Linear overlay gradients */}
-            <div className="absolute inset-0 bg-gradient-to-r from-slate-950 via-slate-950/80 to-transparent"></div>
-            <div className="absolute inset-0 bg-gradient-to-t from-slate-950/40 via-transparent to-transparent"></div>
+            <img 
+              src={SLIDES[currentSlide].image} 
+              alt={SLIDES[currentSlide].title} 
+              className="w-full h-full object-cover"
+            />
+            
+            {/* Multi-layered Immersive Gradients */}
+            <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/50 to-slate-950/20" />
+            <div className="absolute inset-0 bg-gradient-to-r from-slate-950/90 via-slate-950/60 to-transparent" />
           </motion.div>
         </AnimatePresence>
       </div>
 
-      {/* Slide Content */}
-      <div className="relative h-full max-w-7xl mx-auto px-6 py-12 sm:py-20 lg:px-12 flex flex-col justify-center">
+      {/* Floating Glassmorphic Content Card */}
+      <div className="relative h-full max-w-7xl mx-auto px-4 sm:px-8 lg:px-12 py-12 sm:py-20 flex items-center justify-start z-20">
         <AnimatePresence mode="wait">
           <motion.div
             key={currentSlide}
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -15 }}
-            transition={{ duration: 0.4 }}
-            className="max-w-xl space-y-4 sm:space-y-6"
+            initial={{ opacity: 0, x: -30, scale: 0.97 }}
+            animate={{ opacity: 1, x: 0, scale: 1 }}
+            exit={{ opacity: 0, x: 20, scale: 0.97 }}
+            transition={{ duration: 0.5, ease: 'easeOut' }}
+            className={`w-full max-w-xl p-6 sm:p-10 lg:p-12 rounded-3xl border backdrop-blur-2xl shadow-2xl space-y-4 sm:space-y-6 text-center sm:text-left ${
+              isDark
+                ? 'bg-slate-900/70 border-slate-800/80 text-white shadow-black/50'
+                : 'bg-slate-900/75 border-white/20 text-white shadow-2xl'
+            }`}
           >
+            {/* Badge Tag */}
             <div>
-              <span className={`inline-block text-[10px] font-bold tracking-widest uppercase px-3.5 py-1.5 rounded-full select-none transition-all duration-300 ${
-                theme === 'dark'
-                  ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                  : 'bg-accent-blue/15 text-accent-blue border border-accent-blue/30'
-              }`}>
-                {SLIDES[currentSlide].badge}
+              <span className="inline-flex items-center space-x-1.5 px-4 py-1.5 rounded-full text-[10px] sm:text-xs font-black tracking-widest uppercase text-amber-400 bg-amber-400/10 border border-amber-400/30 shadow-[0_0_12px_rgba(245,158,11,0.2)]">
+                <Sparkles className="h-3.5 w-3.5 text-amber-400" />
+                <span>{SLIDES[currentSlide].badge}</span>
               </span>
             </div>
             
-            <h1 className={`text-2xl sm:text-4xl md:text-5xl font-extrabold tracking-tight leading-tight transition-all duration-300 ${
-              theme === 'dark'
-                ? 'bg-gradient-to-r from-white via-white to-amber-200 bg-clip-text text-transparent'
-                : 'text-white'
-            }`}>
+            {/* Main Title */}
+            <h1 className="text-2xl sm:text-4xl lg:text-5xl font-black tracking-tight leading-tight text-white drop-shadow-md">
               {SLIDES[currentSlide].title}
             </h1>
             
-            <p className="text-xs sm:text-sm md:text-base text-slate-300 font-light leading-relaxed max-w-lg">
+            {/* Subtitle / Description */}
+            <p className="text-xs sm:text-sm md:text-base text-slate-300 font-normal leading-relaxed max-w-lg">
               {SLIDES[currentSlide].description}
             </p>
             
-            <div className="pt-2">
-              <button
+            {/* Magnetic CTA Button */}
+            <div className="pt-2 flex justify-center sm:justify-start">
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
                 onClick={() => handleSlideAction(SLIDES[currentSlide].tabKey)}
-                className={`group flex items-center space-x-2 px-6 py-3 sm:py-3.5 rounded-lg text-xs font-bold transition-all hover:scale-105 active:scale-95 cursor-pointer ${
-                  theme === 'dark'
-                    ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 hover:from-amber-300 hover:to-amber-400 border border-amber-300/30 shadow-[0_0_15px_rgba(245,158,11,0.25)]'
-                    : 'bg-white text-primary hover:bg-slate-50 shadow-lg'
-                }`}
+                className="group inline-flex items-center space-x-3 px-7 py-3.5 sm:py-4 rounded-2xl text-xs sm:text-sm font-black tracking-wider uppercase bg-gradient-to-r from-amber-400 via-amber-400 to-amber-500 text-slate-950 shadow-lg hover:shadow-[0_0_25px_rgba(245,158,11,0.45)] transition-all cursor-pointer"
               >
                 <span>{SLIDES[currentSlide].buttonText}</span>
-                <ArrowRight className={`h-4 w-4 group-hover:translate-x-1 transition-transform duration-200 ${
-                  theme === 'dark' ? 'text-slate-950' : 'text-primary'
-                }`} />
-              </button>
+                <ArrowRight className="h-4 w-4 sm:h-5 sm:w-5 group-hover:translate-x-1.5 transition-transform duration-200 text-slate-950" />
+              </motion.button>
             </div>
           </motion.div>
         </AnimatePresence>
       </div>
 
-      {/* Arrow Navigation controls */}
-      <button
+      {/* Floating Glass Arrow Controls (Sides) */}
+      <motion.button
+        whileHover={{ scale: 1.1 }}
+        whileTap={{ scale: 0.9 }}
         onClick={handlePrev}
-        className="absolute left-4 top-1/2 -translate-y-1/2 z-10 hidden sm:flex items-center justify-center h-10 w-10 rounded-full border border-slate-800 bg-slate-900/40 text-slate-200 backdrop-blur-xs opacity-0 group-hover/hero:opacity-100 hover:bg-slate-900/80 hover:text-white transition-all duration-300 active:scale-95 shadow-md cursor-pointer"
+        className="absolute left-4 top-1/2 -translate-y-1/2 z-30 hidden sm:flex items-center justify-center h-12 w-12 rounded-full border border-slate-700/80 bg-slate-900/70 text-white backdrop-blur-xl opacity-0 group-hover/hero:opacity-100 hover:bg-slate-800 hover:text-amber-400 transition-all duration-300 shadow-2xl cursor-pointer"
         title="Anterior"
       >
-        <ChevronLeft className="h-5 w-5" />
-      </button>
-      <button
+        <ChevronLeft className="h-6 w-6 stroke-[2.5]" />
+      </motion.button>
+
+      <motion.button
+        whileHover={{ scale: 1.1 }}
+        whileTap={{ scale: 0.9 }}
         onClick={handleNext}
-        className="absolute right-4 top-1/2 -translate-y-1/2 z-10 hidden sm:flex items-center justify-center h-10 w-10 rounded-full border border-slate-800 bg-slate-900/40 text-slate-200 backdrop-blur-xs opacity-0 group-hover/hero:opacity-100 hover:bg-slate-900/80 hover:text-white transition-all duration-300 active:scale-95 shadow-md cursor-pointer"
+        className="absolute right-4 top-1/2 -translate-y-1/2 z-30 hidden sm:flex items-center justify-center h-12 w-12 rounded-full border border-slate-700/80 bg-slate-900/70 text-white backdrop-blur-xl opacity-0 group-hover/hero:opacity-100 hover:bg-slate-800 hover:text-amber-400 transition-all duration-300 shadow-2xl cursor-pointer"
         title="Próximo"
       >
-        <ChevronRight className="h-5 w-5" />
-      </button>
+        <ChevronRight className="h-6 w-6 stroke-[2.5]" />
+      </motion.button>
 
-      {/* Auto-play progress indicators (Dots at the bottom) */}
-      <div className="absolute bottom-5 left-1/2 -translate-x-1/2 z-10 flex items-center space-x-2.5">
-        {SLIDES.map((slide, idx) => (
-          <button
-            key={slide.id}
-            onClick={() => handleDotClick(idx)}
-            className="group/dot relative flex items-center justify-center h-4 w-4 cursor-pointer"
-            title={`Slide ${idx + 1}`}
-          >
-            {/* Outer ring for active dot */}
-            <span className={`absolute inset-0 rounded-full border border-white transition-all duration-300 ${idx === currentSlide ? 'scale-100 opacity-60' : 'scale-50 opacity-0 group-hover/dot:opacity-30'}`} />
-            
-            {/* Center dot */}
-            <span className={`h-1.5 rounded-full bg-white transition-all duration-300 ${idx === currentSlide ? 'w-4 opacity-100' : 'w-1.5 opacity-40 group-hover/dot:opacity-75'}`} />
-          </button>
-        ))}
+      {/* Pagination Dots (Bottom) */}
+      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 flex items-center space-x-3 backdrop-blur-md px-4 py-2 rounded-full bg-slate-900/50 border border-white/10">
+        {SLIDES.map((slide, idx) => {
+          const isActive = idx === currentSlide;
+          return (
+            <button
+              key={slide.id}
+              onClick={() => handleDotClick(idx)}
+              className="relative transition-all duration-300 cursor-pointer focus:outline-none"
+              title={`Ir para slide ${idx + 1}`}
+            >
+              <span className={`block rounded-full transition-all duration-300 ${
+                isActive 
+                  ? 'w-8 h-2 bg-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.5)]' 
+                  : 'w-2 h-2 bg-white/40 hover:bg-white/80'
+              }`} />
+            </button>
+          );
+        })}
       </div>
     </div>
   );
