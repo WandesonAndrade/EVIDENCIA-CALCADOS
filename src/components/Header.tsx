@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { ShoppingBag, Search, User, LogOut, LayoutDashboard, History, ChevronDown, Heart, Sun, Moon, Sparkles, Flame, Sparkle, Tag } from 'lucide-react';
+import { ShoppingBag, Search, User, LogOut, LayoutDashboard, History, ChevronDown, Heart, Sun, Moon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { BrandLogo } from './BrandLogo';
 
 export const Header: React.FC = () => {
   const { 
@@ -53,30 +54,11 @@ export const Header: React.FC = () => {
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
-        {/* LINHA SUPERIOR (TIER 1): Logo + Busca Proeminente + Ações do Usuário */}
+        {/* LINHA SUPERIOR (TIER 1): Logo Vetorial 100% HTML/Tailwind + Busca Proeminente + Ações do Usuário */}
         <div className="flex items-center justify-between h-16 sm:h-20 gap-4">
           
-          {/* Logo Marca Evidência Calçados */}
-          <motion.div 
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            id="brand-logo" 
-            className="flex items-center space-x-2.5 cursor-pointer shrink-0"
-            onClick={() => setCurrentView('home')}
-          >
-            <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-2xl flex items-center justify-center border shadow-md ${
-              isDark 
-                ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-amber-400/20' 
-                : 'bg-slate-900 text-white border-slate-800'
-            }`}>
-              <Sparkles className="h-5 w-5 sm:h-5.5 sm:w-5.5" />
-            </div>
-            <span className={`text-xl sm:text-2xl font-black tracking-tight ${
-              isDark ? 'text-slate-100' : 'text-slate-900'
-            }`}>
-              Evidência <span className={isDark ? 'text-amber-400 font-light' : 'text-slate-500 font-light'}>Calçados</span>
-            </span>
-          </motion.div>
+          {/* Logo da Marca Evidência Calçados (100% Código/Tailwind com Nitidez Total) */}
+          <BrandLogo size="md" />
 
           {/* Barra de Pesquisa Proeminente & Larga (Centro) */}
           <div className="flex-1 max-w-xl mx-2 sm:mx-6 hidden sm:block">
@@ -294,7 +276,7 @@ export const Header: React.FC = () => {
           </div>
         </div>
 
-        {/* Campo de Busca no Mobile (abaixo da linha 1 apenas em telas pequenas) */}
+        {/* Campo de Busca no Mobile */}
         <div className="pb-3 sm:hidden">
           <div className="relative w-full">
             <input
