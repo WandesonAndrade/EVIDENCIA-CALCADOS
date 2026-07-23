@@ -214,3 +214,11 @@ export interface ContactConfig {
   isPromoBannerActive: boolean;
 }
 
+export interface StoreConfig {
+  heroBanners: HeroBanner[];
+  homeSections: HomeSectionConfig[];
+  aboutConfig: AboutConfig;
+  contactConfig: ContactConfig;
+}
+
+

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Product, CartItem, Order, UserProfile, UserRole, Category, MoblinkConfig, MoblinkSyncLog, MoblinkSyncLogItem, SincomAuthSession, HeroBanner, HomeSectionConfig, AboutConfig, ContactConfig } from '../types';
+import { Product, CartItem, Order, UserProfile, UserRole, Category, MoblinkConfig, MoblinkSyncLog, MoblinkSyncLogItem, SincomAuthSession, HeroBanner, HomeSectionConfig, AboutConfig, ContactConfig, StoreConfig } from '../types';
 import { db, auth, seedDatabaseIfNeeded, SEED_PRODUCTS } from '../lib/firebase';
 import { collection, onSnapshot, doc, setDoc, getDoc, query, where, deleteDoc } from 'firebase/firestore';
 import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
@@ -59,7 +59,7 @@ interface AppContextProps {
   testMoblinkConnection: () => Promise<{ success: boolean; message: string }>;
   syncMoblinkStock: () => Promise<{ success: boolean; message: string; updatedCount?: number }>;
   importMoblinkStockBatch: (items: Array<{ sku?: string; moblinkId?: string; barcode?: string; name?: string; stock: number; size?: string; sizeStockMap?: Record<string, number> }>) => Promise<{ success: boolean; message: string; updatedCount?: number }>;
-  // Store CMS Configuration
+  // Store CMS Configuration & Restoration
   heroBanners: HeroBanner[];
   updateHeroBanners: (banners: HeroBanner[]) => Promise<void>;
   homeSections: HomeSectionConfig[];
@@ -68,6 +68,7 @@ interface AppContextProps {
   updateAboutConfig: (config: Partial<AboutConfig>) => Promise<void>;
   contactConfig: ContactConfig;
   updateContactConfig: (config: Partial<ContactConfig>) => Promise<void>;
+  restoreDefaultConfig: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextProps | undefined>(undefined);
@@ -144,6 +145,13 @@ export const DEFAULT_CONTACT_CONFIG: ContactConfig = {
   hours: 'Segunda a Sexta: 08:00 às 18:00 | Sábado: 08:00 às 13:00',
   promoBannerText: 'Frete grátis para todo Brasil em compras acima de R$ 350!',
   isPromoBannerActive: true
+};
+
+export const DEFAULT_STORE_CONFIG: StoreConfig = {
+  heroBanners: DEFAULT_HERO_BANNERS,
+  homeSections: DEFAULT_HOME_SECTIONS,
+  aboutConfig: DEFAULT_ABOUT_CONFIG,
+  contactConfig: DEFAULT_CONTACT_CONFIG
 };
 
 export const DEFAULT_CATEGORIES: Category[] = [
@@ -360,6 +368,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setDoc(doc(db, 'storeConfig', 'contactConfig'), updated, { merge: true }).catch(() => {});
       return updated;
     });
+  };
+
+  const restoreDefaultConfig = async (): Promise<void> => {
+    setHeroBanners(DEFAULT_HERO_BANNERS);
+    setHomeSections(DEFAULT_HOME_SECTIONS);
+    setAboutConfig(DEFAULT_ABOUT_CONFIG);
+    setContactConfig(DEFAULT_CONTACT_CONFIG);
+
+    localStorage.setItem('evidencia_cms_hero_banners', JSON.stringify(DEFAULT_HERO_BANNERS));
+    localStorage.setItem('evidencia_cms_home_sections', JSON.stringify(DEFAULT_HOME_SECTIONS));
+    localStorage.setItem('evidencia_cms_about_config', JSON.stringify(DEFAULT_ABOUT_CONFIG));
+    localStorage.setItem('evidencia_cms_contact_config', JSON.stringify(DEFAULT_CONTACT_CONFIG));
+
+    if (DEFAULT_CONTACT_CONFIG.whatsapp) {
+      localStorage.setItem('evidencia_settings_whatsapp', DEFAULT_CONTACT_CONFIG.whatsapp);
+    }
+    if (DEFAULT_CONTACT_CONFIG.promoBannerText) {
+      localStorage.setItem('evidencia_settings_banner_text', DEFAULT_CONTACT_CONFIG.promoBannerText);
+    }
+    localStorage.setItem('evidencia_settings_banner_active', String(DEFAULT_CONTACT_CONFIG.isPromoBannerActive));
+
+    try {
+      await setDoc(doc(db, 'storeConfig', 'heroBanners'), { banners: DEFAULT_HERO_BANNERS }, { merge: true });
+      await setDoc(doc(db, 'storeConfig', 'homeSections'), { sections: DEFAULT_HOME_SECTIONS }, { merge: true });
+      await setDoc(doc(db, 'storeConfig', 'aboutConfig'), DEFAULT_ABOUT_CONFIG, { merge: true });
+      await setDoc(doc(db, 'storeConfig', 'contactConfig'), DEFAULT_CONTACT_CONFIG, { merge: true });
+    } catch (err) {
+      console.warn("Firestore restore sync skipped:", err);
+    }
   };
 
   // Load cart, favorites, and session from LocalStorage on mount
@@ -1384,6 +1421,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateAboutConfig,
         contactConfig,
         updateContactConfig,
+        restoreDefaultConfig,
       }}
     >
       {children}

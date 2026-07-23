@@ -54,11 +54,13 @@ export const AdminPanel: React.FC = () => {
     aboutConfig,
     updateAboutConfig,
     contactConfig,
-    updateContactConfig
+    updateContactConfig,
+    restoreDefaultConfig
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<AdminTab>('overview');
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [isRestoreModalOpen, setIsRestoreModalOpen] = useState(false);
 
   // Category management Form States
   const [newCatName, setNewCatName] = useState('');
@@ -1357,27 +1359,135 @@ export const AdminPanel: React.FC = () => {
           </div>
         )}
 
-        {/* OTHER TABS FALLBACK (Sales, Customers, Settings) */}
-        {activeTab === 'sales' && (
-          <div className="space-y-6">
-            <h2 className="text-2xl font-black">Vendas & Pedidos ({orders.length})</h2>
-            <div className="space-y-4">
-              {orders.map((o) => (
-                <div key={o.id} className={`p-5 rounded-2xl border ${isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-200'}`}>
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <p className="font-bold">Pedido #{o.id}</p>
-                      <p className="text-xs text-slate-400">{o.customerName} ({o.customerEmail})</p>
-                    </div>
-                    <span className="font-black text-amber-400">R$ {o.total.toFixed(2)}</span>
-                  </div>
+        {/* TAB 9: SETTINGS & DANGER ZONE (RESET LAYOUT) */}
+        {activeTab === 'settings' && (
+          <div className="space-y-8 max-w-4xl">
+            <div>
+              <h2 className="text-2xl font-black tracking-tight flex items-center space-x-2">
+                <Settings className="h-6 w-6 text-amber-400" />
+                <span>Configurações Gerais do E-commerce</span>
+              </h2>
+              <p className="text-xs text-slate-400">Preferências do sistema, chaves de integração e restauração de fábrica</p>
+            </div>
+
+            {/* Cloudinary Integration Settings */}
+            <div className={`p-6 sm:p-8 rounded-3xl border backdrop-blur-xl space-y-4 ${
+              isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
+            }`}>
+              <h3 className="text-sm font-black text-amber-400 flex items-center space-x-2">
+                <Upload className="h-4 w-4" />
+                <span>Integração com Cloudinary (Upload de Imagens)</span>
+              </h3>
+              <p className="text-xs text-slate-400">Configure suas chaves para armazenar imagens de produtos e banners diretamente na nuvem.</p>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                <div>
+                  <label className="block text-xs font-bold mb-1 text-slate-300">Cloud Name</label>
+                  <input
+                    type="text"
+                    value={cloudinaryCloudName}
+                    onChange={(e) => {
+                      setCloudinaryCloudName(e.target.value);
+                      localStorage.setItem('cloudinary_cloud_name', e.target.value);
+                    }}
+                    placeholder="Ex: dxy12345"
+                    className={`w-full p-3 rounded-xl text-xs border focus:outline-none ${
+                      isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-100 border-slate-300'
+                    }`}
+                  />
                 </div>
-              ))}
+
+                <div>
+                  <label className="block text-xs font-bold mb-1 text-slate-300">Upload Preset (Unsigned)</label>
+                  <input
+                    type="text"
+                    value={cloudinaryUploadPreset}
+                    onChange={(e) => {
+                      setCloudinaryUploadPreset(e.target.value);
+                      localStorage.setItem('cloudinary_upload_preset', e.target.value);
+                    }}
+                    placeholder="Ex: evidencia_preset"
+                    className={`w-full p-3 rounded-xl text-xs border focus:outline-none ${
+                      isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-100 border-slate-300'
+                    }`}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* DANGER ZONE: FACTORY RESET */}
+            <div className="p-6 sm:p-8 rounded-3xl border border-rose-500/30 bg-rose-950/20 backdrop-blur-xl space-y-4">
+              <div className="flex items-center space-x-3 text-rose-500">
+                <AlertCircle className="h-6 w-6 shrink-0 animate-pulse" />
+                <div>
+                  <h3 className="text-sm font-black uppercase tracking-wider">Zona de Segurança & Restauração</h3>
+                  <p className="text-xs text-rose-300/80">Restaure o layout, banners e conteúdos originais entregues de fábrica.</p>
+                </div>
+              </div>
+
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Se alguma alteração de banners, ordem de seções ou textos desconfigurar a vitrine da loja, você pode restaurar todos os padrões estéticos e originais da <strong>Evidência Calçados</strong> a qualquer momento.
+              </p>
+
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsRestoreModalOpen(true)}
+                  className="px-6 py-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs shadow-lg shadow-rose-950/50 transition-all cursor-pointer flex items-center space-x-2"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  <span>Restaurar Layout Original da Loja</span>
+                </button>
+              </div>
             </div>
           </div>
         )}
 
       </main>
+
+      {/* CONFIRMATION MODAL FOR FACTORY RESET */}
+      {isRestoreModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4">
+          <div className={`w-full max-w-md p-6 sm:p-8 rounded-3xl border shadow-2xl space-y-6 text-center animate-in fade-in zoom-in duration-200 ${
+            isDark ? 'bg-slate-900 border-rose-500/40 text-white shadow-black/80' : 'bg-white border-rose-200 text-slate-900'
+          }`}>
+            <div className="w-16 h-16 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-500 mx-auto flex items-center justify-center shadow-lg">
+              <AlertCircle className="h-8 w-8 animate-pulse" />
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="text-xl font-black text-rose-500">Restaurar Layout Original?</h3>
+              <p className="text-xs text-slate-300 leading-relaxed font-medium">
+                Atenção: Tem certeza que deseja restaurar o layout padrão? Todas as suas alterações de banners hero, ordem de seções, textos do "Sobre Nós" e contatos serão desfeitas e substituídas pelas configurações originais de fábrica. Essa ação não pode ser desfeita.
+              </p>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsRestoreModalOpen(false)}
+                className="flex-1 px-5 py-3 rounded-xl border border-slate-700 text-xs font-bold text-slate-300 hover:bg-slate-800 cursor-pointer transition-colors"
+              >
+                Cancelar
+              </button>
+
+              <button
+                type="button"
+                onClick={async () => {
+                  await restoreDefaultConfig();
+                  setIsRestoreModalOpen(false);
+                  setCmsFeedback('Layout e dados padrão restaurados com sucesso!');
+                  setTimeout(() => setCmsFeedback(''), 4000);
+                }}
+                className="flex-1 px-5 py-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs shadow-lg shadow-rose-950/50 cursor-pointer flex items-center justify-center space-x-2 transition-all"
+              >
+                <RefreshCw className="h-4 w-4" />
+                <span>Sim, Restaurar</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
