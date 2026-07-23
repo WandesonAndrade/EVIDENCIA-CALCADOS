@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Product, CartItem, Order, UserProfile, UserRole, Category, MoblinkConfig, MoblinkSyncLog, MoblinkSyncLogItem, SincomAuthSession } from '../types';
+import { Product, CartItem, Order, UserProfile, UserRole, Category, MoblinkConfig, MoblinkSyncLog, MoblinkSyncLogItem, SincomAuthSession, HeroBanner, HomeSectionConfig, AboutConfig, ContactConfig } from '../types';
 import { db, auth, seedDatabaseIfNeeded, SEED_PRODUCTS } from '../lib/firebase';
 import { collection, onSnapshot, doc, setDoc, getDoc, query, where, deleteDoc } from 'firebase/firestore';
 import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
@@ -59,9 +59,92 @@ interface AppContextProps {
   testMoblinkConnection: () => Promise<{ success: boolean; message: string }>;
   syncMoblinkStock: () => Promise<{ success: boolean; message: string; updatedCount?: number }>;
   importMoblinkStockBatch: (items: Array<{ sku?: string; moblinkId?: string; barcode?: string; name?: string; stock: number; size?: string; sizeStockMap?: Record<string, number> }>) => Promise<{ success: boolean; message: string; updatedCount?: number }>;
+  // Store CMS Configuration
+  heroBanners: HeroBanner[];
+  updateHeroBanners: (banners: HeroBanner[]) => Promise<void>;
+  homeSections: HomeSectionConfig[];
+  updateHomeSections: (sections: HomeSectionConfig[]) => Promise<void>;
+  aboutConfig: AboutConfig;
+  updateAboutConfig: (config: Partial<AboutConfig>) => Promise<void>;
+  contactConfig: ContactConfig;
+  updateContactConfig: (config: Partial<ContactConfig>) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextProps | undefined>(undefined);
+
+export const DEFAULT_HERO_BANNERS: HeroBanner[] = [
+  {
+    id: 'banner-1',
+    badge: 'NOVA COLEÇÃO 2026',
+    title: 'Elegância que caminha com você.',
+    description: 'Descubra a seleção exclusiva de calçados premium com o conforto que seus pés merecem e as condições que só a Evidência oferece.',
+    image: 'https://images.unsplash.com/photo-1549298916-b41d501d3772?q=80&w=1600&auto=format&fit=crop',
+    buttonText: 'Ver Lançamentos',
+    tabKey: 'lançamentos',
+    active: true
+  },
+  {
+    id: 'banner-2',
+    badge: 'COLEÇÃO FEMININA',
+    title: 'Charme, sofisticação e conforto extremo.',
+    description: 'Encontre sandálias, sapatilhas, saltos e acessórios refinados criados especialmente para destacar a sua personalidade única.',
+    image: 'https://images.unsplash.com/photo-1543163521-1bf539c55dd2?q=80&w=1600&auto=format&fit=crop',
+    buttonText: 'Ver Moda Feminina',
+    tabKey: 'feminino',
+    active: true
+  },
+  {
+    id: 'banner-3',
+    badge: 'COLEÇÃO MASCULINA',
+    title: 'Estilo moderno e robustez incomparável.',
+    description: 'Sapatos sociais premium, botas indestrutíveis e tênis de alta performance para o homem contemporâneo que valoriza design e atitude.',
+    image: 'https://images.unsplash.com/photo-1533867617858-e7b97e060509?q=80&w=1600&auto=format&fit=crop',
+    buttonText: 'Explorar Linha Masculina',
+    tabKey: 'masculino',
+    active: true
+  },
+  {
+    id: 'banner-4',
+    badge: 'CAMPANHA DE OFERTAS',
+    title: 'Super Descontos de até 50% OFF.',
+    description: 'Chegou o momento de adquirir aquele calçado desejado com preços incríveis e parcelamento facilitado no Crediário Próprio Evidência.',
+    image: 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?q=80&w=1600&auto=format&fit=crop',
+    buttonText: 'Aproveitar Ofertas',
+    tabKey: 'ofertas',
+    active: true
+  }
+];
+
+export const DEFAULT_HOME_SECTIONS: HomeSectionConfig[] = [
+  { id: 'hero', name: 'Banner Principal (Hero)', description: 'Banner carrossel principal no topo da loja', enabled: true },
+  { id: 'offers', name: 'Ofertas Relâmpago & Outlet', description: 'Carrossel promocional com relógio contador', enabled: true },
+  { id: 'launches', name: 'Novidades & Lançamentos', description: 'Carrossel dos lançamentos da estação', enabled: true },
+  { id: 'shoes', name: 'Calçados Premium', description: 'Grade de produtos da categoria calçados', enabled: true },
+  { id: 'accessories', name: 'Acessórios em Couro', description: 'Grade de produtos da categoria acessórios', enabled: true }
+];
+
+export const DEFAULT_ABOUT_CONFIG: AboutConfig = {
+  title: 'Tradição, Qualidade e Estilo nos Seus Pés',
+  subtitle: 'Desde a nossa fundação, a Evidência Calçados busca unir a elegância clássica com o conforto contemporâneo.',
+  description: 'Na Evidência Calçados, acreditamos que um bom par de sapatos vai além da estética — é uma extensão da sua confiança. Trabalhamos exclusivamente com matérias-primas nobres, couro legítimo selecionado e mão de obra artesanal cuidadosa.\n\nNossa missão é proporcionar durabilidade excepcional, design marcante e condições de acesso facilitadas através do nosso exclusivo Crediário Próprio Evidência.',
+  highlightImage: 'https://images.unsplash.com/photo-1549298916-b41d501d3772?q=80&w=1600&auto=format&fit=crop',
+  badgeText: 'TRADIÇÃO & EXCELÊNCIA',
+  stats: [
+    { label: 'Anos de História', value: '25+' },
+    { label: 'Clientes Atendidos', value: '100k+' },
+    { label: 'Garantia de Qualidade', value: '100%' },
+    { label: 'Parcelas Crediário', value: '10x' }
+  ]
+};
+
+export const DEFAULT_CONTACT_CONFIG: ContactConfig = {
+  whatsapp: '5599984684867',
+  email: 'contato@evidencia.com.br',
+  address: 'Rua Afonso Pena, 295 - Centro, Caxias - MA',
+  hours: 'Segunda a Sexta: 08:00 às 18:00 | Sábado: 08:00 às 13:00',
+  promoBannerText: 'Frete grátis para todo Brasil em compras acima de R$ 350!',
+  isPromoBannerActive: true
+};
 
 export const DEFAULT_CATEGORIES: Category[] = [
   { id: 'sapatos-sociais', name: 'Sapatos Sociais', description: 'Sapatos clássicos e elegantes' },
@@ -203,6 +286,81 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     ];
   });
+
+  // Store CMS States
+  const [heroBanners, setHeroBanners] = useState<HeroBanner[]>(() => {
+    const saved = localStorage.getItem('evidencia_cms_hero_banners');
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) {}
+    }
+    return DEFAULT_HERO_BANNERS;
+  });
+
+  const [homeSections, setHomeSections] = useState<HomeSectionConfig[]>(() => {
+    const saved = localStorage.getItem('evidencia_cms_home_sections');
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) {}
+    }
+    return DEFAULT_HOME_SECTIONS;
+  });
+
+  const [aboutConfig, setAboutConfig] = useState<AboutConfig>(() => {
+    const saved = localStorage.getItem('evidencia_cms_about_config');
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) {}
+    }
+    return DEFAULT_ABOUT_CONFIG;
+  });
+
+  const [contactConfig, setContactConfig] = useState<ContactConfig>(() => {
+    const saved = localStorage.getItem('evidencia_cms_contact_config');
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) {}
+    }
+    return DEFAULT_CONTACT_CONFIG;
+  });
+
+  // CMS Update Handlers
+  const updateHeroBanners = async (banners: HeroBanner[]) => {
+    setHeroBanners(banners);
+    localStorage.setItem('evidencia_cms_hero_banners', JSON.stringify(banners));
+    try {
+      await setDoc(doc(db, 'storeConfig', 'heroBanners'), { banners }, { merge: true });
+    } catch (err) {
+      console.warn("Firestore heroBanners sync skipped:", err);
+    }
+  };
+
+  const updateHomeSections = async (sections: HomeSectionConfig[]) => {
+    setHomeSections(sections);
+    localStorage.setItem('evidencia_cms_home_sections', JSON.stringify(sections));
+    try {
+      await setDoc(doc(db, 'storeConfig', 'homeSections'), { sections }, { merge: true });
+    } catch (err) {
+      console.warn("Firestore homeSections sync skipped:", err);
+    }
+  };
+
+  const updateAboutConfig = async (newConfig: Partial<AboutConfig>) => {
+    setAboutConfig((prev) => {
+      const updated = { ...prev, ...newConfig };
+      localStorage.setItem('evidencia_cms_about_config', JSON.stringify(updated));
+      setDoc(doc(db, 'storeConfig', 'aboutConfig'), updated, { merge: true }).catch(() => {});
+      return updated;
+    });
+  };
+
+  const updateContactConfig = async (newConfig: Partial<ContactConfig>) => {
+    setContactConfig((prev) => {
+      const updated = { ...prev, ...newConfig };
+      localStorage.setItem('evidencia_cms_contact_config', JSON.stringify(updated));
+      if (updated.whatsapp) localStorage.setItem('evidencia_settings_whatsapp', updated.whatsapp);
+      if (updated.promoBannerText) localStorage.setItem('evidencia_settings_banner_text', updated.promoBannerText);
+      localStorage.setItem('evidencia_settings_banner_active', String(updated.isPromoBannerActive));
+      setDoc(doc(db, 'storeConfig', 'contactConfig'), updated, { merge: true }).catch(() => {});
+      return updated;
+    });
+  };
 
   // Load cart, favorites, and session from LocalStorage on mount
   useEffect(() => {
@@ -1218,6 +1376,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         testMoblinkConnection,
         syncMoblinkStock,
         importMoblinkStockBatch,
+        heroBanners,
+        updateHeroBanners,
+        homeSections,
+        updateHomeSections,
+        aboutConfig,
+        updateAboutConfig,
+        contactConfig,
+        updateContactConfig,
       }}
     >
       {children}

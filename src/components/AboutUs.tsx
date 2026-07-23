@@ -3,28 +3,41 @@ import { Store, ShieldCheck, Heart, Award, MapPin, Phone, Mail, Sparkles, Shoppi
 import { useApp } from '../context/AppContext';
 
 export const AboutUs: React.FC = () => {
-  const { setCurrentView, theme } = useApp();
+  const { setCurrentView, theme, aboutConfig } = useApp();
+
+  const cfg = aboutConfig || {
+    badgeText: 'TRADIÇÃO & EXCELÊNCIA',
+    title: 'Evidência Calçados',
+    subtitle: 'Tradição, Qualidade e Estilo nos Seus Pés',
+    description: 'Desde a nossa fundação, temos o compromisso de trazer moda, conforto e elegância para os seus pés. Localizada no coração de Caxias, Maranhão, somos mais do que uma loja de calçados — somos parceiros da sua caminhada diária.',
+    highlightImage: 'https://images.unsplash.com/photo-1549298916-b41d501d3772?q=80&w=1600&auto=format&fit=crop'
+  };
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 md:py-16">
       
       {/* Hero section */}
       <div className="text-center max-w-3xl mx-auto space-y-4 mb-16">
-        <span className={`inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
-          theme === 'dark' ? 'bg-amber-400/10 text-amber-300' : 'bg-primary/10 text-primary'
+        <span className={`inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full text-xs font-black uppercase tracking-wider ${
+          theme === 'dark' ? 'bg-amber-400/10 text-amber-300 border border-amber-400/30' : 'bg-primary/10 text-primary border border-primary/20'
         }`}>
           <Sparkles className="h-3.5 w-3.5" />
-          <span>Nossa História</span>
+          <span>{cfg.badgeText || 'Nossa História'}</span>
         </span>
         <h1 className={`text-3xl md:text-5xl font-extrabold tracking-tight font-sans ${
           theme === 'dark' ? 'text-slate-100' : 'text-slate-900'
         }`}>
-          Evidência Calçados
+          {cfg.title}
         </h1>
-        <p className={`text-sm md:text-base leading-relaxed font-light ${
-          theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
+        <p className={`text-base md:text-lg font-medium ${
+          theme === 'dark' ? 'text-amber-400' : 'text-slate-700'
         }`}>
-          Desde a nossa fundação, temos o compromisso de trazer moda, conforto e elegância para os seus pés. Localizada no coração de Caxias, Maranhão, somos mais do que uma loja de calçados — somos parceiros da sua caminhada diária.
+          {cfg.subtitle}
+        </p>
+        <p className={`text-sm md:text-base leading-relaxed font-normal whitespace-pre-line ${
+          theme === 'dark' ? 'text-slate-300' : 'text-slate-600'
+        }`}>
+          {cfg.description}
         </p>
       </div>
 

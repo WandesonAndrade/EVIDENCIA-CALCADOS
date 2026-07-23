@@ -54,18 +54,22 @@ const SLIDES: Slide[] = [
 ];
 
 export const Hero: React.FC = () => {
-  const { setSelectedMenuTab, setCurrentView, theme } = useApp();
+  const { setSelectedMenuTab, setCurrentView, theme, heroBanners } = useApp();
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const autoplayTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const isDark = theme === 'dark';
 
+  const slides = heroBanners && heroBanners.filter(b => b.active).length > 0
+    ? heroBanners.filter(b => b.active)
+    : SLIDES;
+
   // Auto-play effect
   useEffect(() => {
-    if (!isPaused) {
+    if (!isPaused && slides.length > 0) {
       autoplayTimerRef.current = setInterval(() => {
-        setCurrentSlide(prev => (prev + 1) % SLIDES.length);
+        setCurrentSlide(prev => (prev + 1) % slides.length);
       }, 6000);
     }
 
@@ -74,7 +78,10 @@ export const Hero: React.FC = () => {
         clearInterval(autoplayTimerRef.current);
       }
     };
-  }, [isPaused]);
+  }, [isPaused, slides.length]);
+
+  if (!slides || slides.length === 0) return null;
+  const currentBanner = slides[currentSlide] || slides[0];
 
   const handleNext = (e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
@@ -117,8 +124,8 @@ export const Hero: React.FC = () => {
             className="absolute inset-0 w-full h-full"
           >
             <img 
-              src={SLIDES[currentSlide].image} 
-              alt={SLIDES[currentSlide].title} 
+              src={currentBanner.image} 
+              alt={currentBanner.title} 
               className="w-full h-full object-cover"
             />
             
@@ -148,18 +155,18 @@ export const Hero: React.FC = () => {
             <div>
               <span className="inline-flex items-center space-x-1.5 px-4 py-1.5 rounded-full text-[10px] sm:text-xs font-black tracking-widest uppercase text-amber-400 bg-amber-400/10 border border-amber-400/30 shadow-[0_0_12px_rgba(245,158,11,0.2)]">
                 <Sparkles className="h-3.5 w-3.5 text-amber-400" />
-                <span>{SLIDES[currentSlide].badge}</span>
+                <span>{currentBanner.badge}</span>
               </span>
             </div>
             
             {/* Main Title */}
             <h1 className="text-2xl sm:text-4xl lg:text-5xl font-black tracking-tight leading-tight text-white drop-shadow-md">
-              {SLIDES[currentSlide].title}
+              {currentBanner.title}
             </h1>
             
             {/* Subtitle / Description */}
             <p className="text-xs sm:text-sm md:text-base text-slate-300 font-normal leading-relaxed max-w-lg">
-              {SLIDES[currentSlide].description}
+              {currentBanner.description}
             </p>
             
             {/* Magnetic CTA Button */}
@@ -167,10 +174,10 @@ export const Hero: React.FC = () => {
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                onClick={() => handleSlideAction(SLIDES[currentSlide].tabKey)}
+                onClick={() => handleSlideAction(currentBanner.tabKey)}
                 className="group inline-flex items-center space-x-3 px-7 py-3.5 sm:py-4 rounded-2xl text-xs sm:text-sm font-black tracking-wider uppercase bg-gradient-to-r from-amber-400 via-amber-400 to-amber-500 text-slate-950 shadow-lg hover:shadow-[0_0_25px_rgba(245,158,11,0.45)] transition-all cursor-pointer"
               >
-                <span>{SLIDES[currentSlide].buttonText}</span>
+                <span>{currentBanner.buttonText}</span>
                 <ArrowRight className="h-4 w-4 sm:h-5 sm:w-5 group-hover:translate-x-1.5 transition-transform duration-200 text-slate-950" />
               </motion.button>
             </div>
@@ -201,7 +208,7 @@ export const Hero: React.FC = () => {
 
       {/* Pagination Dots (Bottom) */}
       <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 flex items-center space-x-3 backdrop-blur-md px-4 py-2 rounded-full bg-slate-900/50 border border-white/10">
-        {SLIDES.map((slide, idx) => {
+        {slides.map((slide, idx) => {
           const isActive = idx === currentSlide;
           return (
             <button

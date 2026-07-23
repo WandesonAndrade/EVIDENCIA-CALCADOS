@@ -4,9 +4,11 @@ import { useApp } from '../context/AppContext';
 import { BrandLogo } from './BrandLogo';
 
 export const Footer: React.FC = () => {
-  const { setCurrentView } = useApp();
+  const { setCurrentView, contactConfig } = useApp();
 
-  const savedPhone = localStorage.getItem('evidencia_settings_whatsapp') || '5599984684867';
+  const savedPhone = contactConfig?.whatsapp || localStorage.getItem('evidencia_settings_whatsapp') || '5599984684867';
+  const savedEmail = contactConfig?.email || 'contato@evidencia.com.br';
+  const savedAddress = contactConfig?.address || 'Rua Afonso Pena, 295 - Centro, Caxias - MA';
 
   const handleWhatsAppGeneralClick = () => {
     const text = encodeURIComponent("Olá! Estou navegando no catálogo da Evidência Calçados e gostaria de tirar algumas dúvidas.");
@@ -96,11 +98,11 @@ export const Footer: React.FC = () => {
               </li>
               <li className="flex items-start space-x-2">
                 <MapPin className="h-4 w-4 text-amber-400 mt-0.5 shrink-0" />
-                <span>Rua Afonso Pena, 295 - Centro, Caxias - MA</span>
+                <span>{savedAddress}</span>
               </li>
               <li className="flex items-center space-x-2">
                 <Mail className="h-4 w-4 text-amber-400" />
-                <span>contato@evidencia.com.br</span>
+                <span>{savedEmail}</span>
               </li>
             </ul>
           </div>

@@ -177,3 +177,40 @@ export interface UserProfile {
   complemento?: string;
   pontoReferencia?: string;
 }
+
+export interface HeroBanner {
+  id: string;
+  badge: string;
+  title: string;
+  description: string;
+  image: string;
+  buttonText: string;
+  tabKey: string;
+  active: boolean;
+}
+
+export interface HomeSectionConfig {
+  id: string;
+  name: string;
+  description: string;
+  enabled: boolean;
+}
+
+export interface AboutConfig {
+  title: string;
+  subtitle: string;
+  description: string;
+  highlightImage: string;
+  badgeText: string;
+  stats?: { label: string; value: string }[];
+}
+
+export interface ContactConfig {
+  whatsapp: string;
+  email: string;
+  address: string;
+  hours: string;
+  promoBannerText: string;
+  isPromoBannerActive: boolean;
+}
+
