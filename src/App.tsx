@@ -50,6 +50,12 @@ const AppContent: React.FC = () => {
     return () => window.removeEventListener('open-profile-modal', handleOpen);
   }, []);
 
+  React.useEffect(() => {
+    if (['product-detail', 'cart', 'orders', 'about', 'support', 'favorites', 'admin'].includes(currentView)) {
+      window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    }
+  }, [currentView]);
+
   const renderActiveView = () => {
     switch (currentView) {
       case 'cart':

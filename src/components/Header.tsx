@@ -4,6 +4,8 @@ import { ShoppingBag, Search, User, LogOut, LayoutDashboard, History, ChevronDow
 import { motion, AnimatePresence } from 'motion/react';
 import { BrandLogo } from './BrandLogo';
 
+import { scrollToSectionWithOffset } from '../lib/scrollUtils';
+
 export const Header: React.FC = () => {
   const { 
     cart, 
@@ -28,6 +30,9 @@ export const Header: React.FC = () => {
   const handleMenuClick = (tab: string) => {
     setSelectedMenuTab(tab);
     setCurrentView('category-page');
+    setTimeout(() => {
+      scrollToSectionWithOffset('category-all-items-section');
+    }, 100);
   };
 
   const getNavLinkClass = (tab: string) => {

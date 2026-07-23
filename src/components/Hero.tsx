@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { ArrowRight, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { scrollToSectionWithOffset } from '../lib/scrollUtils';
 
 interface Slide {
   id: number;
@@ -92,7 +93,9 @@ export const Hero: React.FC = () => {
   const handleSlideAction = (tabKey: string) => {
     setSelectedMenuTab(tabKey);
     setCurrentView('category-page');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setTimeout(() => {
+      scrollToSectionWithOffset('category-all-items-section');
+    }, 100);
   };
 
   return (

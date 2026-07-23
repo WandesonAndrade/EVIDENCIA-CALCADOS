@@ -59,6 +59,11 @@ export const ProductDetail: React.FC = () => {
   const idGrade = p.id_grade ?? p.gradeId ?? null;
   const hasGrade = idGrade !== null && idGrade !== undefined && idGrade !== '' && idGrade !== 0 && idGrade !== '0';
 
+  // Auto-scroll to absolute top when viewing product details
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  }, [p.id]);
+
   useEffect(() => {
     let isMounted = true;
     setSelectedLinhaOption(null);

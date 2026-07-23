@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { Product } from '../types';
 import { Eye, Timer, Percent, ChevronLeft, ChevronRight, Sparkles, Heart, CreditCard } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { scrollToSectionWithOffset } from '../lib/scrollUtils';
 
 interface ProductCardProps {
   product: Product;
@@ -184,6 +185,13 @@ export const ProductList: React.FC = () => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [currentLaunchIndex, setCurrentLaunchIndex] = useState(0);
   const [cardsPerPage, setCardsPerPage] = useState(4);
+  const catalogSectionRef = useRef<HTMLElement | null>(null);
+  const isMountedRef = useRef(false);
+
+  const handleSelectCategory = (cat: string) => {
+    setSelectedCategory(cat);
+    scrollToSectionWithOffset(catalogSectionRef.current || 'catalog-products-section');
+  };
 
   const isDark = theme === 'dark';
 
@@ -206,11 +214,17 @@ export const ProductList: React.FC = () => {
     return () => window.removeEventListener('resize', updateCardsPerPage);
   }, []);
 
-  // Reset carousel index when categories or search queries change
+  // Reset carousel index when categories or search queries change & smooth scroll
   useEffect(() => {
     setCurrentIndex(0);
     setCurrentLaunchIndex(0);
-  }, [selectedCategory, searchQuery, products]);
+
+    if (!isMountedRef.current) {
+      isMountedRef.current = true;
+      return;
+    }
+    scrollToSectionWithOffset(catalogSectionRef.current || 'catalog-products-section');
+  }, [selectedCategory, searchQuery]);
 
   // Dynamic countdown timer for FOMO/conversion trigger
   useEffect(() => {
@@ -291,7 +305,7 @@ export const ProductList: React.FC = () => {
   const activeLaunchIndex = Math.min(currentLaunchIndex, maxLaunchIndex);
 
   return (
-    <section id="catalog-products-section" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-10">
+    <section id="catalog-products-section" ref={catalogSectionRef} className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-10">
       
       {/* Categorias em Destaque: Navegação Horizontal Fluida (Scroll Suave & Scrollbar Oculta) */}
       <div className="space-y-3">
@@ -315,7 +329,7 @@ export const ProductList: React.FC = () => {
                 key={cat}
                 whileHover={{ scale: 1.04 }}
                 whileTap={{ scale: 0.96 }}
-                onClick={() => setSelectedCategory(cat)}
+                onClick={() => handleSelectCategory(cat)}
                 className={`whitespace-nowrap px-5 py-2.5 rounded-full text-xs font-bold tracking-wider transition-all duration-200 cursor-pointer border ${
                   isSelected
                     ? isDark
@@ -358,7 +372,7 @@ export const ProductList: React.FC = () => {
         >
           <p className="text-base text-slate-400 mb-4 font-medium">Nenhum calçado ou acessório foi encontrado para os filtros selecionados.</p>
           <button 
-            onClick={() => setSelectedCategory('TODOS')}
+            onClick={() => handleSelectCategory('TODOS')}
             className={`px-6 py-2.5 rounded-full text-xs font-bold transition-all shadow-md cursor-pointer ${
               isDark ? 'bg-amber-400 text-slate-950 hover:bg-amber-300' : 'bg-slate-900 text-white hover:bg-slate-800'
             }`}

@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { Product } from '../types';
 import { Eye, Percent, ChevronLeft, ChevronRight, ArrowLeft, Timer } from 'lucide-react';
 import { Hero } from './Hero';
+import { scrollToSectionWithOffset } from '../lib/scrollUtils';
 
 interface TabConfig {
   title: string;
@@ -102,6 +103,16 @@ export const CategoryPage: React.FC = () => {
   const [cardsPerPage, setCardsPerPage] = useState(4);
   const [activeIndex, setActiveIndex] = useState(0);
   const [timeLeft, setTimeLeft] = useState({ horas: 23, minutos: 59, segundos: 59 });
+  const gridSectionRef = useRef<HTMLDivElement | null>(null);
+
+  // Smooth scroll to catalog grid when tab changes or component mounts
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      scrollToSectionWithOffset(gridSectionRef.current || 'category-all-items-section');
+    }, 120);
+
+    return () => clearTimeout(timer);
+  }, [selectedMenuTab]);
 
   // Get current active config based on selectedMenuTab or custom categories
   const getTabConfig = () => {
@@ -401,7 +412,7 @@ export const CategoryPage: React.FC = () => {
       )}
 
       {/* SECTION 2: TODOS OS ITENS DISPONÍVEIS */}
-      <div id="category-all-items-section" className="space-y-6">
+      <div id="category-all-items-section" ref={gridSectionRef} className="space-y-6">
         <div className={`border-b pb-4 ${theme === 'dark' ? 'border-slate-800' : 'border-slate-100'}`}>
           <h2 className={`text-base sm:text-lg font-bold tracking-tight ${
             theme === 'dark' ? 'text-slate-100' : 'text-slate-800'
