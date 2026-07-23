@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { ShoppingCart, MessageSquare, ArrowLeft, Shield, Sparkles, Heart, Share2, Check, User, Layers, CheckCircle2, AlertCircle } from 'lucide-react';
+import { ShoppingCart, MessageSquare, ArrowLeft, Shield, Sparkles, Heart, Share2, Check, User, Layers, CheckCircle2, AlertCircle, CreditCard, Zap } from 'lucide-react';
 import { getGradeProdutoById } from '../services/moblinkGradesService';
 import { GradeProduto, Product } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
@@ -327,14 +327,33 @@ export const ProductDetail: React.FC = () => {
                 </span>
 
                 {p.crediarioProprio && (
-                  <span className={`text-[10px] font-bold px-3 py-1 rounded-full border ${
+                  <span className={`inline-flex items-center space-x-1.5 text-[10px] font-bold px-3 py-1 rounded-full border ${
                     isDark 
-                      ? 'bg-amber-400/10 text-amber-300 border-amber-400/20' 
+                      ? 'bg-amber-400/10 text-amber-300 border-amber-400/30' 
                       : 'bg-amber-50 text-amber-900 border-amber-200'
                   }`}>
-                    💳 Crediário Próprio
+                    <CreditCard className="h-3 w-3 text-amber-500 shrink-0" />
+                    <span>Crediário Próprio</span>
                   </span>
                 )}
+
+                <span className={`inline-flex items-center space-x-1.5 text-[10px] font-bold px-3 py-1 rounded-full border ${
+                  isDark 
+                    ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30' 
+                    : 'bg-emerald-50 text-emerald-900 border-emerald-200'
+                }`}>
+                  <Zap className="h-3 w-3 text-emerald-500 shrink-0" />
+                  <span>Pix</span>
+                </span>
+
+                <span className={`inline-flex items-center space-x-1.5 text-[10px] font-bold px-3 py-1 rounded-full border ${
+                  isDark 
+                    ? 'bg-sky-500/10 text-sky-300 border-sky-500/30' 
+                    : 'bg-sky-50 text-sky-900 border-sky-200'
+                }`}>
+                  <CreditCard className="h-3 w-3 text-sky-500 shrink-0" />
+                  <span>Cartão de Crédito</span>
+                </span>
               </div>
 
               <h1 className={`text-2xl sm:text-3xl font-black tracking-tight leading-snug ${

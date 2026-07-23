@@ -10,6 +10,7 @@ import {
   Sparkles,
   Heart,
   CreditCard,
+  Zap,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { scrollToSectionWithOffset } from "../lib/scrollUtils";
@@ -173,19 +174,43 @@ const ProductCard: React.FC<ProductCardProps> = ({
           </div>
         </div>
 
-        {/* Selo Crediário Próprio */}
-        {product.crediarioProprio && (
+        {/* Selos de Formas de Pagamento Aceitas */}
+        <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+          {product.crediarioProprio && (
+            <div
+              className={`inline-flex items-center space-x-1 py-1 px-2 rounded-md border text-[9px] font-bold ${
+                isDark
+                  ? "bg-amber-400/10 border-amber-400/30 text-amber-300"
+                  : "bg-amber-50 border-amber-200 text-amber-900"
+              }`}
+            >
+              <CreditCard className="h-3 w-3 shrink-0 text-amber-500" />
+              <span>Crediário Próprio</span>
+            </div>
+          )}
+
           <div
-            className={`flex items-center space-x-2 py-1.5 px-2.5 rounded-lg border text-[10px] font-semibold ${
+            className={`inline-flex items-center space-x-1 py-1 px-2 rounded-md border text-[9px] font-bold ${
               isDark
-                ? "bg-amber-400/5 border-amber-400/20 text-amber-300"
-                : "bg-amber-50 border-amber-200/60 text-amber-900"
+                ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300"
+                : "bg-emerald-50 border-emerald-200 text-emerald-900"
             }`}
           >
-            <CreditCard className="h-3.5 w-3.5 shrink-0 text-amber-500" />
-            <span className="truncate">Crediário Próprio Evidência</span>
+            <Zap className="h-3 w-3 shrink-0 text-emerald-500" />
+            <span>Pix</span>
           </div>
-        )}
+
+          <div
+            className={`inline-flex items-center space-x-1 py-1 px-2 rounded-md border text-[9px] font-bold ${
+              isDark
+                ? "bg-sky-500/10 border-sky-500/30 text-sky-300"
+                : "bg-sky-50 border-sky-200 text-sky-900"
+            }`}
+          >
+            <CreditCard className="h-3 w-3 shrink-0 text-sky-500" />
+            <span>Cartão de Crédito</span>
+          </div>
+        </div>
 
         {/* Botão Ver Detalhes */}
         <motion.button
