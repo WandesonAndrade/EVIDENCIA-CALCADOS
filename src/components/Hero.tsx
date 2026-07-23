@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext';
 import { ArrowRight, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { scrollToSectionWithOffset } from '../lib/scrollUtils';
+import { sanitizeUrl } from '../lib/securityUtils';
 
 interface Slide {
   id: number;
@@ -124,7 +125,7 @@ export const Hero: React.FC = () => {
             className="absolute inset-0 w-full h-full"
           >
             <img 
-              src={currentBanner.image} 
+              src={sanitizeUrl(currentBanner.image)} 
               alt={currentBanner.title} 
               className="w-full h-full object-cover"
             />
