@@ -1,20 +1,16 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+## ✨ Novas Funcionalidades (Últimas Atualizações)
 
-# Run and deploy your AI Studio app
+- **Painel Administrativo (CMS):** Interface estilo SaaS para gerenciamento completo do conteúdo do site (`AdminPanel.tsx`).
+- **Gerenciamento de Banners (Hero):** Upload e edição de banners integrados ao Cloudinary, com interface simplificada.
+- **Ordenação Dinâmica da Home:** Capacidade de reordenar as seções da página inicial diretamente pelo painel.
+- **Editor Institucional:** Gerenciamento da seção "Sobre Nós".
+- **Dados de Contato e Suporte:** Edição de WhatsApp, E-mail, Endereço e Horário de Funcionamento.
+- **Integração com Firebase/Firestore:** Persistência de dados em tempo real utilizando a coleção `storeConfig/layout`.
+- **Restauração de Padrões (Factory Reset):** Botão de emergência para restaurar as configurações originais do site (`DEFAULT_STORE_CONFIG`).
+- **Identidade Visual:** Novo favicon circular transparente adicionado.
 
-This contains everything you need to run your app locally.
+## 🛠️ Tecnologias Utilizadas
 
-View your app in AI Studio: https://ai.studio/apps/09694ade-3353-47cf-8db0-531b70401d1b
-
-## Run Locally
-
-**Prerequisites:**  Node.js
-
-
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+- **Frontend:** React, TypeScript, Tailwind CSS (se aplicável)
+- **Backend/Database:** Firebase (Firestore)
+- **Armazenamento de Imagens:** Cloudinary
