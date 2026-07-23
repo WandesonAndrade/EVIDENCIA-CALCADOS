@@ -225,70 +225,100 @@ export const AdminPanel: React.FC = () => {
   const handleSaveBanner = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!bannerTitle || !bannerImage) {
-      setCmsFeedback('Por favor, preencha o Título e a URL da Imagem do Banner.');
+      addToast('Campos Obrigatórios', 'Por favor, preencha o Título e a URL da Imagem do Banner.', 'error');
       return;
     }
 
-    let updatedBanners = [...(heroBanners || [])];
-    if (editingBanner) {
-      updatedBanners = updatedBanners.map(b => 
-        b.id === editingBanner.id 
-          ? { ...b, badge: bannerBadge, title: bannerTitle, description: bannerDesc, image: bannerImage, buttonText: bannerBtnText, tabKey: bannerTabKey, active: bannerActive } 
-          : b
-      );
-    } else {
-      const newB: HeroBanner = {
-        id: `banner-${Date.now()}`,
-        badge: bannerBadge || 'DESTAQUE',
-        title: bannerTitle,
-        description: bannerDesc,
-        image: bannerImage,
-        buttonText: bannerBtnText || 'Explorar Coleção',
-        tabKey: bannerTabKey || 'lançamentos',
-        active: bannerActive
-      };
-      updatedBanners.push(newB);
-    }
+    try {
+      let updatedBanners = [...(heroBanners || [])];
+      if (editingBanner) {
+        updatedBanners = updatedBanners.map(b => 
+          b.id === editingBanner.id 
+            ? { ...b, badge: bannerBadge, title: bannerTitle, description: bannerDesc, image: bannerImage, buttonText: bannerBtnText, tabKey: bannerTabKey, active: bannerActive } 
+            : b
+        );
+      } else {
+        const newB: HeroBanner = {
+          id: `banner-${Date.now()}`,
+          badge: bannerBadge || 'DESTAQUE',
+          title: bannerTitle,
+          description: bannerDesc,
+          image: bannerImage,
+          buttonText: bannerBtnText || 'Explorar Coleção',
+          tabKey: bannerTabKey || 'lançamentos',
+          active: bannerActive
+        };
+        updatedBanners.push(newB);
+      }
 
-    await updateHeroBanners(updatedBanners);
-    setIsBannerModalOpen(false);
-    addToast('Banner Salvo!', 'O banner hero foi atualizado e sincronizado no Firestore.');
+      await updateHeroBanners(updatedBanners);
+      setIsBannerModalOpen(false);
+      addToast('Banner Salvo!', 'O banner hero foi atualizado e sincronizado no Firestore.');
+    } catch (err: any) {
+      console.error("Erro ao salvar banner no Firestore:", err);
+      addToast('Erro ao Salvar', 'Permissão negada ou erro de conexão com o Firestore. Tente novamente.', 'error');
+    }
   };
 
   const handleDeleteBanner = async (id: string) => {
     if (!window.confirm('Tem certeza que deseja remover este banner?')) return;
-    const updated = (heroBanners || []).filter(b => b.id !== id);
-    await updateHeroBanners(updated);
-    addToast('Banner Removido!', 'O banner foi excluído do carrossel principal.');
+    try {
+      const updated = (heroBanners || []).filter(b => b.id !== id);
+      await updateHeroBanners(updated);
+      addToast('Banner Removido!', 'O banner foi excluído do carrossel principal.');
+    } catch (err: any) {
+      console.error("Erro ao deletar banner no Firestore:", err);
+      addToast('Erro ao Salvar', 'Permissão negada ou erro de conexão com o Firestore.', 'error');
+    }
   };
 
   const handleToggleBannerActive = async (id: string) => {
-    const updated = (heroBanners || []).map(b => b.id === id ? { ...b, active: !b.active } : b);
-    await updateHeroBanners(updated);
-    addToast('Status Atualizado!', 'A visibilidade do banner foi alterada.');
+    try {
+      const updated = (heroBanners || []).map(b => b.id === id ? { ...b, active: !b.active } : b);
+      await updateHeroBanners(updated);
+      addToast('Status Atualizado!', 'A visibilidade do banner foi alterada.');
+    } catch (err: any) {
+      console.error("Erro ao alterar status do banner:", err);
+      addToast('Erro ao Salvar', 'Permissão negada ou erro de conexão com o Firestore.', 'error');
+    }
   };
 
   // --- CMS 2: HOME SECTIONS REORDERING & EDITING ---
   const handleMoveSection = async (index: number, direction: 'up' | 'down') => {
-    const list = [...(homeSections || [])];
-    const targetIdx = direction === 'up' ? index - 1 : index + 1;
-    if (targetIdx < 0 || targetIdx >= list.length) return;
-    const temp = list[index];
-    list[index] = list[targetIdx];
-    list[targetIdx] = temp;
-    await updateHomeSections(list);
-    addToast('Seções Reordenadas!', 'A nova sequência de seções foi atualizada.');
+    try {
+      const list = [...(homeSections || [])];
+      const targetIdx = direction === 'up' ? index - 1 : index + 1;
+      if (targetIdx < 0 || targetIdx >= list.length) return;
+      const temp = list[index];
+      list[index] = list[targetIdx];
+      list[targetIdx] = temp;
+      await updateHomeSections(list);
+      addToast('Seções Reordenadas!', 'A nova sequência de seções foi atualizada.');
+    } catch (err: any) {
+      console.error("Erro ao reordenar seções:", err);
+      addToast('Erro ao Salvar', 'Permissão negada ou erro de conexão com o Firestore.', 'error');
+    }
   };
 
   const handleSaveHomeSectionsOrder = async () => {
-    await updateHomeSections(homeSections || []);
-    addToast('Ordem salva com sucesso!', 'A nova ordem exata das seções da Home foi enviada para o Firestore.');
+    try {
+      await updateHomeSections(homeSections || []);
+      addToast('Ordem salva com sucesso!', 'A nova ordem exata das seções da Home foi enviada para o Firestore.');
+    } catch (err: any) {
+      console.error("Erro ao salvar ordem das seções:", err);
+      addToast('Erro ao Salvar', 'Permissão negada ou erro de conexão com o Firestore.', 'error');
+    }
   };
 
   const handleToggleSectionEnabled = async (id: string) => {
-    const list = (homeSections || []).map(s => s.id === id ? { ...s, enabled: !s.enabled } : s);
-    await updateHomeSections(list);
-    addToast('Visibilidade Alterada!', 'O status da seção foi sincronizado com a loja.');
+    try {
+      const list = (homeSections || []).map(s => s.id === id ? { ...s, enabled: !s.enabled } : s);
+      await updateHomeSections(list);
+      addToast('Visibilidade Alterada!', 'O status da seção foi sincronizado com a loja.');
+    } catch (err: any) {
+      console.error("Erro ao alterar visibilidade da seção:", err);
+      addToast('Erro ao Salvar', 'Permissão negada ou erro de conexão com o Firestore.', 'error');
+    }
   };
 
   const handleOpenEditSection = (sec: HomeSectionConfig) => {
@@ -301,51 +331,81 @@ export const AdminPanel: React.FC = () => {
   const handleSaveSectionEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingSection) return;
-    const updatedList = (homeSections || []).map(s =>
-      s.id === editingSection.id ? { ...s, name: sectionNameInput, description: sectionDescInput } : s
-    );
-    await updateHomeSections(updatedList);
-    setIsSectionModalOpen(false);
-    addToast('Seção Atualizada!', `A seção "${sectionNameInput}" foi salva no Firestore.`);
+    try {
+      const updatedList = (homeSections || []).map(s =>
+        s.id === editingSection.id ? { ...s, name: sectionNameInput, description: sectionDescInput } : s
+      );
+      await updateHomeSections(updatedList);
+      setIsSectionModalOpen(false);
+      addToast('Seção Atualizada!', `A seção "${sectionNameInput}" foi salva no Firestore.`);
+    } catch (err: any) {
+      console.error("Erro ao editar seção:", err);
+      addToast('Erro ao Salvar', 'Permissão negada ou erro de conexão com o Firestore.', 'error');
+    }
   };
 
   // --- CMS 3: ABOUT US SAVE ---
   const handleSaveAbout = async (e: React.FormEvent) => {
     e.preventDefault();
-    await updateAboutConfig({
-      title: aboutTitle,
-      subtitle: aboutSubtitle,
-      description: aboutDescription,
-      highlightImage: aboutImage,
-      badgeText: aboutBadge
-    });
-    addToast('Conteúdo Institucional!', 'As informações do "Sobre Nós" foram salvas no Firestore.');
+    try {
+      await updateAboutConfig({
+        title: aboutTitle,
+        subtitle: aboutSubtitle,
+        description: aboutDescription,
+        highlightImage: aboutImage,
+        badgeText: aboutBadge
+      });
+      addToast('Conteúdo Institucional!', 'As informações do "Sobre Nós" foram salvas no Firestore.');
+    } catch (err: any) {
+      console.error("Erro ao salvar Sobre Nós:", err);
+      addToast('Erro ao Salvar', 'Permissão negada ou erro de conexão com o Firestore.', 'error');
+    }
   };
 
   // --- CMS 4: CONTACT SAVE ---
   const handleSaveContact = async (e: React.FormEvent) => {
     e.preventDefault();
-    await updateContactConfig({
-      whatsapp: contactWhatsApp,
-      email: contactEmail,
-      address: contactAddress,
-      hours: contactHours,
-      promoBannerText: promoText,
-      isPromoBannerActive: isPromoActive
-    });
-    addToast('Suporte & Contatos!', 'Os contatos e o banner promocional foram atualizados no Firestore.');
+    try {
+      await updateContactConfig({
+        whatsapp: contactWhatsApp,
+        email: contactEmail,
+        address: contactAddress,
+        hours: contactHours,
+        promoBannerText: promoText,
+        isPromoBannerActive: isPromoActive
+      });
+      addToast('Suporte & Contatos!', 'Os contatos e o banner promocional foram atualizados no Firestore.');
+    } catch (err: any) {
+      console.error("Erro ao salvar contatos:", err);
+      addToast('Erro ao Salvar', 'Permissão negada ou erro de conexão com o Firestore.', 'error');
+    }
   };
 
-  // Cloudinary Upload Handler
+  // Cloudinary Upload Handler with File Security Validations
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, targetField?: 'product' | 'banner' | 'about') => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
+
+    const file = files[0];
+
+    // Security Validation 1: MIME Type Restriction (image/png, image/jpeg, image/webp)
+    const allowedMimeTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
+    if (!allowedMimeTypes.includes(file.type.toLowerCase())) {
+      addToast('Arquivo Inválido', 'Por favor, selecione apenas imagens nos formatos PNG, JPG, JPEG ou WEBP.', 'error');
+      return;
+    }
+
+    // Security Validation 2: Maximum File Size Limit (5MB)
+    const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      addToast('Arquivo Muito Grande', 'O tamanho máximo da imagem permitida é de 5MB.', 'error');
+      return;
+    }
 
     setIsUploading(true);
     setUploadFeedback('Enviando imagem...');
 
     try {
-      const file = files[0];
       if (cloudinaryCloudName && cloudinaryUploadPreset) {
         const formData = new FormData();
         formData.append('file', file);
@@ -380,7 +440,9 @@ export const AdminPanel: React.FC = () => {
         reader.readAsDataURL(file);
       }
     } catch (err: any) {
-      setUploadFeedback(`Erro no envio da imagem: ${err.message}`);
+      console.error("Erro no envio de imagem:", err);
+      setUploadFeedback(`Erro no envio: ${err.message}`);
+      addToast('Erro no Upload', 'Não foi possível enviar a imagem. Tente novamente.', 'error');
     } finally {
       setIsUploading(false);
       setTimeout(() => setUploadFeedback(''), 4000);
