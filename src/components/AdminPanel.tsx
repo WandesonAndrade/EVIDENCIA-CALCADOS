@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 import { Product, Order, OrderStatus, UserProfile, Category, HeroBanner, HomeSectionConfig, AboutConfig, ContactConfig } from '../types';
 import { MoblinkIntegrationPanel } from './MoblinkIntegrationPanel';
 import { MoblinkProductsManager } from './MoblinkProductsManager';
-import { storage, db } from '../lib/firebase';
+import { storage, db, auth, app } from '../lib/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { collection, doc, getDocs, setDoc, updateDoc } from 'firebase/firestore';
 import { 
@@ -61,6 +61,27 @@ export const AdminPanel: React.FC = () => {
   const [activeTab, setActiveTab] = useState<AdminTab>('overview');
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isRestoreModalOpen, setIsRestoreModalOpen] = useState(false);
+
+  // Toast Notification System State
+  const [toasts, setToasts] = useState<Array<{ id: string; title: string; message: string; type: 'success' | 'error' | 'info' }>>([]);
+
+  const addToast = (title: string, message: string, type: 'success' | 'error' | 'info' = 'success') => {
+    const id = `toast-${Date.now()}-${Math.random()}`;
+    setToasts(prev => [...prev, { id, title, message, type }]);
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, 3800);
+  };
+
+  const removeToast = (id: string) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+  };
+
+  // Home Section Editing Modal State
+  const [editingSection, setEditingSection] = useState<HomeSectionConfig | null>(null);
+  const [sectionNameInput, setSectionNameInput] = useState('');
+  const [sectionDescInput, setSectionDescInput] = useState('');
+  const [isSectionModalOpen, setIsSectionModalOpen] = useState(false);
 
   // Category management Form States
   const [newCatName, setNewCatName] = useState('');
@@ -231,34 +252,23 @@ export const AdminPanel: React.FC = () => {
 
     await updateHeroBanners(updatedBanners);
     setIsBannerModalOpen(false);
-    setCmsFeedback('Banner salvo com sucesso!');
-    setTimeout(() => setCmsFeedback(''), 3000);
+    addToast('Banner Salvo!', 'O banner hero foi atualizado e sincronizado no Firestore.');
   };
 
   const handleDeleteBanner = async (id: string) => {
     if (!window.confirm('Tem certeza que deseja remover este banner?')) return;
     const updated = (heroBanners || []).filter(b => b.id !== id);
     await updateHeroBanners(updated);
-    setCmsFeedback('Banner removido.');
-    setTimeout(() => setCmsFeedback(''), 3000);
+    addToast('Banner Removido!', 'O banner foi excluído do carrossel principal.');
   };
 
   const handleToggleBannerActive = async (id: string) => {
     const updated = (heroBanners || []).map(b => b.id === id ? { ...b, active: !b.active } : b);
     await updateHeroBanners(updated);
+    addToast('Status Atualizado!', 'A visibilidade do banner foi alterada.');
   };
 
-  const handleMoveBanner = async (index: number, direction: 'up' | 'down') => {
-    const list = [...(heroBanners || [])];
-    const targetIdx = direction === 'up' ? index - 1 : index + 1;
-    if (targetIdx < 0 || targetIdx >= list.length) return;
-    const temp = list[index];
-    list[index] = list[targetIdx];
-    list[targetIdx] = temp;
-    await updateHeroBanners(list);
-  };
-
-  // --- CMS 2: HOME SECTIONS REORDERING ---
+  // --- CMS 2: HOME SECTIONS REORDERING & EDITING ---
   const handleMoveSection = async (index: number, direction: 'up' | 'down') => {
     const list = [...(homeSections || [])];
     const targetIdx = direction === 'up' ? index - 1 : index + 1;
@@ -267,13 +277,36 @@ export const AdminPanel: React.FC = () => {
     list[index] = list[targetIdx];
     list[targetIdx] = temp;
     await updateHomeSections(list);
-    setCmsFeedback('Ordem das seções atualizada em tempo real na Home!');
-    setTimeout(() => setCmsFeedback(''), 3000);
+    addToast('Seções Reordenadas!', 'A nova sequência de seções foi atualizada.');
+  };
+
+  const handleSaveHomeSectionsOrder = async () => {
+    await updateHomeSections(homeSections || []);
+    addToast('Ordem salva com sucesso!', 'A nova ordem exata das seções da Home foi enviada para o Firestore.');
   };
 
   const handleToggleSectionEnabled = async (id: string) => {
     const list = (homeSections || []).map(s => s.id === id ? { ...s, enabled: !s.enabled } : s);
     await updateHomeSections(list);
+    addToast('Visibilidade Alterada!', 'O status da seção foi sincronizado com a loja.');
+  };
+
+  const handleOpenEditSection = (sec: HomeSectionConfig) => {
+    setEditingSection(sec);
+    setSectionNameInput(sec.name);
+    setSectionDescInput(sec.description);
+    setIsSectionModalOpen(true);
+  };
+
+  const handleSaveSectionEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingSection) return;
+    const updatedList = (homeSections || []).map(s =>
+      s.id === editingSection.id ? { ...s, name: sectionNameInput, description: sectionDescInput } : s
+    );
+    await updateHomeSections(updatedList);
+    setIsSectionModalOpen(false);
+    addToast('Seção Atualizada!', `A seção "${sectionNameInput}" foi salva no Firestore.`);
   };
 
   // --- CMS 3: ABOUT US SAVE ---
@@ -286,8 +319,7 @@ export const AdminPanel: React.FC = () => {
       highlightImage: aboutImage,
       badgeText: aboutBadge
     });
-    setCmsFeedback('Conteúdo institucional "Sobre Nós" atualizado!');
-    setTimeout(() => setCmsFeedback(''), 3000);
+    addToast('Conteúdo Institucional!', 'As informações do "Sobre Nós" foram salvas no Firestore.');
   };
 
   // --- CMS 4: CONTACT SAVE ---
@@ -301,8 +333,7 @@ export const AdminPanel: React.FC = () => {
       promoBannerText: promoText,
       isPromoBannerActive: isPromoActive
     });
-    setCmsFeedback('Informações de contato e suporte salvas com sucesso!');
-    setTimeout(() => setCmsFeedback(''), 3000);
+    addToast('Suporte & Contatos!', 'Os contatos e o banner promocional foram atualizados no Firestore.');
   };
 
   // Cloudinary Upload Handler
@@ -730,23 +761,6 @@ export const AdminPanel: React.FC = () => {
 
                   {/* Banner Actions */}
                   <div className="flex items-center space-x-2 shrink-0">
-                    <button
-                      onClick={() => handleMoveBanner(index, 'up')}
-                      disabled={index === 0}
-                      className="p-2.5 rounded-xl border border-slate-700 bg-slate-800 text-slate-300 hover:text-white disabled:opacity-30 cursor-pointer"
-                      title="Mover para cima"
-                    >
-                      <ArrowUp className="h-4 w-4" />
-                    </button>
-
-                    <button
-                      onClick={() => handleMoveBanner(index, 'down')}
-                      disabled={index === (heroBanners || []).length - 1}
-                      className="p-2.5 rounded-xl border border-slate-700 bg-slate-800 text-slate-300 hover:text-white disabled:opacity-30 cursor-pointer"
-                      title="Mover para baixo"
-                    >
-                      <ArrowDown className="h-4 w-4" />
-                    </button>
 
                     <button
                       onClick={() => handleToggleBannerActive(banner.id)}
@@ -930,12 +944,23 @@ export const AdminPanel: React.FC = () => {
         {/* TAB 3: ORDENAÇÃO DE SEÇÕES DA HOME (NEW CMS FEATURE) */}
         {activeTab === 'home-sections' && (
           <div className="space-y-6 max-w-4xl">
-            <div>
-              <h2 className="text-2xl font-black tracking-tight flex items-center space-x-2">
-                <Sliders className="h-6 w-6 text-amber-400" />
-                <span>Ordenação de Seções da Página Inicial</span>
-              </h2>
-              <p className="text-xs text-slate-400">Altere a ordem de exibição e ative/desative seções da loja dinamicamente com os botões de setas</p>
+            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+              <div>
+                <h2 className="text-2xl font-black tracking-tight flex items-center space-x-2">
+                  <Sliders className="h-6 w-6 text-amber-400" />
+                  <span>Ordenação de Seções da Página Inicial</span>
+                </h2>
+                <p className="text-xs text-slate-400">Altere a ordem de exibição e ative/desative seções da loja dinamicamente com os botões de setas</p>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleSaveHomeSectionsOrder}
+                className="px-6 py-3 rounded-2xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs shadow-lg transition-all cursor-pointer flex items-center justify-center space-x-2 shrink-0"
+              >
+                <Save className="h-4 w-4" />
+                <span>Salvar Ordem das Seções</span>
+              </button>
             </div>
 
             <div className="space-y-4">
@@ -957,6 +982,15 @@ export const AdminPanel: React.FC = () => {
                   </div>
 
                   <div className="flex items-center space-x-3">
+                    <button
+                      onClick={() => handleOpenEditSection(sec)}
+                      className="p-2 rounded-xl border border-slate-700 bg-slate-800 text-slate-300 hover:text-amber-400 cursor-pointer flex items-center space-x-1.5 text-xs font-bold"
+                      title="Editar título e subtítulo"
+                    >
+                      <Edit className="h-4 w-4" />
+                      <span className="hidden sm:inline">Editar</span>
+                    </button>
+
                     <button
                       onClick={() => handleMoveSection(index, 'up')}
                       disabled={index === 0}
@@ -990,6 +1024,77 @@ export const AdminPanel: React.FC = () => {
                 </div>
               ))}
             </div>
+
+            <div className="flex justify-end pt-4 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={handleSaveHomeSectionsOrder}
+                className="px-6 py-3 rounded-2xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs shadow-lg transition-all cursor-pointer flex items-center space-x-2"
+              >
+                <Save className="h-4 w-4" />
+                <span>Salvar Seções e Ordem no Firestore</span>
+              </button>
+            </div>
+
+            {/* Edit Section Modal */}
+            {isSectionModalOpen && editingSection && (
+              <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+                <div className={`w-full max-w-lg p-6 sm:p-8 rounded-3xl border shadow-2xl space-y-6 ${
+                  isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
+                }`}>
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+                    <h3 className="text-lg font-black">Editar Seção da Home</h3>
+                    <button onClick={() => setIsSectionModalOpen(false)} className="text-slate-400 hover:text-white">✕</button>
+                  </div>
+
+                  <form onSubmit={handleSaveSectionEdit} className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-bold mb-1 text-slate-300">Título da Seção *</label>
+                      <input
+                        type="text"
+                        value={sectionNameInput}
+                        onChange={(e) => setSectionNameInput(e.target.value)}
+                        placeholder="Ex: Ofertas Relâmpago & Outlet"
+                        required
+                        className={`w-full p-3 rounded-xl text-xs border focus:outline-none ${
+                          isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-100 border-slate-300'
+                        }`}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold mb-1 text-slate-300">Subtítulo / Descrição</label>
+                      <textarea
+                        value={sectionDescInput}
+                        onChange={(e) => setSectionDescInput(e.target.value)}
+                        placeholder="Ex: Descontos exclusivos por tempo limitado"
+                        rows={3}
+                        className={`w-full p-3 rounded-xl text-xs border focus:outline-none ${
+                          isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-100 border-slate-300'
+                        }`}
+                      />
+                    </div>
+
+                    <div className="flex justify-end space-x-3 pt-4 border-t border-slate-800">
+                      <button
+                        type="button"
+                        onClick={() => setIsSectionModalOpen(false)}
+                        className="px-5 py-2.5 rounded-xl border border-slate-700 text-xs font-bold text-slate-300 hover:bg-slate-800 cursor-pointer"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="submit"
+                        className="px-6 py-2.5 rounded-xl bg-amber-400 text-slate-950 font-black text-xs hover:bg-amber-300 transition-all shadow-md cursor-pointer flex items-center space-x-2"
+                      >
+                        <Save className="h-4 w-4" />
+                        <span>Salvar Alterações</span>
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -1476,8 +1581,7 @@ export const AdminPanel: React.FC = () => {
                 onClick={async () => {
                   await restoreDefaultConfig();
                   setIsRestoreModalOpen(false);
-                  setCmsFeedback('Layout e dados padrão restaurados com sucesso!');
-                  setTimeout(() => setCmsFeedback(''), 4000);
+                  addToast('Configurações Restauradas!', 'Todas as seções, banners e textos retornaram ao padrão de fábrica no Firestore.', 'info');
                 }}
                 className="flex-1 px-5 py-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs shadow-lg shadow-rose-950/50 cursor-pointer flex items-center justify-center space-x-2 transition-all"
               >
@@ -1488,6 +1592,42 @@ export const AdminPanel: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* FLOATING TOAST NOTIFICATION CONTAINER */}
+      <div className="fixed top-6 right-6 z-50 flex flex-col space-y-3 max-w-sm w-full pointer-events-none">
+        {toasts.map(toast => (
+          <div
+            key={toast.id}
+            className={`pointer-events-auto p-4 rounded-2xl border backdrop-blur-2xl shadow-2xl flex items-start space-x-3 transition-all duration-300 animate-in fade-in slide-in-from-top-4 ${
+              toast.type === 'success' ? 'bg-slate-900/95 border-emerald-500/50 text-white shadow-emerald-950/50' :
+              toast.type === 'error' ? 'bg-slate-900/95 border-rose-500/50 text-white shadow-rose-950/50' :
+              'bg-slate-900/95 border-amber-500/50 text-white shadow-amber-950/50'
+            }`}
+          >
+            <div className={`p-2 rounded-xl shrink-0 ${
+              toast.type === 'success' ? 'bg-emerald-500/20 text-emerald-400' :
+              toast.type === 'error' ? 'bg-rose-500/20 text-rose-400' :
+              'bg-amber-500/20 text-amber-400'
+            }`}>
+              {toast.type === 'success' && <CheckCircle2 className="h-5 w-5" />}
+              {toast.type === 'error' && <AlertCircle className="h-5 w-5" />}
+              {toast.type === 'info' && <Sparkles className="h-5 w-5" />}
+            </div>
+
+            <div className="flex-1 space-y-0.5 pt-0.5">
+              <h4 className="text-xs font-black tracking-wide">{toast.title}</h4>
+              <p className="text-[11px] text-slate-300 font-medium leading-snug">{toast.message}</p>
+            </div>
+
+            <button
+              onClick={() => removeToast(toast.id)}
+              className="text-slate-400 hover:text-white p-1 cursor-pointer"
+            >
+              ✕
+            </button>
+          </div>
+        ))}
+      </div>
     </div>
   );
 };

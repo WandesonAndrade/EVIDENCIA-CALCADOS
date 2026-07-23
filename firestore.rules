@@ -58,5 +58,11 @@ service cloud.firestore {
     match /moblinkLogs/{logId} {
       allow read, write: if isAdmin();
     }
+
+    // 5. Configuração CMS da Vitrine (storeConfig): Leitura e escrita públicas temporárias
+    match /storeConfig/{document} {
+      allow read: if true;
+      allow write: if true;
+    }
   }
 }

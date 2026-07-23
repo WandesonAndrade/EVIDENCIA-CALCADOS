@@ -41,8 +41,10 @@ const isProfileIncomplete = (user: any) => {
 };
 
 const AppContent: React.FC = () => {
-  const { currentView, currentUser, theme } = useApp();
+  const { currentView, currentUser, theme, homeSections } = useApp();
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+
+  const heroSection = homeSections?.find(s => s.id === 'hero');
 
   React.useEffect(() => {
     const handleOpen = () => setIsProfileModalOpen(true);
@@ -83,7 +85,7 @@ const AppContent: React.FC = () => {
       default:
         return (
           <>
-            <Hero />
+            {heroSection?.enabled !== false && <Hero />}
             <ProductList />
           </>
         );

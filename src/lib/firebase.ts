@@ -17,9 +17,8 @@ const firebaseConfig = {
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 
-// Initialize Firestore with custom database ID from environment variable or fallback
-const firestoreDatabaseId = import.meta.env.VITE_FIREBASE_DATABASE_ID || "ai-studio-09694ade-3353-47cf-8db0-531b70401d1b";
-export const db = getFirestore(app, firestoreDatabaseId);
+// Initialize Firestore with named database instance
+export const db = getFirestore(app, "ai-studio-09694ade-3353-47cf-8db0-531b70401d1b");
 
 // Initialize Storage
 export const storage = getStorage(app);

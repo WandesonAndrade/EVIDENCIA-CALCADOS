@@ -121,7 +121,8 @@ export const DEFAULT_HOME_SECTIONS: HomeSectionConfig[] = [
   { id: 'offers', name: 'Ofertas Relâmpago & Outlet', description: 'Carrossel promocional com relógio contador', enabled: true },
   { id: 'launches', name: 'Novidades & Lançamentos', description: 'Carrossel dos lançamentos da estação', enabled: true },
   { id: 'shoes', name: 'Calçados Premium', description: 'Grade de produtos da categoria calçados', enabled: true },
-  { id: 'accessories', name: 'Acessórios em Couro', description: 'Grade de produtos da categoria acessórios', enabled: true }
+  { id: 'accessories', name: 'Acessórios em Couro', description: 'Grade de produtos da categoria acessórios', enabled: true },
+  { id: 'about', name: 'Sobre Nós (Institucional)', description: 'Seção sobre a história e valores da loja', enabled: true }
 ];
 
 export const DEFAULT_ABOUT_CONFIG: AboutConfig = {
@@ -328,14 +329,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return DEFAULT_CONTACT_CONFIG;
   });
 
-  // CMS Update Handlers
+  // CMS Update Handlers (Writes to storeConfig/layout)
   const updateHeroBanners = async (banners: HeroBanner[]) => {
     setHeroBanners(banners);
     localStorage.setItem('evidencia_cms_hero_banners', JSON.stringify(banners));
     try {
-      await setDoc(doc(db, 'storeConfig', 'heroBanners'), { banners }, { merge: true });
+      await setDoc(doc(db, 'storeConfig', 'layout'), { heroBanners: banners }, { merge: true });
     } catch (err) {
-      console.warn("Firestore heroBanners sync skipped:", err);
+      console.error("❌ ERRO AO SALVAR BANNERS NO FIRESTORE:", err);
+      throw err;
     }
   };
 
@@ -343,31 +345,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setHomeSections(sections);
     localStorage.setItem('evidencia_cms_home_sections', JSON.stringify(sections));
     try {
-      await setDoc(doc(db, 'storeConfig', 'homeSections'), { sections }, { merge: true });
+      await setDoc(doc(db, 'storeConfig', 'layout'), { homeSections: sections }, { merge: true });
     } catch (err) {
-      console.warn("Firestore homeSections sync skipped:", err);
+      console.error("❌ ERRO AO SALVAR SEÇÕES DA HOME NO FIRESTORE:", err);
+      throw err;
     }
   };
 
   const updateAboutConfig = async (newConfig: Partial<AboutConfig>) => {
-    setAboutConfig((prev) => {
-      const updated = { ...prev, ...newConfig };
-      localStorage.setItem('evidencia_cms_about_config', JSON.stringify(updated));
-      setDoc(doc(db, 'storeConfig', 'aboutConfig'), updated, { merge: true }).catch(() => {});
-      return updated;
-    });
+    const updated = { ...aboutConfig, ...newConfig };
+    setAboutConfig(updated);
+    localStorage.setItem('evidencia_cms_about_config', JSON.stringify(updated));
+    try {
+      await setDoc(doc(db, 'storeConfig', 'layout'), { aboutConfig: updated }, { merge: true });
+    } catch (err) {
+      console.error("❌ ERRO AO SALVAR SOBRE NÓS NO FIRESTORE:", err);
+      throw err;
+    }
   };
 
   const updateContactConfig = async (newConfig: Partial<ContactConfig>) => {
-    setContactConfig((prev) => {
-      const updated = { ...prev, ...newConfig };
-      localStorage.setItem('evidencia_cms_contact_config', JSON.stringify(updated));
-      if (updated.whatsapp) localStorage.setItem('evidencia_settings_whatsapp', updated.whatsapp);
-      if (updated.promoBannerText) localStorage.setItem('evidencia_settings_banner_text', updated.promoBannerText);
-      localStorage.setItem('evidencia_settings_banner_active', String(updated.isPromoBannerActive));
-      setDoc(doc(db, 'storeConfig', 'contactConfig'), updated, { merge: true }).catch(() => {});
-      return updated;
-    });
+    const updated = { ...contactConfig, ...newConfig };
+    setContactConfig(updated);
+    localStorage.setItem('evidencia_cms_contact_config', JSON.stringify(updated));
+    if (updated.whatsapp) localStorage.setItem('evidencia_settings_whatsapp', updated.whatsapp);
+    if (updated.promoBannerText) localStorage.setItem('evidencia_settings_banner_text', updated.promoBannerText);
+    localStorage.setItem('evidencia_settings_banner_active', String(updated.isPromoBannerActive));
+    try {
+      await setDoc(doc(db, 'storeConfig', 'layout'), { contactConfig: updated }, { merge: true });
+    } catch (err) {
+      console.error("❌ ERRO AO SALVAR CONTATOS NO FIRESTORE:", err);
+      throw err;
+    }
   };
 
   const restoreDefaultConfig = async (): Promise<void> => {
@@ -390,14 +399,52 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem('evidencia_settings_banner_active', String(DEFAULT_CONTACT_CONFIG.isPromoBannerActive));
 
     try {
-      await setDoc(doc(db, 'storeConfig', 'heroBanners'), { banners: DEFAULT_HERO_BANNERS }, { merge: true });
-      await setDoc(doc(db, 'storeConfig', 'homeSections'), { sections: DEFAULT_HOME_SECTIONS }, { merge: true });
-      await setDoc(doc(db, 'storeConfig', 'aboutConfig'), DEFAULT_ABOUT_CONFIG, { merge: true });
-      await setDoc(doc(db, 'storeConfig', 'contactConfig'), DEFAULT_CONTACT_CONFIG, { merge: true });
+      await setDoc(doc(db, 'storeConfig', 'layout'), DEFAULT_STORE_CONFIG);
     } catch (err) {
-      console.warn("Firestore restore sync skipped:", err);
+      console.error("❌ ERRO AO RESTAURAR CONFIGURAÇÃO PADRÃO NO FIRESTORE:", err);
+      throw err;
     }
   };
+
+  // Public Read (Init): Load Store Configuration from Firestore (storeConfig/layout) on mount
+  useEffect(() => {
+    const loadStoreConfig = async () => {
+      try {
+        const layoutDocRef = doc(db, 'storeConfig', 'layout');
+        const layoutSnap = await getDoc(layoutDocRef);
+
+        if (layoutSnap.exists()) {
+          const data = layoutSnap.data() as Partial<StoreConfig>;
+          if (data.heroBanners && Array.isArray(data.heroBanners)) {
+            setHeroBanners(data.heroBanners);
+            localStorage.setItem('evidencia_cms_hero_banners', JSON.stringify(data.heroBanners));
+          }
+          if (data.homeSections && Array.isArray(data.homeSections)) {
+            setHomeSections(data.homeSections);
+            localStorage.setItem('evidencia_cms_home_sections', JSON.stringify(data.homeSections));
+          }
+          if (data.aboutConfig) {
+            setAboutConfig(data.aboutConfig);
+            localStorage.setItem('evidencia_cms_about_config', JSON.stringify(data.aboutConfig));
+          }
+          if (data.contactConfig) {
+            setContactConfig(data.contactConfig);
+            localStorage.setItem('evidencia_cms_contact_config', JSON.stringify(data.contactConfig));
+            if (data.contactConfig.whatsapp) {
+              localStorage.setItem('evidencia_settings_whatsapp', data.contactConfig.whatsapp);
+            }
+          }
+        } else {
+          // If layout document does not exist in Firestore, seed it with DEFAULT_STORE_CONFIG
+          await setDoc(layoutDocRef, DEFAULT_STORE_CONFIG);
+        }
+      } catch (err) {
+        console.error("❌ ERRO AO CARREGAR STORE CONFIG DO FIRESTORE:", err);
+      }
+    };
+
+    loadStoreConfig();
+  }, []);
 
   // Load cart, favorites, and session from LocalStorage on mount
   useEffect(() => {
