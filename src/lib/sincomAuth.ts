@@ -57,23 +57,21 @@ export const sincomAuthService = {
    * using the configured user and password. When the API returns the access token,
    * it saves the token for all subsequent requests.
    */
-  async login(config?: { apiUrl?: string; apiUser?: string; apiPassword?: string }): Promise<SincomAuthSession> {
+  async login(config?: { apiUrl?: string }): Promise<SincomAuthSession> {
     const apiUrl = config?.apiUrl || import.meta.env.VITE_SINCOM_API_URL || 'http://api_sincom.caioflix.com.br';
-    const usuario = config?.apiUser || import.meta.env.VITE_SINCOM_API_USER || 'a';
-    const senha = config?.apiPassword || import.meta.env.VITE_SINCOM_API_PASSWORD || 'a';
 
     try {
       const response = await fetch('/api/sincom/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ apiUrl, usuario, senha })
+        body: JSON.stringify({ apiUrl })
       });
 
       const data = await response.json();
 
       if (data.success && data.token) {
         return this.saveToken(data.token, {
-          user: usuario,
+          user: data.user || 'sincom_user',
           expiresAt: data.expiresAt,
           message: data.message || 'Token obtido e salvo com sucesso!'
         });
@@ -81,8 +79,8 @@ export const sincomAuthService = {
         const errorSession: SincomAuthSession = {
           token: '',
           status: 'error',
-          user: usuario,
-          message: data.message || 'Não foi possível autenticar com o usuário e senha informados.'
+          user: 'sincom_user',
+          message: data.message || 'Não foi possível autenticar junto ao servidor ERP.'
         };
         return errorSession;
       }
@@ -92,7 +90,7 @@ export const sincomAuthService = {
       // Graceful fallback session token
       const fallbackToken = `sincom_jwt_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
       return this.saveToken(fallbackToken, {
-        user: usuario,
+        user: 'sincom_user',
         message: 'Token de acesso gerado e ativado para as requisições.'
       });
     }

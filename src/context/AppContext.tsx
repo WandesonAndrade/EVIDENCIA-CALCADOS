@@ -264,8 +264,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       enabled: true,
       apiUrl: import.meta.env.VITE_SINCOM_API_URL || 'http://api_sincom.caioflix.com.br',
       apiToken: 'mob_live_9a8b7c6d5e4f3a2b1c',
-      apiUser: import.meta.env.VITE_SINCOM_API_USER || 'a',
-      apiPassword: import.meta.env.VITE_SINCOM_API_PASSWORD || 'a',
+      apiUser: '',
+      apiPassword: '',
       empresaId: '001',
       filialId: '001',
       webhookSecret: 'secret_moblink_evidencia_2026',
@@ -1180,11 +1180,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return sincomAuthService.getSavedSession();
   });
 
-  const loginSincomAuth = async (config?: { apiUrl?: string; apiUser?: string; apiPassword?: string }): Promise<SincomAuthSession> => {
+  const loginSincomAuth = async (config?: { apiUrl?: string }): Promise<SincomAuthSession> => {
     const session = await sincomAuthService.login({
-      apiUrl: config?.apiUrl || moblinkConfig.apiUrl,
-      apiUser: config?.apiUser || moblinkConfig.apiUser,
-      apiPassword: config?.apiPassword || moblinkConfig.apiPassword
+      apiUrl: config?.apiUrl || moblinkConfig.apiUrl
     });
 
     setAuthSession(session);
