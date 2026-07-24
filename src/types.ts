@@ -134,10 +134,19 @@ export type OrderStatus = 'Pendente' | 'Confirmado' | 'Cancelado' | 'Entregue';
 
 export interface Order {
   id: string;
+  orderNumber?: string;
+  userId?: string;
   customerEmail: string;
   customerName: string;
+  customerPhone?: string;
+  city?: string;
+  deliveryAddress?: string;
+  deliveryType?: 'Entrega em Caxias-MA' | 'Retirada na Loja';
   items: OrderItem[];
+  subtotal?: number;
+  freightCost?: number;
   total: number;
+  paymentMethod?: 'Pix' | 'Cartão de Crédito' | 'Crediário da Loja';
   status: OrderStatus;
   createdAt: string;
   whatsappUrl: string;
@@ -153,6 +162,8 @@ export interface Category {
   description?: string;
   createdAt?: string;
 }
+
+export type CrediarioStatus = 'NaoSolicitado' | 'EmAnalise' | 'Aprovado' | 'Rejeitado';
 
 export interface UserProfile {
   uid: string;
@@ -176,6 +187,11 @@ export interface UserProfile {
   uf?: string;
   complemento?: string;
   pontoReferencia?: string;
+  // Crediário Status fields
+  crediarioStatus?: CrediarioStatus;
+  crediarioSolicitadoEm?: string;
+  crediarioAnalisadoEm?: string;
+  crediarioMotivoRejeicao?: string;
 }
 
 export interface HeroBanner {

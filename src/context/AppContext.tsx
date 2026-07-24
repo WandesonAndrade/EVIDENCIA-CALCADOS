@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Product, CartItem, Order, UserProfile, UserRole, Category, MoblinkConfig, MoblinkSyncLog, MoblinkSyncLogItem, SincomAuthSession, HeroBanner, HomeSectionConfig, AboutConfig, ContactConfig, StoreConfig } from '../types';
+import { Product, CartItem, Order, UserProfile, UserRole, CrediarioStatus, Category, MoblinkConfig, MoblinkSyncLog, MoblinkSyncLogItem, SincomAuthSession, HeroBanner, HomeSectionConfig, AboutConfig, ContactConfig, StoreConfig } from '../types';
 import { db, auth, seedDatabaseIfNeeded, SEED_PRODUCTS } from '../lib/firebase';
 import { collection, onSnapshot, doc, setDoc, getDoc, query, where, deleteDoc } from 'firebase/firestore';
 import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
@@ -29,7 +29,9 @@ interface AppContextProps {
   logout: () => void;
   orders: Order[];
   isLoadingOrders: boolean;
-  createOrder: (customerName: string, customerEmail: string) => Promise<Order>;
+  createOrder: (customerName: string, customerEmail: string, options?: { paymentMethod?: 'Pix' | 'Cartão de Crédito' | 'Crediário da Loja'; deliveryType?: 'Entrega em Caxias-MA' | 'Retirada na Loja'; customerPhone?: string; deliveryAddress?: string }) => Promise<Order>;
+  solicitarCrediario: (dados: Partial<UserProfile>) => Promise<void>;
+  atualizarStatusCrediario: (uid: string, novoStatus: CrediarioStatus, motivo?: string) => Promise<void>;
   updateOrderStatus: (orderId: string, status: Order['status']) => Promise<void>;
   assignOrderSeller: (orderId: string, sellerEmail: string, sellerName: string) => Promise<void>;
   addProduct: (product: Product) => Promise<void>;
@@ -43,8 +45,8 @@ interface AppContextProps {
   setSelectedMenuTab: (tab: string) => void;
   favorites: string[];
   toggleFavorite: (productId: string) => void;
-  currentView: 'home' | 'cart' | 'admin' | 'orders' | 'product-detail' | 'portfolio-case' | 'category-page' | 'about' | 'support' | 'favorites';
-  setCurrentView: (view: 'home' | 'cart' | 'admin' | 'orders' | 'product-detail' | 'portfolio-case' | 'category-page' | 'about' | 'support' | 'favorites') => void;
+  currentView: 'home' | 'cart' | 'admin' | 'admin-login' | 'login' | 'orders' | 'product-detail' | 'portfolio-case' | 'category-page' | 'about' | 'support' | 'favorites';
+  setCurrentView: (view: 'home' | 'cart' | 'admin' | 'admin-login' | 'login' | 'orders' | 'product-detail' | 'portfolio-case' | 'category-page' | 'about' | 'support' | 'favorites') => void;
   selectedProduct: Product | null;
   setSelectedProduct: (product: Product | null) => void;
   theme: 'light' | 'dark';
@@ -246,7 +248,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('TODOS');
   const [selectedMenuTab, setSelectedMenuTab] = useState('lançamentos');
-  const [currentView, setCurrentView] = useState<'home' | 'cart' | 'admin' | 'orders' | 'product-detail' | 'portfolio-case' | 'category-page' | 'about' | 'support' | 'favorites'>('home');
+  const [currentView, setCurrentView] = useState<'home' | 'cart' | 'admin' | 'admin-login' | 'login' | 'orders' | 'product-detail' | 'portfolio-case' | 'category-page' | 'about' | 'support' | 'favorites'>('home');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     const saved = localStorage.getItem('evidencia_theme');
@@ -986,9 +988,63 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCurrentView('home');
   };
 
-  // Order Actions & WhatsApp integration
-  const createOrder = async (customerName: string, customerEmail: string): Promise<Order> => {
-    const total = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+  const solicitarCrediario = async (dados: Partial<UserProfile>): Promise<void> => {
+    if (!currentUser) return;
+    const updatedProfile: UserProfile = {
+      ...currentUser,
+      ...dados,
+      crediarioStatus: 'EmAnalise',
+      crediarioSolicitadoEm: new Date().toISOString()
+    };
+    await updateUserProfile(updatedProfile);
+  };
+
+  const atualizarStatusCrediario = async (uid: string, novoStatus: CrediarioStatus, motivo?: string): Promise<void> => {
+    try {
+      const userRef = doc(db, 'users', uid);
+      const updates: Partial<UserProfile> = {
+        crediarioStatus: novoStatus,
+        crediarioAnalisadoEm: new Date().toISOString(),
+        ...(motivo ? { crediarioMotivoRejeicao: motivo } : {})
+      };
+      await setDoc(userRef, updates, { merge: true });
+
+      if (currentUser && currentUser.uid === uid) {
+        const updated = { ...currentUser, ...updates };
+        setCurrentUser(updated);
+        saveLocalUser(uid, updated);
+      }
+    } catch (err) {
+      console.error("Erro ao atualizar status do crediário no Firestore:", err);
+      throw err;
+    }
+  };
+
+  // Order Actions & WhatsApp integration with Caxias (MA) Freight & Payment Rules
+  const createOrder = async (
+    customerName: string, 
+    customerEmail: string, 
+    options?: { 
+      paymentMethod?: 'Pix' | 'Cartão de Crédito' | 'Crediário da Loja'; 
+      deliveryType?: 'Entrega em Caxias-MA' | 'Retirada na Loja';
+      customerPhone?: string; 
+      deliveryAddress?: string; 
+    }
+  ): Promise<Order> => {
+    const subtotal = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+    const deliveryType = options?.deliveryType || 'Entrega em Caxias-MA';
+    
+    // Freight rule: 0 if pickup in store OR subtotal > 100, else 10
+    const freightCost = deliveryType === 'Retirada na Loja' ? 0 : (subtotal > 100 ? 0 : 10);
+    const grandTotal = subtotal + freightCost;
+    const paymentMethod = options?.paymentMethod || 'Pix';
+    const numSeq = Math.floor(1000 + Math.random() * 9000);
+    const orderNumber = `#EV-${numSeq}`;
+
+    const deliveryAddressStr = deliveryType === 'Retirada na Loja'
+      ? 'Retirada na Loja: Rua Afonso Pena, 295 - Centro, Caxias - MA'
+      : (options?.deliveryAddress || `${currentUser?.endereco || ''}, Nº ${currentUser?.numero || ''} - ${currentUser?.bairro || ''}`);
+
     const orderItems = cart.map((item) => ({
       productId: item.product.id,
       name: item.product.name,
@@ -998,31 +1054,48 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       image: item.product.images?.[0] || item.product.foto_uri || 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?q=80&w=600&auto=format&fit=crop'
     }));
 
-    let message = `*Novo Pedido - Evidência Calçados*\n\n`;
-    message += `*Cliente:* ${customerName}\n`;
-    message += `*E-mail:* ${customerEmail}\n\n`;
-    message += `*Itens do Pedido:*\n`;
+    let message = `🛍️ *NOVO PEDIDO EVIDÊNCIA CALÇADOS* - ${orderNumber}\n\n`;
+    message += `👤 *Dados do Cliente:*\n`;
+    message += `- *Nome:* ${customerName}\n`;
+    message += `- *E-mail:* ${customerEmail}\n`;
+    message += `- *Telefone:* ${options?.customerPhone || currentUser?.telefone || 'Não informado'}\n\n`;
     
+    message += `🚚 *Modalidade de Entrega:* ${deliveryType}\n`;
+    message += `📍 *Endereço:* ${deliveryAddressStr}\n\n`;
+    
+    message += `📦 *Itens do Pedido:*\n`;
     orderItems.forEach((item) => {
       const sizeStr = item.selectedSize && item.selectedSize !== 0 && item.selectedSize !== 'Único' ? ` (Tamanho: ${item.selectedSize})` : '';
-      message += `- ${item.name}${sizeStr} x${item.quantity} - R$ ${(item.price * item.quantity).toFixed(2)}\n`;
+      message += `- ${item.name}${sizeStr} x${item.quantity} - R$ ${(item.price * item.quantity).toFixed(2).replace('.', ',')}\n`;
     });
     
-    message += `\n*Total:* R$ ${total.toFixed(2)}\n\n`;
-    message += `Gostaria de confirmar os detalhes do meu pedido e o pagamento!`;
+    message += `\n💳 *Forma de Pagamento:* ${paymentMethod}\n`;
+    message += `🚚 *Taxa de Frete:* ${freightCost === 0 ? 'GRÁTIS' : 'R$ 10,00'}\n`;
+    message += `💰 *Subtotal:* R$ ${subtotal.toFixed(2).replace('.', ',')}\n`;
+    message += `💵 *TOTAL GERAL:* R$ ${grandTotal.toFixed(2).replace('.', ',')}\n\n`;
+    message += `Gostaria de confirmar os detalhes do meu pedido e dar andamento ao atendimento!`;
 
     const encodedMsg = encodeURIComponent(message);
-    const savedPhone = localStorage.getItem('evidencia_settings_whatsapp') || '5599984684867';
+    const savedPhone = contactConfig?.whatsapp || localStorage.getItem('evidencia_settings_whatsapp') || '5599984684867';
     const cleanPhone = savedPhone.replace(/\D/g, '');
     const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodedMsg}`;
 
-    const orderId = `EVC-${Math.floor(1000 + Math.random() * 9000)}`;
+    const orderId = `EVC-${numSeq}`;
     const newOrder: Order = {
       id: orderId,
+      orderNumber,
+      userId: currentUser?.uid || '',
       customerEmail: customerEmail.toLowerCase().trim(),
       customerName,
+      customerPhone: options?.customerPhone || currentUser?.telefone || '',
+      city: 'Caxias - MA',
+      deliveryAddress: deliveryAddressStr,
+      deliveryType,
       items: orderItems,
-      total,
+      subtotal,
+      freightCost,
+      total: grandTotal,
+      paymentMethod,
       status: 'Pendente',
       createdAt: new Date().toISOString(),
       whatsappUrl
@@ -1430,6 +1503,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         orders,
         isLoadingOrders,
         createOrder,
+        solicitarCrediario,
+        atualizarStatusCrediario,
         updateOrderStatus,
         assignOrderSeller,
         addProduct,

@@ -132,7 +132,9 @@ export const CompleteProfileModal: React.FC<CompleteProfileModalProps> = ({ isOp
         cidade: cidade.trim(),
         uf: uf.trim().toUpperCase(),
         complemento: complemento.trim(),
-        pontoReferencia: pontoReferencia.trim()
+        pontoReferencia: pontoReferencia.trim(),
+        crediarioStatus: currentUser.crediarioStatus === 'Aprovado' ? 'Aprovado' : 'EmAnalise',
+        crediarioSolicitadoEm: currentUser.crediarioSolicitadoEm || new Date().toISOString()
       });
       setSuccess(true);
       setTimeout(() => {

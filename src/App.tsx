@@ -21,7 +21,7 @@ import { AboutUs } from './components/AboutUs';
 import { SupportPage } from './components/SupportPage';
 import { FavoritesList } from './components/FavoritesList';
 
-const isProfileIncomplete = (user: any) => {
+export const isProfileIncomplete = (user: any) => {
   if (!user) return false;
   if (user.role !== 'customer') return false; // Administrative users don't need personal credit info
   return (
@@ -76,10 +76,14 @@ const AppContent: React.FC = () => {
         return <SupportPage />;
       case 'favorites':
         return <FavoritesList />;
+      case 'login':
+        return <AuthScreen mode="customer" />;
+      case 'admin-login':
+        return <AuthScreen mode="admin" />;
       case 'admin':
         // Protect administrative route
         if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'seller')) {
-          return <AuthScreen />;
+          return <AuthScreen mode="admin" />;
         }
         return <AdminPanel />;
       default:

@@ -266,7 +266,7 @@ export const Header: React.FC = () => {
               <motion.button
                 whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.97 }}
-                onClick={() => setCurrentView('orders')}
+                onClick={() => setCurrentView('login')}
                 className={`flex items-center space-x-1.5 px-4 py-2 rounded-full border text-xs font-bold transition-all cursor-pointer ${
                   isDark
                     ? 'bg-amber-400 text-slate-950 border-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.2)]'

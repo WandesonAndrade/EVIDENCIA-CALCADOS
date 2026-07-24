@@ -1,8 +1,14 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { Trash2, MessageSquare, ArrowRight, ArrowLeft, ShoppingBag, CreditCard, Sparkles } from 'lucide-react';
+import { 
+  Trash2, MessageSquare, ArrowLeft, ShoppingBag, CreditCard, 
+  Zap, ShieldCheck, MapPin, Truck, CheckCircle2, Info
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Product } from '../types';
+import { CompleteProfileModal } from './CompleteProfileModal';
+import { CheckoutConfirmationModal } from './CheckoutConfirmationModal';
+import { isProfileIncomplete } from '../App';
 
 export const Cart: React.FC = () => {
   const { 
@@ -19,20 +25,49 @@ export const Cart: React.FC = () => {
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [createdOrder, setCreatedOrder] = useState<any | null>(null);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [isConfirmationModalOpen, setIsConfirmationModalOpen] = useState(false);
 
   const isDark = theme === 'dark';
+  
+  // Freight calculation rules for Caxias - MA
   const subtotal = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+  const isFreeFreight = subtotal > 100;
+  const remainingForFreeFreight = Math.max(0, 100.01 - subtotal);
 
-  const handleFinalize = async () => {
+  // Step 1 & 2 Validation Trigger
+  const handleStartCheckout = () => {
     if (!currentUser) {
-      setCurrentView('orders');
+      setCurrentView('login');
       return;
     }
 
+    if (isProfileIncomplete(currentUser)) {
+      setIsProfileModalOpen(true);
+      return;
+    }
+
+    setIsConfirmationModalOpen(true);
+  };
+
+  // Step 3 Execution: Final Confirmation & Dispatch
+  const handleConfirmOrder = async (
+    paymentMethod: 'Pix' | 'Cartão de Crédito' | 'Crediário da Loja', 
+    deliveryType: 'Entrega em Caxias-MA' | 'Retirada na Loja'
+  ) => {
+    if (!currentUser) return;
     try {
       setIsProcessing(true);
-      const order = await createOrder(currentUser.name, currentUser.email);
+      const order = await createOrder(currentUser.name, currentUser.email, {
+        paymentMethod,
+        deliveryType,
+        customerPhone: currentUser.telefone || '',
+        deliveryAddress: deliveryType === 'Retirada na Loja' 
+          ? 'Retirada na Loja: Rua Afonso Pena, 295 - Centro, Caxias - MA'
+          : `${currentUser.endereco || ''}, Nº ${currentUser.numero || ''} - ${currentUser.bairro || ''}`
+      });
       setCreatedOrder(order);
+      setIsConfirmationModalOpen(false);
       window.open(order.whatsappUrl, '_blank');
     } catch (error) {
       console.error("Failed to finalize order:", error);
@@ -57,7 +92,7 @@ export const Cart: React.FC = () => {
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           className={`p-8 sm:p-10 rounded-3xl border backdrop-blur-xl text-center space-y-6 shadow-2xl ${
-            isDark ? 'bg-slate-900/60 border-slate-800/80' : 'bg-white/80 border-slate-200/80'
+            isDark ? 'bg-slate-900/90 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900 shadow-xl'
           }`}
         >
           <div className="w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 flex items-center justify-center mx-auto shadow-md">
@@ -65,21 +100,37 @@ export const Cart: React.FC = () => {
           </div>
 
           <div className="space-y-2">
+            <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              <span>Pedido Gerado com Sucesso</span>
+            </div>
+
             <h2 className={`text-2xl font-black ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
-              Pedido Enviado com Sucesso!
+              Pedido Enviado ao Atendimento!
             </h2>
-            <p className="text-xs font-mono text-emerald-500 font-bold">Código: {createdOrder.id}</p>
+            <p className="text-sm font-mono text-amber-400 font-extrabold">
+              Identificador: {createdOrder.orderNumber || createdOrder.id}
+            </p>
             <p className={`text-xs sm:text-sm font-medium max-w-sm mx-auto ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-              Seu pedido foi registrado em nosso catálogo. Uma janela do WhatsApp foi aberta para você finalizar o atendimento com nossos consultores.
+              Seu pedido foi registrado em nosso catálogo e a janela do WhatsApp foi aberta para você concluir o atendimento.
             </p>
           </div>
 
           <div className={`p-4 rounded-2xl border max-w-sm mx-auto text-left space-y-2 text-xs font-medium ${
-            isDark ? 'bg-slate-950/60 border-slate-800/80 text-slate-300' : 'bg-slate-50 border-slate-200/80 text-slate-700'
+            isDark ? 'bg-slate-950/60 border-slate-800 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700'
           }`}>
-            <p className="font-bold border-b pb-1 text-slate-900 dark:text-slate-100">Resumo do Pedido:</p>
+            <p className="font-bold border-b pb-1 text-slate-900 dark:text-slate-100 flex justify-between">
+              <span>Resumo do Pedido</span>
+              <span className="text-amber-400 font-extrabold">{createdOrder.orderNumber}</span>
+            </p>
             <p>Cliente: <strong className="font-bold">{createdOrder.customerName}</strong></p>
-            <p>Total: <strong className="font-bold text-amber-400">R$ {createdOrder.total.toFixed(2).replace('.', ',')}</strong></p>
+            <p>Entrega: <strong className="font-bold text-sky-400">{createdOrder.deliveryType || 'Entrega em Caxias-MA'}</strong></p>
+            <p>Pagamento: <strong className="font-bold">{createdOrder.paymentMethod || 'Pix'}</strong></p>
+            <p>Frete: <strong className="font-bold text-emerald-400">{createdOrder.freightCost === 0 ? 'GRÁTIS' : 'R$ 10,00'}</strong></p>
+            <p className="pt-1 border-t text-sm font-black text-slate-900 dark:text-white flex justify-between">
+              <span>Total:</span>
+              <span className="text-amber-400">R$ {createdOrder.total.toFixed(2).replace('.', ',')}</span>
+            </p>
           </div>
 
           <div className="pt-2 flex flex-col sm:flex-row gap-3 justify-center">
@@ -128,9 +179,15 @@ export const Cart: React.FC = () => {
         }`}>
           <ShoppingBag className="h-6 w-6" />
         </div>
-        <h1 className={`text-2xl sm:text-3xl font-black tracking-tight ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
-          Seu Carrinho de Compras
-        </h1>
+        <div>
+          <h1 className={`text-2xl sm:text-3xl font-black tracking-tight ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
+            Seu Carrinho de Compras
+          </h1>
+          <p className={`text-xs flex items-center space-x-1.5 font-semibold mt-0.5 ${isDark ? 'text-sky-400' : 'text-sky-700'}`}>
+            <MapPin className="h-3.5 w-3.5" />
+            <span>Entrega em Caxias - MA ou Retirada na Loja Evidência</span>
+          </p>
+        </div>
       </div>
 
       {cart.length === 0 ? (
@@ -165,6 +222,31 @@ export const Cart: React.FC = () => {
           
           {/* Cart Items List */}
           <div className="lg:col-span-2 space-y-4">
+            {/* Free freight incentive banner */}
+            <div className={`p-4 rounded-2xl border flex items-center justify-between text-xs font-bold ${
+              isFreeFreight
+                ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                : isDark ? 'bg-slate-900/80 border-slate-800 text-slate-300' : 'bg-amber-50 border-amber-200 text-amber-900'
+            }`}>
+              <div className="flex items-center space-x-2.5">
+                <Truck className={`h-5 w-5 ${isFreeFreight ? 'text-emerald-400' : 'text-amber-500'}`} />
+                <div>
+                  {isFreeFreight ? (
+                    <span className="font-extrabold">Parabéns! Você tem direito a FRETE GRÁTIS para Caxias (MA)! 🎉</span>
+                  ) : (
+                    <span>
+                      Faltam apenas <strong className="text-amber-400">R$ {remainingForFreeFreight.toFixed(2).replace('.', ',')}</strong> para garantir <strong>Frete Grátis</strong> na entrega!
+                    </span>
+                  )}
+                </div>
+              </div>
+              {isFreeFreight && (
+                <span className="bg-emerald-500 text-slate-950 font-black px-2.5 py-0.5 rounded-full text-[10px] uppercase tracking-wider">
+                  Grátis
+                </span>
+              )}
+            </div>
+
             <AnimatePresence>
               {cart.map((item) => (
                 <motion.div 
@@ -187,7 +269,7 @@ export const Cart: React.FC = () => {
                       }`}
                     />
 
-                    {/* Name & Selected Size/Variation */}
+                    {/* Name & Selected Size */}
                     <div className="space-y-1">
                       <h3 className={`text-xs sm:text-sm font-bold line-clamp-1 ${
                         isDark ? 'text-slate-100' : 'text-slate-900'
@@ -266,16 +348,17 @@ export const Cart: React.FC = () => {
             </motion.button>
           </div>
 
-          {/* Order Summary Box */}
+          {/* Order Summary & Finalize Trigger Box */}
           <div className={`border rounded-3xl p-6 sm:p-8 backdrop-blur-xl shadow-xl h-fit space-y-6 ${
             isDark ? 'bg-slate-900/60 border-slate-800/80' : 'bg-white/80 border-slate-200/80'
           }`}>
             <h3 className={`text-sm font-black uppercase tracking-wider border-b pb-4 ${
               isDark ? 'text-slate-100 border-slate-800' : 'text-slate-900 border-slate-200'
             }`}>
-              Resumo da Compra
+              Resumo do Pedido
             </h3>
             
+            {/* Totals Breakdown */}
             <div className={`space-y-3 text-xs font-semibold ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
               <div className="flex justify-between">
                 <span>Subtotal ({cart.length} itens)</span>
@@ -284,17 +367,17 @@ export const Cart: React.FC = () => {
                 </span>
               </div>
 
-              <div className="flex justify-between items-center text-emerald-500">
-                <span>Frete</span>
-                <span className="font-extrabold text-[10px] uppercase tracking-wider bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
-                  GRÁTIS
+              <div className="flex justify-between items-center">
+                <span>Estimativa de Frete</span>
+                <span className="text-[11px] font-bold text-amber-400">
+                  Calculado na confirmação
                 </span>
               </div>
 
               <div className={`flex justify-between text-base font-black border-t pt-4 ${
                 isDark ? 'text-amber-400 border-slate-800' : 'text-slate-900 border-slate-200'
               }`}>
-                <span>Total</span>
+                <span>Subtotal dos Produtos</span>
                 <span>R$ {subtotal.toFixed(2).replace('.', ',')}</span>
               </div>
             </div>
@@ -310,28 +393,28 @@ export const Cart: React.FC = () => {
                 <span>Crediário Próprio Evidência</span>
               </p>
               <p className="text-[11px] font-medium leading-relaxed opacity-90">
-                Parcele no carnê da loja ou cartão. Nossa equipe confirmará seus dados no WhatsApp!
+                Parcele em até 10x sem juros! Você escolherá a entrega e pagamento na próxima etapa.
               </p>
             </div>
 
-            {/* Finalize Button */}
+            {/* Finalize Checkout Trigger Button */}
             <div className="space-y-3">
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                onClick={handleFinalize}
+                onClick={handleStartCheckout}
                 disabled={isProcessing}
-                className="w-full flex items-center justify-center space-x-2 py-4 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs sm:text-sm rounded-2xl shadow-lg shadow-emerald-600/20 disabled:opacity-50 transition-all cursor-pointer"
+                className="w-full flex items-center justify-center space-x-2 py-4 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs sm:text-sm rounded-2xl shadow-lg shadow-emerald-600/20 disabled:opacity-50 transition-all cursor-pointer uppercase tracking-wider"
               >
                 <MessageSquare className="h-5 w-5" />
                 <span>
-                  {currentUser ? 'FINALIZAR NO WHATSAPP' : 'ENTRAR PARA FINALIZAR'}
+                  {currentUser ? 'FINALIZAR PEDIDO' : 'ENTRAR PARA FINALIZAR'}
                 </span>
               </motion.button>
               
               <p className={`text-[10px] text-center font-medium ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
                 {currentUser 
-                  ? 'Você será direcionado para o atendimento oficial no WhatsApp.'
+                  ? 'Você confirmará os dados de entrega e pagamento na próxima tela.'
                   : '* É necessário estar conectado para registrar o pedido no catálogo.'}
               </p>
             </div>
@@ -386,6 +469,22 @@ export const Cart: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Step 1 Profile Completion Modal */}
+      <CompleteProfileModal
+        isOpen={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
+      />
+
+      {/* Step 2 Dedicated Confirmation & Delivery Choice Modal */}
+      <CheckoutConfirmationModal
+        isOpen={isConfirmationModalOpen}
+        onClose={() => setIsConfirmationModalOpen(false)}
+        subtotal={subtotal}
+        cartItemsCount={cart.length}
+        onConfirmOrder={handleConfirmOrder}
+        isProcessing={isProcessing}
+      />
     </motion.div>
   );
 };
