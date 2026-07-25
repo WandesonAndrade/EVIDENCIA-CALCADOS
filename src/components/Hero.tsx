@@ -127,12 +127,12 @@ export const Hero: React.FC = () => {
             <img 
               src={sanitizeUrl(currentBanner.image)} 
               alt={currentBanner.title} 
-              className="w-full h-full object-cover opacity-65"
+              className="w-full h-full object-cover opacity-95 brightness-[1.12] contrast-[1.08] saturate-[1.15] filter drop-shadow-md transition-all duration-700"
             />
             
-            {/* Multi-layered Deep Atmospheric Gradients */}
-            <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/60 to-slate-950/30" />
-            <div className="absolute inset-0 bg-gradient-to-r from-slate-950/90 via-slate-950/60 to-transparent" />
+            {/* Multi-layered Light & Vibrant Gradients (Preserving High Legibility & Bright Studio Images) */}
+            <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/30 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-r from-slate-950/85 via-slate-950/45 to-transparent" />
           </motion.div>
         </AnimatePresence>
       </div>
