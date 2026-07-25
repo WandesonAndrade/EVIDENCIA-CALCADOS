@@ -252,150 +252,74 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
     );
   }
 
-  // --- ISOLATED INTERFACE FOR CUSTOMER LOGIN ---
+  // --- ISOLATED INTERFACE FOR CUSTOMER LOGIN (100% FIREBASE GOOGLE FOCUSED) ---
   return (
-    <div id="customer-auth-page" className="max-w-md mx-auto px-4 py-10 sm:py-16">
-      <div className={`rounded-3xl border backdrop-blur-2xl shadow-2xl p-8 sm:p-10 space-y-6 ${
+    <div id="customer-auth-page" className="max-w-md mx-auto px-4 py-12 sm:py-16">
+      <div className={`rounded-3xl border backdrop-blur-2xl shadow-2xl p-8 sm:p-10 space-y-7 text-center ${
         isDark ? 'bg-slate-900/90 border-slate-800 text-white shadow-black/60' : 'bg-white border-slate-200/90 text-slate-800 shadow-xl'
       }`}>
         
         {/* Header Greeting */}
-        <div className="text-center space-y-3">
+        <div className="space-y-4">
           <div className="flex justify-center pb-1">
             <BrandLogo size="md" />
           </div>
 
-          <h2 className={`text-xl sm:text-2xl font-black tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
-            {isRegisterMode ? 'Criar Cadastro Grátis' : 'Acesse sua Conta'}
-          </h2>
-          <p className={`text-xs max-w-xs mx-auto leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-            Conecte-se para acompanhar seus pedidos, salvar favoritos e agilizar suas compras na Evidência Calçados.
-          </p>
+          <div className="space-y-2">
+            <h2 className={`text-2xl sm:text-3xl font-black tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
+              Acesse sua Conta
+            </h2>
+            <p className={`text-xs sm:text-sm max-w-xs mx-auto leading-relaxed font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+              Entre de forma rápida e segura com a sua conta Google para acompanhar seus pedidos e acessar seu Crediário.
+            </p>
+          </div>
         </div>
 
-        <div className="space-y-5 pt-2">
-          {/* Official Google Authentication Button */}
+        {/* Highlighted Official Google Authentication Button */}
+        <div className="space-y-4 pt-1">
+          {errorMessage && (
+            <div className="p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-semibold text-center animate-fade-in">
+              {errorMessage}
+            </div>
+          )}
+
           <button
             type="button"
             onClick={handleGoogleSignIn}
             disabled={isLoading}
-            className={`w-full flex items-center justify-center space-x-3 py-3.5 px-4 border rounded-2xl transition-all text-xs sm:text-sm font-bold shadow-xs cursor-pointer disabled:opacity-50 ${
+            className={`w-full flex items-center justify-center space-x-3.5 py-4 px-6 border-2 rounded-2xl transition-all text-sm font-extrabold shadow-md hover:shadow-xl cursor-pointer disabled:opacity-50 active:scale-[0.98] ${
               isDark
-                ? 'bg-slate-950/90 border-slate-800 text-slate-100 hover:bg-slate-800 hover:border-slate-700 shadow-black/40'
-                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 shadow-xs'
+                ? 'bg-slate-950/95 border-slate-700 text-white hover:bg-slate-800 hover:border-amber-400/60 shadow-black/50'
+                : 'bg-white border-slate-200 text-slate-800 hover:bg-slate-50 hover:border-slate-300 shadow-slate-200'
             }`}
           >
-            <svg className="h-5 w-5 shrink-0" viewBox="0 0 24 24">
+            <svg className="h-6 w-6 shrink-0" viewBox="0 0 24 24">
               <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"/>
               <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.11-6.72-4.96H1.29v3.15C3.26 21.3 7.31 24 12 24z"/>
               <path fill="#FBBC05" d="M5.28 14.24c-.25-.72-.38-1.49-.38-2.24s.13-1.52.38-2.24V6.61H1.29C.47 8.24 0 10.06 0 12s.47 3.76 1.29 5.39l3.99-3.15z"/>
               <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.29 6.61l3.99 3.15c.95-2.85 3.6-4.96 6.72-4.96z"/>
             </svg>
-            <span>Entrar com o Google</span>
+            <span>{isLoading ? 'Conectando...' : 'Entrar com o Google'}</span>
           </button>
+        </div>
 
-          {/* Divider */}
-          <div className="relative py-2 flex items-center justify-center">
-            <div className="absolute inset-0 flex items-center">
-              <div className={`w-full border-t ${isDark ? 'border-slate-800' : 'border-slate-200'}`} />
-            </div>
-            <span className={`relative px-3 text-[10px] font-black uppercase tracking-widest ${
-              isDark ? 'bg-[#0B0F19] text-slate-400' : 'bg-white text-slate-400'
-            }`}>
-              ou continue com e-mail
-            </span>
-          </div>
-
-          {/* Traditional Email Form */}
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {isRegisterMode && (
-              <div className="space-y-1.5">
-                <label className={`text-[10px] font-black uppercase tracking-wider block ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                  Seu Nome Completo
-                </label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    required
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="Digite seu nome completo"
-                    className={`w-full pl-10 pr-4 py-3 text-xs border rounded-2xl focus:outline-none transition-all ${
-                      isDark 
-                        ? 'bg-slate-950/80 border-slate-800 text-white focus:border-amber-400' 
-                        : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-slate-800'
-                    }`}
-                  />
-                  <User className="absolute left-3.5 top-3.5 h-4 w-4 text-slate-400" />
-                </div>
-              </div>
-            )}
-
-            <div className="space-y-1.5">
-              <label className={`text-[10px] font-black uppercase tracking-wider block ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                Endereço de E-mail
-              </label>
-              <div className="relative">
-                <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="seuemail@exemplo.com"
-                  className={`w-full pl-10 pr-4 py-3 text-xs border rounded-2xl focus:outline-none transition-all ${
-                    isDark 
-                      ? 'bg-slate-950/80 border-slate-800 text-white focus:border-amber-400' 
-                      : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-slate-800'
-                  }`}
-                />
-                <Mail className="absolute left-3.5 top-3.5 h-4 w-4 text-slate-400" />
-              </div>
-            </div>
-
-            {errorMessage && (
-              <div className="p-3 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-semibold text-center">
-                {errorMessage}
-              </div>
-            )}
-
+        {/* Security & Support Info Footer */}
+        <div className="pt-4 border-t border-slate-800/40 space-y-2 text-center text-xs">
+          <p className={isDark ? 'text-slate-400' : 'text-slate-500'}>
+            Ao se conectar, você concorda com nossos Termos de Uso e Política de Privacidade.
+          </p>
+          <div className="pt-1">
             <button
-              type="submit"
-              disabled={isLoading}
-              className={`w-full py-3.5 px-4 text-xs font-black uppercase tracking-wider rounded-2xl transition-all shadow-md cursor-pointer disabled:opacity-50 ${
-                isDark
-                  ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 hover:shadow-[0_0_20px_rgba(245,158,11,0.3)]'
-                  : 'bg-slate-900 text-white hover:bg-slate-800'
+              onClick={() => setCurrentView('support')}
+              className={`font-extrabold hover:underline cursor-pointer transition-colors ${
+                isDark ? 'text-amber-400 hover:text-amber-300' : 'text-slate-900 hover:text-slate-700'
               }`}
             >
-              {isLoading ? 'Acessando...' : isRegisterMode ? 'Fazer Cadastro Grátis' : 'Entrar com E-mail'}
+              Precisa de ajuda com seu acesso? Fale com o Suporte
             </button>
-          </form>
-
-          {/* Footer Registration Link */}
-          <div className="text-center text-xs pt-2">
-            {isRegisterMode ? (
-              <p className={isDark ? 'text-slate-400' : 'text-slate-500'}>
-                Já possui uma conta?{' '}
-                <button 
-                  onClick={() => { setIsRegisterMode(false); setErrorMessage(''); }}
-                  className={`font-black hover:underline cursor-pointer ${isDark ? 'text-amber-400' : 'text-slate-900'}`}
-                >
-                  Fazer Login
-                </button>
-              </p>
-            ) : (
-              <p className={isDark ? 'text-slate-400' : 'text-slate-500'}>
-                Ainda não é cadastrado?{' '}
-                <button 
-                  onClick={() => { setIsRegisterMode(true); setErrorMessage(''); }}
-                  className={`font-black hover:underline cursor-pointer ${isDark ? 'text-amber-400' : 'text-slate-900'}`}
-                >
-                  Criar cadastro grátis
-                </button>
-              </p>
-            )}
           </div>
         </div>
+
       </div>
     </div>
   );
