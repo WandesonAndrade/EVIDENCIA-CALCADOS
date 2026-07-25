@@ -158,11 +158,15 @@ export const DEFAULT_STORE_CONFIG: StoreConfig = {
 };
 
 export const DEFAULT_CATEGORIES: Category[] = [
-  { id: 'sapatos-sociais', name: 'Sapatos Sociais', description: 'Sapatos clássicos e elegantes' },
-  { id: 'mocassins', name: 'Mocassins', description: 'Mocassins e loafers confortáveis' },
-  { id: 'botas', name: 'Botas', description: 'Botas e coturnos em couro nobre' },
-  { id: 'sapatenis', name: 'Sapatênis', description: 'Sapatênis casuais para o dia a dia' },
-  { id: 'acessorios', name: 'Acessórios', description: 'Cintos e acessórios de couro' }
+  { id: 'cosmeticos', name: 'Cosméticos', description: 'Produtos de beleza, estética e cuidados pessoais' },
+  { id: 'perfumes', name: 'Perfumes', description: 'Fragrâncias marcantes, colônias e perfumes importados' },
+  { id: 'escolar', name: 'Escolar', description: 'Mochilas, materiais, estojos e artigos escolares' },
+  { id: 'acessorios', name: 'Acessórios', description: 'Cintos, carteiras, bolsas, joias e adornos refinados' },
+  { id: 'calcados-infantil-masculino', name: 'Calçados infantil masculino', description: 'Tênis, sandálias e papetes confortáveis para meninos' },
+  { id: 'calcados-infantil-feminino', name: 'Calçados infantil feminino', description: 'Sapatilhas, sandálias e tênis fofos para meninas' },
+  { id: 'calcados-masculinos', name: 'Calçados masculinos', description: 'Sapatos sociais, mocassins, botas e sapatênis masculinos' },
+  { id: 'calcados-femininos', name: 'Calçados femininos', description: 'Sandálias, saltos, sapatilhas e rasteiras femininas' },
+  { id: 'itens-de-viagens', name: 'Itens de viagens', description: 'Malas de viagem, organizadores, mochilas executivas e frasqueiras' }
 ];
 
 const getLocalCategories = (): Category[] => {

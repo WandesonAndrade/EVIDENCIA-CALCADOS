@@ -14,78 +14,82 @@ interface TabConfig {
 }
 
 const TAB_CONFIGS: Record<string, TabConfig> = {
+  'cosmeticos': {
+    title: 'Cosméticos & Beleza',
+    subtitle: 'Linha completa de cuidados pessoais, maquiagem, itens de estética e beleza.',
+    bannerImage: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?q=80&w=1600&auto=format&fit=crop',
+    badgeText: 'BELEZA & BEM-ESTAR',
+    filter: (prod) => prod.category.toLowerCase().includes('cosmético')
+  },
+  'perfumes': {
+    title: 'Perfumes & Fragrâncias',
+    subtitle: 'Fragrâncias exclusivas, eau de parfum e colônias importadas para encantar.',
+    bannerImage: 'https://images.unsplash.com/photo-1541643600914-78b084683601?q=80&w=1600&auto=format&fit=crop',
+    badgeText: 'FRAGRÂNCIAS NOBRES',
+    filter: (prod) => prod.category.toLowerCase().includes('perfume')
+  },
+  'escolar': {
+    title: 'Artigos Escolares & Mochilas',
+    subtitle: 'Mochilas duráveis, estojos e utilitários escolares para o dia a dia de estudos.',
+    bannerImage: 'https://images.unsplash.com/photo-1588072432836-e10032774350?q=80&w=1600&auto=format&fit=crop',
+    badgeText: 'VOLTA ÀS AULAS',
+    filter: (prod) => prod.category.toLowerCase().includes('escolar')
+  },
+  'acessorios': {
+    title: 'Acessórios Sofisticados',
+    subtitle: 'Cintos, carteiras, bolsas e adornos refinados para complementar seu estilo.',
+    bannerImage: 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?q=80&w=1600&auto=format&fit=crop',
+    badgeText: 'DETALHES PREMIUM',
+    filter: (prod) => prod.category.toLowerCase().includes('acessório')
+  },
+  'calcados-infantil-masculino': {
+    title: 'Calçados Infantil Masculino',
+    subtitle: 'Tênis, papetes e calçados resistentes e anatômicos para os meninos.',
+    bannerImage: 'https://images.unsplash.com/photo-1515645726563-716416c4361e?q=80&w=1600&auto=format&fit=crop',
+    badgeText: 'MUNDO KIDS BOYS',
+    filter: (prod) => prod.category.toLowerCase().includes('infantil masculino') || (prod.category.toLowerCase().includes('infantil') && prod.name.toLowerCase().includes('masc'))
+  },
+  'calcados-infantil-feminino': {
+    title: 'Calçados Infantil Feminino',
+    subtitle: 'Sapatilhas, sandálias e tênis confortáveis e encantadores para as meninas.',
+    bannerImage: 'https://images.unsplash.com/photo-1515645726563-716416c4361e?q=80&w=1600&auto=format&fit=crop',
+    badgeText: 'MUNDO KIDS GIRLS',
+    filter: (prod) => prod.category.toLowerCase().includes('infantil feminino') || (prod.category.toLowerCase().includes('infantil') && prod.name.toLowerCase().includes('fem'))
+  },
+  'calcados-masculinos': {
+    title: 'Calçados Masculinos',
+    subtitle: 'Sapatos sociais, mocassins, botas e sapatênis com acabamento refinado em couro.',
+    bannerImage: 'https://images.unsplash.com/photo-1533867617858-e7b97e060509?q=80&w=1600&auto=format&fit=crop',
+    badgeText: 'ESTILO MASCULINO',
+    filter: (prod) => prod.category.toLowerCase().includes('masculino') || prod.category.toLowerCase().includes('sapato') || prod.category.toLowerCase().includes('bota')
+  },
+  'calcados-femininos': {
+    title: 'Calçados Femininos',
+    subtitle: 'Sandálias, saltos, sapatilhas e rasteiras com o máximo conforto e elegância.',
+    bannerImage: 'https://images.unsplash.com/photo-1543163521-1bf539c55dd2?q=80&w=1600&auto=format&fit=crop',
+    badgeText: 'ELEGÂNCIA FEMININA',
+    filter: (prod) => prod.category.toLowerCase().includes('feminino') || prod.category.toLowerCase().includes('sandália') || prod.category.toLowerCase().includes('sapatilha')
+  },
+  'itens-de-viagens': {
+    title: 'Itens de Viagens & Malas',
+    subtitle: 'Malas de bordo, mochilas executivas e frasqueiras de alta durabilidade.',
+    bannerImage: 'https://images.unsplash.com/photo-1565026057447-b8899f291105?q=80&w=1600&auto=format&fit=crop',
+    badgeText: 'VIAGEM & ESTILO',
+    filter: (prod) => prod.category.toLowerCase().includes('viagen') || prod.category.toLowerCase().includes('mala')
+  },
   'lançamentos': {
     title: 'Novidades & Lançamentos',
-    subtitle: 'Confira as últimas novidades e as maiores tendências exclusivas que acabaram de chegar na Evidência Calçados.',
+    subtitle: 'Confira as últimas novidades e as maiores tendências exclusivas da Evidência Calçados.',
     bannerImage: 'https://images.unsplash.com/photo-1549298916-b41d501d3772?q=80&w=1600&auto=format&fit=crop',
     badgeText: 'NOVA COLEÇÃO 2026',
     filter: (prod) => !!prod.newArrival
   },
-  'feminino': {
-    title: 'Coleção Feminina',
-    subtitle: 'Charme, sofisticação e conforto extremo em calçados, sandálias e acessórios refinados para a mulher moderna.',
-    bannerImage: 'https://images.unsplash.com/photo-1543163521-1bf539c55dd2?q=80&w=1600&auto=format&fit=crop',
-    badgeText: 'ELEGÂNCIA & CHARME',
-    filter: (prod) => {
-      const cat = prod.category.toLowerCase();
-      const name = prod.name.toLowerCase();
-      const desc = prod.description.toLowerCase();
-      return cat === 'acessórios' || name.includes('argola') || name.includes('brinco') || name.includes('femin') || desc.includes('femin') || desc.includes('mulher') || name.includes('sapatilha');
-    }
-  },
-  'masculino': {
-    title: 'Coleção Masculina',
-    subtitle: 'Estilo, atitude, robustez e alta performance para o homem contemporâneo que valoriza durabilidade e design atemporal.',
-    bannerImage: 'https://images.unsplash.com/photo-1533867617858-e7b97e060509?q=80&w=1600&auto=format&fit=crop',
-    badgeText: 'ESTILO & ROBUSTEZ',
-    filter: (prod) => {
-      const cat = prod.category.toLowerCase();
-      const name = prod.name.toLowerCase();
-      const desc = prod.description.toLowerCase();
-      return cat === 'sapatos sociais' || cat === 'botas' || name.includes('masculin') || desc.includes('masculin') || desc.includes('homem') || name.includes('run performance');
-    }
-  },
   'ofertas': {
     title: 'Super Campanhas de Ofertas',
-    subtitle: 'Aproveite descontos especiais de até 50% em calçados selecionados com condições exclusivas no Crediário Próprio Evidência.',
+    subtitle: 'Descontos especiais com condições exclusivas no Crediário Próprio Evidência.',
     bannerImage: 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?q=80&w=1600&auto=format&fit=crop',
     badgeText: 'CAMPANHA PROMOCIONAL',
     filter: (prod) => !!prod.onSale
-  },
-  'sapatos-sociais': {
-    title: 'Sapatos Sociais Premium',
-    subtitle: 'Elegância artesanal em couro nobre, ideal para momentos formais, reuniões de negócios e trajes esporte fino.',
-    bannerImage: 'https://images.unsplash.com/photo-1486308512493-ae648944baac?q=80&w=1600&auto=format&fit=crop',
-    badgeText: 'ESTILO CLÁSSICO',
-    filter: (prod) => prod.category.toLowerCase() === 'sapatos sociais'
-  },
-  'tenis-esportivos': {
-    title: 'Tênis Esportivos & Performance',
-    subtitle: 'Amortecimento responsivo, respirabilidade extrema e leveza ideal para impulsionar suas atividades físicas e treinos.',
-    bannerImage: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?q=80&w=1600&auto=format&fit=crop',
-    badgeText: 'ALTA PERFORMANCE',
-    filter: (prod) => prod.category.toLowerCase() === 'tênis esportivos'
-  },
-  'infantil': {
-    title: 'Universo Infantil',
-    subtitle: 'Calçados ultra leves, anatômicos, seguros e divertidos, desenvolvidos especialmente para acompanhar os passos dos pequenos.',
-    bannerImage: 'https://images.unsplash.com/photo-1515645726563-716416c4361e?q=80&w=1600&auto=format&fit=crop',
-    badgeText: 'MUNDO KIDS COMFORT',
-    filter: (prod) => prod.category.toLowerCase() === 'infantil'
-  },
-  'botas': {
-    title: 'Botas & Coturnos',
-    subtitle: 'Companheiras indestrutíveis para todas as estações do ano, oferecendo impermeabilidade, aderência e visual marcante.',
-    bannerImage: 'https://images.unsplash.com/photo-1638247025967-b4e38f787b76?q=80&w=1600&auto=format&fit=crop',
-    badgeText: 'URBAN EXPLORATION',
-    filter: (prod) => prod.category.toLowerCase() === 'botas'
-  },
-  'acessorios': {
-    title: 'Acessórios Sofisticados',
-    subtitle: 'Adornos e complementos premium banhados a ouro 18k para adicionar brilho e refinamento ao seu estilo pessoal.',
-    bannerImage: 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?q=80&w=1600&auto=format&fit=crop',
-    badgeText: 'DETALHES DE BRILHO',
-    filter: (prod) => prod.category.toLowerCase() === 'acessórios'
   }
 };
 

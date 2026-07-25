@@ -324,16 +324,17 @@ export const ProductList: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Subcategorias completas do e-commerce de calçados
+  // Departamentos oficiais do e-commerce
   const defaultSubcategories = [
-    "Sapatos Sociais",
-    "Mocassins",
-    "Botas",
-    "Sapatênis",
-    "Tênis Esportivos",
-    "Sandálias",
-    "Chinelo / Slide",
+    "Cosméticos",
+    "Perfumes",
+    "Escolar",
     "Acessórios",
+    "Calçados infantil masculino",
+    "Calçados infantil feminino",
+    "Calçados masculinos",
+    "Calçados femininos",
+    "Itens de viagens"
   ];
 
   const allSubcategories = Array.from(
@@ -398,19 +399,44 @@ export const ProductList: React.FC = () => {
   const maxLaunchIndex = Math.max(0, newArrivalsProducts.length - cardsPerPage);
   const activeLaunchIndex = Math.min(currentLaunchIndex, maxLaunchIndex);
 
+  // Primary Footwear Categories for Quick Access
+  const primaryFootwearPills = [
+    { id: "TODOS", label: "TODOS" },
+    { id: "CALÇADOS FEMININOS", label: "Calçados Femininos" },
+    { id: "CALÇADOS MASCULINOS", label: "Calçados Masculinos" },
+    { id: "CALÇADOS INFANTIL FEMININO", label: "Infantil Feminino" },
+    { id: "CALÇADOS INFANTIL MASCULINO", label: "Infantil Masculino" },
+  ];
+
+  // Secondary Departments Grouped in Combobox
+  const secondaryDepartments = [
+    { id: "COSMÉTICOS", label: "Cosméticos" },
+    { id: "PERFUMES", label: "Perfumes" },
+    { id: "ESCOLAR", label: "Escolar" },
+    { id: "ACESSÓRIOS", label: "Acessórios" },
+    { id: "ITENS DE VIAGENS", label: "Itens de Viagens" },
+  ];
+
+  const isSecondaryActive = secondaryDepartments.some(
+    (d) => d.id === selectedCategory
+  );
+  const activeSecondaryLabel = secondaryDepartments.find(
+    (d) => d.id === selectedCategory
+  )?.label;
+
   return (
     <section
       id="catalog-products-section"
       ref={catalogSectionRef}
       className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-10"
     >
-      {/* Categorias em Destaque: Navegação Horizontal Fluida (Scroll Suave & Scrollbar Oculta) */}
+      {/* Categorias em Destaque: Footwear Highlights + Secondary Departments Combobox */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <span
             className={`text-xs font-bold uppercase tracking-widest ${isDark ? "text-amber-400" : "text-slate-500"}`}
           >
-            Categorias em Destaque
+            Navegação por Departamentos
           </span>
           {searchQuery && (
             <span
@@ -427,15 +453,16 @@ export const ProductList: React.FC = () => {
         </div>
 
         <div className="flex items-center space-x-2.5 overflow-x-auto no-scrollbar scroll-smooth py-2 px-1">
-          {filterTabs.map((cat) => {
-            const isSelected = selectedCategory === cat;
+          {/* Footwear Primary Access Pills */}
+          {primaryFootwearPills.map((pill) => {
+            const isSelected = selectedCategory === pill.id;
 
             return (
               <motion.button
-                key={cat}
+                key={pill.id}
                 whileHover={{ scale: 1.04 }}
                 whileTap={{ scale: 0.96 }}
-                onClick={() => handleSelectCategory(cat)}
+                onClick={() => handleSelectCategory(pill.id)}
                 className={`whitespace-nowrap px-5 py-2.5 rounded-full text-xs font-bold tracking-wider transition-all duration-200 cursor-pointer border ${
                   isSelected
                     ? isDark
@@ -446,10 +473,44 @@ export const ProductList: React.FC = () => {
                       : "bg-white/70 border-slate-200/80 text-slate-600 hover:bg-slate-100 backdrop-blur-md"
                 }`}
               >
-                {cat}
+                {pill.label}
               </motion.button>
             );
           })}
+
+          {/* Combobox Dropdown for Secondary Departments */}
+          <div className="relative shrink-0">
+            <select
+              value={isSecondaryActive ? selectedCategory : ""}
+              onChange={(e) => {
+                if (e.target.value) {
+                  handleSelectCategory(e.target.value);
+                }
+              }}
+              className={`whitespace-nowrap px-4 py-2.5 rounded-full text-xs font-bold tracking-wider transition-all duration-200 cursor-pointer border focus:outline-none ${
+                isSecondaryActive
+                  ? isDark
+                    ? "bg-amber-400 text-slate-950 border-amber-300 font-black shadow-[0_0_20px_rgba(245,158,11,0.35)]"
+                    : "bg-slate-900 text-white border-slate-900 font-black shadow-lg"
+                  : isDark
+                    ? "bg-slate-900/60 border-slate-800/80 text-slate-300 hover:bg-slate-800 hover:border-slate-700 backdrop-blur-md"
+                    : "bg-white/80 border-slate-200 text-slate-700 hover:bg-slate-50 backdrop-blur-md"
+              }`}
+            >
+              <option value="" disabled>
+                {isSecondaryActive ? `Outros: ${activeSecondaryLabel}` : "Outros Departamentos ▾"}
+              </option>
+              {secondaryDepartments.map((dept) => (
+                <option 
+                  key={dept.id} 
+                  value={dept.id}
+                  className={isDark ? "bg-slate-900 text-slate-100" : "bg-white text-slate-900"}
+                >
+                  {dept.label}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 

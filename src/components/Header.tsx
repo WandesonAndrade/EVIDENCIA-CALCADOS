@@ -300,37 +300,48 @@ export const Header: React.FC = () => {
         </div>
 
         {/* LINHA INFERIOR (TIER 2): Barra de Navegação Dedicada aos Macro-Departamentos */}
-        <div className={`border-t py-2 flex items-center justify-center overflow-x-auto no-scrollbar ${
+        <div className={`border-t py-2 flex items-center overflow-x-auto no-scrollbar ${
           isDark ? 'border-slate-800/60' : 'border-slate-200/60'
         }`}>
-          <nav id="macro-departments-nav" className="flex items-center space-x-6 sm:space-x-10 md:space-x-14 py-0.5">
-            <button 
-              onClick={() => handleMenuClick('lançamentos')}
-              className={getNavLinkClass('lançamentos')}
-            >
-              LANÇAMENTOS
-            </button>
+          <nav id="macro-departments-nav" className="flex items-center space-x-2 sm:space-x-3 py-0.5 whitespace-nowrap">
+            {[
+              { id: 'calcados-femininos', label: 'Calçados Femininos' },
+              { id: 'calcados-masculinos', label: 'Calçados Masculinos' },
+              { id: 'calcados-infantil-feminino', label: 'Infantil Feminino' },
+              { id: 'calcados-infantil-masculino', label: 'Infantil Masculino' }
+            ].map(dept => (
+              <button 
+                key={dept.id}
+                onClick={() => handleMenuClick(dept.id)}
+                className={getNavLinkClass(dept.id)}
+              >
+                {dept.label}
+              </button>
+            ))}
 
-            <button 
-              onClick={() => handleMenuClick('feminino')}
-              className={getNavLinkClass('feminino')}
-            >
-              FEMININO
-            </button>
-
-            <button 
-              onClick={() => handleMenuClick('masculino')}
-              className={getNavLinkClass('masculino')}
-            >
-              MASCULINO
-            </button>
-
-            <button 
-              onClick={() => handleMenuClick('ofertas')}
-              className={getNavLinkClass('ofertas')}
-            >
-              OFERTAS
-            </button>
+            {/* Menu Suspenso Outros Departamentos no Header */}
+            <div className="relative shrink-0">
+              <select
+                value=""
+                onChange={(e) => {
+                  if (e.target.value) {
+                    handleMenuClick(e.target.value);
+                  }
+                }}
+                className={`text-xs font-black tracking-widest uppercase transition-all cursor-pointer px-3 py-1.5 rounded-full border focus:outline-none ${
+                  isDark
+                    ? 'text-slate-300 bg-slate-900/90 border-slate-800 hover:border-slate-700'
+                    : 'text-slate-700 bg-slate-100 border-slate-200 hover:bg-white'
+                }`}
+              >
+                <option value="" disabled>Outros Departamentos ▾</option>
+                <option value="cosmeticos" className={isDark ? "bg-slate-900 text-slate-100" : "bg-white text-slate-900"}>Cosméticos</option>
+                <option value="perfumes" className={isDark ? "bg-slate-900 text-slate-100" : "bg-white text-slate-900"}>Perfumes</option>
+                <option value="escolar" className={isDark ? "bg-slate-900 text-slate-100" : "bg-white text-slate-900"}>Escolar</option>
+                <option value="acessorios" className={isDark ? "bg-slate-900 text-slate-100" : "bg-white text-slate-900"}>Acessórios</option>
+                <option value="itens-de-viagens" className={isDark ? "bg-slate-900 text-slate-100" : "bg-white text-slate-900"}>Itens de Viagens</option>
+              </select>
+            </div>
           </nav>
         </div>
 
