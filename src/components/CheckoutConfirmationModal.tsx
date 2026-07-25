@@ -13,7 +13,8 @@ interface CheckoutConfirmationModalProps {
   cartItemsCount: number;
   onConfirmOrder: (
     paymentMethod: 'Pix' | 'Cartão de Crédito' | 'Crediário da Loja', 
-    deliveryType: 'Entrega em Caxias-MA' | 'Retirada na Loja'
+    deliveryType: 'Entrega em Caxias-MA' | 'Retirada na Loja',
+    installments?: number
   ) => void;
   isProcessing: boolean;
 }
@@ -31,6 +32,7 @@ export const CheckoutConfirmationModal: React.FC<CheckoutConfirmationModalProps>
 
   const [deliveryType, setDeliveryType] = useState<'Entrega em Caxias-MA' | 'Retirada na Loja'>('Entrega em Caxias-MA');
   const [paymentMethod, setPaymentMethod] = useState<'Pix' | 'Cartão de Crédito' | 'Crediário da Loja'>('Pix');
+  const [installments, setInstallments] = useState<number>(1);
 
   if (!isOpen || !currentUser) return null;
 
@@ -41,8 +43,25 @@ export const CheckoutConfirmationModal: React.FC<CheckoutConfirmationModalProps>
 
   const isCrediarioApproved = currentUser.crediarioStatus === 'Aprovado';
 
+  // Calculate installment options 1x up to 10x sem juros
+  const installmentOptions = Array.from({ length: 10 }, (_, i) => {
+    const count = i + 1;
+    const value = grandTotal / count;
+    return {
+      count,
+      value,
+      label: count === 1
+        ? `1x de R$ ${value.toFixed(2).replace('.', ',')} à vista`
+        : `${count}x de R$ ${value.toFixed(2).replace('.', ',')} sem juros`
+    };
+  });
+
   const handleConfirmClick = () => {
-    onConfirmOrder(paymentMethod, deliveryType);
+    onConfirmOrder(
+      paymentMethod, 
+      deliveryType, 
+      paymentMethod === 'Cartão de Crédito' ? installments : 1
+    );
   };
 
   return (
@@ -185,21 +204,56 @@ export const CheckoutConfirmationModal: React.FC<CheckoutConfirmationModalProps>
               </button>
 
               {/* Cartão de Crédito */}
-              <button
-                type="button"
-                onClick={() => setPaymentMethod('Cartão de Crédito')}
-                className={`w-full flex items-center justify-between p-3 rounded-2xl border text-xs font-bold transition-all cursor-pointer ${
-                  paymentMethod === 'Cartão de Crédito'
-                    ? 'border-sky-500 bg-sky-500/10 text-sky-400 shadow-sm'
-                    : isDark ? 'border-slate-800 bg-slate-950/60 text-slate-300 hover:border-slate-700' : 'border-slate-200 bg-slate-50 text-slate-700'
-                }`}
-              >
-                <div className="flex items-center space-x-2.5">
-                  <CreditCard className="h-4 w-4 text-sky-400" />
-                  <span>Cartão de Crédito</span>
-                </div>
-                {paymentMethod === 'Cartão de Crédito' && <CheckCircle2 className="h-4 w-4 text-sky-400" />}
-              </button>
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod('Cartão de Crédito')}
+                  className={`w-full flex items-center justify-between p-3 rounded-2xl border text-xs font-bold transition-all cursor-pointer ${
+                    paymentMethod === 'Cartão de Crédito'
+                      ? 'border-sky-500 bg-sky-500/10 text-sky-400 shadow-sm'
+                      : isDark ? 'border-slate-800 bg-slate-950/60 text-slate-300 hover:border-slate-700' : 'border-slate-200 bg-slate-50 text-slate-700'
+                  }`}
+                >
+                  <div className="flex items-center space-x-2.5">
+                    <CreditCard className="h-4 w-4 text-sky-400" />
+                    <span>Cartão de Crédito (até 10x sem juros)</span>
+                  </div>
+                  {paymentMethod === 'Cartão de Crédito' && <CheckCircle2 className="h-4 w-4 text-sky-400" />}
+                </button>
+
+                {/* Sub-Seletor de Parcelamento */}
+                {paymentMethod === 'Cartão de Crédito' && (
+                  <motion.div 
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    className={`p-3.5 rounded-2xl border space-y-2 ${
+                      isDark ? 'bg-sky-500/10 border-sky-500/30' : 'bg-sky-50 border-sky-200'
+                    }`}
+                  >
+                    <label className="block text-xs font-bold text-sky-400">
+                      Selecione o Parcelamento no Cartão:
+                    </label>
+                    <select
+                      value={installments}
+                      onChange={(e) => setInstallments(Number(e.target.value))}
+                      className={`w-full p-2.5 rounded-xl text-xs font-bold border focus:outline-none cursor-pointer ${
+                        isDark 
+                          ? 'bg-slate-950 border-sky-500/40 text-slate-100' 
+                          : 'bg-white border-sky-300 text-slate-900'
+                      }`}
+                    >
+                      {installmentOptions.map((opt) => (
+                        <option key={opt.count} value={opt.count}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-[10px] text-sky-300/90 font-medium">
+                      ✓ Parcelamento sem juros em até 10x exclusivo Evidência Calçados.
+                    </p>
+                  </motion.div>
+                )}
+              </div>
 
               {/* Crediário da Loja */}
               <button
@@ -262,6 +316,13 @@ export const CheckoutConfirmationModal: React.FC<CheckoutConfirmationModalProps>
               <span>Total Geral:</span>
               <span>R$ {grandTotal.toFixed(2).replace('.', ',')}</span>
             </div>
+
+            {paymentMethod === 'Cartão de Crédito' && installments > 1 && (
+              <div className="pt-2 border-t border-slate-800 text-[11px] font-bold text-sky-400 flex justify-between">
+                <span>Plano Escolhido:</span>
+                <span>{installments}x de R$ {(grandTotal / installments).toFixed(2).replace('.', ',')}</span>
+              </div>
+            )}
           </div>
 
           {/* Confirm Button */}

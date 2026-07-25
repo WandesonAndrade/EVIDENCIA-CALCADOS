@@ -53,7 +53,8 @@ export const Cart: React.FC = () => {
   // Step 3 Execution: Final Confirmation & Dispatch
   const handleConfirmOrder = async (
     paymentMethod: 'Pix' | 'Cartão de Crédito' | 'Crediário da Loja', 
-    deliveryType: 'Entrega em Caxias-MA' | 'Retirada na Loja'
+    deliveryType: 'Entrega em Caxias-MA' | 'Retirada na Loja',
+    installments?: number
   ) => {
     if (!currentUser) return;
     try {
@@ -61,6 +62,7 @@ export const Cart: React.FC = () => {
       const order = await createOrder(currentUser.name, currentUser.email, {
         paymentMethod,
         deliveryType,
+        installments,
         customerPhone: currentUser.telefone || '',
         deliveryAddress: deliveryType === 'Retirada na Loja' 
           ? 'Retirada na Loja: Rua Afonso Pena, 295 - Centro, Caxias - MA'

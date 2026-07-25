@@ -29,7 +29,7 @@ interface AppContextProps {
   logout: () => void;
   orders: Order[];
   isLoadingOrders: boolean;
-  createOrder: (customerName: string, customerEmail: string, options?: { paymentMethod?: 'Pix' | 'Cartão de Crédito' | 'Crediário da Loja'; deliveryType?: 'Entrega em Caxias-MA' | 'Retirada na Loja'; customerPhone?: string; deliveryAddress?: string }) => Promise<Order>;
+  createOrder: (customerName: string, customerEmail: string, options?: { paymentMethod?: 'Pix' | 'Cartão de Crédito' | 'Crediário da Loja'; deliveryType?: 'Entrega em Caxias-MA' | 'Retirada na Loja'; installments?: number; customerPhone?: string; deliveryAddress?: string }) => Promise<Order>;
   solicitarCrediario: (dados: Partial<UserProfile>) => Promise<void>;
   atualizarStatusCrediario: (uid: string, novoStatus: CrediarioStatus, motivo?: string) => Promise<void>;
   updateOrderStatus: (orderId: string, status: Order['status']) => Promise<void>;
@@ -1027,6 +1027,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     options?: { 
       paymentMethod?: 'Pix' | 'Cartão de Crédito' | 'Crediário da Loja'; 
       deliveryType?: 'Entrega em Caxias-MA' | 'Retirada na Loja';
+      installments?: number;
       customerPhone?: string; 
       deliveryAddress?: string; 
     }
@@ -1038,6 +1039,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const freightCost = deliveryType === 'Retirada na Loja' ? 0 : (subtotal > 100 ? 0 : 10);
     const grandTotal = subtotal + freightCost;
     const paymentMethod = options?.paymentMethod || 'Pix';
+    const installments = options?.installments || 1;
     const numSeq = Math.floor(1000 + Math.random() * 9000);
     const orderNumber = `#EV-${numSeq}`;
 
@@ -1054,6 +1056,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       image: item.product.images?.[0] || item.product.foto_uri || 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?q=80&w=600&auto=format&fit=crop'
     }));
 
+    const paymentMethodStr = (paymentMethod === 'Cartão de Crédito' && installments > 1)
+      ? `Cartão de Crédito (${installments}x de R$ ${(grandTotal / installments).toFixed(2).replace('.', ',')} sem juros)`
+      : paymentMethod;
+
     let message = `🛍️ *NOVO PEDIDO EVIDÊNCIA CALÇADOS* - ${orderNumber}\n\n`;
     message += `👤 *Dados do Cliente:*\n`;
     message += `- *Nome:* ${customerName}\n`;
@@ -1069,7 +1075,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       message += `- ${item.name}${sizeStr} x${item.quantity} - R$ ${(item.price * item.quantity).toFixed(2).replace('.', ',')}\n`;
     });
     
-    message += `\n💳 *Forma de Pagamento:* ${paymentMethod}\n`;
+    message += `\n💳 *Forma de Pagamento:* ${paymentMethodStr}\n`;
     message += `🚚 *Taxa de Frete:* ${freightCost === 0 ? 'GRÁTIS' : 'R$ 10,00'}\n`;
     message += `💰 *Subtotal:* R$ ${subtotal.toFixed(2).replace('.', ',')}\n`;
     message += `💵 *TOTAL GERAL:* R$ ${grandTotal.toFixed(2).replace('.', ',')}\n\n`;
@@ -1096,6 +1102,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       freightCost,
       total: grandTotal,
       paymentMethod,
+      installments,
       status: 'Pendente',
       createdAt: new Date().toISOString(),
       whatsappUrl

@@ -147,6 +147,7 @@ export interface Order {
   freightCost?: number;
   total: number;
   paymentMethod?: 'Pix' | 'Cartão de Crédito' | 'Crediário da Loja';
+  installments?: number;
   status: OrderStatus;
   createdAt: string;
   whatsappUrl: string;
