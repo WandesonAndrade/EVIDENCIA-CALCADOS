@@ -15,6 +15,7 @@ import {
 import { motion, AnimatePresence } from "motion/react";
 import { scrollToSectionWithOffset } from "../lib/scrollUtils";
 import { AboutUs } from "./AboutUs";
+import { CrediarioBanner } from "./CrediarioBanner";
 
 interface ProductCardProps {
   product: Product;
@@ -451,6 +452,9 @@ export const ProductList: React.FC = () => {
           })}
         </div>
       </div>
+
+      {/* BANNER DE DESTAQUE: CREDIÁRIO PRÓPRIO EVIDÊNCIA */}
+      <CrediarioBanner />
 
       {/* Skeleton Loading State */}
       {isLoadingProducts ? (
