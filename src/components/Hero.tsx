@@ -18,9 +18,9 @@ interface Slide {
 const SLIDES: Slide[] = [
   {
     id: 1,
-    badge: 'NOVA COLEÇÃO 2026',
-    title: 'Elegância que caminha com você.',
-    description: 'Descubra a seleção exclusiva de calçados premium com o conforto que seus pés merecem e as condições que só a Evidência oferece.',
+    badge: 'LOJA OFICIAL CAXIAS - MA',
+    title: 'A sua loja de Caxias - MA está online!',
+    description: 'Compre no carnê em até 10x sem juros ou receba via entrega rápida com o atendimento exclusivo da equipe Evidência Calçados.',
     image: 'https://images.unsplash.com/photo-1549298916-b41d501d3772?q=80&w=1600&auto=format&fit=crop',
     buttonText: 'Ver Lançamentos',
     tabKey: 'lançamentos'
@@ -32,7 +32,7 @@ const SLIDES: Slide[] = [
     description: 'Encontre sandálias, sapatilhas, saltos e acessórios refinados criados especialmente para destacar a sua personalidade única.',
     image: 'https://images.unsplash.com/photo-1543163521-1bf539c55dd2?q=80&w=1600&auto=format&fit=crop',
     buttonText: 'Ver Moda Feminina',
-    tabKey: 'feminino'
+    tabKey: 'calcados-femininos'
   },
   {
     id: 3,
@@ -41,7 +41,7 @@ const SLIDES: Slide[] = [
     description: 'Sapatos sociais premium, botas indestrutíveis e tênis de alta performance para o homem contemporâneo que valoriza design e atitude.',
     image: 'https://images.unsplash.com/photo-1533867617858-e7b97e060509?q=80&w=1600&auto=format&fit=crop',
     buttonText: 'Explorar Linha Masculina',
-    tabKey: 'masculino'
+    tabKey: 'calcados-masculinos'
   },
   {
     id: 4,
@@ -86,12 +86,12 @@ export const Hero: React.FC = () => {
 
   const handleNext = (e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    setCurrentSlide(prev => (prev + 1) % SLIDES.length);
+    setCurrentSlide(prev => (prev + 1) % slides.length);
   };
 
   const handlePrev = (e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    setCurrentSlide(prev => (prev - 1 + SLIDES.length) % SLIDES.length);
+    setCurrentSlide(prev => (prev - 1 + slides.length) % slides.length);
   };
 
   const handleDotClick = (index: number) => {
@@ -109,11 +109,11 @@ export const Hero: React.FC = () => {
   return (
     <div 
       id="hero-banner" 
-      className="relative overflow-hidden rounded-3xl mx-4 sm:mx-6 lg:mx-8 my-6 min-h-[500px] sm:min-h-[540px] md:min-h-[580px] lg:h-[65vh] shadow-2xl border border-slate-800/80 group/hero select-none"
+      className="relative overflow-hidden rounded-3xl mx-4 sm:mx-6 lg:mx-8 my-6 min-h-[480px] sm:min-h-[520px] md:min-h-[540px] lg:h-[62vh] shadow-2xl border border-slate-800/80 group/hero select-none bg-slate-950"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
     >
-      {/* Background Image Slides with Smooth Motion Zoom & Crossfade */}
+      {/* Background Image Slides with High Impact Footwear Showcase & Smooth Crossfade */}
       <div className="absolute inset-0 w-full h-full">
         <AnimatePresence mode="wait">
           <motion.div
@@ -127,63 +127,61 @@ export const Hero: React.FC = () => {
             <img 
               src={sanitizeUrl(currentBanner.image)} 
               alt={currentBanner.title} 
-              className="w-full h-full object-cover"
+              className="w-full h-full object-cover opacity-65"
             />
             
-            {/* Multi-layered Immersive Gradients */}
-            <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/50 to-slate-950/20" />
+            {/* Multi-layered Deep Atmospheric Gradients */}
+            <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/60 to-slate-950/30" />
             <div className="absolute inset-0 bg-gradient-to-r from-slate-950/90 via-slate-950/60 to-transparent" />
           </motion.div>
         </AnimatePresence>
       </div>
 
-      {/* Floating Glassmorphic Content Card */}
-      <div className="relative h-full max-w-7xl mx-auto px-4 sm:px-8 lg:px-12 py-12 sm:py-20 flex items-center justify-start z-20">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={currentSlide}
-            initial={{ opacity: 0, x: -30, scale: 0.97 }}
-            animate={{ opacity: 1, x: 0, scale: 1 }}
-            exit={{ opacity: 0, x: 20, scale: 0.97 }}
-            transition={{ duration: 0.5, ease: 'easeOut' }}
-            className={`w-full max-w-xl p-6 sm:p-10 lg:p-12 rounded-3xl border backdrop-blur-2xl shadow-2xl space-y-4 sm:space-y-6 text-center sm:text-left ${
-              isDark
-                ? 'bg-slate-900/70 border-slate-800/80 text-white shadow-black/50'
-                : 'bg-slate-900/75 border-white/20 text-white shadow-2xl'
-            }`}
-          >
-            {/* Badge Tag */}
-            <div>
-              <span className="inline-flex items-center space-x-1.5 px-4 py-1.5 rounded-full text-[10px] sm:text-xs font-black tracking-widest uppercase text-amber-400 bg-amber-400/10 border border-amber-400/30 shadow-[0_0_12px_rgba(245,158,11,0.2)]">
-                <Sparkles className="h-3.5 w-3.5 text-amber-400" />
-                <span>{currentBanner.badge}</span>
-              </span>
-            </div>
-            
-            {/* Main Title */}
-            <h1 className="text-2xl sm:text-4xl lg:text-5xl font-black tracking-tight leading-tight text-white drop-shadow-md">
-              {currentBanner.title}
-            </h1>
-            
-            {/* Subtitle / Description */}
-            <p className="text-xs sm:text-sm md:text-base text-slate-300 font-normal leading-relaxed max-w-lg">
-              {currentBanner.description}
-            </p>
-            
-            {/* Magnetic CTA Button */}
-            <div className="pt-2 flex justify-center sm:justify-start">
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => handleSlideAction(currentBanner.tabKey)}
-                className="group inline-flex items-center space-x-3 px-7 py-3.5 sm:py-4 rounded-2xl text-xs sm:text-sm font-black tracking-wider uppercase bg-gradient-to-r from-amber-400 via-amber-400 to-amber-500 text-slate-950 shadow-lg hover:shadow-[0_0_25px_rgba(245,158,11,0.45)] transition-all cursor-pointer"
-              >
-                <span>{currentBanner.buttonText}</span>
-                <ArrowRight className="h-4 w-4 sm:h-5 sm:w-5 group-hover:translate-x-1.5 transition-transform duration-200 text-slate-950" />
-              </motion.button>
-            </div>
-          </motion.div>
-        </AnimatePresence>
+      {/* Hero Content: Pure Product & Title Showcase */}
+      <div className="relative h-full max-w-7xl mx-auto px-6 sm:px-10 lg:px-14 py-12 sm:py-16 flex items-center justify-start z-20">
+        <div className="max-w-2xl text-center sm:text-left space-y-4 sm:space-y-6">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={currentSlide}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.5, ease: 'easeOut' }}
+              className="space-y-4 sm:space-y-6"
+            >
+              {/* Badge Tag */}
+              <div className="flex flex-wrap items-center gap-2 justify-center sm:justify-start">
+                <span className="inline-flex items-center space-x-2 px-4 py-1.5 rounded-full text-[11px] sm:text-xs font-black tracking-widest uppercase text-amber-400 bg-amber-400/10 border border-amber-400/40 backdrop-blur-md shadow-[0_0_15px_rgba(245,158,11,0.25)]">
+                  <Sparkles className="h-3.5 w-3.5 text-amber-400" />
+                  <span>{currentBanner.badge}</span>
+                </span>
+              </div>
+              
+              {/* Headline Title */}
+              <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black tracking-tight leading-tight text-white drop-shadow-[0_4px_16px_rgba(0,0,0,0.95)]">
+                {currentBanner.title}
+              </h1>
+              
+              {/* Subtitle / Description */}
+              <p className="text-sm sm:text-base md:text-lg text-slate-200 font-medium leading-relaxed drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)]">
+                {currentBanner.description}
+              </p>
+              
+              {/* Action CTA Button with Strong Golden Glow */}
+              <div className="pt-3 flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-4">
+                <motion.button
+                  whileHover={{ scale: 1.05, y: -2 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => handleSlideAction(currentBanner.tabKey)}
+                  className="group inline-flex items-center space-x-3 px-8 py-4 rounded-2xl text-xs sm:text-sm font-black tracking-widest uppercase bg-gradient-to-r from-amber-400 via-amber-400 to-amber-500 text-slate-950 shadow-[0_0_25px_rgba(245,158,11,0.45)] hover:shadow-[0_0_40px_rgba(245,158,11,0.7)] transition-all cursor-pointer border border-amber-300/40"
+                >
+                  <span>{currentBanner.buttonText}</span>
+                  <ArrowRight className="h-4 w-4 sm:h-5 sm:w-5 group-hover:translate-x-1.5 transition-transform duration-200 text-slate-950 stroke-[3]" />
+                </motion.button>
+              </div>
+            </motion.div>
+          </AnimatePresence>
+        </div>
       </div>
 
       {/* Floating Glass Arrow Controls (Sides) */}
@@ -207,21 +205,21 @@ export const Hero: React.FC = () => {
         <ChevronRight className="h-6 w-6 stroke-[2.5]" />
       </motion.button>
 
-      {/* Pagination Dots (Bottom) */}
-      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 flex items-center space-x-3 backdrop-blur-md px-4 py-2 rounded-full bg-slate-900/50 border border-white/10">
+      {/* Sleek Minimalist Carousel Dots (Bottom) */}
+      <div className="absolute bottom-5 left-1/2 -translate-x-1/2 z-30 flex items-center space-x-2.5 backdrop-blur-md px-3.5 py-1.5 rounded-full bg-slate-950/60 border border-white/10">
         {slides.map((slide, idx) => {
           const isActive = idx === currentSlide;
           return (
             <button
               key={slide.id}
               onClick={() => handleDotClick(idx)}
-              className="relative transition-all duration-300 cursor-pointer focus:outline-none"
+              className="relative transition-all duration-300 cursor-pointer focus:outline-none py-1"
               title={`Ir para slide ${idx + 1}`}
             >
               <span className={`block rounded-full transition-all duration-300 ${
                 isActive 
-                  ? 'w-8 h-2 bg-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.5)]' 
-                  : 'w-2 h-2 bg-white/40 hover:bg-white/80'
+                  ? 'w-7 h-1.5 bg-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.6)]' 
+                  : 'w-1.5 h-1.5 bg-white/40 hover:bg-white/80'
               }`} />
             </button>
           );

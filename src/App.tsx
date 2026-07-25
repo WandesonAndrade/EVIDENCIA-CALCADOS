@@ -20,6 +20,7 @@ import { CompleteProfileModal } from './components/CompleteProfileModal';
 import { AboutUs } from './components/AboutUs';
 import { SupportPage } from './components/SupportPage';
 import { FavoritesList } from './components/FavoritesList';
+import { FloatingAssistant } from './components/FloatingAssistant';
 
 export const isProfileIncomplete = (user: any) => {
   if (!user) return false;
@@ -148,6 +149,9 @@ const AppContent: React.FC = () => {
       </div>
       <Footer />
       
+      {/* Official Floating Assistant Widget */}
+      <FloatingAssistant />
+
       {/* Complete Profile Modal */}
       <CompleteProfileModal isOpen={isProfileModalOpen} onClose={() => setIsProfileModalOpen(false)} />
     </div>

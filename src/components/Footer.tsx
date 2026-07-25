@@ -129,19 +129,6 @@ export const Footer: React.FC = () => {
         </div>
       </div>
 
-      {/* Floating WhatsApp Contact Button */}
-      <button
-        id="whatsapp-fab"
-        onClick={handleWhatsAppGeneralClick}
-        className="fixed bottom-6 right-6 z-50 bg-[#25D366] hover:bg-[#20ba5a] text-white p-4 rounded-full shadow-2xl flex items-center justify-center transition-all hover:scale-110 active:scale-95 group cursor-pointer"
-        title="Fale no WhatsApp"
-      >
-        <span className="max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-300 ease-out text-xs font-bold whitespace-nowrap mr-0 group-hover:mr-2">
-          Atendimento WhatsApp
-        </span>
-        <MessageSquare className="h-6 w-6" />
-        <span className="absolute inset-0 rounded-full bg-[#25D366] opacity-30 animate-ping -z-10" />
-      </button>
     </footer>
   );
 };

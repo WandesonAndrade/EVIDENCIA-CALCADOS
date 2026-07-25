@@ -78,9 +78,9 @@ const AppContext = createContext<AppContextProps | undefined>(undefined);
 export const DEFAULT_HERO_BANNERS: HeroBanner[] = [
   {
     id: 'banner-1',
-    badge: 'NOVA COLEÇÃO 2026',
-    title: 'Elegância que caminha com você.',
-    description: 'Descubra a seleção exclusiva de calçados premium com o conforto que seus pés merecem e as condições que só a Evidência oferece.',
+    badge: 'LOJA OFICIAL CAXIAS - MA',
+    title: 'A sua loja de Caxias - MA está online!',
+    description: 'Compre no carnê em até 10x sem juros ou receba via entrega rápida com o atendimento exclusivo da equipe Evidência Calçados.',
     image: 'https://images.unsplash.com/photo-1549298916-b41d501d3772?q=80&w=1600&auto=format&fit=crop',
     buttonText: 'Ver Lançamentos',
     tabKey: 'lançamentos',

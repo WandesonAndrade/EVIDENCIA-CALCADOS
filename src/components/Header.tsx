@@ -62,7 +62,7 @@ export const Header: React.FC = () => {
         {/* LINHA SUPERIOR (TIER 1): Logo Vetorial 100% HTML/Tailwind + Busca Proeminente + Ações do Usuário */}
         <div className="flex items-center justify-between h-16 sm:h-20 gap-4">
           
-          {/* Logo da Marca Evidência Calçados (100% Código/Tailwind com Nitidez Total) */}
+          {/* Logo da Marca Evidência Calçados */}
           <BrandLogo size="md" />
 
           {/* Barra de Pesquisa Proeminente & Larga (Centro) */}
@@ -140,22 +140,7 @@ export const Header: React.FC = () => {
               )}
             </motion.button>
 
-            {/* Painel Administrativo (Vendedor/Admin) */}
-            {currentUser && (currentUser.role === 'admin' || currentUser.role === 'seller') && (
-              <motion.button
-                whileTap={{ scale: 0.9 }}
-                id="admin-panel-button"
-                onClick={() => setCurrentView('admin')}
-                className={`p-2.5 rounded-full backdrop-blur-md border transition-all cursor-pointer ${
-                  currentView === 'admin'
-                    ? isDark ? 'text-amber-400 bg-amber-400/10 border-amber-400/30' : 'text-slate-900 bg-slate-200 border-slate-300'
-                    : isDark ? 'text-slate-300 bg-slate-900/80 border-slate-800 hover:bg-slate-800' : 'text-slate-700 bg-slate-100/80 border-slate-200/80 hover:bg-white'
-                }`}
-                title="Painel Administrativo"
-              >
-                <LayoutDashboard className="h-4.5 w-4.5" />
-              </motion.button>
-            )}
+
 
             {/* Perfil do Usuário com Dropdown */}
             {currentUser ? (
