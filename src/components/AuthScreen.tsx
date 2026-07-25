@@ -254,119 +254,62 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
 
   // --- ISOLATED INTERFACE FOR CUSTOMER LOGIN ---
   return (
-    <div id="customer-auth-page" className="max-w-md mx-auto px-4 py-8 sm:py-12">
-      <div className={`rounded-3xl border backdrop-blur-2xl shadow-2xl p-6 sm:p-10 space-y-6 ${
-        isDark ? 'bg-slate-900/90 border-slate-800 text-white shadow-black/50' : 'bg-white border-slate-200/80 text-slate-800 shadow-xl'
+    <div id="customer-auth-page" className="max-w-md mx-auto px-4 py-10 sm:py-16">
+      <div className={`rounded-3xl border backdrop-blur-2xl shadow-2xl p-8 sm:p-10 space-y-6 ${
+        isDark ? 'bg-slate-900/90 border-slate-800 text-white shadow-black/60' : 'bg-white border-slate-200/90 text-slate-800 shadow-xl'
       }`}>
         
         {/* Header Greeting */}
         <div className="text-center space-y-3">
-          <div className="flex justify-center">
+          <div className="flex justify-center pb-1">
             <BrandLogo size="md" />
           </div>
 
-          <h2 className={`text-xl font-black tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
+          <h2 className={`text-xl sm:text-2xl font-black tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
             {isRegisterMode ? 'Criar Cadastro Grátis' : 'Acesse sua Conta'}
           </h2>
           <p className={`text-xs max-w-xs mx-auto leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-            Conecte-se para acompanhar pedidos, salvar favoritos e agilizar suas compras na Evidência Calçados.
+            Conecte-se para acompanhar seus pedidos, salvar favoritos e agilizar suas compras na Evidência Calçados.
           </p>
         </div>
 
-        <div className="space-y-4">
-          {/* Google Authentication Button */}
+        <div className="space-y-5 pt-2">
+          {/* Official Google Authentication Button */}
           <button
             type="button"
             onClick={handleGoogleSignIn}
             disabled={isLoading}
-            className={`w-full flex items-center justify-center space-x-2.5 py-3 border rounded-xl transition-all text-xs font-bold shadow-sm cursor-pointer disabled:opacity-50 ${
+            className={`w-full flex items-center justify-center space-x-3 py-3.5 px-4 border rounded-2xl transition-all text-xs sm:text-sm font-bold shadow-xs cursor-pointer disabled:opacity-50 ${
               isDark
-                ? 'bg-slate-950/80 border-slate-800 text-slate-200 hover:bg-slate-800 hover:border-slate-700'
-                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                ? 'bg-slate-950/90 border-slate-800 text-slate-100 hover:bg-slate-800 hover:border-slate-700 shadow-black/40'
+                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 shadow-xs'
             }`}
           >
-            <Chrome className="h-4 w-4 text-red-500" />
+            <svg className="h-5 w-5 shrink-0" viewBox="0 0 24 24">
+              <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"/>
+              <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.11-6.72-4.96H1.29v3.15C3.26 21.3 7.31 24 12 24z"/>
+              <path fill="#FBBC05" d="M5.28 14.24c-.25-.72-.38-1.49-.38-2.24s.13-1.52.38-2.24V6.61H1.29C.47 8.24 0 10.06 0 12s.47 3.76 1.29 5.39l3.99-3.15z"/>
+              <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.29 6.61l3.99 3.15c.95-2.85 3.6-4.96 6.72-4.96z"/>
+            </svg>
             <span>Entrar com o Google</span>
           </button>
-
-          {/* Simulated Google Button / Option */}
-          <div className="text-center">
-            <button
-              type="button"
-              onClick={() => setShowSimPanel(!showSimPanel)}
-              className={`text-[10px] underline font-semibold transition-all ${
-                isDark ? 'text-slate-400 hover:text-amber-400' : 'text-slate-500 hover:text-slate-900'
-              }`}
-            >
-              {showSimPanel ? 'Ocultar Simulador Google' : 'Usar Simulador Google (Sem popups)'}
-            </button>
-          </div>
-
-          {/* Google Simulator Drawer / Accordion */}
-          {showSimPanel && (
-            <div className={`rounded-2xl p-4 border space-y-3 ${
-              isDark ? 'bg-indigo-950/40 border-indigo-900/50' : 'bg-indigo-50/70 border-indigo-100'
-            }`}>
-              <div className="flex items-center space-x-1.5 text-indigo-400 font-bold text-xs">
-                <Sparkles className="h-3.5 w-3.5" />
-                <span>Simulador de Conta Google</span>
-              </div>
-              <p className="text-[10px] text-indigo-300 leading-normal">
-                Ideal para navegadores que bloqueiam popups ou no preview integrado.
-              </p>
-
-              <form onSubmit={handleSimulatedGoogleSignIn} className="space-y-2">
-                <div className="space-y-1">
-                  <label className="text-[9px] font-bold text-indigo-300 uppercase tracking-wider block">Nome do Usuário Google</label>
-                  <input
-                    type="text"
-                    required
-                    value={simName}
-                    onChange={(e) => setSimName(e.target.value)}
-                    placeholder="Nome de teste"
-                    className="w-full px-3 py-1.5 text-xs bg-slate-900 border border-indigo-900/60 rounded-lg text-white focus:outline-none focus:border-indigo-400"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[9px] font-bold text-indigo-300 uppercase tracking-wider block">E-mail do Usuário Google</label>
-                  <input
-                    type="email"
-                    required
-                    value={simEmail}
-                    onChange={(e) => setSimEmail(e.target.value)}
-                    placeholder="email@exemplo.com"
-                    className="w-full px-3 py-1.5 text-xs bg-slate-900 border border-indigo-900/60 rounded-lg text-white focus:outline-none focus:border-indigo-400"
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-lg transition-all shadow-sm"
-                >
-                  Simular e Entrar Agora
-                </button>
-              </form>
-            </div>
-          )}
 
           {/* Divider */}
           <div className="relative py-2 flex items-center justify-center">
             <div className="absolute inset-0 flex items-center">
               <div className={`w-full border-t ${isDark ? 'border-slate-800' : 'border-slate-200'}`} />
             </div>
-            <span className={`relative px-3 text-[10px] font-bold uppercase tracking-wider ${
+            <span className={`relative px-3 text-[10px] font-black uppercase tracking-widest ${
               isDark ? 'bg-[#0B0F19] text-slate-400' : 'bg-white text-slate-400'
             }`}>
-              ou e-mail tradicional
+              ou continue com e-mail
             </span>
           </div>
 
           {/* Traditional Email Form */}
-          <form onSubmit={handleSubmit} className="space-y-3">
+          <form onSubmit={handleSubmit} className="space-y-4">
             {isRegisterMode && (
-              <div className="space-y-1">
+              <div className="space-y-1.5">
                 <label className={`text-[10px] font-black uppercase tracking-wider block ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
                   Seu Nome Completo
                 </label>
@@ -377,18 +320,18 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="Digite seu nome completo"
-                    className={`w-full pl-10 pr-4 py-2.5 text-xs border rounded-xl focus:outline-none transition-all ${
+                    className={`w-full pl-10 pr-4 py-3 text-xs border rounded-2xl focus:outline-none transition-all ${
                       isDark 
                         ? 'bg-slate-950/80 border-slate-800 text-white focus:border-amber-400' 
                         : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-slate-800'
                     }`}
                   />
-                  <User className="absolute left-3.5 top-3.5 h-3.5 w-3.5 text-slate-400" />
+                  <User className="absolute left-3.5 top-3.5 h-4 w-4 text-slate-400" />
                 </div>
               </div>
             )}
 
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               <label className={`text-[10px] font-black uppercase tracking-wider block ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
                 Endereço de E-mail
               </label>
@@ -399,18 +342,18 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="seuemail@exemplo.com"
-                  className={`w-full pl-10 pr-4 py-2.5 text-xs border rounded-xl focus:outline-none transition-all ${
+                  className={`w-full pl-10 pr-4 py-3 text-xs border rounded-2xl focus:outline-none transition-all ${
                     isDark 
                       ? 'bg-slate-950/80 border-slate-800 text-white focus:border-amber-400' 
                       : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-slate-800'
                   }`}
                 />
-                <Mail className="absolute left-3.5 top-3.5 h-3.5 w-3.5 text-slate-400" />
+                <Mail className="absolute left-3.5 top-3.5 h-4 w-4 text-slate-400" />
               </div>
             </div>
 
             {errorMessage && (
-              <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-semibold text-center">
+              <div className="p-3 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-semibold text-center">
                 {errorMessage}
               </div>
             )}
@@ -418,7 +361,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
             <button
               type="submit"
               disabled={isLoading}
-              className={`w-full py-3 px-4 text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md cursor-pointer disabled:opacity-50 ${
+              className={`w-full py-3.5 px-4 text-xs font-black uppercase tracking-wider rounded-2xl transition-all shadow-md cursor-pointer disabled:opacity-50 ${
                 isDark
                   ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 hover:shadow-[0_0_20px_rgba(245,158,11,0.3)]'
                   : 'bg-slate-900 text-white hover:bg-slate-800'
@@ -428,14 +371,14 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
             </button>
           </form>
 
-          {/* Switch Mode Link (ONLY FOR CUSTOMER) */}
-          <div className="text-center text-xs pt-1">
+          {/* Footer Registration Link */}
+          <div className="text-center text-xs pt-2">
             {isRegisterMode ? (
               <p className={isDark ? 'text-slate-400' : 'text-slate-500'}>
-                Já possui conta?{' '}
+                Já possui uma conta?{' '}
                 <button 
                   onClick={() => { setIsRegisterMode(false); setErrorMessage(''); }}
-                  className={`font-bold hover:underline cursor-pointer ${isDark ? 'text-amber-400' : 'text-slate-900'}`}
+                  className={`font-black hover:underline cursor-pointer ${isDark ? 'text-amber-400' : 'text-slate-900'}`}
                 >
                   Fazer Login
                 </button>
@@ -445,7 +388,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
                 Ainda não é cadastrado?{' '}
                 <button 
                   onClick={() => { setIsRegisterMode(true); setErrorMessage(''); }}
-                  className={`font-bold hover:underline cursor-pointer ${isDark ? 'text-amber-400' : 'text-slate-900'}`}
+                  className={`font-black hover:underline cursor-pointer ${isDark ? 'text-amber-400' : 'text-slate-900'}`}
                 >
                   Criar cadastro grátis
                 </button>
