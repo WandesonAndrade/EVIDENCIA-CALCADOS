@@ -727,7 +727,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return unsubscribe;
   }, []);
 
-  // Listen to orders
+  // Listen to orders with strict user UID isolation
   useEffect(() => {
     setIsLoadingOrders(true);
     let unsubscribe = () => {};
@@ -737,13 +737,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       let ordersQuery = query(ordersRef);
 
       if (currentUser.role === 'customer') {
-        ordersQuery = query(ordersRef, where('customerEmail', '==', currentUser.email));
+        // Query strictly by user UID
+        ordersQuery = query(ordersRef, where('userId', '==', currentUser.uid));
       }
 
       unsubscribe = onSnapshot(ordersQuery, (snapshot) => {
         const orderList: Order[] = [];
         snapshot.forEach((doc) => {
-          orderList.push({ id: doc.id, ...doc.data() } as Order);
+          const data = doc.data() as Order;
+          // Double safety check for user data isolation
+          if (
+            currentUser.role === 'admin' || 
+            data.userId === currentUser.uid || 
+            (data.customerEmail && data.customerEmail.toLowerCase() === currentUser.email.toLowerCase())
+          ) {
+            orderList.push({ id: doc.id, ...data });
+          }
         });
         // Sort orders by date descending
         orderList.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -752,10 +761,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setIsLoadingOrders(false);
       }, (error) => {
         console.warn("Firestore collection orders listening failed, serving cached local orders:", error.message);
-        // Filter local orders by user if customer
+        // Filter local orders by user UID/email if customer
         const cached = getLocalOrders();
         const filtered = currentUser.role === 'customer' 
-          ? cached.filter(o => o.customerEmail === currentUser.email)
+          ? cached.filter(o => o.userId === currentUser.uid || (o.customerEmail && o.customerEmail.toLowerCase() === currentUser.email.toLowerCase()))
           : cached;
         filtered.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
         setOrders(filtered);
@@ -1058,7 +1067,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const logout = () => {
     setCurrentUser(null);
+    setOrders([]);
     localStorage.removeItem('evidencia_user');
+    localStorage.removeItem('evidencia_local_orders');
     setCurrentView('home');
   };
 
