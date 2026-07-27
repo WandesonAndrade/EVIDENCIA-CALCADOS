@@ -2,67 +2,50 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Função auxiliar para verificar se o usuário está autenticado
-    function isSignedIn() {
-      return request.auth != null;
+    // Regra para Usuários / Clientes / Perfis de Crediário
+    match /users/{userId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
     }
 
-    // Função auxiliar para verificar se o usuário é o próprio dono do recurso
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
+    // Regra para Solicitações de Crediário Próprio
+    match /creditRequests/{requestId} {
+      allow read, write: if request.auth != null;
     }
 
-    // Função auxiliar para verificar se o usuário autenticado é administrador/vendedor
-    function isAdmin() {
-      return isSignedIn() && (
-        request.auth.token.admin == true ||
-        request.auth.token.email.matches('.*admin.*') ||
-        request.auth.token.email == 'admin@evidenciacalcados.com.br' ||
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'seller']
-      );
+    // Regra para Coleção de Clientes
+    match /clients/{clientId} {
+      allow read, write: if request.auth != null;
     }
 
-    // 1. Produtos e Categorias: Leitura pública, escrita apenas para Administradores
+    // Regra para Catálogo de Produtos
     match /products/{productId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if request.auth != null;
     }
 
+    // Regra para Categorias de Produtos
     match /categories/{categoryId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if request.auth != null;
     }
 
-    // 2. Usuários / Clientes: O próprio usuário pode ler/escrever seu documento ou um Admin
-    match /users/{userId} {
-      allow read, write: if isOwner(userId) || isAdmin();
-    }
-
-    // 3. Pedidos (Orders) e Crediário: Criação liberada para usuários logados.
-    // Leitura e edição restritas ao dono do pedido ou Admin.
+    // Regra para Pedidos da Loja
     match /orders/{orderId} {
-      allow create: if isSignedIn();
-      allow read, update, delete: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
-    }
-
-    match /crediarioRequests/{requestId} {
-      allow create: if isSignedIn();
-      allow read, update, delete: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
-    }
-
-    // 4. Configurações e Logs do Moblink ERP: Apenas Administradores
-    match /moblinkConfig/{configId} {
-      allow read, write: if isAdmin();
-    }
-
-    match /moblinkLogs/{logId} {
-      allow read, write: if isAdmin();
-    }
-
-    // 5. Configuração CMS da Vitrine (storeConfig): Leitura e escrita públicas temporárias
-    match /storeConfig/{document} {
       allow read: if true;
       allow write: if true;
+    }
+
+    // Regra para Configurações da Loja (CMS Layout, Banners, Contatos)
+    match /storeConfig/{document=**} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    // Regra Global de Fallback para Usuários Autenticados
+    match /{document=**} {
+      allow read: if true;
+      allow write: if request.auth != null;
     }
   }
 }
