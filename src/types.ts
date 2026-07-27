@@ -188,6 +188,10 @@ export interface UserProfile {
   uf?: string;
   complemento?: string;
   pontoReferencia?: string;
+  // Professional & Emergency Contacts for Store Credit
+  profissao?: string;
+  rendaMensal?: string;
+  referenciaPessoal?: string;
   // Crediário Status fields
   crediarioStatus?: CrediarioStatus;
   crediarioSolicitadoEm?: string;

@@ -17,6 +17,9 @@ export const CompleteProfileModal: React.FC<CompleteProfileModalProps> = ({ isOp
   const [dataNascimento, setDataNascimento] = useState('');
   const [naturalidade, setNaturalidade] = useState('');
   const [telefone, setTelefone] = useState('');
+  const [profissao, setProfissao] = useState('');
+  const [rendaMensal, setRendaMensal] = useState('');
+  const [referenciaPessoal, setReferenciaPessoal] = useState('');
 
   // Structured address fields
   const [cep, setCep] = useState('');
@@ -42,6 +45,9 @@ export const CompleteProfileModal: React.FC<CompleteProfileModalProps> = ({ isOp
       setDataNascimento(currentUser.dataNascimento || '');
       setNaturalidade(currentUser.naturalidade || 'Caxias/MA');
       setTelefone(currentUser.telefone || '(99) 98468-4867');
+      setProfissao(currentUser.profissao || '');
+      setRendaMensal(currentUser.rendaMensal || '');
+      setReferenciaPessoal(currentUser.referenciaPessoal || '');
       
       setCep(currentUser.cep || '65606-020');
       setEndereco(currentUser.endereco || 'Rua Afonso Pena');
@@ -125,6 +131,9 @@ export const CompleteProfileModal: React.FC<CompleteProfileModalProps> = ({ isOp
         dataNascimento: dataNascimento.trim(),
         naturalidade: naturalidade.trim(),
         telefone: telefone.trim(),
+        profissao: profissao.trim(),
+        rendaMensal: rendaMensal.trim(),
+        referenciaPessoal: referenciaPessoal.trim(),
         cep: cep.trim(),
         endereco: combinedEndereco, // compatibility with fallback views
         numero: numero.trim(),
@@ -300,18 +309,50 @@ export const CompleteProfileModal: React.FC<CompleteProfileModalProps> = ({ isOp
                 </div>
               </div>
 
-              {/* Nome do Pai */}
+              {/* Profissão / Ocupação */}
               <div className="space-y-1 sm:col-span-2">
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Nome Completo do Pai (Opcional)</label>
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Profissão / Ocupação Principal *</label>
                 <div className="relative">
                   <input
                     type="text"
-                    placeholder="Nome completo do pai"
-                    value={nomePai}
-                    onChange={(e) => setNomePai(e.target.value)}
+                    required
+                    placeholder="Ex: Comerciante, Vendedor, Autônomo, Servidor Público"
+                    value={profissao}
+                    onChange={(e) => setProfissao(e.target.value)}
                     className="w-full pl-8 pr-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-primary text-slate-800 font-medium"
                   />
                   <User className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
+                </div>
+              </div>
+
+              {/* Renda Mensal Declarada (Opcional) */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Renda Mensal (Opcional)</label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Ex: R$ 2.500,00"
+                    value={rendaMensal}
+                    onChange={(e) => setRendaMensal(e.target.value)}
+                    className="w-full pl-8 pr-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-primary text-slate-800 font-medium"
+                  />
+                  <FileText className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
+                </div>
+              </div>
+
+              {/* Referência Pessoal / Contato de Emergência */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Referência Pessoal / Contato *</label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    required
+                    placeholder="Nome e telefone de parente ou amigo"
+                    value={referenciaPessoal}
+                    onChange={(e) => setReferenciaPessoal(e.target.value)}
+                    className="w-full pl-8 pr-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-primary text-slate-800 font-medium"
+                  />
+                  <Phone className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
                 </div>
               </div>
 

@@ -13,7 +13,8 @@ import {
   BarChart, Layers, MessageSquare, Search, Filter, 
   Settings, ArrowLeft, UserCheck, EyeOff, ChevronRight, 
   Info, Sliders, Zap, Barcode, Image, ArrowUp, ArrowDown,
-  BookOpen, PhoneCall, Globe, CheckCircle2, Sparkles, Layout, HelpCircle
+  BookOpen, PhoneCall, Globe, CheckCircle2, Sparkles, Layout, HelpCircle,
+  FileText, Briefcase, MapPin
 } from 'lucide-react';
 
 type AdminTab = 
@@ -865,62 +866,155 @@ export const AdminPanel: React.FC = () => {
                   <p className="text-[11px] opacity-75">Novas solicitações enviadas pelos clientes aparecerão automaticamente nesta fila.</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 gap-6">
                   {users.filter(u => u.crediarioStatus === 'EmAnalise').map((u) => (
                     <div 
                       key={u.uid}
-                      className={`p-6 rounded-3xl border backdrop-blur-xl space-y-4 transition-all shadow-md ${
+                      className={`p-6 sm:p-7 rounded-3xl border backdrop-blur-xl space-y-5 transition-all shadow-md ${
                         isDark ? 'bg-slate-900/80 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
                       }`}
                     >
-                      <div className="flex items-start justify-between border-b pb-3 border-slate-800/60">
+                      {/* Header row: Customer name, email, submission time, badge */}
+                      <div className="flex flex-wrap items-start justify-between gap-3 border-b pb-4 border-slate-800/60">
                         <div>
-                          <h4 className="text-sm font-black">{u.name}</h4>
-                          <p className="text-xs text-slate-400">{u.email}</p>
+                          <div className="flex items-center space-x-2">
+                            <h4 className="text-base font-black tracking-tight">{u.name}</h4>
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-400/10 text-amber-400 border border-amber-400/30">
+                              Cliente Cadastrado
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-400 mt-0.5">{u.email}</p>
                         </div>
-                        <span className="px-2.5 py-1 rounded-full text-[9px] font-black uppercase bg-amber-400/20 text-amber-400 border border-amber-400/30">
-                          Em Análise
-                        </span>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2 text-xs font-medium">
-                        <div>
-                          <span className="text-[10px] text-slate-400 block uppercase font-bold">CPF</span>
-                          <span className="font-mono text-slate-200">{u.cpf || 'Não informado'}</span>
-                        </div>
-                        <div>
-                          <span className="text-[10px] text-slate-400 block uppercase font-bold">RG / Identidade</span>
-                          <span className="font-mono text-slate-200">{u.rg || 'Não informado'}</span>
-                        </div>
-                        <div>
-                          <span className="text-[10px] text-slate-400 block uppercase font-bold">Data Nasc.</span>
-                          <span className="text-slate-200">{u.dataNascimento || 'Não informada'}</span>
-                        </div>
-                        <div>
-                          <span className="text-[10px] text-slate-400 block uppercase font-bold">Telefone</span>
-                          <span className="text-slate-200">{u.telefone || 'Não informado'}</span>
+                        
+                        <div className="flex items-center space-x-3">
+                          {u.crediarioSolicitadoEm && (
+                            <span className="text-[10px] text-slate-400 font-medium hidden sm:inline-block">
+                              Solicitado em: {new Date(u.crediarioSolicitadoEm).toLocaleDateString('pt-BR')}
+                            </span>
+                          )}
+                          <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase bg-amber-400/20 text-amber-400 border border-amber-400/40 animate-pulse">
+                            Aguardando Análise
+                          </span>
                         </div>
                       </div>
 
-                      <div className="pt-2 border-t border-slate-800/60 text-xs">
-                        <span className="text-[10px] text-slate-400 block uppercase font-bold">Endereço Residencial (Caxias - MA)</span>
-                        <p className="text-slate-300 font-medium text-[11px] leading-relaxed mt-0.5">
-                          {u.endereco || 'Endereço não cadastrado'}
-                        </p>
+                      {/* Organized Grid of Fields: 3 Columns on desktop */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                        
+                        {/* Column 1: Documentos & Filiação */}
+                        <div className={`p-4 rounded-2xl border space-y-3 ${
+                          isDark ? 'bg-slate-950/60 border-slate-800/80' : 'bg-slate-50 border-slate-200/80'
+                        }`}>
+                          <h5 className="text-[10px] font-black uppercase tracking-wider text-amber-400 border-b pb-1.5 border-slate-800/60 flex items-center space-x-1.5">
+                            <FileText className="h-3.5 w-3.5" />
+                            <span>Documentos & Filiação</span>
+                          </h5>
+
+                          <div className="space-y-2">
+                            <div>
+                              <span className="text-[10px] text-slate-400 block uppercase font-bold">CPF</span>
+                              <span className="font-mono font-bold text-slate-200">{u.cpf || 'Não informado'}</span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-slate-400 block uppercase font-bold">RG / Identidade</span>
+                              <span className="font-mono text-slate-200">{u.rg || 'Não informado'}</span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-slate-400 block uppercase font-bold">Data de Nascimento</span>
+                              <span className="text-slate-200 font-medium">{u.dataNascimento || 'Não informada'}</span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-slate-400 block uppercase font-bold">Naturalidade</span>
+                              <span className="text-slate-200 font-medium">{u.naturalidade || 'Caxias/MA'}</span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-slate-400 block uppercase font-bold">Nome da Mãe</span>
+                              <span className="text-slate-200 font-medium">{u.nomeMae || 'Não informado'}</span>
+                            </div>
+                            {u.nomePai && (
+                              <div>
+                                <span className="text-[10px] text-slate-400 block uppercase font-bold">Nome do Pai</span>
+                                <span className="text-slate-200 font-medium">{u.nomePai}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Column 2: Ocupação, Renda & Contatos */}
+                        <div className={`p-4 rounded-2xl border space-y-3 ${
+                          isDark ? 'bg-slate-950/60 border-slate-800/80' : 'bg-slate-50 border-slate-200/80'
+                        }`}>
+                          <h5 className="text-[10px] font-black uppercase tracking-wider text-amber-400 border-b pb-1.5 border-slate-800/60 flex items-center space-x-1.5">
+                            <Briefcase className="h-3.5 w-3.5" />
+                            <span>Profissão, Renda & Contato</span>
+                          </h5>
+
+                          <div className="space-y-2">
+                            <div>
+                              <span className="text-[10px] text-slate-400 block uppercase font-bold">Profissão / Ocupação</span>
+                              <span className="text-slate-200 font-bold">{u.profissao || 'Não informada'}</span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-slate-400 block uppercase font-bold">Renda Mensal Declarada</span>
+                              <span className="text-emerald-400 font-extrabold">{u.rendaMensal || 'Não informada'}</span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-slate-400 block uppercase font-bold">Telefone / WhatsApp</span>
+                              <span className="text-slate-200 font-bold">{u.telefone || 'Não informado'}</span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-slate-400 block uppercase font-bold">Referência Pessoal / Emergência</span>
+                              <span className="text-slate-200 font-medium">{u.referenciaPessoal || 'Não informada'}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Column 3: Endereço Residencial Completo */}
+                        <div className={`p-4 rounded-2xl border space-y-3 ${
+                          isDark ? 'bg-slate-950/60 border-slate-800/80' : 'bg-slate-50 border-slate-200/80'
+                        }`}>
+                          <h5 className="text-[10px] font-black uppercase tracking-wider text-amber-400 border-b pb-1.5 border-slate-800/60 flex items-center space-x-1.5">
+                            <MapPin className="h-3.5 w-3.5" />
+                            <span>Endereço Residencial (Caxias-MA)</span>
+                          </h5>
+
+                          <div className="space-y-2">
+                            {u.cep && (
+                              <div>
+                                <span className="text-[10px] text-slate-400 block uppercase font-bold">CEP</span>
+                                <span className="font-mono text-slate-200">{u.cep}</span>
+                              </div>
+                            )}
+                            <div>
+                              <span className="text-[10px] text-slate-400 block uppercase font-bold">Logradouro / Bairro</span>
+                              <p className="text-slate-200 font-medium text-[11px] leading-relaxed mt-0.5">
+                                {u.endereco || 'Endereço não cadastrado'}
+                              </p>
+                            </div>
+                            {u.pontoReferencia && (
+                              <div>
+                                <span className="text-[10px] text-slate-400 block uppercase font-bold">Ponto de Referência</span>
+                                <span className="text-slate-300 font-medium italic">{u.pontoReferencia}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
                       </div>
 
+                      {/* Action buttons */}
                       <div className="pt-3 border-t border-slate-800 flex items-center justify-end space-x-3">
                         <button
                           type="button"
                           onClick={() => handleRejeitarCrediario(u)}
-                          className="px-4 py-2 rounded-xl border border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 text-xs font-bold transition-all cursor-pointer"
+                          className="px-4 py-2.5 rounded-xl border border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 text-xs font-bold transition-all cursor-pointer"
                         >
                           Rejeitar Crediário
                         </button>
                         <button
                           type="button"
                           onClick={() => handleAprovarCrediario(u)}
-                          className="px-5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black transition-all shadow-md cursor-pointer flex items-center space-x-1.5"
+                          className="px-6 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black transition-all shadow-md cursor-pointer flex items-center space-x-1.5"
                         >
                           <Check className="h-4 w-4" />
                           <span>Aprovar Crediário</span>

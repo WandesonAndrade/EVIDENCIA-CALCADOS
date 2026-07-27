@@ -475,7 +475,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const savedUser = localStorage.getItem('evidencia_user');
     if (savedUser) {
       try {
-        setCurrentUser(JSON.parse(savedUser));
+        const parsed = JSON.parse(savedUser) as UserProfile;
+        setCurrentUser(parsed);
+        if (parsed?.uid) {
+          getDoc(doc(db, 'users', parsed.uid)).then((snap) => {
+            if (snap.exists()) {
+              const fsData = snap.data() as UserProfile;
+              const merged = { ...parsed, ...fsData };
+              setCurrentUser(merged);
+              localStorage.setItem('evidencia_user', JSON.stringify(merged));
+              saveLocalUser(parsed.uid, merged);
+            }
+          }).catch((err) => console.warn("Background user Firestore sync skipped:", err));
+        }
       } catch (e) {
         console.error("Failed to parse user session", e);
       }
@@ -909,7 +921,44 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const name = user.displayName || 'Cliente Google';
         const email = user.email || '';
         const photoURL = user.photoURL || `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(name)}`;
-        const profile: UserProfile = {
+
+        // 1. Immediately verify persistence in Firestore
+        let existingProfile: UserProfile | null = null;
+        try {
+          const userDocSnap = await getDoc(doc(db, 'users', uid));
+          if (userDocSnap.exists()) {
+            existingProfile = userDocSnap.data() as UserProfile;
+          }
+        } catch (error) {
+          console.warn("Firestore user lookup failed, checking local storage:", error);
+        }
+
+        // 2. Check local users fallback
+        if (!existingProfile) {
+          const localUsers = getLocalUsers();
+          if (localUsers[uid]) {
+            existingProfile = localUsers[uid];
+          } else {
+            const savedUserStr = localStorage.getItem('evidencia_user');
+            if (savedUserStr) {
+              try {
+                const parsed = JSON.parse(savedUserStr);
+                if (parsed && (parsed.uid === uid || parsed.email === email)) {
+                  existingProfile = parsed;
+                }
+              } catch (e) {}
+            }
+          }
+        }
+
+        // 3. Merge existing complete profile or create new
+        const profile: UserProfile = existingProfile ? {
+          ...existingProfile,
+          uid,
+          name: existingProfile.name || name,
+          email: existingProfile.email || email,
+          photoURL: photoURL || existingProfile.photoURL,
+        } : {
           uid,
           name,
           email,
@@ -917,14 +966,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           photoURL,
           createdAt: new Date().toISOString()
         };
+
         saveLocalUser(uid, profile);
         setCurrentUser(profile);
         localStorage.setItem('evidencia_user', JSON.stringify(profile));
+
+        // 4. Save to Firestore with { merge: true } so complete fields (CPF, RG, address, etc.) are never overwritten
         try {
-          await setDoc(doc(db, 'users', uid), profile);
+          await setDoc(doc(db, 'users', uid), profile, { merge: true });
         } catch (error) {
-          console.warn("Firestore registration failed, stored profile locally:", error);
+          console.warn("Firestore registration merge failed, stored profile locally:", error);
         }
+
         return profile;
       }
     } catch (error) {
@@ -938,7 +991,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const formattedEmail = email.toLowerCase().trim();
     const uid = 'google_sim_' + formattedEmail.replace(/[^a-zA-Z0-9]/g, '_');
     const finalPhoto = photoURL || `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(name)}`;
-    const profile: UserProfile = {
+
+    let existingProfile: UserProfile | null = null;
+    try {
+      const userDocSnap = await getDoc(doc(db, 'users', uid));
+      if (userDocSnap.exists()) {
+        existingProfile = userDocSnap.data() as UserProfile;
+      }
+    } catch (error) {}
+
+    const profile: UserProfile = existingProfile ? {
+      ...existingProfile,
+      uid,
+      name: existingProfile.name || name,
+      email: existingProfile.email || formattedEmail,
+      photoURL: finalPhoto || existingProfile.photoURL,
+    } : {
       uid,
       name,
       email: formattedEmail,
@@ -952,7 +1020,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem('evidencia_user', JSON.stringify(profile));
 
     try {
-      await setDoc(doc(db, 'users', uid), profile);
+      await setDoc(doc(db, 'users', uid), profile, { merge: true });
     } catch (error) {
       console.warn("Firestore simulation registration failed, stored profile locally:", error);
     }
@@ -976,9 +1044,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Save active user to localStorage
     localStorage.setItem('evidencia_user', JSON.stringify(updatedProfile));
 
-    // Try Firestore
+    // Try Firestore with merge: true
     try {
-      await setDoc(doc(db, 'users', updatedProfile.uid), updatedProfile);
+      await setDoc(doc(db, 'users', updatedProfile.uid), updatedProfile, { merge: true });
     } catch (error) {
       console.warn("Firestore profile update failed, stored profile locally:", error);
     }
