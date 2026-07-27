@@ -1032,53 +1032,102 @@ export const AdminPanel: React.FC = () => {
                             </div>
                           </div>
 
-                          {/* Freight Management Card */}
-                          <div className={`p-3.5 rounded-2xl border space-y-2 ${
-                            hasPendingFreight 
+                          {/* Column 4: Freight Management (Conditional) & Price Breakdown */}
+                          <div className={`p-3.5 rounded-2xl border space-y-3 ${
+                            isOtherCities && hasPendingFreight 
                               ? 'bg-amber-400/10 border-amber-400/30' 
                               : isDark ? 'bg-slate-950/60 border-slate-800' : 'bg-slate-50 border-slate-200'
                           }`}>
-                            <div className="flex items-center justify-between">
-                              <span className="text-[10px] uppercase font-bold text-slate-400">Gestão do Valor do Frete</span>
-                              {hasPendingFreight && (
-                                <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-amber-400/20 text-amber-400 border border-amber-400/30 animate-pulse">
-                                  A Combinar
+                            <div className="flex items-center justify-between border-b pb-1.5 border-slate-800/40">
+                              <span className="text-[10px] uppercase font-black text-amber-400">
+                                {isOtherCities ? 'Gestão do Valor do Frete' : 'Regra de Envio Aplicada'}
+                              </span>
+                              {isOtherCities ? (
+                                hasPendingFreight ? (
+                                  <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-amber-400/20 text-amber-400 border border-amber-400/30 animate-pulse">
+                                    A Combinar
+                                  </span>
+                                ) : (
+                                  <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                                    Definido
+                                  </span>
+                                )
+                              ) : (
+                                <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-sky-500/20 text-sky-400 border border-sky-500/30">
+                                  Automático
                                 </span>
                               )}
                             </div>
 
-                            <div className="flex items-center space-x-2">
-                              <div className="relative flex-1">
-                                <span className="absolute left-2.5 top-2 text-xs font-bold text-slate-400">R$</span>
-                                <input
-                                  type="number"
-                                  step="0.01"
-                                  value={editingFreightMap[o.id] !== undefined ? editingFreightMap[o.id] : (o.freightCost || 0)}
-                                  onChange={(e) => setEditingFreightMap(prev => ({ ...prev, [o.id]: e.target.value }))}
-                                  placeholder="0,00"
-                                  className={`w-full pl-8 pr-2 py-1.5 rounded-xl text-xs font-bold border focus:outline-none ${
-                                    isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
-                                  }`}
-                                />
+                            {/* Conditional Freight Controls */}
+                            {isOtherCities ? (
+                              <div className="space-y-1.5">
+                                <p className="text-[10px] text-slate-400 font-medium">Insira o valor negociado via WhatsApp:</p>
+                                <div className="flex items-center space-x-2">
+                                  <div className="relative flex-1">
+                                    <span className="absolute left-2.5 top-2 text-xs font-bold text-slate-400">R$</span>
+                                    <input
+                                      type="number"
+                                      step="0.01"
+                                      value={editingFreightMap[o.id] !== undefined ? editingFreightMap[o.id] : (o.freightCost || 0)}
+                                      onChange={(e) => setEditingFreightMap(prev => ({ ...prev, [o.id]: e.target.value }))}
+                                      placeholder="0,00"
+                                      className={`w-full pl-8 pr-2 py-1.5 rounded-xl text-xs font-bold border focus:outline-none ${
+                                        isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
+                                      }`}
+                                    />
+                                  </div>
+
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      const val = parseFloat(editingFreightMap[o.id] ?? String(o.freightCost || 0));
+                                      await updateOrderFreight(o.id, isNaN(val) ? 0 : val);
+                                      addToast('Frete Atualizado!', `O valor do frete do pedido ${o.orderNumber || o.id} foi salvo com sucesso.`, 'success');
+                                    }}
+                                    className="px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs transition-all shadow-sm cursor-pointer flex items-center space-x-1 shrink-0"
+                                  >
+                                    <Save className="h-3.5 w-3.5" />
+                                    <span>Salvar</span>
+                                  </button>
+                                </div>
                               </div>
+                            ) : (
+                              <div className="py-1">
+                                {o.deliveryType === 'Retirada na Loja' ? (
+                                  <p className="text-[11px] font-bold text-sky-400 flex items-center space-x-1">
+                                    <span>🏬 Retirada na Loja (Frete Grátis)</span>
+                                  </p>
+                                ) : (
+                                  <p className="text-[11px] font-bold text-emerald-400 flex items-center space-x-1">
+                                    {((o.subtotal || o.total) > 100 || o.freightCost === 0) ? (
+                                      <span>✓ Frete Grátis Caxias - MA (Compras &gt; R$ 100)</span>
+                                    ) : (
+                                      <span>🚚 Taxa Fixo Caxias - MA: R$ 10,00</span>
+                                    )}
+                                  </p>
+                                )}
+                              </div>
+                            )}
 
-                              <button
-                                type="button"
-                                onClick={async () => {
-                                  const val = parseFloat(editingFreightMap[o.id] ?? String(o.freightCost || 0));
-                                  await updateOrderFreight(o.id, isNaN(val) ? 0 : val);
-                                  addToast('Frete Atualizado!', `O valor do frete do pedido ${o.orderNumber || o.id} foi salvo com sucesso.`, 'success');
-                                }}
-                                className="px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs transition-all shadow-sm cursor-pointer flex items-center space-x-1"
-                              >
-                                <Save className="h-3.5 w-3.5" />
-                                <span>Salvar Frete</span>
-                              </button>
-                            </div>
-
-                            <div className="flex justify-between text-[11px] font-bold pt-1 text-slate-300">
-                              <span>Subtotal: R$ ${(o.subtotal || o.total).toFixed(2).replace('.', ',')}</span>
-                              <span className="text-amber-400 font-extrabold">Total Geral: R$ {o.total.toFixed(2).replace('.', ',')}</span>
+                            {/* Transparent Price Composition */}
+                            <div className="pt-2 border-t border-slate-800/50 space-y-1 text-[11px]">
+                              <div className="flex justify-between text-slate-400">
+                                <span>Subtotal Produtos:</span>
+                                <span className="font-bold text-slate-300">R$ ${(o.subtotal || (o.total - (o.freightCost || 0))).toFixed(2).replace('.', ',')}</span>
+                              </div>
+                              <div className="flex justify-between text-slate-400">
+                                <span>Taxa de Frete:</span>
+                                <span className="font-bold text-slate-300">
+                                  {isOtherCities 
+                                    ? (o.freightCost && o.freightCost > 0 ? `R$ ${o.freightCost.toFixed(2).replace('.', ',')}` : 'A Combinar')
+                                    : (o.freightCost === 0 || o.deliveryType === 'Retirada na Loja' || (o.subtotal || 0) > 100 ? 'GRÁTIS' : `R$ ${(o.freightCost || 10).toFixed(2).replace('.', ',')}`)}
+                                </span>
+                              </div>
+                              <div className="flex justify-between font-black text-amber-400 pt-1 border-t border-slate-800/40 text-xs">
+                                <span>Total Geral:</span>
+                                <span>R$ {o.total.toFixed(2).replace('.', ',')}</span>
+                              </div>
                             </div>
                           </div>
                         </div>
