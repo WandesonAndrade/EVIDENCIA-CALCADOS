@@ -147,6 +147,7 @@ export interface Order {
   items: OrderItem[];
   subtotal?: number;
   freightCost?: number;
+  cashbackDiscount?: number;
   total: number;
   paymentMethod?: 'Pix' | 'Cartão de Crédito' | 'Crediário da Loja';
   paymentStatus?: PaymentStatus;
@@ -200,6 +201,12 @@ export interface UserProfile {
   crediarioSolicitadoEm?: string;
   crediarioAnalisadoEm?: string;
   crediarioMotivoRejeicao?: string;
+  // CRM, Intent Tags & Cashback fields
+  isProfileComplete?: boolean;
+  cartItemsCount?: number;
+  favoriteItemsCount?: number;
+  cashbackBalance?: number;
+  cashbackValidUntil?: string;
 }
 
 export interface HeroBanner {

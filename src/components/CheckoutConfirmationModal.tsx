@@ -41,7 +41,16 @@ export const CheckoutConfirmationModal: React.FC<CheckoutConfirmationModalProps>
   // Calculate freight cost based on delivery choice
   const isFreeFreight = (subtotal > 100 && deliveryType === 'Entrega em Caxias-MA') || deliveryType === 'Retirada na Loja';
   const freightCost = (deliveryType === 'Retirada na Loja' || isOtherCities) ? 0 : (subtotal > 100 ? 0 : 10);
-  const grandTotal = subtotal + freightCost;
+  
+  // Cashback Auto-Discount
+  const todayStr = new Date().toISOString().split('T')[0];
+  const isCashbackValid = Boolean(
+    currentUser?.cashbackBalance && 
+    currentUser.cashbackBalance > 0 && 
+    (!currentUser.cashbackValidUntil || currentUser.cashbackValidUntil >= todayStr)
+  );
+  const cashbackDiscount = isCashbackValid ? Math.min(currentUser.cashbackBalance || 0, subtotal + freightCost) : 0;
+  const grandTotal = Math.max(0, subtotal + freightCost - cashbackDiscount);
 
   const isCrediarioApproved = currentUser.crediarioStatus === 'Aprovado';
 
@@ -399,6 +408,16 @@ export const CheckoutConfirmationModal: React.FC<CheckoutConfirmationModalProps>
                 {isOtherCities ? 'A COMBINAR' : (freightCost === 0 ? 'GRÁTIS' : 'R$ 10,00')}
               </span>
             </div>
+
+            {cashbackDiscount > 0 && (
+              <div className="flex justify-between items-center text-emerald-400 font-bold">
+                <span className="flex items-center space-x-1">
+                  <Sparkles className="h-3.5 w-3.5" />
+                  <span>Desconto Cashback Ativo:</span>
+                </span>
+                <span>- R$ {cashbackDiscount.toFixed(2).replace('.', ',')}</span>
+              </div>
+            )}
 
             <div className="flex justify-between text-sm font-black pt-2 border-t border-slate-800 text-amber-400">
               <span>Total Geral:</span>

@@ -32,6 +32,7 @@ interface AppContextProps {
   createOrder: (customerName: string, customerEmail: string, options?: { paymentMethod?: 'Pix' | 'Cartão de Crédito' | 'Crediário da Loja'; deliveryType?: 'Entrega em Caxias-MA' | 'Entrega para Outras Cidades' | 'Retirada na Loja'; installments?: number; customerPhone?: string; deliveryAddress?: string }) => Promise<Order>;
   solicitarCrediario: (dados: Partial<UserProfile>) => Promise<void>;
   atualizarStatusCrediario: (uid: string, novoStatus: CrediarioStatus, motivo?: string) => Promise<void>;
+  updateUserCashback: (uid: string, cashbackBalance: number, cashbackValidUntil: string) => Promise<void>;
   updateOrderStatus: (orderId: string, status: Order['status']) => Promise<void>;
   updateOrderPaymentStatus: (orderId: string, paymentStatus: PaymentStatus) => Promise<void>;
   updateOrderFreight: (orderId: string, freightCost: number) => Promise<void>;
@@ -1114,6 +1115,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const updateUserCashback = async (uid: string, cashbackBalance: number, cashbackValidUntil: string): Promise<void> => {
+    const updates: Partial<UserProfile> = {
+      cashbackBalance,
+      cashbackValidUntil
+    };
+
+    // 1. Update local storage map
+    const localUsers = getLocalUsers();
+    if (localUsers[uid]) {
+      const updatedLocal = { ...localUsers[uid], ...updates };
+      saveLocalUser(uid, updatedLocal);
+    }
+
+    // 2. Update active user if current user
+    if (currentUser && currentUser.uid === uid) {
+      const updatedCurrent = { ...currentUser, ...updates };
+      setCurrentUser(updatedCurrent);
+      localStorage.setItem('evidencia_user', JSON.stringify(updatedCurrent));
+    }
+
+    // 3. Try Firestore setDoc with merge: true
+    try {
+      const userRef = doc(db, 'users', uid);
+      await setDoc(userRef, updates, { merge: true });
+    } catch (err) {
+      console.warn("Firestore update for cashback encountered error, updated local state:", err);
+    }
+  };
+
   // Order Actions & WhatsApp integration with Caxias (MA) Freight & Payment Rules
   const createOrder = async (
     customerName: string, 
@@ -1132,7 +1162,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     
     // Freight rule: 0 if pickup in store OR other cities (to be combined via WhatsApp) OR subtotal > 100, else 10
     const freightCost = (deliveryType === 'Retirada na Loja' || isOtherCities) ? 0 : (subtotal > 100 ? 0 : 10);
-    const grandTotal = subtotal + freightCost;
+    
+    // Cashback auto-deduction
+    const todayStr = new Date().toISOString().split('T')[0];
+    const isCashbackValid = Boolean(
+      currentUser?.cashbackBalance && 
+      currentUser.cashbackBalance > 0 && 
+      (!currentUser.cashbackValidUntil || currentUser.cashbackValidUntil >= todayStr)
+    );
+    const cashbackDiscount = isCashbackValid ? Math.min(currentUser.cashbackBalance || 0, subtotal + freightCost) : 0;
+    const grandTotal = Math.max(0, subtotal + freightCost - cashbackDiscount);
     const paymentMethod = options?.paymentMethod || 'Pix';
     const installments = options?.installments || 1;
     const numSeq = Math.floor(1000 + Math.random() * 9000);
@@ -1204,6 +1243,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       items: orderItems,
       subtotal,
       freightCost,
+      cashbackDiscount,
       total: grandTotal,
       paymentMethod,
       paymentStatus: 'Pendente',
@@ -1212,6 +1252,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdAt: new Date().toISOString(),
       whatsappUrl
     };
+
+    // Deduct used cashback if applicable
+    if (currentUser && cashbackDiscount > 0) {
+      const remainingCashback = Math.max(0, (currentUser.cashbackBalance || 0) - cashbackDiscount);
+      updateUserCashback(currentUser.uid, remainingCashback, currentUser.cashbackValidUntil || '');
+    }
 
     // Save locally
     const currentLocalOrders = getLocalOrders();
@@ -1658,6 +1704,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         createOrder,
         solicitarCrediario,
         atualizarStatusCrediario,
+        updateUserCashback,
         updateOrderStatus,
         updateOrderPaymentStatus,
         updateOrderFreight,
