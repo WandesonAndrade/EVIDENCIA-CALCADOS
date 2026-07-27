@@ -222,6 +222,7 @@ export const AdminPanel: React.FC = () => {
 
   const handleAprovarCrediario = async (user: UserProfile) => {
     try {
+      setUsers(prev => prev.map(u => u.uid === user.uid ? { ...u, crediarioStatus: 'Aprovado', crediarioAnalisadoEm: new Date().toISOString() } : u));
       await atualizarStatusCrediario(user.uid, 'Aprovado');
       addToast('Crediário Aprovado!', `O crediário de ${user.name} foi aprovado com sucesso.`, 'success');
       fetchUsers();
@@ -232,6 +233,7 @@ export const AdminPanel: React.FC = () => {
 
   const handleRejeitarCrediario = async (user: UserProfile) => {
     try {
+      setUsers(prev => prev.map(u => u.uid === user.uid ? { ...u, crediarioStatus: 'Rejeitado', crediarioAnalisadoEm: new Date().toISOString() } : u));
       await atualizarStatusCrediario(user.uid, 'Rejeitado');
       addToast('Crediário Recusado', `O crediário de ${user.name} foi recusado.`, 'info');
       fetchUsers();
