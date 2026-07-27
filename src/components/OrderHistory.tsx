@@ -6,10 +6,10 @@ import {
   Truck, CreditCard, Clock, CheckCircle2, AlertCircle, 
   MapPin, PackageCheck, ReceiptText, ChevronDown, ChevronUp
 } from 'lucide-react';
-import { OrderStatus } from '../types';
+import { OrderStatus, Order, OrderItem, Product } from '../types';
 
 export const OrderHistory: React.FC = () => {
-  const { currentUser, orders, isLoadingOrders, theme } = useApp();
+  const { currentUser, orders, isLoadingOrders, theme, products, addToCart, setSelectedProduct, setCurrentView } = useApp();
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
 
   // If not logged in, require auth!
@@ -21,6 +21,31 @@ export const OrderHistory: React.FC = () => {
 
   const toggleExpand = (id: string) => {
     setExpandedOrderId(prev => prev === id ? null : id);
+  };
+
+  const handleNavigateToProduct = (item: OrderItem) => {
+    const targetProduct = products.find(p => p.id === item.productId || p.name === item.name);
+    if (targetProduct) {
+      setSelectedProduct(targetProduct);
+      setCurrentView('product-detail');
+    } else {
+      const fallbackProd: Product = {
+        id: item.productId || `PROD-${Date.now()}`,
+        name: item.name,
+        description: item.name,
+        price: item.price,
+        originalPrice: item.price,
+        category: 'Calçados',
+        images: [item.image],
+        sizes: [34, 35, 36, 37, 38, 39, 40],
+        crediarioProprio: true,
+        visible: true,
+        stockControl: false,
+        stock: 10
+      };
+      setSelectedProduct(fallbackProd);
+      setCurrentView('product-detail');
+    }
   };
 
   const getStatusBadge = (status: OrderStatus) => {
@@ -334,18 +359,22 @@ export const OrderHistory: React.FC = () => {
                         return (
                           <div
                             key={idx}
-                            className={`p-3.5 rounded-2xl border flex items-center justify-between gap-4 transition-all ${
-                              isDark ? 'bg-slate-950/60 border-slate-850' : 'bg-slate-50 border-slate-200'
+                            onClick={() => handleNavigateToProduct(item)}
+                            className={`p-3.5 rounded-2xl border flex items-center justify-between gap-4 transition-all cursor-pointer group ${
+                              isDark 
+                                ? 'bg-slate-950/60 border-slate-800/80 hover:border-amber-400/50 hover:bg-slate-900/80' 
+                                : 'bg-slate-50 border-slate-200 hover:border-amber-400/50 hover:bg-amber-400/5'
                             }`}
+                            title={`Clique para ver detalhes de ${item.name}`}
                           >
                             <div className="flex items-center space-x-3 min-w-0">
                               <img
                                 src={item.image}
                                 alt={item.name}
-                                className="w-14 h-14 object-cover rounded-xl border border-slate-800 shrink-0 bg-slate-950"
+                                className="w-14 h-14 object-cover rounded-xl border border-slate-800 shrink-0 bg-slate-950 group-hover:scale-105 transition-transform"
                               />
                               <div className="min-w-0 space-y-1">
-                                <h4 className={`text-xs font-bold truncate ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+                                <h4 className={`text-xs font-bold truncate group-hover:text-amber-400 transition-colors ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
                                   {item.name}
                                 </h4>
                                 <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-400">
@@ -358,11 +387,16 @@ export const OrderHistory: React.FC = () => {
                               </div>
                             </div>
 
-                            <div className="text-right shrink-0">
-                              <span className="text-[10px] font-bold uppercase text-slate-400 block">Subtotal</span>
-                              <span className="text-xs font-black text-amber-400">
-                                R$ {itemSubtotal.toFixed(2).replace('.', ',')}
-                              </span>
+                            <div className="text-right shrink-0 flex items-center space-x-3">
+                              <div>
+                                <span className="text-[10px] font-bold uppercase text-slate-400 block">Subtotal</span>
+                                <span className="text-xs font-black text-amber-400">
+                                  R$ {itemSubtotal.toFixed(2).replace('.', ',')}
+                                </span>
+                              </div>
+                              <div className="p-1.5 rounded-lg bg-amber-400/10 text-amber-400 group-hover:bg-amber-400 group-hover:text-slate-950 transition-all hidden sm:block">
+                                <ExternalLink className="h-3.5 w-3.5" />
+                              </div>
                             </div>
                           </div>
                         );
@@ -371,11 +405,16 @@ export const OrderHistory: React.FC = () => {
                   </div>
                 )}
 
-                {/* FOOTER ACTIONS: Consultor & Direct WhatsApp Button */}
+                {/* FOOTER ACTIONS: Conditional based on status */}
                 <div className={`p-4 sm:px-6 border-t flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 ${
                   isDark ? 'bg-slate-950/40 border-slate-800/60' : 'bg-slate-50/50 border-slate-200/80'
                 }`}>
-                  {order.sellerName ? (
+                  {order.status === 'Entregue' ? (
+                    <div className="flex items-center space-x-2 text-emerald-400 font-bold text-xs">
+                      <CheckCircle2 className="h-4 w-4" />
+                      <span>Entrega Concluída com Sucesso!</span>
+                    </div>
+                  ) : order.sellerName ? (
                     <p className="text-[11px] font-medium text-slate-400">
                       Atendido por: <span className="text-amber-400 font-bold">{order.sellerName}</span> ({order.sellerEmail})
                     </p>
@@ -385,18 +424,22 @@ export const OrderHistory: React.FC = () => {
                     </p>
                   )}
 
-                  <button
-                    onClick={() => {
-                      const msg = `Olá! Gostaria de consultar o status e detalhes do meu pedido *${order.orderNumber || order.id}* na Evidência Calçados.`;
-                      const whatsappUrl = `https://api.whatsapp.com/send?phone=5599981423405&text=${encodeURIComponent(msg)}`;
-                      window.open(whatsappUrl, '_blank');
-                    }}
-                    className="w-full sm:w-auto inline-flex items-center justify-center space-x-2 py-2.5 px-4 bg-[#25D366] hover:bg-[#20ba5a] text-slate-950 font-black text-xs rounded-xl shadow-md transition-all cursor-pointer"
-                  >
-                    <MessageSquare className="h-4 w-4" />
-                    <span>Acompanhar Pedido no WhatsApp</span>
-                    <ExternalLink className="h-3.5 w-3.5" />
-                  </button>
+                  {order.status !== 'Entregue' && (
+                    /* WHATSAPP TRACKING BUTTON (ONLY FOR NON-DELIVERED ORDERS) */
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const msg = `Olá! Gostaria de consultar o status e detalhes do meu pedido *${order.orderNumber || order.id}* na Evidência Calçados.`;
+                        const whatsappUrl = `https://api.whatsapp.com/send?phone=5599981423405&text=${encodeURIComponent(msg)}`;
+                        window.open(whatsappUrl, '_blank');
+                      }}
+                      className="w-full sm:w-auto inline-flex items-center justify-center space-x-2 py-2.5 px-4 bg-[#25D366] hover:bg-[#20ba5a] text-slate-950 font-black text-xs rounded-xl shadow-md transition-all cursor-pointer"
+                    >
+                      <MessageSquare className="h-4 w-4" />
+                      <span>Acompanhar Pedido no WhatsApp</span>
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                 </div>
 
               </div>
