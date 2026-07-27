@@ -33,6 +33,7 @@ export const CheckoutConfirmationModal: React.FC<CheckoutConfirmationModalProps>
   const [deliveryType, setDeliveryType] = useState<'Entrega em Caxias-MA' | 'Retirada na Loja'>('Entrega em Caxias-MA');
   const [paymentMethod, setPaymentMethod] = useState<'Pix' | 'Cartão de Crédito' | 'Crediário da Loja'>('Pix');
   const [installments, setInstallments] = useState<number>(1);
+  const [crediarioInstallments, setCrediarioInstallments] = useState<number>(1);
 
   if (!isOpen || !currentUser) return null;
 
@@ -43,7 +44,7 @@ export const CheckoutConfirmationModal: React.FC<CheckoutConfirmationModalProps>
 
   const isCrediarioApproved = currentUser.crediarioStatus === 'Aprovado';
 
-  // Calculate installment options 1x up to 10x sem juros
+  // Calculate installment options 1x up to 10x sem juros for Credit Card
   const installmentOptions = Array.from({ length: 10 }, (_, i) => {
     const count = i + 1;
     const value = grandTotal / count;
@@ -56,11 +57,28 @@ export const CheckoutConfirmationModal: React.FC<CheckoutConfirmationModalProps>
     };
   });
 
+  // Calculate Crediario installment options 1x up to 6x sem juros
+  const crediarioInstallmentOptions = Array.from({ length: 6 }, (_, i) => {
+    const count = i + 1;
+    const value = grandTotal / count;
+    return {
+      count,
+      value,
+      label: count === 1
+        ? `1x de R$ ${value.toFixed(2).replace('.', ',')} no Carnê`
+        : `${count}x de R$ ${value.toFixed(2).replace('.', ',')} sem juros no Carnê`
+    };
+  });
+
   const handleConfirmClick = () => {
+    const selectedInstallments = paymentMethod === 'Cartão de Crédito' 
+      ? installments 
+      : (paymentMethod === 'Crediário da Loja' ? crediarioInstallments : 1);
+
     onConfirmOrder(
       paymentMethod, 
       deliveryType, 
-      paymentMethod === 'Cartão de Crédito' ? installments : 1
+      selectedInstallments
     );
   };
 
@@ -256,43 +274,78 @@ export const CheckoutConfirmationModal: React.FC<CheckoutConfirmationModalProps>
               </div>
 
               {/* Crediário da Loja */}
-              <button
-                type="button"
-                onClick={() => {
-                  if (isCrediarioApproved) {
-                    setPaymentMethod('Crediário da Loja');
-                  }
-                }}
-                disabled={!isCrediarioApproved}
-                className={`w-full flex flex-col items-start p-3 rounded-2xl border text-xs transition-all ${
-                  paymentMethod === 'Crediário da Loja'
-                    ? 'border-amber-400 bg-amber-400/10 text-amber-300 shadow-sm'
-                    : isDark ? 'border-slate-800 bg-slate-950/60 text-slate-300' : 'border-slate-200 bg-slate-50 text-slate-700'
-                } ${!isCrediarioApproved ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
-              >
-                <div className="w-full flex items-center justify-between font-bold">
-                  <div className="flex items-center space-x-2.5">
-                    <ShieldCheck className="h-4 w-4 text-amber-400" />
-                    <span>Crediário Próprio Evidência</span>
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (isCrediarioApproved) {
+                      setPaymentMethod('Crediário da Loja');
+                    }
+                  }}
+                  disabled={!isCrediarioApproved}
+                  className={`w-full flex flex-col items-start p-3 rounded-2xl border text-xs transition-all ${
+                    paymentMethod === 'Crediário da Loja'
+                      ? 'border-amber-400 bg-amber-400/10 text-amber-300 shadow-sm'
+                      : isDark ? 'border-slate-800 bg-slate-950/60 text-slate-300' : 'border-slate-200 bg-slate-50 text-slate-700'
+                  } ${!isCrediarioApproved ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
+                >
+                  <div className="w-full flex items-center justify-between font-bold">
+                    <div className="flex items-center space-x-2.5">
+                      <ShieldCheck className="h-4 w-4 text-amber-400" />
+                      <span>Crediário Próprio Evidência (até 6x sem juros)</span>
+                    </div>
+
+                    {isCrediarioApproved ? (
+                      <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                        Aprovado
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                        Requer Análise no Admin
+                      </span>
+                    )}
                   </div>
 
-                  {isCrediarioApproved ? (
-                    <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                      Aprovado
-                    </span>
-                  ) : (
-                    <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-amber-500/20 text-amber-400 border border-amber-500/30">
-                      Requer Análise no Admin
-                    </span>
+                  {!isCrediarioApproved && (
+                    <p className="mt-1.5 text-[10px] text-amber-300/80 font-medium leading-relaxed">
+                      Opção bloqueada. Seu crediário precisa ser analisado e aprovado pelo administrador.
+                    </p>
                   )}
-                </div>
+                </button>
 
-                {!isCrediarioApproved && (
-                  <p className="mt-1.5 text-[10px] text-amber-300/80 font-medium leading-relaxed">
-                    Opção bloqueada. Seu crediário precisa ser analisado e aprovado pelo administrador.
-                  </p>
+                {/* Sub-Seletor de Parcelamento no Crediário */}
+                {paymentMethod === 'Crediário da Loja' && isCrediarioApproved && (
+                  <motion.div 
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    className={`p-3.5 rounded-2xl border space-y-2 ${
+                      isDark ? 'bg-amber-400/10 border-amber-400/30' : 'bg-amber-50 border-amber-200'
+                    }`}
+                  >
+                    <label className="block text-xs font-bold text-amber-400">
+                      Selecione o Parcelamento no Crediário:
+                    </label>
+                    <select
+                      value={crediarioInstallments}
+                      onChange={(e) => setCrediarioInstallments(Number(e.target.value))}
+                      className={`w-full p-2.5 rounded-xl text-xs font-bold border focus:outline-none cursor-pointer ${
+                        isDark 
+                          ? 'bg-slate-950 border-amber-400/40 text-slate-100' 
+                          : 'bg-white border-amber-300 text-slate-900'
+                      }`}
+                    >
+                      {crediarioInstallmentOptions.map((opt) => (
+                        <option key={opt.count} value={opt.count}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-[10px] text-amber-300/90 font-medium">
+                      ✓ Parcelamento sem juros em até 6x no carnê exclusivo Evidência Calçados.
+                    </p>
+                  </motion.div>
                 )}
-              </button>
+              </div>
             </div>
           </div>
 

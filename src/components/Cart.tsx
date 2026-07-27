@@ -395,7 +395,7 @@ export const Cart: React.FC = () => {
                 <span>Crediário Próprio Evidência</span>
               </p>
               <p className="text-[11px] font-medium leading-relaxed opacity-90">
-                Parcele em até 10x sem juros! Você escolherá a entrega e pagamento na próxima etapa.
+                Parcele em até 6x sem juros! Você escolherá a entrega e número de parcelas na próxima etapa.
               </p>
             </div>
 

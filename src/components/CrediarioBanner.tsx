@@ -69,7 +69,7 @@ export const CrediarioBanner: React.FC = () => {
             <p className={`text-xs sm:text-sm font-medium leading-relaxed ${
               isDark ? 'text-slate-300' : 'text-slate-600'
             }`}>
-              Parcele seus calçados e acessórios em até <strong>10x sem juros no carnê da loja Evidência</strong> sem precisar de cartão de crédito ou burocracia.
+              Parcele seus calçados e acessórios em até <strong>6x sem juros no carnê da loja Evidência</strong> sem precisar de cartão de crédito ou burocracia.
             </p>
 
             {/* Feature Pills */}
@@ -78,7 +78,7 @@ export const CrediarioBanner: React.FC = () => {
                 isDark ? 'bg-slate-950/60 border-slate-800 text-slate-300' : 'bg-slate-100 border-slate-200 text-slate-700'
               }`}>
                 <ShieldCheck className="h-3.5 w-3.5 text-amber-400" />
-                <span>Até 10x sem juros</span>
+                <span>Até 6x sem juros</span>
               </span>
 
               <span className={`inline-flex items-center space-x-1.5 px-3 py-1 rounded-xl border ${

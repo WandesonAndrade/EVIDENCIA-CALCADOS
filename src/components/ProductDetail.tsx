@@ -374,7 +374,7 @@ export const ProductDetail: React.FC = () => {
 
             {p.crediarioProprio && (
               <p className={`text-xs font-semibold mt-2 ${isDark ? 'text-amber-300/90' : 'text-amber-900'}`}>
-                Parcele em até 10x sem juros no carnê da loja Evidência!
+                Crediário Próprio em até <strong className="font-extrabold text-amber-400">6x de R$ {(p.price / 6).toFixed(2).replace('.', ',')} sem juros</strong> no carnê Evidência!
               </p>
             )}
           </div>
