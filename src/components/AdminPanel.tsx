@@ -191,6 +191,7 @@ export const AdminPanel: React.FC = () => {
   // Orders Filters States
   const [ordersSearch, setOrdersSearch] = useState('');
   const [ordersStatusFilter, setOrdersStatusFilter] = useState<'Todos' | OrderStatus>('Todos');
+  const [ordersPaymentFilter, setOrdersPaymentFilter] = useState<'Todos' | PaymentStatus>('Todos');
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   const [editingFreightMap, setEditingFreightMap] = useState<{ [orderId: string]: string }>({});
 
@@ -835,45 +836,94 @@ export const AdminPanel: React.FC = () => {
         {/* TAB 2: VENDAS & PEDIDOS DOS CLIENTES */}
         {activeTab === 'sales' && (
           <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+            <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
               <div>
                 <h2 className="text-2xl font-black tracking-tight flex items-center space-x-2">
                   <ShoppingBag className="h-6 w-6 text-amber-400" />
-                  <span>Gestão de Vendas & Pedidos ({orders.length})</span>
+                  <span>Gestão Global de Vendas & Pedidos ({orders.length})</span>
                 </h2>
                 <p className="text-xs text-slate-400">
-                  Gerencie pedidos, atualize o status de entrega e preencha valores de frete a combinar para outras cidades
+                  Visão completa de todos os pedidos da loja. Altere status de entrega, confirme pagamentos e gerencie fretes.
                 </p>
               </div>
 
               {/* Filters */}
-              <div className="flex flex-wrap items-center gap-3">
+              <div className="flex flex-wrap items-center gap-2">
                 <div className="relative">
-                  <Search className="h-4 w-4 absolute left-3 top-3 text-slate-400" />
+                  <Search className="h-4 w-4 absolute left-3 top-2.5 text-slate-400" />
                   <input
                     type="text"
                     value={ordersSearch}
                     onChange={(e) => setOrdersSearch(e.target.value)}
-                    placeholder="Buscar por cliente, e-mail ou nº..."
-                    className={`pl-9 pr-4 py-2 rounded-xl text-xs border focus:outline-none w-64 ${
+                    placeholder="Buscar cliente, e-mail, tel ou nº..."
+                    className={`pl-9 pr-3 py-1.5 rounded-xl text-xs border focus:outline-none w-56 ${
                       isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-300 text-slate-900'
                     }`}
                   />
                 </div>
 
-                <select
-                  value={ordersStatusFilter}
-                  onChange={(e) => setOrdersStatusFilter(e.target.value as any)}
-                  className={`p-2 py-2 rounded-xl text-xs font-bold border focus:outline-none cursor-pointer ${
-                    isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-300 text-slate-900'
-                  }`}
-                >
-                  <option value="Todos">Todos os Status</option>
-                  <option value="Pendente">Pendente</option>
-                  <option value="Confirmado">Confirmado</option>
-                  <option value="Entregue">Entregue</option>
-                  <option value="Cancelado">Cancelado</option>
-                </select>
+                <div className="flex items-center space-x-1">
+                  <span className="text-[10px] text-slate-400 uppercase font-bold">Entrega:</span>
+                  <select
+                    value={ordersStatusFilter}
+                    onChange={(e) => setOrdersStatusFilter(e.target.value as any)}
+                    className={`p-1.5 rounded-xl text-xs font-bold border focus:outline-none cursor-pointer ${
+                      isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-300 text-slate-900'
+                    }`}
+                  >
+                    <option value="Todos">Todas Entregas</option>
+                    <option value="Pendente">Pendente</option>
+                    <option value="Confirmado">Confirmado</option>
+                    <option value="Entregue">Entregue</option>
+                    <option value="Cancelado">Cancelado</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center space-x-1">
+                  <span className="text-[10px] text-slate-400 uppercase font-bold">Pagamento:</span>
+                  <select
+                    value={ordersPaymentFilter}
+                    onChange={(e) => setOrdersPaymentFilter(e.target.value as any)}
+                    className={`p-1.5 rounded-xl text-xs font-bold border focus:outline-none cursor-pointer ${
+                      isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-300 text-slate-900'
+                    }`}
+                  >
+                    <option value="Todos">Todos Pagamentos</option>
+                    <option value="Pendente">⏳ Pendente</option>
+                    <option value="Em Análise">🔍 Em Análise</option>
+                    <option value="Confirmado">✅ Confirmado</option>
+                    <option value="Recusado">❌ Recusado</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Sales Metrics Cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className={`p-4 rounded-2xl border ${isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                <span className="text-[10px] uppercase font-black text-slate-400 block">Total de Pedidos</span>
+                <span className="text-xl font-black text-white">{orders.length}</span>
+              </div>
+              <div className={`p-4 rounded-2xl border ${isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                <span className="text-[10px] uppercase font-black text-slate-400 block">Pedidos Entregues</span>
+                <span className="text-xl font-black text-emerald-400">
+                  {orders.filter(o => o.status === 'Entregue').length}
+                </span>
+              </div>
+              <div className={`p-4 rounded-2xl border ${isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                <span className="text-[10px] uppercase font-black text-slate-400 block">Pagamentos Confirmados</span>
+                <span className="text-xl font-black text-sky-400">
+                  {orders.filter(o => o.paymentStatus === 'Confirmado').length}
+                </span>
+              </div>
+              <div className={`p-4 rounded-2xl border ${isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                <span className="text-[10px] uppercase font-black text-slate-400 block">Total Faturado</span>
+                <span className="text-xl font-black text-amber-400">
+                  R$ {orders
+                    .filter(o => o.paymentStatus === 'Confirmado' || o.status === 'Entregue')
+                    .reduce((sum, o) => sum + o.total, 0)
+                    .toFixed(2).replace('.', ',')}
+                </span>
               </div>
             </div>
 
@@ -883,7 +933,7 @@ export const AdminPanel: React.FC = () => {
                 isDark ? 'bg-slate-900/40 border-slate-800 text-slate-400' : 'bg-white border-slate-200 text-slate-500'
               }`}>
                 <ShoppingBag className="h-8 w-8 text-amber-400 mx-auto opacity-70" />
-                <p className="text-xs font-bold">Nenhum pedido finalizado ainda.</p>
+                <p className="text-xs font-bold">Nenhum pedido cadastrado no Firestore ainda.</p>
                 <p className="text-[11px] opacity-75">Os pedidos gerados pelos clientes aparecerão aqui com todos os detalhes de envio e pagamento.</p>
               </div>
             ) : (
@@ -893,10 +943,12 @@ export const AdminPanel: React.FC = () => {
                     const matchSearch = !ordersSearch || 
                       o.customerName.toLowerCase().includes(ordersSearch.toLowerCase()) || 
                       o.customerEmail.toLowerCase().includes(ordersSearch.toLowerCase()) ||
+                      (o.customerPhone && o.customerPhone.includes(ordersSearch)) ||
                       (o.orderNumber && o.orderNumber.toLowerCase().includes(ordersSearch.toLowerCase())) ||
                       o.id.toLowerCase().includes(ordersSearch.toLowerCase());
                     const matchStatus = ordersStatusFilter === 'Todos' || o.status === ordersStatusFilter;
-                    return matchSearch && matchStatus;
+                    const matchPayment = ordersPaymentFilter === 'Todos' || (o.paymentStatus || 'Pendente') === ordersPaymentFilter;
+                    return matchSearch && matchStatus && matchPayment;
                   })
                   .map((o) => {
                     const isOtherCities = o.deliveryType === 'Entrega para Outras Cidades';
