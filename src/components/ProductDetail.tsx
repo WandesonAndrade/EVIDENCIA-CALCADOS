@@ -194,7 +194,7 @@ export const ProductDetail: React.FC = () => {
 
   const handleConfirmOrder = async (
     paymentMethod: 'Pix' | 'Cartão de Crédito' | 'Crediário da Loja', 
-    deliveryType: 'Entrega em Caxias-MA' | 'Retirada na Loja',
+    deliveryType: 'Entrega em Caxias-MA' | 'Entrega para Outras Cidades' | 'Retirada na Loja',
     installments?: number
   ) => {
     if (!currentUser) return;

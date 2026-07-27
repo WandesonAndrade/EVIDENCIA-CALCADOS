@@ -141,7 +141,7 @@ export interface Order {
   customerPhone?: string;
   city?: string;
   deliveryAddress?: string;
-  deliveryType?: 'Entrega em Caxias-MA' | 'Retirada na Loja';
+  deliveryType?: 'Entrega em Caxias-MA' | 'Entrega para Outras Cidades' | 'Retirada na Loja';
   items: OrderItem[];
   subtotal?: number;
   freightCost?: number;

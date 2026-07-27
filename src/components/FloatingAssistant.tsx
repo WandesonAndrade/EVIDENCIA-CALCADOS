@@ -30,7 +30,7 @@ export const FloatingAssistant: React.FC = () => {
             }`}
           >
             <div className="flex items-center space-x-1.5 text-[10px] font-black text-amber-400 uppercase tracking-widest mb-0.5">
-              <span>ATENDIMENTO EM CAXIAS</span>
+              <span>ATENDIMENTO EVIDÊNCIA</span>
             </div>
             <p className="text-xs font-bold leading-snug">
               Olá, como posso ajudar? 👋

@@ -53,7 +53,7 @@ export const Cart: React.FC = () => {
   // Step 3 Execution: Final Confirmation & Dispatch
   const handleConfirmOrder = async (
     paymentMethod: 'Pix' | 'Cartão de Crédito' | 'Crediário da Loja', 
-    deliveryType: 'Entrega em Caxias-MA' | 'Retirada na Loja',
+    deliveryType: 'Entrega em Caxias-MA' | 'Entrega para Outras Cidades' | 'Retirada na Loja',
     installments?: number
   ) => {
     if (!currentUser) return;
@@ -128,7 +128,11 @@ export const Cart: React.FC = () => {
             <p>Cliente: <strong className="font-bold">{createdOrder.customerName}</strong></p>
             <p>Entrega: <strong className="font-bold text-sky-400">{createdOrder.deliveryType || 'Entrega em Caxias-MA'}</strong></p>
             <p>Pagamento: <strong className="font-bold">{createdOrder.paymentMethod || 'Pix'}</strong></p>
-            <p>Frete: <strong className="font-bold text-emerald-400">{createdOrder.freightCost === 0 ? 'GRÁTIS' : 'R$ 10,00'}</strong></p>
+            <p>Frete: <strong className={createdOrder.deliveryType === 'Entrega para Outras Cidades' ? 'font-bold text-amber-400' : 'font-bold text-emerald-400'}>
+              {createdOrder.deliveryType === 'Entrega para Outras Cidades' 
+                ? (createdOrder.freightCost && createdOrder.freightCost > 0 ? `R$ ${createdOrder.freightCost.toFixed(2).replace('.', ',')}` : 'A COMBINAR')
+                : (createdOrder.freightCost === 0 ? 'GRÁTIS' : 'R$ 10,00')}
+            </strong></p>
             <p className="pt-1 border-t text-sm font-black text-slate-900 dark:text-white flex justify-between">
               <span>Total:</span>
               <span className="text-amber-400">R$ {createdOrder.total.toFixed(2).replace('.', ',')}</span>

@@ -59,7 +59,7 @@ export const CrediarioBanner: React.FC = () => {
           <div className="space-y-3 max-w-2xl">
             <div className="inline-flex items-center space-x-2 px-3.5 py-1 rounded-full text-[11px] font-black uppercase tracking-wider bg-amber-400/20 text-amber-400 border border-amber-400/30">
               <Sparkles className="h-3.5 w-3.5" />
-              <span>Exclusivo para Caxias - MA</span>
+              <span>Crediário Próprio Evidência</span>
             </div>
 
             <h2 className="text-xl sm:text-2xl lg:text-3xl font-black tracking-tight leading-snug">

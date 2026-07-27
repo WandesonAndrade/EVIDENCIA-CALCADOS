@@ -102,11 +102,16 @@ export const OrderHistory: React.FC = () => {
                 theme === 'dark' ? 'bg-slate-950/60 border-slate-850' : 'bg-slate-50 border-slate-100'
               }`}>
                 <div className="space-y-1">
-                  <div className="flex items-center space-x-2">
-                    <span className={`text-xs font-mono font-bold ${theme === 'dark' ? 'text-slate-300' : 'text-slate-800'}`}>{order.id}</span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className={`text-xs font-mono font-bold ${theme === 'dark' ? 'text-slate-300' : 'text-slate-800'}`}>{order.orderNumber || order.id}</span>
                     <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${getStatusColor(order.status)}`}>
                       {order.status}
                     </span>
+                    {order.deliveryType === 'Entrega para Outras Cidades' && (
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase bg-amber-400/20 text-amber-400 border border-amber-400/30">
+                        {order.freightCost && order.freightCost > 0 ? `Frete: R$ ${order.freightCost.toFixed(2).replace('.', ',')}` : 'Frete a Combinar'}
+                      </span>
+                    )}
                   </div>
                   <div className={`flex items-center text-[11px] font-light space-x-1.5 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-400'}`}>
                     <Calendar className="h-3 w-3" />

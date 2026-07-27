@@ -42,6 +42,7 @@ export const AdminPanel: React.FC = () => {
     deleteProduct,
     updateProduct,
     updateOrderStatus,
+    updateOrderFreight,
     assignOrderSeller,
     theme,
     toggleTheme,
@@ -190,6 +191,7 @@ export const AdminPanel: React.FC = () => {
   const [ordersSearch, setOrdersSearch] = useState('');
   const [ordersStatusFilter, setOrdersStatusFilter] = useState<'Todos' | OrderStatus>('Todos');
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
+  const [editingFreightMap, setEditingFreightMap] = useState<{ [orderId: string]: string }>({});
 
   // Users Management States
   const [users, setUsers] = useState<UserProfile[]>([]);
@@ -826,6 +828,219 @@ export const AdminPanel: React.FC = () => {
                 <p className="text-[11px] text-slate-400">Carrossel Hero Principal</p>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* TAB 2: VENDAS & PEDIDOS DOS CLIENTES */}
+        {activeTab === 'sales' && (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+              <div>
+                <h2 className="text-2xl font-black tracking-tight flex items-center space-x-2">
+                  <ShoppingBag className="h-6 w-6 text-amber-400" />
+                  <span>Gestão de Vendas & Pedidos ({orders.length})</span>
+                </h2>
+                <p className="text-xs text-slate-400">
+                  Gerencie pedidos, atualize o status de entrega e preencha valores de frete a combinar para outras cidades
+                </p>
+              </div>
+
+              {/* Filters */}
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="relative">
+                  <Search className="h-4 w-4 absolute left-3 top-3 text-slate-400" />
+                  <input
+                    type="text"
+                    value={ordersSearch}
+                    onChange={(e) => setOrdersSearch(e.target.value)}
+                    placeholder="Buscar por cliente, e-mail ou nº..."
+                    className={`pl-9 pr-4 py-2 rounded-xl text-xs border focus:outline-none w-64 ${
+                      isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-300 text-slate-900'
+                    }`}
+                  />
+                </div>
+
+                <select
+                  value={ordersStatusFilter}
+                  onChange={(e) => setOrdersStatusFilter(e.target.value as any)}
+                  className={`p-2 py-2 rounded-xl text-xs font-bold border focus:outline-none cursor-pointer ${
+                    isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-300 text-slate-900'
+                  }`}
+                >
+                  <option value="Todos">Todos os Status</option>
+                  <option value="Pendente">Pendente</option>
+                  <option value="Confirmado">Confirmado</option>
+                  <option value="Entregue">Entregue</option>
+                  <option value="Cancelado">Cancelado</option>
+                </select>
+              </div>
+            </div>
+
+            {/* List of Orders */}
+            {orders.length === 0 ? (
+              <div className={`p-8 rounded-3xl border text-center space-y-2 ${
+                isDark ? 'bg-slate-900/40 border-slate-800 text-slate-400' : 'bg-white border-slate-200 text-slate-500'
+              }`}>
+                <ShoppingBag className="h-8 w-8 text-amber-400 mx-auto opacity-70" />
+                <p className="text-xs font-bold">Nenhum pedido finalizado ainda.</p>
+                <p className="text-[11px] opacity-75">Os pedidos gerados pelos clientes aparecerão aqui com todos os detalhes de envio e pagamento.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {orders
+                  .filter(o => {
+                    const matchSearch = !ordersSearch || 
+                      o.customerName.toLowerCase().includes(ordersSearch.toLowerCase()) || 
+                      o.customerEmail.toLowerCase().includes(ordersSearch.toLowerCase()) ||
+                      (o.orderNumber && o.orderNumber.toLowerCase().includes(ordersSearch.toLowerCase())) ||
+                      o.id.toLowerCase().includes(ordersSearch.toLowerCase());
+                    const matchStatus = ordersStatusFilter === 'Todos' || o.status === ordersStatusFilter;
+                    return matchSearch && matchStatus;
+                  })
+                  .map((o) => {
+                    const isOtherCities = o.deliveryType === 'Entrega para Outras Cidades';
+                    const hasPendingFreight = isOtherCities && (o.freightCost === undefined || o.freightCost === 0);
+
+                    return (
+                      <div
+                        key={o.id}
+                        className={`p-6 rounded-3xl border backdrop-blur-xl space-y-4 transition-all shadow-md ${
+                          isDark ? 'bg-slate-900/80 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
+                        }`}
+                      >
+                        {/* Order Header */}
+                        <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3 border-slate-800/50">
+                          <div className="flex items-center space-x-3">
+                            <span className="font-mono text-sm font-black text-amber-400">{o.orderNumber || o.id}</span>
+                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                              o.status === 'Confirmado' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' :
+                              o.status === 'Entregue' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
+                              o.status === 'Cancelado' ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' :
+                              'bg-amber-400/20 text-amber-400 border border-amber-400/30'
+                            }`}>
+                              {o.status}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center space-x-4 text-xs font-semibold">
+                            <span className="text-slate-400">Data: {new Date(o.createdAt).toLocaleDateString('pt-BR')}</span>
+                            <div className="flex items-center space-x-2">
+                              <span className="text-[10px] text-slate-400 uppercase">Alterar Status:</span>
+                              <select
+                                value={o.status}
+                                onChange={(e) => updateOrderStatus(o.id, e.target.value as OrderStatus)}
+                                className={`p-1.5 rounded-lg text-xs font-bold border focus:outline-none cursor-pointer ${
+                                  isDark ? 'bg-slate-950 border-slate-700 text-slate-100' : 'bg-slate-100 border-slate-300 text-slate-900'
+                                }`}
+                              >
+                                <option value="Pendente">Pendente</option>
+                                <option value="Confirmado">Confirmado</option>
+                                <option value="Entregue">Entregue</option>
+                                <option value="Cancelado">Cancelado</option>
+                              </select>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Customer & Shipping Row */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                          <div>
+                            <span className="text-[10px] text-slate-400 uppercase font-bold block">Cliente & Contato</span>
+                            <p className="font-bold text-sm text-slate-200 mt-0.5">{o.customerName}</p>
+                            <p className="text-slate-400">{o.customerEmail}</p>
+                            <p className="text-amber-400 font-mono mt-0.5">{o.customerPhone || 'Telefone não informado'}</p>
+                          </div>
+
+                          <div>
+                            <span className="text-[10px] text-slate-400 uppercase font-bold block">Modalidade de Envio</span>
+                            <div className="mt-1 space-y-1">
+                              <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                                isOtherCities 
+                                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
+                                  : 'bg-slate-800 text-slate-300 border border-slate-700'
+                              }`}>
+                                {o.deliveryType || 'Entrega em Caxias-MA'}
+                              </span>
+                              <p className="text-slate-300 text-[11px] font-medium leading-snug">
+                                {o.deliveryAddress || 'Endereço não especificado'}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Freight Management Card */}
+                          <div className={`p-3.5 rounded-2xl border space-y-2 ${
+                            hasPendingFreight 
+                              ? 'bg-amber-400/10 border-amber-400/30' 
+                              : isDark ? 'bg-slate-950/60 border-slate-800' : 'bg-slate-50 border-slate-200'
+                          }`}>
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] uppercase font-bold text-slate-400">Gestão do Valor do Frete</span>
+                              {hasPendingFreight && (
+                                <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-amber-400/20 text-amber-400 border border-amber-400/30 animate-pulse">
+                                  A Combinar
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="flex items-center space-x-2">
+                              <div className="relative flex-1">
+                                <span className="absolute left-2.5 top-2 text-xs font-bold text-slate-400">R$</span>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  value={editingFreightMap[o.id] !== undefined ? editingFreightMap[o.id] : (o.freightCost || 0)}
+                                  onChange={(e) => setEditingFreightMap(prev => ({ ...prev, [o.id]: e.target.value }))}
+                                  placeholder="0,00"
+                                  className={`w-full pl-8 pr-2 py-1.5 rounded-xl text-xs font-bold border focus:outline-none ${
+                                    isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
+                                  }`}
+                                />
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  const val = parseFloat(editingFreightMap[o.id] ?? String(o.freightCost || 0));
+                                  await updateOrderFreight(o.id, isNaN(val) ? 0 : val);
+                                  addToast('Frete Atualizado!', `O valor do frete do pedido ${o.orderNumber || o.id} foi salvo com sucesso.`, 'success');
+                                }}
+                                className="px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs transition-all shadow-sm cursor-pointer flex items-center space-x-1"
+                              >
+                                <Save className="h-3.5 w-3.5" />
+                                <span>Salvar Frete</span>
+                              </button>
+                            </div>
+
+                            <div className="flex justify-between text-[11px] font-bold pt-1 text-slate-300">
+                              <span>Subtotal: R$ ${(o.subtotal || o.total).toFixed(2).replace('.', ',')}</span>
+                              <span className="text-amber-400 font-extrabold">Total Geral: R$ {o.total.toFixed(2).replace('.', ',')}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Order Items Table */}
+                        <div className={`p-3 rounded-2xl border text-xs space-y-1.5 ${
+                          isDark ? 'bg-slate-950/40 border-slate-800/60' : 'bg-slate-50 border-slate-200'
+                        }`}>
+                          <span className="text-[10px] text-slate-400 uppercase font-bold block mb-1">Itens Adquiridos:</span>
+                          <div className="divide-y divide-slate-800/40">
+                            {o.items.map((item, idx) => (
+                              <div key={idx} className="py-1.5 flex items-center justify-between">
+                                <div className="flex items-center space-x-2">
+                                  <img src={item.image} alt={item.name} className="w-7 h-7 object-cover rounded-lg border border-slate-800" />
+                                  <span className="font-semibold text-slate-200">{item.name}</span>
+                                  <span className="text-[10px] text-slate-400">(Tam: {item.selectedSize || 'Único'})</span>
+                                </div>
+                                <span className="font-bold">x{item.quantity} - R$ {(item.price * item.quantity).toFixed(2).replace('.', ',')}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
           </div>
         )}
 

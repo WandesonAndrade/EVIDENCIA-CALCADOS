@@ -29,10 +29,11 @@ interface AppContextProps {
   logout: () => void;
   orders: Order[];
   isLoadingOrders: boolean;
-  createOrder: (customerName: string, customerEmail: string, options?: { paymentMethod?: 'Pix' | 'Cartão de Crédito' | 'Crediário da Loja'; deliveryType?: 'Entrega em Caxias-MA' | 'Retirada na Loja'; installments?: number; customerPhone?: string; deliveryAddress?: string }) => Promise<Order>;
+  createOrder: (customerName: string, customerEmail: string, options?: { paymentMethod?: 'Pix' | 'Cartão de Crédito' | 'Crediário da Loja'; deliveryType?: 'Entrega em Caxias-MA' | 'Entrega para Outras Cidades' | 'Retirada na Loja'; installments?: number; customerPhone?: string; deliveryAddress?: string }) => Promise<Order>;
   solicitarCrediario: (dados: Partial<UserProfile>) => Promise<void>;
   atualizarStatusCrediario: (uid: string, novoStatus: CrediarioStatus, motivo?: string) => Promise<void>;
   updateOrderStatus: (orderId: string, status: Order['status']) => Promise<void>;
+  updateOrderFreight: (orderId: string, freightCost: number) => Promise<void>;
   assignOrderSeller: (orderId: string, sellerEmail: string, sellerName: string) => Promise<void>;
   addProduct: (product: Product) => Promise<void>;
   deleteProduct: (productId: string) => Promise<void>;
@@ -1107,7 +1108,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     customerEmail: string, 
     options?: { 
       paymentMethod?: 'Pix' | 'Cartão de Crédito' | 'Crediário da Loja'; 
-      deliveryType?: 'Entrega em Caxias-MA' | 'Retirada na Loja';
+      deliveryType?: 'Entrega em Caxias-MA' | 'Entrega para Outras Cidades' | 'Retirada na Loja';
       installments?: number;
       customerPhone?: string; 
       deliveryAddress?: string; 
@@ -1115,9 +1116,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   ): Promise<Order> => {
     const subtotal = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
     const deliveryType = options?.deliveryType || 'Entrega em Caxias-MA';
+    const isOtherCities = deliveryType === 'Entrega para Outras Cidades';
     
-    // Freight rule: 0 if pickup in store OR subtotal > 100, else 10
-    const freightCost = deliveryType === 'Retirada na Loja' ? 0 : (subtotal > 100 ? 0 : 10);
+    // Freight rule: 0 if pickup in store OR other cities (to be combined via WhatsApp) OR subtotal > 100, else 10
+    const freightCost = (deliveryType === 'Retirada na Loja' || isOtherCities) ? 0 : (subtotal > 100 ? 0 : 10);
     const grandTotal = subtotal + freightCost;
     const paymentMethod = options?.paymentMethod || 'Pix';
     const installments = options?.installments || 1;
@@ -1126,7 +1128,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const deliveryAddressStr = deliveryType === 'Retirada na Loja'
       ? 'Retirada na Loja: Rua Afonso Pena, 295 - Centro, Caxias - MA'
-      : (options?.deliveryAddress || `${currentUser?.endereco || ''}, Nº ${currentUser?.numero || ''} - ${currentUser?.bairro || ''}`);
+      : (options?.deliveryAddress || `${currentUser?.endereco || ''}, Nº ${currentUser?.numero || ''} - ${currentUser?.bairro || ''}, ${currentUser?.cidade || ''}/${currentUser?.uf || ''}`);
 
     const orderItems = cart.map((item) => ({
       productId: item.product.id,
@@ -1139,7 +1141,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const paymentMethodStr = (paymentMethod === 'Cartão de Crédito' && installments > 1)
       ? `Cartão de Crédito (${installments}x de R$ ${(grandTotal / installments).toFixed(2).replace('.', ',')} sem juros)`
-      : paymentMethod;
+      : (paymentMethod === 'Crediário da Loja' && installments > 1)
+        ? `Crediário Próprio (${installments}x de R$ ${(grandTotal / installments).toFixed(2).replace('.', ',')} sem juros no Carnê)`
+        : paymentMethod;
+
+    const freightStr = isOtherCities 
+      ? 'A COMBINAR VIA WHATSAPP (Outras Cidades)' 
+      : (freightCost === 0 ? 'GRÁTIS' : 'R$ 10,00');
 
     let message = `🛍️ *NOVO PEDIDO EVIDÊNCIA CALÇADOS* - ${orderNumber}\n\n`;
     message += `👤 *Dados do Cliente:*\n`;
@@ -1157,9 +1165,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
     
     message += `\n💳 *Forma de Pagamento:* ${paymentMethodStr}\n`;
-    message += `🚚 *Taxa de Frete:* ${freightCost === 0 ? 'GRÁTIS' : 'R$ 10,00'}\n`;
+    message += `🚚 *Taxa de Frete:* ${freightStr}\n`;
     message += `💰 *Subtotal:* R$ ${subtotal.toFixed(2).replace('.', ',')}\n`;
-    message += `💵 *TOTAL GERAL:* R$ ${grandTotal.toFixed(2).replace('.', ',')}\n\n`;
+    message += `💵 *TOTAL GERAL:* R$ ${grandTotal.toFixed(2).replace('.', ',')}${isOtherCities ? ' + Frete a combinar' : ''}\n\n`;
+    if (isOtherCities) {
+      message += `⚠️ *Observação:* Frete para outra localidade a ser alinhado diretamente com a equipe Evidência via WhatsApp.\n\n`;
+    }
     message += `Gostaria de confirmar os detalhes do meu pedido e dar andamento ao atendimento!`;
 
     const encodedMsg = encodeURIComponent(message);
@@ -1241,6 +1252,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       await setDoc(orderRef, { status }, { merge: true });
     } catch (error) {
       console.warn("Firestore order status update failed, updated locally:", error);
+    }
+  };
+
+  const updateOrderFreight = async (orderId: string, freightCost: number) => {
+    // Update locally first
+    const target = orders.find(o => o.id === orderId);
+    if (!target) return;
+
+    const subtotal = target.subtotal || target.items.reduce((s, i) => s + i.price * i.quantity, 0);
+    const newTotal = subtotal + freightCost;
+    const updates = {
+      freightCost,
+      total: newTotal
+    };
+
+    const updated = orders.map(o => o.id === orderId ? { ...o, ...updates } : o);
+    saveLocalOrders(updated);
+    setOrders(updated);
+
+    // Try Firestore
+    try {
+      const orderRef = doc(db, 'orders', orderId);
+      await setDoc(orderRef, updates, { merge: true });
+    } catch (error) {
+      console.warn("Firestore order freight update failed, updated locally:", error);
     }
   };
 
@@ -1594,6 +1630,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         solicitarCrediario,
         atualizarStatusCrediario,
         updateOrderStatus,
+        updateOrderFreight,
         assignOrderSeller,
         addProduct,
         deleteProduct,

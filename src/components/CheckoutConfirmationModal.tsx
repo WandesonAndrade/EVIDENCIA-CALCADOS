@@ -13,7 +13,7 @@ interface CheckoutConfirmationModalProps {
   cartItemsCount: number;
   onConfirmOrder: (
     paymentMethod: 'Pix' | 'Cartão de Crédito' | 'Crediário da Loja', 
-    deliveryType: 'Entrega em Caxias-MA' | 'Retirada na Loja',
+    deliveryType: 'Entrega em Caxias-MA' | 'Entrega para Outras Cidades' | 'Retirada na Loja',
     installments?: number
   ) => void;
   isProcessing: boolean;
@@ -30,16 +30,17 @@ export const CheckoutConfirmationModal: React.FC<CheckoutConfirmationModalProps>
   const { currentUser, theme } = useApp();
   const isDark = theme === 'dark';
 
-  const [deliveryType, setDeliveryType] = useState<'Entrega em Caxias-MA' | 'Retirada na Loja'>('Entrega em Caxias-MA');
+  const [deliveryType, setDeliveryType] = useState<'Entrega em Caxias-MA' | 'Entrega para Outras Cidades' | 'Retirada na Loja'>('Entrega em Caxias-MA');
   const [paymentMethod, setPaymentMethod] = useState<'Pix' | 'Cartão de Crédito' | 'Crediário da Loja'>('Pix');
   const [installments, setInstallments] = useState<number>(1);
   const [crediarioInstallments, setCrediarioInstallments] = useState<number>(1);
 
   if (!isOpen || !currentUser) return null;
 
+  const isOtherCities = deliveryType === 'Entrega para Outras Cidades';
   // Calculate freight cost based on delivery choice
-  const isFreeFreight = subtotal > 100 || deliveryType === 'Retirada na Loja';
-  const freightCost = deliveryType === 'Retirada na Loja' ? 0 : (subtotal > 100 ? 0 : 10);
+  const isFreeFreight = (subtotal > 100 && deliveryType === 'Entrega em Caxias-MA') || deliveryType === 'Retirada na Loja';
+  const freightCost = (deliveryType === 'Retirada na Loja' || isOtherCities) ? 0 : (subtotal > 100 ? 0 : 10);
   const grandTotal = subtotal + freightCost;
 
   const isCrediarioApproved = currentUser.crediarioStatus === 'Aprovado';
@@ -125,29 +126,54 @@ export const CheckoutConfirmationModal: React.FC<CheckoutConfirmationModalProps>
               <span>1. Escolha a Modalidade de Entrega</span>
             </h4>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
               {/* Entrega em Caxias */}
               <button
                 type="button"
                 onClick={() => setDeliveryType('Entrega em Caxias-MA')}
-                className={`p-4 rounded-2xl border text-left flex flex-col justify-between transition-all cursor-pointer ${
+                className={`p-3 rounded-2xl border text-left flex flex-col justify-between transition-all cursor-pointer ${
                   deliveryType === 'Entrega em Caxias-MA'
                     ? 'border-amber-400 bg-amber-400/10 shadow-sm'
                     : isDark ? 'border-slate-800 bg-slate-950/60 text-slate-400' : 'border-slate-200 bg-slate-50 text-slate-700'
                 }`}
               >
-                <div className="flex items-center justify-between w-full mb-2">
-                  <span className="font-extrabold text-xs flex items-center space-x-1.5">
-                    <Truck className="h-4 w-4 text-amber-400" />
-                    <span>Entrega Caxias (MA)</span>
+                <div className="flex items-center justify-between w-full mb-1">
+                  <span className="font-extrabold text-[11px] flex items-center space-x-1">
+                    <Truck className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                    <span>Entrega Caxias</span>
                   </span>
-                  {deliveryType === 'Entrega em Caxias-MA' && <CheckCircle2 className="h-4 w-4 text-amber-400 shrink-0" />}
+                  {deliveryType === 'Entrega em Caxias-MA' && <CheckCircle2 className="h-3.5 w-3.5 text-amber-400 shrink-0" />}
                 </div>
-                <p className="text-[10px] opacity-80 leading-relaxed font-medium">
-                  Entregamos diretamente no seu endereço cadastrado em Caxias - MA.
+                <p className="text-[9px] opacity-80 leading-snug font-medium">
+                  Endereço urbano em Caxias - MA.
                 </p>
-                <div className="mt-3 pt-2 border-t border-slate-800/40 text-[11px] font-black text-emerald-400">
+                <div className="mt-2 pt-1.5 border-t border-slate-800/40 text-[10px] font-black text-emerald-400">
                   {subtotal > 100 ? 'Frete GRÁTIS' : 'Frete: R$ 10,00'}
+                </div>
+              </button>
+
+              {/* Entrega para Outras Cidades */}
+              <button
+                type="button"
+                onClick={() => setDeliveryType('Entrega para Outras Cidades')}
+                className={`p-3 rounded-2xl border text-left flex flex-col justify-between transition-all cursor-pointer ${
+                  deliveryType === 'Entrega para Outras Cidades'
+                    ? 'border-emerald-400 bg-emerald-500/10 shadow-sm'
+                    : isDark ? 'border-slate-800 bg-slate-950/60 text-slate-400' : 'border-slate-200 bg-slate-50 text-slate-700'
+                }`}
+              >
+                <div className="flex items-center justify-between w-full mb-1">
+                  <span className="font-extrabold text-[11px] flex items-center space-x-1">
+                    <MessageSquare className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                    <span>Outras Cidades</span>
+                  </span>
+                  {deliveryType === 'Entrega para Outras Cidades' && <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" />}
+                </div>
+                <p className="text-[9px] opacity-80 leading-snug font-medium">
+                  Envio para todo Brasil.
+                </p>
+                <div className="mt-2 pt-1.5 border-t border-slate-800/40 text-[10px] font-black text-emerald-400">
+                  Frete a Combinar
                 </div>
               </button>
 
@@ -155,37 +181,46 @@ export const CheckoutConfirmationModal: React.FC<CheckoutConfirmationModalProps>
               <button
                 type="button"
                 onClick={() => setDeliveryType('Retirada na Loja')}
-                className={`p-4 rounded-2xl border text-left flex flex-col justify-between transition-all cursor-pointer ${
+                className={`p-3 rounded-2xl border text-left flex flex-col justify-between transition-all cursor-pointer ${
                   deliveryType === 'Retirada na Loja'
                     ? 'border-sky-400 bg-sky-400/10 shadow-sm'
                     : isDark ? 'border-slate-800 bg-slate-950/60 text-slate-400' : 'border-slate-200 bg-slate-50 text-slate-700'
                 }`}
               >
-                <div className="flex items-center justify-between w-full mb-2">
-                  <span className="font-extrabold text-xs flex items-center space-x-1.5">
-                    <MapPin className="h-4 w-4 text-sky-400" />
-                    <span>Retirada na Loja</span>
+                <div className="flex items-center justify-between w-full mb-1">
+                  <span className="font-extrabold text-[11px] flex items-center space-x-1">
+                    <MapPin className="h-3.5 w-3.5 text-sky-400 shrink-0" />
+                    <span>Retirada Loja</span>
                   </span>
-                  {deliveryType === 'Retirada na Loja' && <CheckCircle2 className="h-4 w-4 text-sky-400 shrink-0" />}
+                  {deliveryType === 'Retirada na Loja' && <CheckCircle2 className="h-3.5 w-3.5 text-sky-400 shrink-0" />}
                 </div>
-                <p className="text-[10px] opacity-80 leading-relaxed font-medium">
-                  Rua Afonso Pena, 295 - Centro, Caxias - MA.
+                <p className="text-[9px] opacity-80 leading-snug font-medium">
+                  Retire no Centro.
                 </p>
-                <div className="mt-3 pt-2 border-t border-slate-800/40 text-[11px] font-black text-sky-400">
-                  Frete GRÁTIS (R$ 0,00)
+                <div className="mt-2 pt-1.5 border-t border-slate-800/40 text-[10px] font-black text-sky-400">
+                  Frete GRÁTIS
                 </div>
               </button>
             </div>
 
-            {/* Address Details Preview */}
-            <div className={`p-3.5 rounded-2xl border text-xs font-medium ${
+            {/* Address Details & Freight Notice Preview */}
+            <div className={`p-3.5 rounded-2xl border text-xs font-medium space-y-2 ${
               isDark ? 'bg-slate-950/60 border-slate-800 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700'
             }`}>
-              <span className="text-[10px] font-black uppercase text-slate-400 block mb-0.5">Endereço Selecionado:</span>
+              <span className="text-[10px] font-black uppercase text-slate-400 block mb-0.5">Endereço & Localidade Selecionada:</span>
               {deliveryType === 'Entrega em Caxias-MA' ? (
                 <p className="leading-snug">
                   {currentUser.endereco}, Nº {currentUser.numero || 'S/N'} - {currentUser.bairro || 'Centro'}, Caxias - MA
                 </p>
+              ) : deliveryType === 'Entrega para Outras Cidades' ? (
+                <div className="space-y-2">
+                  <p className="leading-snug text-emerald-400 font-bold">
+                    {currentUser.endereco ? `${currentUser.endereco}, Nº ${currentUser.numero || 'S/N'} - ${currentUser.bairro || ''}, ${currentUser.cidade || ''}/${currentUser.uf || ''}` : 'Entrega para outra localidade'}
+                  </p>
+                  <div className="pt-1 border-t border-slate-800/40">
+                    <span className="text-[11px] text-amber-400 font-bold">💬 Frete a combinar / sob consulta (será ajustado no atendimento)</span>
+                  </div>
+                </div>
               ) : (
                 <p className="leading-snug text-sky-400 font-bold">
                   Loja Evidência Calçados: Rua Afonso Pena, 295 - Centro, Caxias - MA (Seg-Sex: 08h-18h | Sáb: 08h-13h)
@@ -360,8 +395,8 @@ export const CheckoutConfirmationModal: React.FC<CheckoutConfirmationModalProps>
 
             <div className="flex justify-between items-center">
               <span>Taxa de Frete:</span>
-              <span className={freightCost === 0 ? 'text-emerald-400 font-extrabold' : ''}>
-                {freightCost === 0 ? 'GRÁTIS' : 'R$ 10,00'}
+              <span className={isOtherCities ? 'text-amber-400 font-extrabold' : (freightCost === 0 ? 'text-emerald-400 font-extrabold' : '')}>
+                {isOtherCities ? 'A COMBINAR' : (freightCost === 0 ? 'GRÁTIS' : 'R$ 10,00')}
               </span>
             </div>
 

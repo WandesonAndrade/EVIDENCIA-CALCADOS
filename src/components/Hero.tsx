@@ -18,9 +18,9 @@ interface Slide {
 const SLIDES: Slide[] = [
   {
     id: 1,
-    badge: 'LOJA OFICIAL CAXIAS - MA',
-    title: 'A sua loja de Caxias - MA está online!',
-    description: 'Compre no carnê em até 10x sem juros ou receba via entrega rápida com o atendimento exclusivo da equipe Evidência Calçados.',
+    badge: 'LOJA OFICIAL EVIDÊNCIA CALÇADOS',
+    title: 'A sua loja de calçados online!',
+    description: 'Compre no carnê em até 6x sem juros ou receba com entrega rápida e frete flexível com o atendimento da equipe Evidência Calçados.',
     image: 'https://images.unsplash.com/photo-1549298916-b41d501d3772?q=80&w=1600&auto=format&fit=crop',
     buttonText: 'Ver Lançamentos',
     tabKey: 'lançamentos'
