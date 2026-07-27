@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { Product, Order, OrderStatus, UserProfile, Category, HeroBanner, HomeSectionConfig, AboutConfig, ContactConfig } from '../types';
+import { Product, Order, OrderStatus, PaymentStatus, UserProfile, Category, HeroBanner, HomeSectionConfig, AboutConfig, ContactConfig } from '../types';
 import { MoblinkIntegrationPanel } from './MoblinkIntegrationPanel';
 import { MoblinkProductsManager } from './MoblinkProductsManager';
 import { storage, db, auth, app } from '../lib/firebase';
@@ -42,6 +42,7 @@ export const AdminPanel: React.FC = () => {
     deleteProduct,
     updateProduct,
     updateOrderStatus,
+    updateOrderPaymentStatus,
     updateOrderFreight,
     assignOrderSeller,
     theme,
@@ -922,10 +923,33 @@ export const AdminPanel: React.FC = () => {
                             </span>
                           </div>
 
-                          <div className="flex items-center space-x-4 text-xs font-semibold">
+                          <div className="flex flex-wrap items-center space-x-4 text-xs font-semibold gap-2">
                             <span className="text-slate-400">Data: {new Date(o.createdAt).toLocaleDateString('pt-BR')}</span>
-                            <div className="flex items-center space-x-2">
-                              <span className="text-[10px] text-slate-400 uppercase">Alterar Status:</span>
+                            
+                            <div className="flex items-center space-x-1.5">
+                              <span className="text-[10px] text-slate-400 uppercase font-bold">Pagamento:</span>
+                              <select
+                                value={o.paymentStatus || 'Pendente'}
+                                onChange={(e) => {
+                                  updateOrderPaymentStatus(o.id, e.target.value as PaymentStatus);
+                                  addToast('Pagamento Atualizado!', `O status do pagamento do pedido ${o.orderNumber || o.id} foi alterado para ${e.target.value}.`, 'success');
+                                }}
+                                className={`p-1.5 rounded-lg text-xs font-bold border focus:outline-none cursor-pointer ${
+                                  o.paymentStatus === 'Confirmado' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' :
+                                  o.paymentStatus === 'Em Análise' ? 'bg-purple-500/20 text-purple-400 border-purple-500/40' :
+                                  o.paymentStatus === 'Recusado' ? 'bg-rose-500/20 text-rose-400 border-rose-500/40' :
+                                  'bg-amber-400/20 text-amber-400 border-amber-400/40'
+                                }`}
+                              >
+                                <option value="Pendente">⏳ Pendente</option>
+                                <option value="Em Análise">🔍 Em Análise</option>
+                                <option value="Confirmado">✅ Confirmado</option>
+                                <option value="Recusado">❌ Recusado</option>
+                              </select>
+                            </div>
+
+                            <div className="flex items-center space-x-1.5">
+                              <span className="text-[10px] text-slate-400 uppercase font-bold">Entrega:</span>
                               <select
                                 value={o.status}
                                 onChange={(e) => updateOrderStatus(o.id, e.target.value as OrderStatus)}
@@ -942,13 +966,54 @@ export const AdminPanel: React.FC = () => {
                           </div>
                         </div>
 
-                        {/* Customer & Shipping Row */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                        {/* Customer, Payment & Shipping Grid */}
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs">
                           <div>
                             <span className="text-[10px] text-slate-400 uppercase font-bold block">Cliente & Contato</span>
                             <p className="font-bold text-sm text-slate-200 mt-0.5">{o.customerName}</p>
                             <p className="text-slate-400">{o.customerEmail}</p>
                             <p className="text-amber-400 font-mono mt-0.5">{o.customerPhone || 'Telefone não informado'}</p>
+                          </div>
+
+                          {/* Payment Method & Admin Action */}
+                          <div>
+                            <span className="text-[10px] text-slate-400 uppercase font-bold block">Forma de Pagamento</span>
+                            <div className="mt-1 space-y-1">
+                              <div className="flex items-center space-x-2">
+                                <span className="font-bold text-sm text-slate-200">{o.paymentMethod || 'Pix'}</span>
+                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
+                                  o.paymentStatus === 'Confirmado' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
+                                  o.paymentStatus === 'Em Análise' ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30' :
+                                  o.paymentStatus === 'Recusado' ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' :
+                                  'bg-amber-400/20 text-amber-400 border border-amber-400/30'
+                                }`}>
+                                  {o.paymentStatus || 'Pendente'}
+                                </span>
+                              </div>
+                              {o.installments && o.installments > 1 && (
+                                <p className="text-sky-400 font-bold text-[11px]">
+                                  Parcelado em {o.installments}x sem juros
+                                </p>
+                              )}
+                              {o.paymentMethod === 'Crediário da Loja' && (
+                                <p className="text-amber-400 font-bold text-[11px]">
+                                  Carnê Crediário Evidência em até 6x
+                                </p>
+                              )}
+                              {o.paymentStatus !== 'Confirmado' && (
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    await updateOrderPaymentStatus(o.id, 'Confirmado');
+                                    addToast('Pagamento Confirmado!', `O pagamento do pedido ${o.orderNumber || o.id} foi confirmado com sucesso.`, 'success');
+                                  }}
+                                  className="mt-1.5 px-3 py-1 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-[10px] uppercase tracking-wider transition-all cursor-pointer flex items-center space-x-1"
+                                >
+                                  <Check className="h-3 w-3" />
+                                  <span>Confirmar Pagamento</span>
+                                </button>
+                              )}
+                            </div>
                           </div>
 
                           <div>

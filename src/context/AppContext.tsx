@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Product, CartItem, Order, UserProfile, UserRole, CrediarioStatus, Category, MoblinkConfig, MoblinkSyncLog, MoblinkSyncLogItem, SincomAuthSession, HeroBanner, HomeSectionConfig, AboutConfig, ContactConfig, StoreConfig } from '../types';
+import { Product, CartItem, Order, PaymentStatus, UserProfile, UserRole, CrediarioStatus, Category, MoblinkConfig, MoblinkSyncLog, MoblinkSyncLogItem, SincomAuthSession, HeroBanner, HomeSectionConfig, AboutConfig, ContactConfig, StoreConfig } from '../types';
 import { db, auth, seedDatabaseIfNeeded, SEED_PRODUCTS } from '../lib/firebase';
 import { collection, onSnapshot, doc, setDoc, getDoc, query, where, deleteDoc } from 'firebase/firestore';
 import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
@@ -33,6 +33,7 @@ interface AppContextProps {
   solicitarCrediario: (dados: Partial<UserProfile>) => Promise<void>;
   atualizarStatusCrediario: (uid: string, novoStatus: CrediarioStatus, motivo?: string) => Promise<void>;
   updateOrderStatus: (orderId: string, status: Order['status']) => Promise<void>;
+  updateOrderPaymentStatus: (orderId: string, paymentStatus: PaymentStatus) => Promise<void>;
   updateOrderFreight: (orderId: string, freightCost: number) => Promise<void>;
   assignOrderSeller: (orderId: string, sellerEmail: string, sellerName: string) => Promise<void>;
   addProduct: (product: Product) => Promise<void>;
@@ -1194,6 +1195,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       freightCost,
       total: grandTotal,
       paymentMethod,
+      paymentStatus: 'Pendente',
       installments,
       status: 'Pendente',
       createdAt: new Date().toISOString(),
@@ -1252,6 +1254,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       await setDoc(orderRef, { status }, { merge: true });
     } catch (error) {
       console.warn("Firestore order status update failed, updated locally:", error);
+    }
+  };
+
+  const updateOrderPaymentStatus = async (orderId: string, paymentStatus: PaymentStatus) => {
+    // Update locally
+    const localOrders = getLocalOrders();
+    const updated = localOrders.map(o => o.id === orderId ? { ...o, paymentStatus } : o);
+    saveLocalOrders(updated);
+    setOrders(updated);
+
+    // Try Firestore
+    try {
+      const orderRef = doc(db, 'orders', orderId);
+      await setDoc(orderRef, { paymentStatus }, { merge: true });
+    } catch (error) {
+      console.warn("Firestore order payment status update failed, updated locally:", error);
     }
   };
 
@@ -1630,6 +1648,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         solicitarCrediario,
         atualizarStatusCrediario,
         updateOrderStatus,
+        updateOrderPaymentStatus,
         updateOrderFreight,
         assignOrderSeller,
         addProduct,

@@ -132,6 +132,8 @@ export interface OrderItem {
 
 export type OrderStatus = 'Pendente' | 'Confirmado' | 'Cancelado' | 'Entregue';
 
+export type PaymentStatus = 'Pendente' | 'Confirmado' | 'Em Análise' | 'Recusado';
+
 export interface Order {
   id: string;
   orderNumber?: string;
@@ -147,6 +149,7 @@ export interface Order {
   freightCost?: number;
   total: number;
   paymentMethod?: 'Pix' | 'Cartão de Crédito' | 'Crediário da Loja';
+  paymentStatus?: PaymentStatus;
   installments?: number;
   status: OrderStatus;
   createdAt: string;
