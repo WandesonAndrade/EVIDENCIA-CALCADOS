@@ -205,6 +205,10 @@ export interface UserProfile {
   isProfileComplete?: boolean;
   cartItemsCount?: number;
   favoriteItemsCount?: number;
+  favoriteIds?: string[];
+  favorites?: string[];
+  cartItems?: Array<{ productId: string; name: string; price: number; selectedSize: number | string; quantity: number }>;
+  cart?: Array<{ productId: string; name: string; price: number; selectedSize: number | string; quantity: number }>;
   cashbackBalance?: number;
   cashbackValidUntil?: string;
 }

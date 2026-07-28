@@ -38,19 +38,20 @@ export const CompleteProfileModal: React.FC<CompleteProfileModalProps> = ({ isOp
   // Load existing values when modal opens or user changes
   useEffect(() => {
     if (currentUser) {
+      const anyUser = currentUser as any;
       setRg(currentUser.rg || '');
-      setCpf(currentUser.cpf || '');
+      setCpf(currentUser.cpf || anyUser.documento || '');
       setNomePai(currentUser.nomePai || '');
       setNomeMae(currentUser.nomeMae || '');
-      setDataNascimento(currentUser.dataNascimento || '');
+      setDataNascimento(currentUser.dataNascimento || anyUser.birthDate || anyUser.nascimento || '');
       setNaturalidade(currentUser.naturalidade || 'Caxias/MA');
-      setTelefone(currentUser.telefone || '(99) 98468-4867');
+      setTelefone(currentUser.telefone || anyUser.phone || anyUser.whatsapp || anyUser.celular || '');
       setProfissao(currentUser.profissao || '');
       setRendaMensal(currentUser.rendaMensal || '');
       setReferenciaPessoal(currentUser.referenciaPessoal || '');
       
       setCep(currentUser.cep || '65606-020');
-      setEndereco(currentUser.endereco || 'Rua Afonso Pena');
+      setEndereco(currentUser.endereco || anyUser.address || '');
       setNumero(currentUser.numero || '295');
       setBairro(currentUser.bairro || 'Centro');
       setCidade(currentUser.cidade || 'Caxias');
@@ -142,9 +143,11 @@ export const CompleteProfileModal: React.FC<CompleteProfileModalProps> = ({ isOp
         uf: uf.trim().toUpperCase(),
         complemento: complemento.trim(),
         pontoReferencia: pontoReferencia.trim(),
+        isProfileComplete: true,
         crediarioStatus: currentUser.crediarioStatus === 'Aprovado' ? 'Aprovado' : 'EmAnalise',
         crediarioSolicitadoEm: currentUser.crediarioSolicitadoEm || new Date().toISOString()
       });
+
       setSuccess(true);
       setTimeout(() => {
         setSuccess(false);

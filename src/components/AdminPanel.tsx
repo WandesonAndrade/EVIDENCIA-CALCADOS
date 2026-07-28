@@ -3,9 +3,13 @@ import { useApp } from '../context/AppContext';
 import { Product, Order, OrderStatus, PaymentStatus, UserProfile, Category, HeroBanner, HomeSectionConfig, AboutConfig, ContactConfig } from '../types';
 import { MoblinkIntegrationPanel } from './MoblinkIntegrationPanel';
 import { MoblinkProductsManager } from './MoblinkProductsManager';
+import { AuthScreen } from './AuthScreen';
+import { checkIsProfileComplete } from '../App';
 import { storage, db, auth, app } from '../lib/firebase';
+
+
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { collection, doc, getDocs, setDoc, updateDoc } from 'firebase/firestore';
+import { collection, doc, getDocs, setDoc, updateDoc, onSnapshot } from 'firebase/firestore';
 import { 
   Package, DollarSign, Users, RefreshCw, Plus, 
   Trash2, Edit, Save, ToggleLeft, ToggleRight, 
@@ -226,6 +230,21 @@ export const AdminPanel: React.FC = () => {
 
   useEffect(() => {
     fetchUsers();
+
+    // Real-time listener for users engagement (cart & favorites)
+    const unsubscribe = onSnapshot(collection(db, 'users'), (snapshot) => {
+      const fetched: UserProfile[] = [];
+      snapshot.forEach(docSnap => {
+        fetched.push({ uid: docSnap.id, ...docSnap.data() } as UserProfile);
+      });
+      if (fetched.length > 0) {
+        setUsers(fetched);
+      }
+    }, (err) => {
+      console.warn("Firestore users listener warning:", err);
+    });
+
+    return () => unsubscribe();
   }, []);
 
   const isBirthdayMatch = (userDateStr: string | undefined, filter: 'Dia' | 'Semana' | 'Mês'): boolean => {
@@ -550,12 +569,18 @@ export const AdminPanel: React.FC = () => {
     }
   };
 
+  // Guarda de Segurança: Exige login administrativo se o usuário não for gestor
+  if (!currentUser || currentUser.role !== 'admin') {
+    return <AuthScreen mode="admin" />;
+  }
+
   // Calculate Overview Stats
   const totalRevenue = orders.reduce((sum, order) => sum + (order.status !== 'Cancelado' ? order.total : 0), 0);
   const totalProductsCount = products.length;
   const outOfStockCount = products.filter(p => p.stockControl && p.stock === 0).length;
 
   return (
+
     <div className={`min-h-screen flex flex-col md:flex-row transition-colors duration-300 font-sans ${
       isDark ? 'bg-[#0B0F19] text-slate-100' : 'bg-slate-50 text-slate-800'
     }`}>
@@ -1602,9 +1627,9 @@ export const AdminPanel: React.FC = () => {
               <div className="flex flex-wrap gap-2">
                 {[
                   { id: 'Todos', label: '🎉 Todos os Clientes', count: users.length },
-                  { id: 'Dia', label: '🎂 Aniversariantes do Dia', count: users.filter(u => isBirthdayMatch(u.dataNascimento, 'Dia')).length },
-                  { id: 'Semana', label: '📅 Aniversariantes da Semana', count: users.filter(u => isBirthdayMatch(u.dataNascimento, 'Semana')).length },
-                  { id: 'Mês', label: '📆 Aniversariantes do Mês', count: users.filter(u => isBirthdayMatch(u.dataNascimento, 'Mês')).length }
+                  { id: 'Dia', label: '🎂 Aniversariantes do Dia', count: users.filter(u => isBirthdayMatch(u.dataNascimento || (u as any).birthDate || (u as any).nascimento, 'Dia')).length },
+                  { id: 'Semana', label: '📅 Aniversariantes da Semana', count: users.filter(u => isBirthdayMatch(u.dataNascimento || (u as any).birthDate || (u as any).nascimento, 'Semana')).length },
+                  { id: 'Mês', label: '📆 Aniversariantes do Mês', count: users.filter(u => isBirthdayMatch(u.dataNascimento || (u as any).birthDate || (u as any).nascimento, 'Mês')).length }
                 ].map((pill) => (
                   <button
                     key={pill.id}
@@ -1628,26 +1653,37 @@ export const AdminPanel: React.FC = () => {
             <div className="space-y-4">
               {users
                 .filter(u => {
+                  const anyU = u as any;
+                  const phoneVal = u.telefone || anyU.phone || anyU.whatsapp || anyU.celular || '';
+                  const docVal = u.cpf || anyU.documento || u.rg || '';
+                  const bdayVal = u.dataNascimento || anyU.birthDate || anyU.nascimento || anyU.data_nascimento || '';
+
                   const matchSearch = !usersSearch || 
                     u.name.toLowerCase().includes(usersSearch.toLowerCase()) || 
                     u.email.toLowerCase().includes(usersSearch.toLowerCase()) ||
-                    (u.telefone && u.telefone.includes(usersSearch)) ||
-                    (u.cpf && u.cpf.includes(usersSearch));
+                    phoneVal.includes(usersSearch) ||
+                    docVal.includes(usersSearch);
                   
-                  const isComplete = Boolean(u.cpf && u.telefone && u.endereco && u.dataNascimento);
+                  const isComplete = checkIsProfileComplete(u);
                   const matchReg = registrationFilter === 'Todos' || 
                     (registrationFilter === 'Completo' && isComplete) || 
                     (registrationFilter === 'Incompleto' && !isComplete);
 
-                  const matchBday = birthdayFilter === 'Todos' || isBirthdayMatch(u.dataNascimento, birthdayFilter);
+                  const matchBday = birthdayFilter === 'Todos' || isBirthdayMatch(bdayVal, birthdayFilter);
 
                   return matchSearch && matchReg && matchBday;
                 })
                 .map((u) => {
-                  const isComplete = Boolean(u.cpf && u.telefone && u.endereco && u.dataNascimento);
-                  const isDayBday = isBirthdayMatch(u.dataNascimento, 'Dia');
-                  const isWeekBday = isBirthdayMatch(u.dataNascimento, 'Semana');
-                  const isMonthBday = isBirthdayMatch(u.dataNascimento, 'Mês');
+                  const anyU = u as any;
+                  const phoneVal = u.telefone || anyU.phone || anyU.whatsapp || anyU.celular;
+                  const cpfVal = u.cpf || anyU.documento || u.rg;
+                  const bdayVal = u.dataNascimento || anyU.birthDate || anyU.nascimento || anyU.data_nascimento;
+                  const addressVal = u.endereco || anyU.address;
+
+                  const isComplete = checkIsProfileComplete(u);
+                  const isDayBday = isBirthdayMatch(bdayVal, 'Dia');
+                  const isWeekBday = isBirthdayMatch(bdayVal, 'Semana');
+                  const isMonthBday = isBirthdayMatch(bdayVal, 'Mês');
 
                   const defaultDate30Days = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
                   const currentCbInput = editingCashbackMap[u.uid] || {
@@ -1703,24 +1739,36 @@ export const AdminPanel: React.FC = () => {
                         {/* Intent Tags & Actions */}
                         <div className="flex flex-wrap items-center gap-2 text-xs">
                           {/* Cart Intent Tag */}
-                          <span className={`px-2.5 py-1 rounded-xl text-[10px] font-bold border flex items-center space-x-1 ${
-                            u.cartItemsCount && u.cartItemsCount > 0
-                              ? 'bg-sky-500/20 text-sky-300 border-sky-500/40'
-                              : 'bg-slate-800/40 text-slate-400 border-slate-700/50'
-                          }`}>
-                            <ShoppingCart className="h-3 w-3" />
-                            <span>{u.cartItemsCount && u.cartItemsCount > 0 ? `Carrinho Ativo (${u.cartItemsCount})` : 'Carrinho Vazio'}</span>
-                          </span>
+                          {(() => {
+                            const activeCartCount = u.cartItemsCount ?? (u.cartItems ? u.cartItems.reduce((acc, i) => acc + i.quantity, 0) : 0);
+                            const hasCart = activeCartCount > 0;
+                            return (
+                              <span className={`px-2.5 py-1 rounded-xl text-[10px] font-bold border flex items-center space-x-1 ${
+                                hasCart
+                                  ? 'bg-sky-500/20 text-sky-300 border-sky-500/40 animate-pulse'
+                                  : 'bg-slate-800/40 text-slate-400 border-slate-700/50'
+                              }`}>
+                                <ShoppingCart className="h-3 w-3" />
+                                <span>{hasCart ? `Carrinho Ativo (${activeCartCount} itens)` : 'Carrinho Vazio'}</span>
+                              </span>
+                            );
+                          })()}
 
                           {/* Favorite Intent Tag */}
-                          <span className={`px-2.5 py-1 rounded-xl text-[10px] font-bold border flex items-center space-x-1 ${
-                            u.favoriteItemsCount && u.favoriteItemsCount > 0
-                              ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
-                              : 'bg-slate-800/40 text-slate-400 border-slate-700/50'
-                          }`}>
-                            <Heart className="h-3 w-3" />
-                            <span>{u.favoriteItemsCount && u.favoriteItemsCount > 0 ? `Favoritos (${u.favoriteItemsCount})` : 'Sem Favoritos'}</span>
-                          </span>
+                          {(() => {
+                            const activeFavCount = u.favoriteItemsCount ?? (u.favoriteIds ? u.favoriteIds.length : 0);
+                            const hasFav = activeFavCount > 0;
+                            return (
+                              <span className={`px-2.5 py-1 rounded-xl text-[10px] font-bold border flex items-center space-x-1 ${
+                                hasFav
+                                  ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                                  : 'bg-slate-800/40 text-slate-400 border-slate-700/50'
+                              }`}>
+                                <Heart className="h-3 w-3" />
+                                <span>{hasFav ? `Favoritos (${activeFavCount})` : 'Sem Favoritos'}</span>
+                              </span>
+                            );
+                          })()}
 
                           {/* Crediario Badge */}
                           <span className="px-2.5 py-1 rounded-xl text-[10px] font-bold border bg-slate-800 text-slate-300 border-slate-700">
@@ -1736,9 +1784,9 @@ export const AdminPanel: React.FC = () => {
                           isDark ? 'bg-slate-950/50 border-slate-800' : 'bg-slate-50 border-slate-200'
                         }`}>
                           <span className="text-[10px] uppercase font-black text-amber-400 block">Dados de Contato</span>
-                          <p className="text-slate-300"><strong>Telefone/WhatsApp:</strong> {u.telefone || 'Não informado'}</p>
-                          <p className="text-slate-300 font-mono"><strong>CPF:</strong> {u.cpf || 'Não informado'}</p>
-                          <p className="text-slate-300"><strong>Data Nasc:</strong> {u.dataNascimento || 'Não informada'}</p>
+                          <p className="text-slate-300"><strong>Telefone/WhatsApp:</strong> {phoneVal || 'Não informado'}</p>
+                          <p className="text-slate-300 font-mono"><strong>CPF/Doc:</strong> {cpfVal || 'Não informado'}</p>
+                          <p className="text-slate-300"><strong>Data Nasc:</strong> {bdayVal || 'Não informada'}</p>
                         </div>
 
                         {/* Col 2: Endereço */}
@@ -1747,9 +1795,12 @@ export const AdminPanel: React.FC = () => {
                         }`}>
                           <span className="text-[10px] uppercase font-black text-amber-400 block">Endereço Cadastrado</span>
                           <p className="text-slate-300 leading-snug">
-                            {u.endereco ? `${u.endereco}, Nº ${u.numero || 'S/N'} - ${u.bairro || ''}, ${u.cidade || 'Caxias'}/${u.uf || 'MA'}` : 'Endereço não preenchido'}
+                            {addressVal ? (
+                              addressVal.includes(',') ? addressVal : `${addressVal}${u.numero ? ', Nº ' + u.numero : ''}${u.bairro ? ' - ' + u.bairro : ''}${u.cidade ? ', ' + u.cidade : ''}${u.uf ? '/' + u.uf : ''}`
+                            ) : 'Endereço não preenchido'}
                           </p>
                         </div>
+
 
                         {/* Col 3: Gestão de Cashback */}
                         <div className={`p-3.5 rounded-2xl border space-y-2.5 ${

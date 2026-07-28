@@ -3,8 +3,10 @@ import { useApp } from '../context/AppContext';
 import { ShoppingBag, Search, User, LogOut, LayoutDashboard, History, ChevronDown, Heart, Sun, Moon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { BrandLogo } from './BrandLogo';
+import { checkIsProfileComplete } from '../App';
 
 import { scrollToSectionWithOffset } from '../lib/scrollUtils';
+
 
 export const Header: React.FC = () => {
   const { 
@@ -218,12 +220,17 @@ export const Header: React.FC = () => {
                                 <User className="h-4 w-4 text-slate-400" />
                                 <span>Dados Cadastrais</span>
                               </div>
-                              {!(currentUser.rg && currentUser.cpf) && (
+                              {checkIsProfileComplete(currentUser) ? (
+                                <span className="bg-emerald-500/20 text-emerald-400 text-[9px] font-bold px-2 py-0.5 rounded-full border border-emerald-500/30">
+                                  ✓ Completo
+                                </span>
+                              ) : (
                                 <span className="bg-amber-400/20 text-amber-400 text-[9px] font-bold px-2 py-0.5 rounded-full border border-amber-400/30">
                                   Pendente
                                 </span>
                               )}
                             </button>
+
                           )}
                         </div>
 

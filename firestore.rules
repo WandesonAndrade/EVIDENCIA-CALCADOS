@@ -2,50 +2,76 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Regra para Usuários / Clientes / Perfis de Crediário
-    match /users/{userId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null;
+    // Funções auxiliares de segurança
+    function isAuth() {
+      return request.auth != null;
     }
+
+    function isOwner(userId) {
+      return isAuth() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuth() && (
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'))
+      );
+    }
+
+    // Regra para Usuários e suas subcoleções (carrinho, favoritos, etc.)
+    match /users/{userId} {
+      allow read, write: if (request.auth != null && request.auth.uid == userId) || isAdmin();
+      
+      match /{subcollection}/{document=**} {
+        allow read, write: if (request.auth != null && request.auth.uid == userId) || isAdmin();
+      }
+    }
+
 
     // Regra para Solicitações de Crediário Próprio
     match /creditRequests/{requestId} {
-      allow read, write: if request.auth != null;
+      allow create: if isAuth();
+      allow read, update, delete: if isAuth() && (resource.data.userId == request.auth.uid || isAdmin());
     }
 
     // Regra para Coleção de Clientes
     match /clients/{clientId} {
-      allow read, write: if request.auth != null;
+      allow read, write: if isOwner(clientId) || isAdmin();
     }
 
     // Regra para Catálogo de Produtos
     match /products/{productId} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write: if isAdmin();
     }
 
     // Regra para Categorias de Produtos
     match /categories/{categoryId} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write: if isAdmin();
     }
 
-    // Regra para Pedidos da Loja
+    // Regra para Pedidos da Loja (Leitura restrita ao dono do pedido ou Admin)
     match /orders/{orderId} {
-      allow read: if true;
-      allow write: if true;
+      allow create: if true; // Permite checkout
+      allow read: if isAuth() && (
+        resource.data.userId == request.auth.uid || 
+        resource.data.customerEmail == request.auth.token.email || 
+        isAdmin()
+      );
+      allow update, delete: if isAdmin();
     }
 
     // Regra para Configurações da Loja (CMS Layout, Banners, Contatos)
     match /storeConfig/{document=**} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write: if isAdmin();
     }
 
-    // Regra Global de Fallback para Usuários Autenticados
+    // Regra Global de Bloqueio Padrão (Zero Trust)
     match /{document=**} {
-      allow read: if true;
-      allow write: if request.auth != null;
+      allow read, write: if false;
     }
   }
 }

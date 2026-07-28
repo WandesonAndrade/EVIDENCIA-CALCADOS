@@ -1,9 +1,13 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { Product, CartItem, Order, PaymentStatus, UserProfile, UserRole, CrediarioStatus, Category, MoblinkConfig, MoblinkSyncLog, MoblinkSyncLogItem, SincomAuthSession, HeroBanner, HomeSectionConfig, AboutConfig, ContactConfig, StoreConfig } from '../types';
 import { db, auth, seedDatabaseIfNeeded, SEED_PRODUCTS } from '../lib/firebase';
 import { collection, onSnapshot, doc, setDoc, getDoc, query, where, deleteDoc } from 'firebase/firestore';
 import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { sincomAuthService } from '../lib/sincomAuth';
+import { firebaseAuthService } from '../services/firebaseAuthService';
+import { userDataService } from '../services/userDataService';
+import { orderService } from '../services/orderService';
+
 
 interface AppContextProps {
   products: Product[];
@@ -455,57 +459,108 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     loadStoreConfig();
   }, []);
 
-  // Load cart, favorites, and session from LocalStorage on mount
+  const isRestoringEngagementRef = useRef<boolean>(false);
+  const restoredUidRef = useRef<string | null>(null);
+
+  // Listener de Autenticação do Firebase Auth: sincroniza perfil, favoritos e carrinho do Firestore em tempo real
   useEffect(() => {
-    const savedCart = localStorage.getItem('evidencia_cart');
-    if (savedCart) {
-      try {
-        setCart(JSON.parse(savedCart));
-      } catch (e) {
-        console.error("Failed to parse cart", e);
-      }
-    }
+    const unsubscribe = firebaseAuthService.subscribeAuthState(async (fbUser) => {
+      if (fbUser) {
+        try {
+          isRestoringEngagementRef.current = true;
+          const fullProfile = await firebaseAuthService.fetchOrSyncUserProfile(fbUser);
+          
+          setCurrentUser(fullProfile);
+          localStorage.setItem('evidencia_user', JSON.stringify(fullProfile));
+          saveLocalUser(fullProfile.uid, fullProfile);
 
-    const savedFavorites = localStorage.getItem('evidencia_favorites');
-    if (savedFavorites) {
-      try {
-        setFavorites(JSON.parse(savedFavorites));
-      } catch (e) {
-        console.error("Failed to parse favorites", e);
-      }
-    }
+          // Restaura Favoritos diretamente do perfil do Firestore
+          const rawFavs = fullProfile.favorites || fullProfile.favoriteIds;
+          if (Array.isArray(rawFavs)) {
+            setFavorites(rawFavs);
+            userDataService.saveLocalFavorites(fullProfile.uid, rawFavs);
+          }
 
-    const savedUser = localStorage.getItem('evidencia_user');
-    if (savedUser) {
-      try {
-        const parsed = JSON.parse(savedUser) as UserProfile;
-        setCurrentUser(parsed);
-        if (parsed?.uid) {
-          getDoc(doc(db, 'users', parsed.uid)).then((snap) => {
-            if (snap.exists()) {
-              const fsData = snap.data() as UserProfile;
-              const merged = { ...parsed, ...fsData };
-              setCurrentUser(merged);
-              localStorage.setItem('evidencia_user', JSON.stringify(merged));
-              saveLocalUser(parsed.uid, merged);
-            }
-          }).catch((err) => console.warn("Background user Firestore sync skipped:", err));
+          // Restaura Carrinho diretamente do perfil do Firestore
+          const rawCart = fullProfile.cart || fullProfile.cartItems;
+          if (Array.isArray(rawCart) && rawCart.length > 0) {
+            const restoredCart: CartItem[] = rawCart.map((item: any) => ({
+              product: products.find(p => p.id === item.productId) || {
+                id: item.productId,
+                name: item.name,
+                price: item.price,
+                images: ['https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?q=80&w=600&auto=format&fit=crop'],
+                sizes: [String(item.selectedSize)]
+              } as Product,
+              selectedSize: item.selectedSize,
+              quantity: item.quantity
+            }));
+            setCart(restoredCart);
+            userDataService.saveLocalCart(fullProfile.uid, restoredCart);
+          }
+        } catch (err) {
+          console.warn("📌 Erro na sincronização onAuthStateChanged com Firestore:", err);
+        } finally {
+          setTimeout(() => {
+            isRestoringEngagementRef.current = false;
+          }, 500);
         }
-      } catch (e) {
-        console.error("Failed to parse user session", e);
       }
+    });
+
+    return () => unsubscribe();
+  }, [products]);
+
+  // Carrega carrinho, favoritos e usuário salvos localmente no carregamento inicial
+  useEffect(() => {
+    const savedUserStr = localStorage.getItem('evidencia_user');
+    let activeUid = currentUser?.uid;
+    if (!activeUid && savedUserStr) {
+      try {
+        const parsed = JSON.parse(savedUserStr) as UserProfile;
+        setCurrentUser(parsed);
+        activeUid = parsed.uid;
+      } catch (e) {}
     }
-  }, []);
 
-  // Sync cart to LocalStorage
-  useEffect(() => {
-    localStorage.setItem('evidencia_cart', JSON.stringify(cart));
-  }, [cart]);
+    const savedCart = userDataService.loadLocalCart(activeUid || null);
+    if (savedCart.length > 0 && cart.length === 0) {
+      setCart(savedCart);
+    }
 
-  // Sync favorites to LocalStorage
+    const savedFavs = userDataService.loadLocalFavorites(activeUid || null);
+    if (savedFavs.length > 0 && favorites.length === 0) {
+      setFavorites(savedFavs);
+    }
+  }, [currentUser?.uid]);
+
+
+  // Sync cart to LocalStorage and Firestore (strictly isolated by currentUser.uid, skip during restore)
   useEffect(() => {
-    localStorage.setItem('evidencia_favorites', JSON.stringify(favorites));
-  }, [favorites]);
+    if (isRestoringEngagementRef.current) return;
+    const uid = currentUser?.uid || null;
+    userDataService.saveLocalCart(uid, cart);
+
+    if (uid) {
+      userDataService.syncCartToFirestore(uid, cart).catch(err => {
+        console.warn("Firestore cart sync error:", err);
+      });
+    }
+  }, [cart, currentUser?.uid]);
+
+  // Sync favorites to LocalStorage and Firestore (strictly isolated by currentUser.uid, skip during restore)
+  useEffect(() => {
+    if (isRestoringEngagementRef.current) return;
+    const uid = currentUser?.uid || null;
+    userDataService.saveLocalFavorites(uid, favorites);
+
+    if (uid) {
+      userDataService.syncFavoritesToFirestore(uid, favorites).catch(err => {
+        console.warn("Firestore favorites sync error:", err);
+      });
+    }
+  }, [favorites, currentUser?.uid]);
+
 
   // Sync theme to LocalStorage and update body class
   useEffect(() => {
@@ -728,41 +783,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return unsubscribe;
   }, []);
 
-  // Listen to orders with strict user UID isolation
+  // Listen to orders with strict user UID isolation using orderService
   useEffect(() => {
     setIsLoadingOrders(true);
-    let unsubscribe = () => {};
+    if (!currentUser) {
+      setOrders([]);
+      setIsLoadingOrders(false);
+      return;
+    }
 
-    if (currentUser) {
-      const ordersRef = collection(db, 'orders');
-      let ordersQuery = query(ordersRef);
-
-      if (currentUser.role === 'customer') {
-        // Query strictly by user UID
-        ordersQuery = query(ordersRef, where('userId', '==', currentUser.uid));
-      }
-
-      unsubscribe = onSnapshot(ordersQuery, (snapshot) => {
-        const orderList: Order[] = [];
-        snapshot.forEach((doc) => {
-          const data = doc.data() as Order;
-          // Double safety check for user data isolation
-          if (
-            currentUser.role === 'admin' || 
-            data.userId === currentUser.uid || 
-            (data.customerEmail && data.customerEmail.toLowerCase() === currentUser.email.toLowerCase())
-          ) {
-            orderList.push({ id: doc.id, ...data });
-          }
-        });
-        // Sort orders by date descending
-        orderList.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-        setOrders(orderList);
-        saveLocalOrders(orderList);
+    const unsubscribe = orderService.subscribeUserOrders(
+      currentUser,
+      (fetchedOrders) => {
+        setOrders(fetchedOrders);
+        saveLocalOrders(fetchedOrders);
         setIsLoadingOrders(false);
-      }, (error) => {
-        console.warn("Firestore collection orders listening failed, serving cached local orders:", error.message);
-        // Filter local orders by user UID/email if customer
+      },
+      (error) => {
         const cached = getLocalOrders();
         const filtered = currentUser.role === 'customer' 
           ? cached.filter(o => o.userId === currentUser.uid || (o.customerEmail && o.customerEmail.toLowerCase() === currentUser.email.toLowerCase()))
@@ -770,14 +807,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         filtered.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
         setOrders(filtered);
         setIsLoadingOrders(false);
-      });
-    } else {
-      setOrders([]);
-      setIsLoadingOrders(false);
-    }
+      }
+    );
 
     return () => unsubscribe();
   }, [currentUser]);
+
 
   // Synchronize product detail view with URL search params to support sharing links
   useEffect(() => {
@@ -889,6 +924,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const profile = userDoc.data() as UserProfile;
         setCurrentUser(profile);
         localStorage.setItem('evidencia_user', JSON.stringify(profile));
+
+        // Restore user engagement data (favorites & cart) from Firestore
+        if (Array.isArray(profile.favoriteIds)) {
+          setFavorites(profile.favoriteIds);
+        }
+        if (Array.isArray(profile.cartItems) && profile.cartItems.length > 0) {
+          const restored = profile.cartItems.map((item: any) => ({
+            product: products.find(p => p.id === item.productId) || {
+              id: item.productId,
+              name: item.name,
+              price: item.price,
+              images: ['https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?q=80&w=600&auto=format&fit=crop'],
+              sizes: [String(item.selectedSize)]
+            } as Product,
+            selectedSize: item.selectedSize,
+            quantity: item.quantity
+          }));
+          setCart(restored);
+        }
         return profile;
       }
     } catch (error) {
@@ -925,79 +979,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const loginWithGoogle = async (): Promise<UserProfile | null> => {
     try {
-      const provider = new GoogleAuthProvider();
-      const result = await signInWithPopup(auth, provider);
-      const user = result.user;
-      if (user) {
-        const uid = user.uid;
-        const name = user.displayName || 'Cliente Google';
-        const email = user.email || '';
-        const photoURL = user.photoURL || `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(name)}`;
-
-        // 1. Immediately verify persistence in Firestore
-        let existingProfile: UserProfile | null = null;
-        try {
-          const userDocSnap = await getDoc(doc(db, 'users', uid));
-          if (userDocSnap.exists()) {
-            existingProfile = userDocSnap.data() as UserProfile;
-          }
-        } catch (error) {
-          console.warn("Firestore user lookup failed, checking local storage:", error);
-        }
-
-        // 2. Check local users fallback
-        if (!existingProfile) {
-          const localUsers = getLocalUsers();
-          if (localUsers[uid]) {
-            existingProfile = localUsers[uid];
-          } else {
-            const savedUserStr = localStorage.getItem('evidencia_user');
-            if (savedUserStr) {
-              try {
-                const parsed = JSON.parse(savedUserStr);
-                if (parsed && (parsed.uid === uid || parsed.email === email)) {
-                  existingProfile = parsed;
-                }
-              } catch (e) {}
-            }
-          }
-        }
-
-        // 3. Merge existing complete profile or create new
-        const profile: UserProfile = existingProfile ? {
-          ...existingProfile,
-          uid,
-          name: existingProfile.name || name,
-          email: existingProfile.email || email,
-          photoURL: photoURL || existingProfile.photoURL,
-        } : {
-          uid,
-          name,
-          email,
-          role: 'customer',
-          photoURL,
-          createdAt: new Date().toISOString()
-        };
-
-        saveLocalUser(uid, profile);
+      const profile = await firebaseAuthService.loginWithGoogle();
+      if (profile) {
+        saveLocalUser(profile.uid, profile);
         setCurrentUser(profile);
         localStorage.setItem('evidencia_user', JSON.stringify(profile));
-
-        // 4. Save to Firestore with { merge: true } so complete fields (CPF, RG, address, etc.) are never overwritten
-        try {
-          await setDoc(doc(db, 'users', uid), profile, { merge: true });
-        } catch (error) {
-          console.warn("Firestore registration merge failed, stored profile locally:", error);
-        }
-
         return profile;
       }
     } catch (error) {
-      console.error("Google Sign-In failed:", error);
+      console.error("Google Sign-In failed via firebaseAuthService:", error);
       throw error;
     }
     return null;
   };
+
 
   const loginWithGoogleSimulated = async (name: string, email: string, photoURL?: string): Promise<UserProfile> => {
     const formattedEmail = email.toLowerCase().trim();
@@ -1067,12 +1062,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const logout = () => {
+    const activeUid = currentUser?.uid;
+    restoredUidRef.current = null;
     setCurrentUser(null);
     setOrders([]);
-    localStorage.removeItem('evidencia_user');
-    localStorage.removeItem('evidencia_local_orders');
+    setCart([]);
+    setFavorites([]);
+
+    // Limpeza atômica de localStorage por UID e deslogamento no Firebase Auth
+    userDataService.clearAllLocalUserData(activeUid);
+    firebaseAuthService.logout().catch(err => {
+      console.warn("SignOut Firebase error:", err);
+    });
+
     setCurrentView('home');
   };
+
 
   const solicitarCrediario = async (dados: Partial<UserProfile>): Promise<void> => {
     if (!currentUser) return;

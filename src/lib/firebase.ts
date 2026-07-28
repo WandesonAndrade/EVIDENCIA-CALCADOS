@@ -4,14 +4,17 @@ import { getFirestore, doc, getDocFromServer, collection, getDocs, setDoc } from
 import { getStorage } from 'firebase/storage';
 import { Product } from '../types';
 
+const env = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env : (typeof process !== 'undefined' ? process.env : {});
+
 const firebaseConfig = {
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "gen-lang-client-0731653575",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "",
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "",
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "",
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || ""
+  projectId: env.VITE_FIREBASE_PROJECT_ID || "gen-lang-client-0731653575",
+  appId: env.VITE_FIREBASE_APP_ID || "",
+  apiKey: env.VITE_FIREBASE_API_KEY || "",
+  authDomain: env.VITE_FIREBASE_AUTH_DOMAIN || "",
+  storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET || "",
+  messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID || ""
 };
+
 
 // Initialize Firebase
 export const app = initializeApp(firebaseConfig);

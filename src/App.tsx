@@ -22,24 +22,33 @@ import { SupportPage } from './components/SupportPage';
 import { FavoritesList } from './components/FavoritesList';
 import { FloatingAssistant } from './components/FloatingAssistant';
 
-export const isProfileIncomplete = (user: any) => {
+export const checkIsProfileComplete = (user: any): boolean => {
   if (!user) return false;
-  if (user.role !== 'customer') return false; // Administrative users don't need personal credit info
-  return (
-    !user.rg || 
-    !user.cpf || 
-    !user.nomeMae || 
-    !user.dataNascimento || 
-    !user.naturalidade || 
-    !user.telefone ||
-    !user.cep ||
-    !user.endereco ||
-    !user.numero ||
-    !user.bairro ||
-    !user.cidade ||
-    !user.uf
-  );
+
+  // 1. Flag de conclusão explícita gravada no documento do Firestore
+  if (user.isProfileComplete === true) return true;
+
+  // 2. Extração limpa dos campos essenciais do documento
+  const cpf = String(user.cpf || user.documento || user.rg || '').trim();
+  const address = String(user.endereco || user.address || (user.cidade && user.bairro) || user.logradouro || '').trim();
+  const birthDate = String(user.dataNascimento || user.birthDate || user.nascimento || user.data_nascimento || user.naturalidade || '').trim();
+  const phone = String(user.telefone || user.phone || user.whatsapp || user.celular || '').trim();
+  const name = String(user.name || user.nome || user.email || '').trim();
+
+  // 3. Considerar COMPLETO se possuir Documento/CPF E dados complementares (Endereço / Data de Nasc / Contato)
+  const hasCpf = cpf.length > 0;
+  const hasDetails = address.length > 0 || birthDate.length > 0 || phone.length > 0;
+
+  return Boolean(hasCpf && hasDetails && name.length > 0);
 };
+
+export const isProfileIncomplete = (user: any): boolean => {
+  if (!user) return false;
+  if (user.role !== 'customer') return false; // Gestores e vendedores não necessitam de cadastro de crédito
+  return !checkIsProfileComplete(user);
+};
+
+
 
 const AppContent: React.FC = () => {
   const { currentView, currentUser, theme, homeSections } = useApp();
