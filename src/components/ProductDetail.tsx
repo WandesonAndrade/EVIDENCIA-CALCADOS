@@ -170,9 +170,6 @@ export const ProductDetail: React.FC = () => {
       ? `${descrLinha}: ${selectedLinhaOption} | ${descrColuna}: ${selectedColunaOption}` 
       : (selectedLinhaOption ? `Tamanho: ${selectedLinhaOption}` : 'Único');
 
-    // Add item to cart to prepare order object
-    addToCart(p, variationText);
-
     // 2. Auth Check
     if (!currentUser) {
       setMessage('Por favor, faça login para realizar sua compra.');
@@ -198,6 +195,19 @@ export const ProductDetail: React.FC = () => {
     installments?: number
   ) => {
     if (!currentUser) return;
+
+    const descrLinha = fetchedGrade?.descr_linha || 'Tamanho';
+    const descrColuna = fetchedGrade?.descr_coluna || 'Cor';
+    const variationText = hasGrade 
+      ? `${descrLinha}: ${selectedLinhaOption} | ${descrColuna}: ${selectedColunaOption}` 
+      : (selectedLinhaOption ? `Tamanho: ${selectedLinhaOption}` : 'Único');
+
+    const directItem = {
+      product: p,
+      selectedSize: variationText,
+      quantity: 1
+    };
+
     try {
       setIsProcessing(true);
       const order = await createOrder(currentUser.name, currentUser.email, {
@@ -207,17 +217,18 @@ export const ProductDetail: React.FC = () => {
         customerPhone: currentUser.telefone || '',
         deliveryAddress: deliveryType === 'Retirada na Loja' 
           ? 'Retirada na Loja: Rua Afonso Pena, 295 - Centro, Caxias - MA'
-          : `${currentUser.endereco || ''}, Nº ${currentUser.numero || ''} - ${currentUser.bairro || ''}`
+          : `${currentUser.endereco || ''}, Nº ${currentUser.numero || ''} - ${currentUser.bairro || ''}`,
+        overrideItems: [directItem]
       });
       setIsConfirmationModalOpen(false);
       window.open(order.whatsappUrl, '_blank');
-      setCurrentView('cart');
     } catch (error) {
       console.error("Failed to finalize order from product detail:", error);
     } finally {
       setIsProcessing(false);
     }
   };
+
 
   const handleShareProduct = () => {
     const shareUrl = `${window.location.origin}${window.location.pathname}?product=${p.id}`;

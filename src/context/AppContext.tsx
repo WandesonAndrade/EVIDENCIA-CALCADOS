@@ -884,7 +884,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const clearCart = () => {
     setCart([]);
+    const uid = currentUser?.uid || null;
+    userDataService.saveLocalCart(uid, []);
+    localStorage.removeItem('evidencia_cart');
+    localStorage.removeItem('evidencia_cart_guest');
+
+    if (uid) {
+      userDataService.syncCartToFirestore(uid, []).catch(err => {
+        console.warn("📌 Erro ao sincronizar limpeza do carrinho pós-checkout no Firestore:", err);
+      });
+    }
   };
+
 
   // User Actions
   const registerUser = async (name: string, email: string, role: UserRole): Promise<UserProfile> => {
@@ -1159,9 +1170,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       installments?: number;
       customerPhone?: string; 
       deliveryAddress?: string; 
+      overrideItems?: CartItem[];
     }
   ): Promise<Order> => {
-    const subtotal = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+    const targetItems = options?.overrideItems && options.overrideItems.length > 0 ? options.overrideItems : cart;
+    const subtotal = targetItems.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
     const deliveryType = options?.deliveryType || 'Entrega em Caxias-MA';
     const isOtherCities = deliveryType === 'Entrega para Outras Cidades';
     
@@ -1186,7 +1199,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ? 'Retirada na Loja: Rua Afonso Pena, 295 - Centro, Caxias - MA'
       : (options?.deliveryAddress || `${currentUser?.endereco || ''}, Nº ${currentUser?.numero || ''} - ${currentUser?.bairro || ''}, ${currentUser?.cidade || ''}/${currentUser?.uf || ''}`);
 
-    const orderItems = cart.map((item) => ({
+    const orderItems = targetItems.map((item) => ({
       productId: item.product.id,
       name: item.product.name,
       price: item.product.price,
@@ -1273,7 +1286,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Update stock locally
     const currentLocalProducts = getLocalProducts();
     const updatedLocalProducts = currentLocalProducts.map(prod => {
-      const cartItem = cart.find(item => item.product.id === prod.id);
+      const cartItem = targetItems.find(item => item.product.id === prod.id);
       if (cartItem && prod.stockControl) {
         return {
           ...prod,
@@ -1288,7 +1301,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Try Firestore
     try {
       await setDoc(doc(db, 'orders', orderId), newOrder);
-      for (const item of cart) {
+      for (const item of targetItems) {
         if (item.product.stockControl) {
           const prodRef = doc(db, 'products', item.product.id);
           const newStock = Math.max(0, item.product.stock - item.quantity);
@@ -1299,9 +1312,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.warn("Firestore order submission failed, operating in offline fallback mode:", error);
     }
 
-    clearCart();
+    // Limpa o carrinho apenas se a compra for oriunda da tela de carrinho (sem overrideItems)
+    if (!options?.overrideItems) {
+      clearCart();
+    }
     return newOrder;
   };
+
 
   const updateOrderStatus = async (orderId: string, status: Order['status']) => {
     // Update locally

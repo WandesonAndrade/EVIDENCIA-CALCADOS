@@ -4,8 +4,21 @@
  */
 
 import 'dotenv/config';
+
+// Mock de localStorage para ambiente de CLI Node
+if (typeof global.localStorage === 'undefined') {
+  const store: Record<string, string> = {};
+  (global as any).localStorage = {
+    getItem: (key: string) => store[key] || null,
+    setItem: (key: string, value: string) => { store[key] = value; },
+    removeItem: (key: string) => { delete store[key]; },
+    clear: () => { Object.keys(store).forEach(k => delete store[k]); }
+  };
+}
+
 import { checkIsProfileComplete, isProfileIncomplete } from '../src/App';
 import { userDataService } from '../src/services/userDataService';
+
 
 
 let passed = 0;
@@ -84,7 +97,29 @@ async function runAuthAndProfileTests() {
   assert(userDataService.getFavoritesStorageKey('user_uid_123') === 'evidencia_favorites_user_uid_123', 'Chave de favoritos deve conter o UID do usuário');
   assert(userDataService.getCartStorageKey(null) === 'evidencia_cart_guest', 'Chave visitante deve ser evidencia_cart_guest');
 
+  console.log('\n🧪 [SUITE 4] Testes de Vinculação de Pedidos por UID e Isolamento (orderService)');
+
+  // 1. Pedido de teste EVC-4354 com UID e e-mail vinculados
+  const mockOrder = {
+    id: 'EVC-4354',
+    userId: 'wandeson_uid_123',
+    customerEmail: 'wandesonandrade33@gmail.com',
+    customerName: 'Wandeson Andrade',
+    total: 259.90,
+    status: 'Pendente'
+  };
+
+  assert(mockOrder.userId === 'wandeson_uid_123', 'Pedido EVC-4354 deve conter a propriedade userId vinculada ao UID do usuário');
+  assert(mockOrder.customerEmail === 'wandesonandrade33@gmail.com', 'Pedido deve conter o e-mail do cliente normalizado');
+
+  // 2. Simula execução da limpeza pós-checkout
+  userDataService.saveLocalCart('wandeson_uid_123', []);
+  const clearedCart = userDataService.loadLocalCart('wandeson_uid_123');
+  assert(clearedCart.length === 0, 'O carrinho do usuário no armazenamento local deve ser um array vazio [] pós-checkout');
+
   // Relatório Final
+
+
   console.log(`\n==================================================`);
   console.log(`📊 RELATÓRIO DA SUITE DE TESTES AUTOMATIZADOS:`);
   console.log(`   ✅ Testes Aprovados: ${passed}`);

@@ -21,6 +21,7 @@ export const userDataService = {
    * Carrega o carrinho salvo localmente para o UID especificado (sem vazamento cruzado)
    */
   loadLocalCart(uid: string | null): CartItem[] {
+    if (typeof localStorage === 'undefined') return [];
     const key = this.getCartStorageKey(uid);
     const saved = localStorage.getItem(key);
     if (saved) {
@@ -37,6 +38,7 @@ export const userDataService = {
    * Carrega os favoritos salvos localmente para o UID especificado (sem vazamento cruzado)
    */
   loadLocalFavorites(uid: string | null): string[] {
+    if (typeof localStorage === 'undefined') return [];
     const key = this.getFavoritesStorageKey(uid);
     const saved = localStorage.getItem(key);
     if (saved) {
@@ -53,6 +55,7 @@ export const userDataService = {
    * Salva o carrinho localmente sob a chave isolada por UID
    */
   saveLocalCart(uid: string | null, cart: CartItem[]): void {
+    if (typeof localStorage === 'undefined') return;
     const key = this.getCartStorageKey(uid);
     localStorage.setItem(key, JSON.stringify(cart));
   },
@@ -61,6 +64,7 @@ export const userDataService = {
    * Salva os favoritos localmente sob a chave isolada por UID
    */
   saveLocalFavorites(uid: string | null, favorites: string[]): void {
+    if (typeof localStorage === 'undefined') return;
     const key = this.getFavoritesStorageKey(uid);
     localStorage.setItem(key, JSON.stringify(favorites));
   },
@@ -69,6 +73,7 @@ export const userDataService = {
    * Limpa o estado local de sessão (usado no logout)
    */
   clearAllLocalUserData(uid?: string | null): void {
+    if (typeof localStorage === 'undefined') return;
     if (uid) {
       localStorage.removeItem(this.getCartStorageKey(uid));
       localStorage.removeItem(this.getFavoritesStorageKey(uid));
@@ -80,6 +85,7 @@ export const userDataService = {
     localStorage.removeItem('evidencia_favorites');
     localStorage.removeItem('evidencia_local_orders');
   },
+
 
   /**
    * Salva o carrinho no Firestore sob a rota isolada /users/{uid}/cart/active e /users/{uid}
