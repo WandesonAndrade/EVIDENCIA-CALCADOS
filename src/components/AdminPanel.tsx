@@ -4,8 +4,10 @@ import { Product, Order, OrderStatus, PaymentStatus, UserProfile, Category, Hero
 import { MoblinkIntegrationPanel } from './MoblinkIntegrationPanel';
 import { MoblinkProductsManager } from './MoblinkProductsManager';
 import { AuthScreen } from './AuthScreen';
+import { TeamManagement } from './TeamManagement';
 import { checkIsProfileComplete } from '../App';
 import { storage, db, auth, app } from '../lib/firebase';
+
 
 
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -18,7 +20,7 @@ import {
   Settings, ArrowLeft, UserCheck, EyeOff, ChevronRight, 
   Info, Sliders, Zap, Barcode, Image, ArrowUp, ArrowDown,
   BookOpen, PhoneCall, Globe, CheckCircle2, Sparkles, Layout, HelpCircle,
-  FileText, Briefcase, MapPin, Gift, Heart, ShoppingCart, Cake, AlertTriangle
+  FileText, Briefcase, MapPin, Gift, Heart, ShoppingCart, Cake, AlertTriangle, LogOut, Shield
 } from 'lucide-react';
 
 type AdminTab = 
@@ -34,13 +36,17 @@ type AdminTab =
   | 'home-sections' 
   | 'about-editor' 
   | 'support-contact' 
-  | 'settings';
+  | 'settings'
+  | 'team';
 
 export const AdminPanel: React.FC = () => {
   const { 
     products, 
     orders, 
-    currentUser, 
+    currentUser,
+    currentAdminUser,
+    registerTeamMember,
+    logoutAdmin, 
     setCurrentView,
     addProduct,
     deleteProduct,
@@ -68,9 +74,30 @@ export const AdminPanel: React.FC = () => {
     updateUserCashback
   } = useApp();
 
+  const activeAdminUser = currentAdminUser || currentUser;
+  const isAdmin = activeAdminUser?.role === 'admin';
+  const isSeller = activeAdminUser?.role === 'seller';
+
   const [activeTab, setActiveTab] = useState<AdminTab>('overview');
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isRestoreModalOpen, setIsRestoreModalOpen] = useState(false);
+
+  // Security Guard: Redireciona Vendedor se tentar acessar abas administrativas sensíveis
+  useEffect(() => {
+    const restrictedAdminTabs: AdminTab[] = ['banners', 'home-sections', 'about-editor', 'support-contact', 'settings', 'team'];
+    if (isSeller && restrictedAdminTabs.includes(activeTab)) {
+      setActiveTab('overview');
+    }
+  }, [isSeller, activeTab]);
+
+
+  // Team Registration Modal State
+  const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
+  const [teamNameInput, setTeamNameInput] = useState('');
+  const [teamEmailInput, setTeamEmailInput] = useState('');
+  const [teamRoleInput, setTeamRoleInput] = useState<'admin' | 'seller'>('seller');
+  const [teamTempPassInput, setTeamTempPassInput] = useState('evidencia2026');
+
 
   // Toast Notification System State
   const [toasts, setToasts] = useState<Array<{ id: string; title: string; message: string; type: 'success' | 'error' | 'info' }>>([]);
@@ -86,6 +113,28 @@ export const AdminPanel: React.FC = () => {
   const removeToast = (id: string) => {
     setToasts(prev => prev.filter(t => t.id !== id));
   };
+
+  const handleRegisterTeamMemberSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!teamNameInput.trim() || !teamEmailInput.trim() || !teamTempPassInput.trim()) {
+      addToast("Campos Obrigatórios", "Por favor preencha todos os campos do pré-cadastro.", "error");
+      return;
+    }
+
+    try {
+      await registerTeamMember(teamNameInput.trim(), teamEmailInput.trim(), teamRoleInput, teamTempPassInput.trim());
+      addToast("Membro Cadastrado!", `${teamNameInput} registrado como ${teamRoleInput.toUpperCase()}.`, "success");
+      setIsTeamModalOpen(false);
+      setTeamNameInput('');
+      setTeamEmailInput('');
+      setTeamTempPassInput('evidencia2026');
+      fetchUsers();
+    } catch (err: any) {
+      console.error(err);
+      addToast("Erro no Cadastro", err.message || "Não foi possível cadastrar o usuário.", "error");
+    }
+  };
+
 
   // Home Section Editing Modal State
   const [editingSection, setEditingSection] = useState<HomeSectionConfig | null>(null);
@@ -740,96 +789,132 @@ export const AdminPanel: React.FC = () => {
               </button>
             </div>
 
-            {/* GROUP 3: GESTOR DE CONTEÚDO (CMS DA LOJA) */}
-            <div className="space-y-1">
-              <span className="text-[10px] font-black tracking-widest text-amber-400 uppercase px-3 flex items-center space-x-1">
-                <Sparkles className="h-3 w-3" />
-                <span>CMS & VITRINE</span>
-              </span>
+            {/* GROUP 3: GESTOR DE CONTEÚDO (CMS DA LOJA - APENAS ADMIN) */}
+            {isAdmin && (
+              <div className="space-y-1">
+                <span className="text-[10px] font-black tracking-widest text-amber-400 uppercase px-3 flex items-center space-x-1">
+                  <Sparkles className="h-3 w-3" />
+                  <span>CMS & VITRINE</span>
+                </span>
 
-              <button
-                onClick={() => setActiveTab('banners')}
-                className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  activeTab === 'banners'
-                    ? isDark ? 'bg-amber-400/10 text-amber-400 border border-amber-400/30' : 'bg-slate-900 text-white shadow-sm'
-                    : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                <Image className="h-4 w-4" />
-                <span>Banners Principais (Hero)</span>
-              </button>
+                <button
+                  onClick={() => setActiveTab('banners')}
+                  className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    activeTab === 'banners'
+                      ? isDark ? 'bg-amber-400/10 text-amber-400 border border-amber-400/30' : 'bg-slate-900 text-white shadow-sm'
+                      : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <Image className="h-4 w-4" />
+                  <span>Banners Principais (Hero)</span>
+                </button>
 
-              <button
-                onClick={() => setActiveTab('home-sections')}
-                className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  activeTab === 'home-sections'
-                    ? isDark ? 'bg-amber-400/10 text-amber-400 border border-amber-400/30' : 'bg-slate-900 text-white shadow-sm'
-                    : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                <Sliders className="h-4 w-4" />
-                <span>Ordem das Seções</span>
-              </button>
+                <button
+                  onClick={() => setActiveTab('home-sections')}
+                  className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    activeTab === 'home-sections'
+                      ? isDark ? 'bg-amber-400/10 text-amber-400 border border-amber-400/30' : 'bg-slate-900 text-white shadow-sm'
+                      : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <Sliders className="h-4 w-4" />
+                  <span>Ordem das Seções</span>
+                </button>
 
-              <button
-                onClick={() => setActiveTab('about-editor')}
-                className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  activeTab === 'about-editor'
-                    ? isDark ? 'bg-amber-400/10 text-amber-400 border border-amber-400/30' : 'bg-slate-900 text-white shadow-sm'
-                    : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                <BookOpen className="h-4 w-4" />
-                <span>Editor "Sobre Nós"</span>
-              </button>
+                <button
+                  onClick={() => setActiveTab('about-editor')}
+                  className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    activeTab === 'about-editor'
+                      ? isDark ? 'bg-amber-400/10 text-amber-400 border border-amber-400/30' : 'bg-slate-900 text-white shadow-sm'
+                      : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <BookOpen className="h-4 w-4" />
+                  <span>Editor "Sobre Nós"</span>
+                </button>
 
-              <button
-                onClick={() => setActiveTab('support-contact')}
-                className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  activeTab === 'support-contact'
-                    ? isDark ? 'bg-amber-400/10 text-amber-400 border border-amber-400/30' : 'bg-slate-900 text-white shadow-sm'
-                    : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                <PhoneCall className="h-4 w-4" />
-                <span>Suporte & Contatos</span>
-              </button>
-            </div>
+                <button
+                  onClick={() => setActiveTab('support-contact')}
+                  className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    activeTab === 'support-contact'
+                      ? isDark ? 'bg-amber-400/10 text-amber-400 border border-amber-400/30' : 'bg-slate-900 text-white shadow-sm'
+                      : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <PhoneCall className="h-4 w-4" />
+                  <span>Suporte & Contatos</span>
+                </button>
+              </div>
+            )}
 
-            {/* GROUP 4: CONFIGURAÇÕES */}
-            <div className="space-y-1">
-              <span className="text-[10px] font-black tracking-widest text-slate-400 uppercase px-3">SISTEMA</span>
-              
-              <button
-                onClick={() => setActiveTab('settings')}
-                className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  activeTab === 'settings'
-                    ? isDark ? 'bg-amber-400/10 text-amber-400 border border-amber-400/30' : 'bg-slate-900 text-white shadow-sm'
-                    : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                <Settings className="h-4 w-4" />
-                <span>Configurações Gerais</span>
-              </button>
-            </div>
+            {/* GROUP 4: CONFIGURAÇÕES & SEGURANÇA (APENAS ADMIN) */}
+            {isAdmin && (
+              <div className="space-y-1">
+                <span className="text-[10px] font-black tracking-widest text-slate-400 uppercase px-3">SISTEMA</span>
+                
+                <button
+                  onClick={() => setActiveTab('team')}
+                  className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    activeTab === 'team'
+                      ? isDark ? 'bg-amber-400/10 text-amber-400 border border-amber-400/30' : 'bg-slate-900 text-white shadow-sm'
+                      : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <Shield className="h-4 w-4 text-amber-400" />
+                  <span>Gestão de Equipe & Permissões</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('settings')}
+                  className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    activeTab === 'settings'
+                      ? isDark ? 'bg-amber-400/10 text-amber-400 border border-amber-400/30' : 'bg-slate-900 text-white shadow-sm'
+                      : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <Settings className="h-4 w-4" />
+                  <span>Configurações Gerais</span>
+                </button>
+              </div>
+            )}
 
           </nav>
         </div>
 
-        {/* User Info & Theme Toggle */}
-        <div className="p-4 border-t border-slate-800/40 space-y-3">
-          {currentUser && (
-            <div className="flex items-center space-x-3 px-2">
-              <div className="w-8 h-8 rounded-full bg-amber-400 text-slate-950 font-black flex items-center justify-center text-xs">
-                {currentUser.name.charAt(0)}
+        {/* User Info & Admin Logout Button */}
+        <div className="p-4 border-t border-slate-800/40">
+          {activeAdminUser && (
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3 px-1 truncate">
+                <div className={`w-8 h-8 rounded-full font-black flex items-center justify-center text-xs shrink-0 ${
+                  isAdmin ? 'bg-amber-400 text-slate-950' : 'bg-sky-400 text-slate-950'
+                }`}>
+                  {activeAdminUser.name.charAt(0).toUpperCase()}
+                </div>
+                <div className="flex-1 truncate">
+                  <p className="text-xs font-bold truncate">{activeAdminUser.name}</p>
+                  <span className={`text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full inline-block ${
+                    isAdmin ? 'bg-amber-400/20 text-amber-400 border border-amber-400/30' : 'bg-sky-400/20 text-sky-400 border border-sky-400/30'
+                  }`}>
+                    {isAdmin ? 'Administrador' : 'Vendedor'}
+                  </span>
+                </div>
               </div>
-              <div className="flex-1 truncate">
-                <p className="text-xs font-bold truncate">{currentUser.name}</p>
-                <p className="text-[10px] text-slate-400 capitalize">{currentUser.role}</p>
-              </div>
+
+              <button
+                onClick={() => {
+                  logoutAdmin();
+                  setCurrentView('home');
+                }}
+                className="p-2 rounded-xl border border-slate-800 text-slate-400 hover:text-rose-400 hover:border-rose-500/30 transition-colors cursor-pointer shrink-0"
+                title="Encerrar Sessão da Gestão"
+              >
+                <LogOut className="h-4 w-4" />
+              </button>
             </div>
           )}
         </div>
+
       </aside>
 
       {/* MAIN CONTENT AREA */}
@@ -1885,7 +1970,20 @@ export const AdminPanel: React.FC = () => {
           </div>
         )}
 
+        {/* TAB: GESTÃO DE EQUIPE & SEGURANÇA */}
+
+        {activeTab === 'team' && (
+          <TeamManagement
+            users={users}
+            currentAdminUser={activeAdminUser}
+            isDark={isDark}
+            onRefreshUsers={fetchUsers}
+            addToast={addToast}
+          />
+        )}
+
         {/* TAB 2: GERENCIADOR DE BANNERS HERO (NEW CMS FEATURE) */}
+
         {activeTab === 'banners' && (
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
@@ -2780,7 +2878,128 @@ export const AdminPanel: React.FC = () => {
         </div>
       )}
 
+      {/* MODAL: CADASTRO DE NOVO MEMBRO DA EQUIPE (ADMIN / VENDEDOR) */}
+      {isTeamModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4">
+          <div className={`w-full max-w-md p-6 sm:p-8 rounded-3xl border shadow-2xl space-y-6 animate-in fade-in zoom-in duration-200 ${
+            isDark ? 'bg-slate-900 border-slate-800 text-white shadow-black/80' : 'bg-white border-slate-200 text-slate-900'
+          }`}>
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800/60">
+              <div className="flex items-center space-x-2">
+                <div className="p-2 rounded-xl bg-amber-400/10 text-amber-400 border border-amber-400/20">
+                  <Shield className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black">Cadastrar Usuário da Equipe</h3>
+                  <p className="text-[11px] text-slate-400">Pré-cadastro de administradores e vendedores</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsTeamModalOpen(false)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg transition-colors cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleRegisterTeamMemberSubmit} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black uppercase tracking-wider text-slate-300 block">
+                  Nome Completo
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={teamNameInput}
+                  onChange={(e) => setTeamNameInput(e.target.value)}
+                  placeholder="Ex: Carlos Andrade"
+                  className={`w-full px-4 py-2.5 text-xs border rounded-xl focus:outline-none transition-all ${
+                    isDark 
+                      ? 'bg-slate-950/80 border-slate-800 text-white placeholder-slate-500 focus:border-amber-400' 
+                      : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-slate-800'
+                  }`}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black uppercase tracking-wider text-slate-300 block">
+                  E-mail de Acesso
+                </label>
+                <input
+                  type="email"
+                  required
+                  value={teamEmailInput}
+                  onChange={(e) => setTeamEmailInput(e.target.value)}
+                  placeholder="vendedor@evidencia.com"
+                  className={`w-full px-4 py-2.5 text-xs border rounded-xl focus:outline-none transition-all ${
+                    isDark 
+                      ? 'bg-slate-950/80 border-slate-800 text-white placeholder-slate-500 focus:border-amber-400' 
+                      : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-slate-800'
+                  }`}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black uppercase tracking-wider text-slate-300 block">
+                  Perfil de Acesso (Permissão)
+                </label>
+                <select
+                  value={teamRoleInput}
+                  onChange={(e) => setTeamRoleInput(e.target.value as 'admin' | 'seller')}
+                  className={`w-full px-4 py-2.5 text-xs border rounded-xl focus:outline-none transition-all ${
+                    isDark 
+                      ? 'bg-slate-950/80 border-slate-800 text-white focus:border-amber-400' 
+                      : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-slate-800'
+                  }`}
+                >
+                  <option value="seller">Vendedor (Atendimento & Vendas)</option>
+                  <option value="admin">Administrador (Acesso Total)</option>
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black uppercase tracking-wider text-slate-300 block">
+                  Senha Temporária
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={teamTempPassInput}
+                  onChange={(e) => setTeamTempPassInput(e.target.value)}
+                  placeholder="evidencia2026"
+                  className={`w-full px-4 py-2.5 text-xs border rounded-xl font-mono focus:outline-none transition-all ${
+                    isDark 
+                      ? 'bg-slate-950/80 border-slate-800 text-amber-400 focus:border-amber-400' 
+                      : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-slate-800'
+                  }`}
+                />
+                <p className="text-[10px] text-slate-400 italic">
+                  * O usuário será obrigado a redefinir esta senha no primeiro login.
+                </p>
+              </div>
+
+              <div className="flex items-center space-x-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsTeamModalOpen(false)}
+                  className="flex-1 py-3 px-4 text-xs font-bold rounded-xl border border-slate-700 text-slate-300 hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-3 px-4 text-xs font-black uppercase tracking-wider rounded-xl bg-amber-400 text-slate-950 hover:bg-amber-300 transition-all shadow-md cursor-pointer"
+                >
+                  Salvar Cadastro
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* FLOATING TOAST NOTIFICATION CONTAINER */}
+
       <div className="fixed top-6 right-6 z-50 flex flex-col space-y-3 max-w-sm w-full pointer-events-none">
         {toasts.map(toast => (
           <div

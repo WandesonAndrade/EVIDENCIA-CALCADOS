@@ -2,10 +2,12 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { User, Shield, Briefcase, Mail, Chrome, Sparkles, ChevronRight, ArrowLeft } from 'lucide-react';
 import { BrandLogo } from './BrandLogo';
+import { AdminLogin } from './AdminLogin';
 
 interface AuthScreenProps {
   mode?: 'customer' | 'admin';
 }
+
 
 export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => {
   const { loginUser, registerUser, loginWithGoogle, loginWithGoogleSimulated, setCurrentView, theme } = useApp();
@@ -129,130 +131,11 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
 
   // --- ISOLATED INTERFACE FOR ADMIN LOGIN ---
   if (mode === 'admin') {
-    return (
-      <div id="admin-auth-page" className="max-w-md mx-auto px-4 py-8 sm:py-14">
-        <div className={`rounded-3xl border backdrop-blur-2xl shadow-2xl p-6 sm:p-10 space-y-6 ${
-          isDark ? 'bg-slate-900/90 border-slate-800 text-white shadow-black/60' : 'bg-white border-slate-200/90 text-slate-800 shadow-xl'
-        }`}>
-          
-          {/* Restricted Admin Header */}
-          <div className="text-center space-y-3">
-            <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-slate-800 text-amber-400 border border-slate-700 shadow-sm">
-              <Shield className="h-3.5 w-3.5 text-amber-400" />
-              <span>Ambiente Administrativo Restrito</span>
-            </div>
-            
-            <div className="flex justify-center pt-1">
-              <BrandLogo size="md" />
-            </div>
-
-            <h2 className={`text-lg sm:text-xl font-black tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
-              Painel de Controle
-            </h2>
-            <p className={`text-xs max-w-xs mx-auto leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-              Autenticação exclusiva para a equipe de gestão, administradores e gerentes de vendas.
-            </p>
-          </div>
-
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-4 pt-2">
-            <div className="space-y-1.5">
-              <label className={`text-[10px] font-black uppercase tracking-wider block ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                E-mail Administrativo
-              </label>
-              <div className="relative">
-                <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="admin@evidencia.com"
-                  className={`w-full pl-10 pr-4 py-3 text-xs border rounded-xl focus:outline-none transition-all ${
-                    isDark 
-                      ? 'bg-slate-950/80 border-slate-800 text-white placeholder-slate-500 focus:border-amber-400' 
-                      : 'bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400 focus:border-slate-800'
-                  }`}
-                />
-                <Mail className="absolute left-3.5 top-3.5 h-4 w-4 text-slate-400" />
-              </div>
-            </div>
-
-            {errorMessage && (
-              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-semibold text-center">
-                {errorMessage}
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={isLoading}
-              className={`w-full py-3.5 px-4 text-xs font-extrabold uppercase tracking-wider rounded-xl transition-all shadow-md cursor-pointer disabled:opacity-50 ${
-                isDark
-                  ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 hover:shadow-[0_0_20px_rgba(245,158,11,0.3)]'
-                  : 'bg-slate-900 text-white hover:bg-slate-800'
-              }`}
-            >
-              {isLoading ? 'Autenticando Gestão...' : 'Acessar Painel Admin'}
-            </button>
-          </form>
-
-          {/* Homologation Quick Login */}
-          <div className="pt-2 border-t border-slate-800/40 space-y-3">
-            <p className={`text-[10px] font-bold uppercase tracking-wider text-center ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-              Atalhos de Acesso Rápido (Homologação)
-            </p>
-            <div className="space-y-2">
-              <button
-                type="button"
-                onClick={() => handleQuickLogin('admin')}
-                className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
-                  isDark
-                    ? 'bg-slate-950/60 border-slate-800 text-slate-200 hover:border-amber-400/50 hover:text-amber-400'
-                    : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-white hover:border-slate-300'
-                }`}
-              >
-                <div className="flex items-center space-x-2">
-                  <Shield className="h-4 w-4 text-amber-400" />
-                  <span>Entrar como Administrador</span>
-                </div>
-                <ChevronRight className="h-4 w-4 opacity-60" />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleQuickLogin('seller')}
-                className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
-                  isDark
-                    ? 'bg-slate-950/60 border-slate-800 text-slate-200 hover:border-amber-400/50 hover:text-amber-400'
-                    : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-white hover:border-slate-300'
-                }`}
-              >
-                <div className="flex items-center space-x-2">
-                  <Briefcase className="h-4 w-4 text-sky-400" />
-                  <span>Entrar como Vendedor</span>
-                </div>
-                <ChevronRight className="h-4 w-4 opacity-60" />
-              </button>
-            </div>
-          </div>
-
-          <div className="text-center pt-1">
-            <button
-              onClick={() => setCurrentView('home')}
-              className={`inline-flex items-center space-x-1.5 text-xs font-medium cursor-pointer transition-colors ${
-                isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-800'
-              }`}
-            >
-              <ArrowLeft className="h-3.5 w-3.5" />
-              <span>Voltar para a Loja</span>
-            </button>
-          </div>
-        </div>
-      </div>
-    );
+    return <AdminLogin />;
   }
 
   // --- ISOLATED INTERFACE FOR CUSTOMER LOGIN (100% FIREBASE GOOGLE FOCUSED) ---
+
   return (
     <div id="customer-auth-page" className="max-w-md mx-auto px-4 py-12 sm:py-16">
       <div className={`rounded-3xl border backdrop-blur-2xl shadow-2xl p-8 sm:p-10 space-y-7 text-center ${

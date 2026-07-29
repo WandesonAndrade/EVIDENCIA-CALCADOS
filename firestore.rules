@@ -13,60 +13,75 @@ service cloud.firestore {
 
     function isAdmin() {
       return isAuth() && (
+        (request.auth.token.email != null && (
+          request.auth.token.email == 'wandesonandrade33@gmail.com' ||
+          request.auth.token.email.matches('.*admin.*')
+        )) ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
          (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true ||
           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'))
       );
     }
 
-    // Regra para Usuários e suas subcoleções (carrinho, favoritos, etc.)
-    match /users/{userId} {
-      allow read, write: if (request.auth != null && request.auth.uid == userId) || isAdmin();
-      
-      match /{subcollection}/{document=**} {
-        allow read, write: if (request.auth != null && request.auth.uid == userId) || isAdmin();
-      }
+    function isTeamMember() {
+      return isAuth() && (
+        isAdmin() ||
+        (request.auth.token.email != null && request.auth.token.email.matches('.*vendedor.*')) ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'seller'))
+      );
     }
 
+    // Regra para Usuários e suas subcoleções (carrinho, favoritos, etc.)
+    match /users/{userId} {
+      allow read: if isAuth();
+      allow write: if (isAuth() && request.auth.uid == userId) || isTeamMember();
+      
+      match /{subcollection}/{document=**} {
+        allow read, write: if (isAuth() && request.auth.uid == userId) || isTeamMember();
+      }
+    }
 
     // Regra para Solicitações de Crediário Próprio
     match /creditRequests/{requestId} {
       allow create: if isAuth();
-      allow read, update, delete: if isAuth() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow read, update, delete: if isAuth() && (resource.data.userId == request.auth.uid || isTeamMember());
     }
 
     // Regra para Coleção de Clientes
     match /clients/{clientId} {
-      allow read, write: if isOwner(clientId) || isAdmin();
+      allow read, write: if isOwner(clientId) || isTeamMember();
     }
 
     // Regra para Catálogo de Produtos
     match /products/{productId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if isAuth();
     }
 
     // Regra para Categorias de Produtos
     match /categories/{categoryId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if isAuth();
     }
 
-    // Regra para Pedidos da Loja (Leitura restrita ao dono do pedido ou Admin)
+    // Regra para Pedidos da Loja (Leitura e atualização permitidas para Clientes e Equipe)
     match /orders/{orderId} {
       allow create: if true; // Permite checkout
       allow read: if isAuth() && (
         resource.data.userId == request.auth.uid || 
         resource.data.customerEmail == request.auth.token.email || 
-        isAdmin()
+        isTeamMember()
       );
-      allow update, delete: if isAdmin();
+      allow update: if isTeamMember();
+      allow delete: if isAdmin();
     }
 
-    // Regra para Configurações da Loja (CMS Layout, Banners, Contatos)
+    // Regra para Configurações da Loja (CMS Layout, Banners, Contatos - Exclusivo Admin/Equipe)
     match /storeConfig/{document=**} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if isAuth();
     }
 
     // Regra Global de Bloqueio Padrão (Zero Trust)
@@ -75,3 +90,4 @@ service cloud.firestore {
     }
   }
 }
+

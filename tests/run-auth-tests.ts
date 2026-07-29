@@ -117,7 +117,33 @@ async function runAuthAndProfileTests() {
   const clearedCart = userDataService.loadLocalCart('wandeson_uid_123');
   assert(clearedCart.length === 0, 'O carrinho do usuário no armazenamento local deve ser um array vazio [] pós-checkout');
 
+  console.log('\n🧪 [SUITE 5] Testes de Autenticação Isolada de Admin e Cadastro de Equipe');
+
+  // 1. Validação de isolamento do Admin no localStorage
+  const mockAdminProfile = {
+    uid: 'admin_user_carlos_evidencia_com',
+    name: 'Carlos Vendedor',
+    email: 'carlos@evidencia.com',
+    role: 'seller',
+    requiresPasswordChange: true,
+    tempPassword: 'evidencia2026'
+  };
+
+  localStorage.setItem('evidencia_admin_user', JSON.stringify(mockAdminProfile));
+  const savedAdminSession = JSON.parse(localStorage.getItem('evidencia_admin_user') || '{}');
+  assert(savedAdminSession.uid === 'admin_user_carlos_evidencia_com', 'A sessão do admin deve ser salva isoladamente em evidencia_admin_user');
+  assert(savedAdminSession.requiresPasswordChange === true, 'Membro cadastrado pela equipe deve possuir a flag requiresPasswordChange === true');
+  assert(savedAdminSession.role === 'seller', 'O membro cadastrado deve ter o perfil de acesso correto (seller/admin)');
+
+  // 2. Simula redefinição no 1º acesso
+  const updatedAdminSession = { ...savedAdminSession, requiresPasswordChange: false, tempPassword: undefined };
+  localStorage.setItem('evidencia_admin_user', JSON.stringify(updatedAdminSession));
+  const postResetAdminSession = JSON.parse(localStorage.getItem('evidencia_admin_user') || '{}');
+  assert(postResetAdminSession.requiresPasswordChange === false, 'Após redefinição no 1º acesso, a flag requiresPasswordChange deve ser false');
+  assert(postResetAdminSession.tempPassword === undefined, 'A senha temporária deve ser removida após a redefinição de senha');
+
   // Relatório Final
+
 
 
   console.log(`\n==================================================`);

@@ -24,13 +24,20 @@ interface AppContextProps {
   clearCart: () => void;
   currentUser: UserProfile | null;
   setCurrentUser: (user: UserProfile | null) => void;
+  currentAdminUser: UserProfile | null;
+  setCurrentAdminUser: (user: UserProfile | null) => void;
   userRole: UserRole | null;
   registerUser: (name: string, email: string, role: UserRole) => Promise<UserProfile>;
   loginUser: (email: string) => Promise<UserProfile | null>;
+  loginAdmin: (email: string, password?: string) => Promise<UserProfile>;
+  registerTeamMember: (name: string, email: string, role: UserRole, tempPassword: string) => Promise<UserProfile>;
+  changeAdminPassword: (newPassword: string, activeProfile: UserProfile) => Promise<UserProfile>;
+  logoutAdmin: () => void;
   loginWithGoogle: () => Promise<UserProfile | null>;
   loginWithGoogleSimulated: (name: string, email: string, photoURL?: string) => Promise<UserProfile>;
   updateUserProfile: (profileData: Partial<UserProfile>) => Promise<UserProfile>;
   logout: () => void;
+
   orders: Order[];
   isLoadingOrders: boolean;
   createOrder: (customerName: string, customerEmail: string, options?: { paymentMethod?: 'Pix' | 'Cartão de Crédito' | 'Crediário da Loja'; deliveryType?: 'Entrega em Caxias-MA' | 'Entrega para Outras Cidades' | 'Retirada na Loja'; installments?: number; customerPhone?: string; deliveryAddress?: string }) => Promise<Order>;
@@ -254,6 +261,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [cart, setCart] = useState<CartItem[]>([]);
   const [favorites, setFavorites] = useState<string[]>([]);
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  const [currentAdminUser, setCurrentAdminUser] = useState<UserProfile | null>(() => {
+    const saved = localStorage.getItem('evidencia_admin_user');
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) {}
+    }
+    return null;
+  });
+
   const [orders, setOrders] = useState<Order[]>(() => getLocalOrders());
   const [isLoadingOrders, setIsLoadingOrders] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -969,24 +984,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return profile;
     }
 
-    // Dynamic Seed Admin or Seller Fallback for immediate evaluation/reviewer access!
-    if (formattedEmail === 'admin@evidencia.com' || formattedEmail === 'vendedor@evidencia.com') {
-      const isSeller = formattedEmail === 'vendedor@evidencia.com';
-      const profile: UserProfile = {
-        uid,
-        name: isSeller ? 'Vendedor Evidência' : 'Administrador Evidência',
-        email: formattedEmail,
-        role: isSeller ? 'seller' : 'admin',
-        createdAt: new Date().toISOString()
-      };
-      saveLocalUser(uid, profile);
-      setCurrentUser(profile);
-      localStorage.setItem('evidencia_user', JSON.stringify(profile));
-      return profile;
-    }
-
     return null;
   };
+
+  const loginAdmin = async (email: string, password?: string): Promise<UserProfile> => {
+    const adminProfile = await firebaseAuthService.loginAdminWithEmailPassword(email, password || 'admin123');
+    setCurrentAdminUser(adminProfile);
+    localStorage.setItem('evidencia_admin_user', JSON.stringify(adminProfile));
+    saveLocalUser(adminProfile.uid, adminProfile);
+    return adminProfile;
+  };
+
+  const registerTeamMember = async (name: string, email: string, role: UserRole, tempPassword: string): Promise<UserProfile> => {
+    const memberProfile = await firebaseAuthService.registerTeamMember(name, email, role, tempPassword);
+    saveLocalUser(memberProfile.uid, memberProfile);
+    return memberProfile;
+  };
+
+  const changeAdminPassword = async (newPassword: string, activeProfile: UserProfile): Promise<UserProfile> => {
+    const updated = await firebaseAuthService.changeAdminPassword(newPassword, activeProfile);
+    setCurrentAdminUser(updated);
+    localStorage.setItem('evidencia_admin_user', JSON.stringify(updated));
+    saveLocalUser(updated.uid, updated);
+    return updated;
+  };
+
+  const logoutAdmin = () => {
+    setCurrentAdminUser(null);
+    localStorage.removeItem('evidencia_admin_user');
+  };
+
 
   const loginWithGoogle = async (): Promise<UserProfile | null> => {
     try {
@@ -1714,13 +1741,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         clearCart,
         currentUser,
         setCurrentUser,
-        userRole: currentUser ? currentUser.role : null,
+        currentAdminUser,
+        setCurrentAdminUser,
+        userRole: (currentAdminUser ? currentAdminUser.role : (currentUser ? currentUser.role : null)),
         registerUser,
         loginUser,
+        loginAdmin,
+        registerTeamMember,
+        changeAdminPassword,
+        logoutAdmin,
         loginWithGoogle,
         loginWithGoogleSimulated,
         updateUserProfile,
         logout,
+
         orders,
         isLoadingOrders,
         createOrder,

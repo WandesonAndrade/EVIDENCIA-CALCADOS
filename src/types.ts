@@ -211,7 +211,10 @@ export interface UserProfile {
   cart?: Array<{ productId: string; name: string; price: number; selectedSize: number | string; quantity: number }>;
   cashbackBalance?: number;
   cashbackValidUntil?: string;
+  requiresPasswordChange?: boolean;
+  tempPassword?: string;
 }
+
 
 export interface HeroBanner {
   id: string;
