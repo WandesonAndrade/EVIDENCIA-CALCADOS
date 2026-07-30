@@ -299,7 +299,7 @@ export const MoblinkIntegrationPanel: React.FC = () => {
               <div>
                 <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">URL da API</span>
                 <span className="font-mono text-xs font-bold text-slate-700 dark:text-slate-200 block truncate">
-                  {formData.apiUrl || 'http://api_sincom.caioflix.com.br'}
+                  {formData.apiUrl || 'https://api.evidenciacalcados.com.br/api/v1/produtos?pdf=false'}
                 </span>
               </div>
               <div>

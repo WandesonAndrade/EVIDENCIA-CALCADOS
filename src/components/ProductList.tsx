@@ -25,7 +25,7 @@ interface ProductCardProps {
   onViewDetails: (product: Product) => void;
 }
 
-const ProductCard: React.FC<ProductCardProps> = ({
+const ProductCardComponent: React.FC<ProductCardProps> = ({
   product,
   theme,
   isFavorite,
@@ -69,6 +69,11 @@ const ProductCard: React.FC<ProductCardProps> = ({
           alt={product.name}
           className="w-full h-full object-cover group-hover:scale-108 transition-transform duration-500 ease-out"
           loading="lazy"
+          decoding="async"
+          onError={(e) => {
+            (e.target as HTMLImageElement).src =
+              "https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?q=80&w=600&auto=format&fit=crop";
+          }}
         />
 
         {/* Gradiente sutil sobre a imagem */}
@@ -232,6 +237,8 @@ const ProductCard: React.FC<ProductCardProps> = ({
   );
 };
 
+export const ProductCard = React.memo(ProductCardComponent);
+
 export const ProductList: React.FC = () => {
   const {
     products,
@@ -252,6 +259,10 @@ export const ProductList: React.FC = () => {
   const launchesSection = homeSections?.find((s) => s.id === "launches");
   const shoesSection = homeSections?.find((s) => s.id === "shoes");
   const accessoriesSection = homeSections?.find((s) => s.id === "accessories");
+
+  const ITEMS_PER_PAGE = 24;
+  const [visibleShoesCount, setVisibleShoesCount] = useState(ITEMS_PER_PAGE);
+  const [visibleAccCount, setVisibleAccCount] = useState(ITEMS_PER_PAGE);
 
   const [timeLeft, setTimeLeft] = useState({
     horas: 23,
@@ -292,10 +303,12 @@ export const ProductList: React.FC = () => {
     return () => window.removeEventListener("resize", updateCardsPerPage);
   }, []);
 
-  // Reset carousel index when categories or search queries change & smooth scroll
+  // Reset carousel index and pagination when categories or search queries change & smooth scroll
   useEffect(() => {
     setCurrentIndex(0);
     setCurrentLaunchIndex(0);
+    setVisibleShoesCount(ITEMS_PER_PAGE);
+    setVisibleAccCount(ITEMS_PER_PAGE);
 
     if (!isMountedRef.current) {
       isMountedRef.current = true;
@@ -843,6 +856,8 @@ export const ProductList: React.FC = () => {
 
             // 3. SECTION: CALÇADOS PREMIUM
             if (sec.id === "shoes" && shoesProducts.length > 0) {
+              const visibleShoesProducts = shoesProducts.slice(0, visibleShoesCount);
+
               return (
                 <div
                   key={sec.id}
@@ -865,10 +880,13 @@ export const ProductList: React.FC = () => {
                           "Conforto, durabilidade e estilo para todas as ocasiões"}
                       </p>
                     </div>
+                    <span className="text-xs font-mono font-bold text-slate-400">
+                      ({shoesProducts.length} itens)
+                    </span>
                   </div>
 
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-6 py-2">
-                    {shoesProducts.map((prod) => (
+                    {visibleShoesProducts.map((prod) => (
                       <ProductCard
                         key={prod.id}
                         product={prod}
@@ -879,12 +897,32 @@ export const ProductList: React.FC = () => {
                       />
                     ))}
                   </div>
+
+                  {shoesProducts.length > visibleShoesCount && (
+                    <div className="flex flex-col items-center justify-center pt-4 pb-2 space-y-2">
+                      <p className="text-xs font-semibold text-slate-400">
+                        Exibindo {visibleShoesProducts.length} de {shoesProducts.length} calçados
+                      </p>
+                      <button
+                        onClick={() => setVisibleShoesCount((prev) => prev + ITEMS_PER_PAGE)}
+                        className={`px-8 py-3 rounded-2xl text-xs font-bold transition-all shadow-md flex items-center space-x-2 cursor-pointer ${
+                          isDark
+                            ? "bg-amber-400 text-slate-950 hover:bg-amber-300 shadow-amber-400/10 font-extrabold"
+                            : "bg-slate-900 text-white hover:bg-slate-800 shadow-slate-900/20"
+                        }`}
+                      >
+                        <span>Carregar Mais Calçados ({shoesProducts.length - visibleShoesCount} restantes)</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
               );
             }
 
             // 4. SECTION: ACESSÓRIOS DE COURO
             if (sec.id === "accessories" && accessoriesProducts.length > 0) {
+              const visibleAccProducts = accessoriesProducts.slice(0, visibleAccCount);
+
               return (
                 <div
                   key={sec.id}
@@ -907,10 +945,13 @@ export const ProductList: React.FC = () => {
                           "Cintos, carteiras e bolsas em couro nobre"}
                       </p>
                     </div>
+                    <span className="text-xs font-mono font-bold text-slate-400">
+                      ({accessoriesProducts.length} itens)
+                    </span>
                   </div>
 
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-6 py-2">
-                    {accessoriesProducts.map((prod) => (
+                    {visibleAccProducts.map((prod) => (
                       <ProductCard
                         key={prod.id}
                         product={prod}
@@ -921,6 +962,24 @@ export const ProductList: React.FC = () => {
                       />
                     ))}
                   </div>
+
+                  {accessoriesProducts.length > visibleAccCount && (
+                    <div className="flex flex-col items-center justify-center pt-4 pb-2 space-y-2">
+                      <p className="text-xs font-semibold text-slate-400">
+                        Exibindo {visibleAccProducts.length} de {accessoriesProducts.length} acessórios
+                      </p>
+                      <button
+                        onClick={() => setVisibleAccCount((prev) => prev + ITEMS_PER_PAGE)}
+                        className={`px-8 py-3 rounded-2xl text-xs font-bold transition-all shadow-md flex items-center space-x-2 cursor-pointer ${
+                          isDark
+                            ? "bg-amber-400 text-slate-950 hover:bg-amber-300 shadow-amber-400/10 font-extrabold"
+                            : "bg-slate-900 text-white hover:bg-slate-800 shadow-slate-900/20"
+                        }`}
+                      >
+                        <span>Carregar Mais Acessórios ({accessoriesProducts.length - visibleAccCount} restantes)</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
               );
             }

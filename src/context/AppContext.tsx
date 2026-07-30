@@ -7,7 +7,7 @@ import { sincomAuthService } from '../lib/sincomAuth';
 import { firebaseAuthService } from '../services/firebaseAuthService';
 import { userDataService } from '../services/userDataService';
 import { orderService } from '../services/orderService';
-import { getProdutosMoblink, extractPrecoVistaMoblink, extractSaldoLojaMoblink } from '../services/moblinkProductsService';
+import { getProdutosMoblink, extractPrecoVistaMoblink, extractSaldoLojaMoblink, sanitizeProductForFirestore, cleanUndefinedFields, filterProductsRequiringSync } from '../services/moblinkProductsService';
 
 
 interface AppContextProps {
@@ -291,7 +291,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return {
       id: 'default',
       enabled: true,
-      apiUrl: import.meta.env.VITE_SINCOM_API_URL || 'http://api_sincom.caioflix.com.br',
+      apiUrl: import.meta.env.VITE_MOBLINK_API_URL || 'https://api.evidenciacalcados.com.br/api/v1/produtos?pdf=false',
       apiToken: 'mob_live_9a8b7c6d5e4f3a2b1c',
       apiUser: '',
       apiPassword: '',
@@ -703,7 +703,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
-  // Sync MobLink products directly from API and cross with DB records
+  // Sync MobLink products directly from API and cross with DB records (Incremental Delta Sync)
   const syncProductsFromMoblinkApi = async () => {
     try {
       const moblinkRawList = await getProdutosMoblink();
@@ -713,10 +713,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const currentDbProducts = products.length > 0 ? products : getLocalProducts();
       const crossedCatalog = mergeMoblinkWithLocalDb(moblinkRawList, currentDbProducts);
 
-      // Save each crossed item into Firestore to keep database in sync
-      for (const prod of crossedCatalog) {
-        const docRef = doc(db, 'products', prod.id);
-        await setDoc(docRef, prod, { merge: true });
+      // Incremental Sync: Salva no Firestore apenas os produtos que sofreram alterações reais de preço ou estoque
+      const itemsToSync = filterProductsRequiringSync(currentDbProducts, moblinkRawList);
+      if (itemsToSync.length > 0) {
+        const crossedMap = new Map(crossedCatalog.map(p => [p.id, p]));
+        for (const item of itemsToSync) {
+          const mobId = String(item.id);
+          const prod = crossedMap.get(mobId);
+          if (prod) {
+            const docRef = doc(db, 'products', prod.id);
+            const sanitized = sanitizeProductForFirestore(prod);
+            await setDoc(docRef, sanitized, { merge: true });
+          }
+        }
       }
 
       setProducts(crossedCatalog);
@@ -1422,7 +1431,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Try Firestore
     try {
-      await setDoc(doc(db, 'products', product.id), product);
+      const sanitized = sanitizeProductForFirestore(product);
+      await setDoc(doc(db, 'products', product.id), sanitized);
     } catch (error) {
       console.warn("Firestore failed to add product. Cached locally:", error);
     }
@@ -1450,7 +1460,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Try Firestore
     try {
-      await setDoc(doc(db, 'products', productId), updatedFields, { merge: true });
+      const sanitized = cleanUndefinedFields(updatedFields);
+      await setDoc(doc(db, 'products', productId), sanitized, { merge: true });
     } catch (error) {
       console.warn("Firestore failed to update product. Updated locally:", error);
     }
@@ -1701,10 +1712,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const currentDbProducts = products.length > 0 ? products : getLocalProducts();
       const crossedCatalog = mergeMoblinkWithLocalDb(moblinkRawList, currentDbProducts);
 
-      // Save each crossed item into Firestore to keep database in sync
+      // Save each crossed item into Firestore to keep database in sync (Sanitizado)
       for (const prod of crossedCatalog) {
         const docRef = doc(db, 'products', prod.id);
-        await setDoc(docRef, prod, { merge: true });
+        const sanitized = sanitizeProductForFirestore(prod);
+        await setDoc(docRef, sanitized, { merge: true });
       }
 
       setProducts(crossedCatalog);

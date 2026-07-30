@@ -1,17 +1,28 @@
 import { GradeProduto } from '../types';
+import { MOBLINK_BEARER_TOKEN } from './moblinkProductsService';
 
 /**
  * Serviço responsável por consumir a rota GET /api/v1/gradesprodutos do MobLink ERP.
- * Retorna os dados tipados no TypeScript com as propriedades id, descricao, descr_linha e descr_coluna.
  */
 export const getGradesProdutos = async (): Promise<GradeProduto[]> => {
+  const headers = {
+    'Accept': 'application/json',
+    'Authorization': `Bearer ${MOBLINK_BEARER_TOKEN}`
+  };
+
   try {
-    const response = await fetch('/api/v1/gradesprodutos', {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-      },
-    });
+    let response: Response;
+    try {
+      response = await fetch('https://api.evidenciacalcados.com.br/api/v1/gradesprodutos', {
+        method: 'GET',
+        headers
+      });
+    } catch (e) {
+      response = await fetch('/api/v1/gradesprodutos', {
+        method: 'GET',
+        headers
+      });
+    }
 
     if (!response.ok) {
       throw new Error(`Erro na requisição da API de grades: Status HTTP ${response.status}`);
@@ -35,7 +46,7 @@ export const getGradesProdutos = async (): Promise<GradeProduto[]> => {
       descr_coluna: item.descr_coluna || item.coluna || 'Cor / Acabamento',
     }));
   } catch (error) {
-    console.warn('[moblinkGradesService] Falha ao consultar GET /api/v1/gradesprodutos, utilizando dados de segurança:', error);
+    console.warn('[moblinkGradesService] Falha ao consultar GET /api/v1/gradesprodutos:', error);
     return getFallbackGrades();
   }
 };
@@ -44,13 +55,24 @@ export const getGradesProdutos = async (): Promise<GradeProduto[]> => {
  * Consulta uma Grade de Produto específica por ID via GET /api/v1/gradesprodutos/{id}
  */
 export const getGradeProdutoById = async (idGrade: string | number): Promise<GradeProduto> => {
+  const headers = {
+    'Accept': 'application/json',
+    'Authorization': `Bearer ${MOBLINK_BEARER_TOKEN}`
+  };
+
   try {
-    const response = await fetch(`/api/v1/gradesprodutos/${idGrade}`, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-      },
-    });
+    let response: Response;
+    try {
+      response = await fetch(`https://api.evidenciacalcados.com.br/api/v1/gradesprodutos/${idGrade}`, {
+        method: 'GET',
+        headers
+      });
+    } catch (e) {
+      response = await fetch(`/api/v1/gradesprodutos/${idGrade}`, {
+        method: 'GET',
+        headers
+      });
+    }
 
     if (response.ok) {
       const data = await response.json();

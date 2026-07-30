@@ -8,14 +8,23 @@ export interface GradeProduto {
 export interface MoblinkProduto {
   id: number | string;
   descricao: string;
+  nome?: string;
   compl_descr?: string;
   descricao_completa?: string;
   preco_venda: number;
   preco_venda_fracao?: number;
+  precos?: any[];
   saldo_loja?: number;
   saldos_lojas?: any[];
   foto_uri?: string;
   id_grade?: number | string;
+  tamanhos?: (number | string)[];
+  categoria?: string;
+  barcode?: string;
+  marca?: string;
+  material?: string;
+  cor?: string;
+  genero?: string;
 }
 
 export interface Product {

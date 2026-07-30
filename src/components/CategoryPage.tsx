@@ -104,6 +104,8 @@ export const CategoryPage: React.FC = () => {
     categories
   } = useApp();
 
+  const ITEMS_PER_PAGE = 24;
+  const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE);
   const [cardsPerPage, setCardsPerPage] = useState(4);
   const [activeIndex, setActiveIndex] = useState(0);
   const [timeLeft, setTimeLeft] = useState({ horas: 23, minutos: 59, segundos: 59 });
@@ -111,6 +113,7 @@ export const CategoryPage: React.FC = () => {
 
   // Smooth scroll to catalog grid when tab changes or component mounts
   useEffect(() => {
+    setVisibleCount(ITEMS_PER_PAGE);
     const timer = setTimeout(() => {
       scrollToSectionWithOffset(gridSectionRef.current || 'category-all-items-section');
     }, 120);
@@ -445,115 +448,140 @@ export const CategoryPage: React.FC = () => {
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {allItems.map((prod) => {
-              const discountPercent = prod.originalPrice 
-                ? Math.round(((prod.originalPrice - prod.price) / prod.originalPrice) * 100) 
-                : 15;
+          <div className="space-y-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+              {allItems.slice(0, visibleCount).map((prod) => {
+                const discountPercent = prod.originalPrice 
+                  ? Math.round(((prod.originalPrice - prod.price) / prod.originalPrice) * 100) 
+                  : 15;
 
-              return (
-                <div 
-                  key={prod.id} 
-                  className={`group border rounded-xl overflow-hidden transition-all duration-300 flex flex-col justify-between ${
-                    theme === 'dark' 
-                      ? 'bg-[#0f172a] border-slate-800 hover:border-amber-400/50 hover:shadow-[0_0_20px_rgba(245,158,11,0.05)]' 
-                      : 'bg-white border-slate-100 hover:shadow-lg hover:border-slate-200/60'
-                  }`}
-                >
-                  <div className={`relative aspect-square overflow-hidden ${theme === 'dark' ? 'bg-slate-950' : 'bg-slate-50'}`}>
-                    <img 
-                      src={prod.images?.[0] || prod.foto_uri || 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?q=80&w=600&auto=format&fit=crop'} 
-                      alt={prod.name} 
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                    />
-                    
-                    {prod.onSale && prod.originalPrice ? (
-                      <span className={`absolute top-3 left-3 text-white text-[9px] font-extrabold tracking-widest px-2.5 py-1 rounded-sm shadow-md animate-pulse ${
-                        theme === 'dark' ? 'bg-red-500' : 'bg-[#9a031e]'
-                      }`}>
-                        {discountPercent}% OFF
-                      </span>
-                    ) : prod.newArrival ? (
-                      <span className="absolute top-3 left-3 bg-emerald-600 text-white text-[9px] font-extrabold tracking-widest px-2.5 py-1 rounded-sm shadow-md">
-                        NOVO
-                      </span>
-                    ) : null}
-
-                    {prod.stockControl && prod.stock <= 5 && prod.stock > 0 && (
-                      <span className="absolute top-3 right-3 bg-amber-500/90 text-white text-[9px] font-bold px-2 py-0.5 rounded-sm">
-                        Pouco Estoque
-                      </span>
-                    )}
-                    {prod.stockControl && prod.stock === 0 && (
-                      <span className="absolute top-3 right-3 bg-red-600/90 text-white text-[9px] font-bold px-2 py-0.5 rounded-sm">
-                        Esgotado
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
-                    <div className="space-y-1">
-                      <span className={`text-[9px] font-extrabold tracking-widest uppercase block ${
-                        theme === 'dark' ? 'text-amber-400' : 'text-[#9a031e]'
-                      }`}>
-                        {prod.category}
-                      </span>
-                      <h3 className={`text-xs sm:text-sm font-semibold tracking-tight leading-snug line-clamp-2 min-h-[36px] ${
-                        theme === 'dark' ? 'text-slate-200' : 'text-slate-800'
-                      }`}>
-                        {prod.name}
-                      </h3>
+                return (
+                  <div 
+                    key={prod.id} 
+                    className={`group border rounded-xl overflow-hidden transition-all duration-300 flex flex-col justify-between ${
+                      theme === 'dark' 
+                        ? 'bg-[#0f172a] border-slate-800 hover:border-amber-400/50 hover:shadow-[0_0_20px_rgba(245,158,11,0.05)]' 
+                        : 'bg-white border-slate-100 hover:shadow-lg hover:border-slate-200/60'
+                    }`}
+                  >
+                    <div className={`relative aspect-square overflow-hidden ${theme === 'dark' ? 'bg-slate-950' : 'bg-slate-50'}`}>
+                      <img 
+                        src={prod.images?.[0] || prod.foto_uri || 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?q=80&w=600&auto=format&fit=crop'} 
+                        alt={prod.name} 
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        loading="lazy"
+                        decoding="async"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?q=80&w=600&auto=format&fit=crop';
+                        }}
+                      />
                       
-                      <div className="flex flex-col pt-1">
-                        {prod.onSale && prod.originalPrice ? (
-                          <div className="flex items-baseline space-x-1.5">
-                            <span className={`text-[10px] sm:text-xs line-through font-medium ${
-                              theme === 'dark' ? 'text-slate-500' : 'text-slate-400'
-                            }`}>
-                              R$ {prod.originalPrice.toFixed(2).replace('.', ',')}
-                            </span>
-                            <p className={`text-sm sm:text-base font-black ${
-                              theme === 'dark' ? 'text-red-400' : 'text-[#9a031e]'
+                      {prod.onSale && prod.originalPrice ? (
+                        <span className={`absolute top-3 left-3 text-white text-[9px] font-extrabold tracking-widest px-2.5 py-1 rounded-sm shadow-md animate-pulse ${
+                          theme === 'dark' ? 'bg-red-500' : 'bg-[#9a031e]'
+                        }`}>
+                          {discountPercent}% OFF
+                        </span>
+                      ) : prod.newArrival ? (
+                        <span className="absolute top-3 left-3 bg-emerald-600 text-white text-[9px] font-extrabold tracking-widest px-2.5 py-1 rounded-sm shadow-md">
+                          NOVO
+                        </span>
+                      ) : null}
+
+                      {prod.stockControl && prod.stock <= 5 && prod.stock > 0 && (
+                        <span className="absolute top-3 right-3 bg-amber-500/90 text-white text-[9px] font-bold px-2 py-0.5 rounded-sm">
+                          Pouco Estoque
+                        </span>
+                      )}
+                      {prod.stockControl && prod.stock === 0 && (
+                        <span className="absolute top-3 right-3 bg-red-600/90 text-white text-[9px] font-bold px-2 py-0.5 rounded-sm">
+                          Esgotado
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
+                      <div className="space-y-1">
+                        <span className={`text-[9px] font-extrabold tracking-widest uppercase block ${
+                          theme === 'dark' ? 'text-amber-400' : 'text-[#9a031e]'
+                        }`}>
+                          {prod.category}
+                        </span>
+                        <h3 className={`text-xs sm:text-sm font-semibold tracking-tight leading-snug line-clamp-2 min-h-[36px] ${
+                          theme === 'dark' ? 'text-slate-200' : 'text-slate-800'
+                        }`}>
+                          {prod.name}
+                        </h3>
+                        
+                        <div className="flex flex-col pt-1">
+                          {prod.onSale && prod.originalPrice ? (
+                            <div className="flex items-baseline space-x-1.5">
+                              <span className={`text-[10px] sm:text-xs line-through font-medium ${
+                                theme === 'dark' ? 'text-slate-500' : 'text-slate-400'
+                              }`}>
+                                R$ {prod.originalPrice.toFixed(2).replace('.', ',')}
+                              </span>
+                              <p className={`text-sm sm:text-base font-black ${
+                                theme === 'dark' ? 'text-red-400' : 'text-[#9a031e]'
+                              }`}>
+                                R$ {prod.price.toFixed(2).replace('.', ',')}
+                              </p>
+                            </div>
+                          ) : (
+                            <p className={`text-sm sm:text-base font-extrabold ${
+                              theme === 'dark' ? 'text-amber-400' : 'text-primary'
                             }`}>
                               R$ {prod.price.toFixed(2).replace('.', ',')}
                             </p>
-                          </div>
-                        ) : (
-                          <p className={`text-sm sm:text-base font-extrabold ${
-                            theme === 'dark' ? 'text-amber-400' : 'text-primary'
-                          }`}>
-                            R$ {prod.price.toFixed(2).replace('.', ',')}
-                          </p>
-                        )}
+                          )}
+                        </div>
                       </div>
+
+                      {prod.crediarioProprio && (
+                        <div className={`flex items-center space-x-1.5 py-1 px-2 rounded-md border ${
+                          theme === 'dark' 
+                            ? 'bg-slate-950/60 border-slate-850 text-slate-400' 
+                            : 'bg-slate-50 border-slate-100 text-slate-500'
+                        }`}>
+                          <div className="w-3.5 h-2.5 bg-yellow-400 rounded-xs flex items-center justify-center text-[6px] text-slate-950 font-bold">💳</div>
+                          <span className="text-[9px] font-medium tracking-tight">Crediário Próprio Evidência</span>
+                        </div>
+                      )}
+
+                      <button
+                        onClick={() => handleVerDetalhes(prod)}
+                        className={`w-full flex items-center justify-center space-x-1.5 py-2 px-3 text-[10px] sm:text-xs font-bold rounded-lg transition-colors cursor-pointer ${
+                          theme === 'dark'
+                            ? 'bg-amber-400 text-slate-950 hover:bg-amber-300'
+                            : 'bg-primary text-white hover:bg-secondary'
+                        }`}
+                      >
+                        <Eye className="h-3.5 w-3.5" />
+                        <span>VER DETALHES</span>
+                      </button>
                     </div>
-
-                    {prod.crediarioProprio && (
-                      <div className={`flex items-center space-x-1.5 py-1 px-2 rounded-md border ${
-                        theme === 'dark' 
-                          ? 'bg-slate-950/60 border-slate-850 text-slate-400' 
-                          : 'bg-slate-50 border-slate-100 text-slate-500'
-                      }`}>
-                        <div className="w-3.5 h-2.5 bg-yellow-400 rounded-xs flex items-center justify-center text-[6px] text-slate-950 font-bold">💳</div>
-                        <span className="text-[9px] font-medium tracking-tight">Crediário Próprio Evidência</span>
-                      </div>
-                    )}
-
-                    <button
-                      onClick={() => handleVerDetalhes(prod)}
-                      className={`w-full flex items-center justify-center space-x-1.5 py-2 px-3 text-[10px] sm:text-xs font-bold rounded-lg transition-colors cursor-pointer ${
-                        theme === 'dark'
-                          ? 'bg-amber-400 text-slate-950 hover:bg-amber-300'
-                          : 'bg-primary text-white hover:bg-secondary'
-                      }`}
-                    >
-                      <Eye className="h-3.5 w-3.5" />
-                      <span>VER DETALHES</span>
-                    </button>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
+
+            {allItems.length > visibleCount && (
+              <div className="flex flex-col items-center justify-center pt-4 pb-4 space-y-2">
+                <p className="text-xs font-semibold text-slate-400">
+                  Exibindo {Math.min(visibleCount, allItems.length)} de {allItems.length} produtos disponíveis
+                </p>
+                <button
+                  onClick={() => setVisibleCount((prev) => prev + ITEMS_PER_PAGE)}
+                  className={`px-8 py-3 rounded-2xl text-xs font-bold transition-all shadow-md flex items-center space-x-2 cursor-pointer ${
+                    theme === 'dark'
+                      ? 'bg-amber-400 text-slate-950 hover:bg-amber-300 shadow-amber-400/10 font-extrabold'
+                      : 'bg-primary text-white hover:bg-secondary shadow-primary/20'
+                  }`}
+                >
+                  <span>Carregar Mais Produtos ({allItems.length - visibleCount} restantes)</span>
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>

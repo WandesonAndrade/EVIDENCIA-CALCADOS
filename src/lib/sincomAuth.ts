@@ -65,8 +65,8 @@ export const sincomAuthService = {
   async login(config?: { apiUrl?: string }): Promise<SincomAuthSession> {
     const apiUrl =
       config?.apiUrl ||
-      import.meta.env.VITE_SINCOM_API_URL ||
-      "http://api_sincom.caioflix.com.br";
+      import.meta.env.VITE_MOBLINK_API_URL ||
+      "https://api.evidenciacalcados.com.br/api/v1/produtos?pdf=false";
 
     try {
       const response = await fetch("/api/sincom/login", {

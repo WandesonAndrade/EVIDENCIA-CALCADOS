@@ -65,7 +65,7 @@ app.get('/api/moblink/logs', (req, res) => {
 app.post(['/api/sincom/login', '/api/moblink/login'], async (req, res) => {
   const { apiUrl, usuario, user, senha, password } = req.body || {};
   
-  const targetUrl = apiUrl || serverMoblinkConfig.apiUrl || process.env.SINCOM_API_URL || 'http://api_sincom.caioflix.com.br';
+  const targetUrl = apiUrl || serverMoblinkConfig.apiUrl || process.env.MOBLINK_API_URL || 'https://api.evidenciacalcados.com.br/api/v1/produtos?pdf=false';
   const targetUser = usuario || user || serverMoblinkConfig.apiUser || process.env.SINCOM_API_USER || 'a';
   const targetPassword = senha || password || serverMoblinkConfig.apiPassword || process.env.SINCOM_API_PASSWORD || 'a';
 
@@ -292,8 +292,8 @@ app.post('/api/moblink/sync-batch', (req, res) => {
 
 // GET /api/v1/gradesprodutos - Retorna as grades de produtos do MobLink ERP (id, descricao, descr_linha, descr_coluna)
 app.get(['/api/v1/gradesprodutos', '/v1/gradesprodutos'], async (req, res) => {
-  const targetUrl = serverMoblinkConfig.apiUrl || process.env.SINCOM_API_URL || 'https://api_sincom.caioflix.com.br';
-  const token = serverMoblinkConfig.apiToken || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZFVzZXIiOiI3IiwiaWRMb2phIjoiMCIsImlhdCI6MTc4NDcyMTY0NSwiZXhwIjoxNzg0ODA4MDQ1fQ.piKWGGzsRcRw50RTx0l0RbArt5Wegk8EiIbsJ7NyndM';
+  const targetUrl = serverMoblinkConfig.apiUrl || process.env.MOBLINK_API_URL || 'https://api.evidenciacalcados.com.br';
+  const token = serverMoblinkConfig.apiToken || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZFVzZXIiOiI3IiwiaWRMb2phIjoiMCIsImlhdCI6MTc4NTQyMzQ5NSwiZXhwIjoxNzg1NTA5ODk1fQ.Vmhm7qRc3e8hNudJjDPBkGfgpbZ0ejZ1vf2skw45fiY';
 
   console.log(`[Moblink GET /api/v1/gradesprodutos] Solicitando grades ao ERP (${targetUrl})`);
 
@@ -360,8 +360,8 @@ app.get(['/api/v1/gradesprodutos', '/v1/gradesprodutos'], async (req, res) => {
 
 // GET /api/v1/produtos or /api/moblink/produtos - List Products from MobLink ERP
 app.get(['/api/v1/produtos', '/api/moblink/produtos', '/v1/produtos'], async (req, res) => {
-  const targetUrl = serverMoblinkConfig.apiUrl || process.env.SINCOM_API_URL || 'https://api_sincom.caioflix.com.br';
-  const token = req.headers.authorization?.replace('Bearer ', '') || serverMoblinkConfig.apiToken || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZFVzZXIiOiI3IiwiaWRMb2phIjoiMCIsImlhdCI6MTc4NDcyMTY0NSwiZXhwIjoxNzg0ODA4MDQ1fQ.piKWGGzsRcRw50RTx0l0RbArt5Wegk8EiIbsJ7NyndM';
+  const targetUrl = serverMoblinkConfig.apiUrl || process.env.MOBLINK_API_URL || 'https://api.evidenciacalcados.com.br/api/v1/produtos?pdf=false';
+  const token = req.headers.authorization?.replace('Bearer ', '') || serverMoblinkConfig.apiToken || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZFVzZXIiOiI3IiwiaWRMb2phIjoiMCIsImlhdCI6MTc4NTQyMzQ5NSwiZXhwIjoxNzg1NTA5ODk1fQ.Vmhm7qRc3e8hNudJjDPBkGfgpbZ0ejZ1vf2skw45fiY';
 
   const queryParams = new URLSearchParams(req.query as Record<string, string>);
   if (!queryParams.has('pdf')) {

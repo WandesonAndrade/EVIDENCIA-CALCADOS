@@ -1,4 +1,87 @@
-import { MoblinkProduto } from '../types';
+import { MoblinkProduto, Product } from '../types';
+
+export const MOBLINK_OFFICIAL_API_URL = 'https://api.evidenciacalcados.com.br/api/v1/produtos?pdf=false';
+export const MOBLINK_BEARER_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZFVzZXIiOiI3IiwiaWRMb2phIjoiMCIsImlhdCI6MTc4NTQyMzQ5NSwiZXhwIjoxNzg1NTA5ODk1fQ.Vmhm7qRc3e8hNudJjDPBkGfgpbZ0ejZ1vf2skw45fiY';
+
+/**
+ * Remove recursivamente qualquer propriedade com valor `undefined` de um objeto ou array.
+ * Evita o erro do Firestore: 'Unsupported field value: undefined'.
+ */
+export const cleanUndefinedFields = <T extends Record<string, any>>(obj: T): T => {
+  if (obj === null || typeof obj !== 'object') {
+    return obj;
+  }
+
+  if (Array.isArray(obj)) {
+    return obj.map(item => (typeof item === 'object' && item !== null ? cleanUndefinedFields(item) : item)) as any;
+  }
+
+  const cleaned: Record<string, any> = {};
+
+  for (const [key, value] of Object.entries(obj)) {
+    if (value === undefined) {
+      continue; // Remove propriedades com valor undefined
+    } else if (value !== null && typeof value === 'object' && !Array.isArray(value) && !(value instanceof Date)) {
+      cleaned[key] = cleanUndefinedFields(value);
+    } else if (Array.isArray(value)) {
+      cleaned[key] = value.map(item => (typeof item === 'object' && item !== null ? cleanUndefinedFields(item) : item));
+    } else {
+      cleaned[key] = value;
+    }
+  }
+
+  return cleaned as T;
+};
+
+/**
+ * Sanitiza rigorosamente um objeto de Produto antes de salvar no Firestore (setDoc/updateDoc).
+ * Garante que originalPrice, price, stock, images e description nunca sejam undefined.
+ */
+export const sanitizeProductForFirestore = (product: Partial<Product>): Record<string, any> => {
+  const price = typeof product.price === 'number' && !isNaN(product.price) 
+    ? product.price 
+    : (typeof product.preco_venda === 'number' && !isNaN(product.preco_venda) ? product.preco_venda : 0);
+
+  const rawOriginalPrice = product.originalPrice ?? (product as any).precoOriginal;
+  const originalPrice = (typeof rawOriginalPrice === 'number' && !isNaN(rawOriginalPrice) && rawOriginalPrice > 0) 
+    ? rawOriginalPrice 
+    : null; // Se ausente ou inválido, define como null (aceito pelo Firestore)
+
+  const stock = typeof product.stock === 'number' && !isNaN(product.stock)
+    ? Math.max(0, product.stock)
+    : (typeof product.saldo_loja === 'number' && !isNaN(product.saldo_loja) ? Math.max(0, product.saldo_loja) : 0);
+
+  const images = Array.isArray(product.images) && product.images.length > 0
+    ? product.images.filter(img => typeof img === 'string' && img.trim() !== '')
+    : (product.foto_uri ? [product.foto_uri] : ['https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?q=80&w=600&auto=format&fit=crop']);
+
+  const description = typeof product.description === 'string' && product.description.trim() !== ''
+    ? product.description
+    : (product.descricao_completa || product.descricao || product.name || 'Produto Evidência Calçados');
+
+  const name = product.name || product.descricao || 'Produto Evidência';
+  const category = product.category || 'Geral';
+
+  const baseSanitized = {
+    ...product,
+    name,
+    category,
+    price,
+    preco_venda: price,
+    originalPrice,
+    stock,
+    saldo_loja: stock,
+    images,
+    description,
+    descricao_completa: product.descricao_completa || description,
+    sizes: Array.isArray(product.sizes) ? product.sizes : [],
+    crediarioProprio: product.crediarioProprio ?? true,
+    visible: product.visible ?? true,
+    stockControl: product.stockControl ?? true,
+  };
+
+  return cleanUndefinedFields(baseSanitized);
+};
 
 /**
  * Extrai o preço à vista preferencialmente do array `precos` ou do campo `preco_venda`.
@@ -65,34 +148,101 @@ export const extractSaldoLojaMoblink = (item: any): number => {
 };
 
 /**
- * Serviço responsável por consumir a rota GET /api/v1/produtos do MobLink ERP.
- * Mapeia id, descricao, preco (à vista), saldo_loja (>= 0) e trata cada variação como produto único.
+ * Consome a API oficial do MobLink ERP com Token Bearer e suporte a paginação completa
+ * para buscar todos os lotes (suportando mais de 1.800 produtos).
  */
 export const getProdutosMoblink = async (): Promise<MoblinkProduto[]> => {
-  try {
-    const response = await fetch('/api/v1/produtos', {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-      },
-    });
+  const allItemsRaw: any[] = [];
+  let currentPage = 1;
+  let lastPage = 1;
+  let hasMorePages = true;
 
-    if (!response.ok) {
-      throw new Error(`Erro na requisição da API de produtos: Status HTTP ${response.status}`);
+  try {
+    while (hasMorePages && currentPage <= lastPage) {
+      const fetchHeaders = {
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${MOBLINK_BEARER_TOKEN}`
+      };
+
+      const primaryUrl = currentPage === 1 
+        ? MOBLINK_OFFICIAL_API_URL 
+        : `https://api.evidenciacalcados.com.br/api/v1/produtos?pdf=false&page=${currentPage}`;
+
+      let response: Response;
+      try {
+        response = await fetch(primaryUrl, {
+          method: 'GET',
+          headers: fetchHeaders
+        });
+      } catch (networkErr) {
+        // Fallback local se a chamada direta falhar por restrição do ambiente de desenvolvimento
+        const fallbackUrl = currentPage === 1 
+          ? '/api/v1/produtos?pdf=false' 
+          : `/api/v1/produtos?pdf=false&page=${currentPage}`;
+        
+        response = await fetch(fallbackUrl, {
+          method: 'GET',
+          headers: fetchHeaders
+        });
+      }
+
+      if (!response.ok) {
+        if (currentPage === 1) {
+          throw new Error(`Erro HTTP ${response.status} na API oficial do MobLink`);
+        }
+        break;
+      }
+
+      const data = await response.json();
+
+      // Suporte flexível à estrutura da resposta (array direto ou chave interna data/produtos)
+      const pageList: any[] = Array.isArray(data)
+        ? data
+        : (data.produtos || data.data || data.items || []);
+
+      if (Array.isArray(pageList) && pageList.length > 0) {
+        allItemsRaw.push(...pageList);
+      } else if (currentPage > 1) {
+        break;
+      }
+
+      // Detecção dinâmica de Metadados de Paginação
+      const meta = data.meta || data.pagination || data;
+      const detectedLastPage = meta.last_page || meta.lastPage || meta.total_pages || meta.totalPages || data.last_page;
+
+      if (typeof detectedLastPage === 'number' && detectedLastPage > lastPage) {
+        lastPage = detectedLastPage;
+      }
+
+      // Cálculo por Total de itens vs Itens por página
+      const totalCount = meta.total || data.total;
+      if (typeof totalCount === 'number' && totalCount > 0) {
+        const itemsPerPage = meta.per_page || data.per_page || pageList.length || 15;
+        const calculatedLastPage = Math.ceil(totalCount / itemsPerPage);
+        if (calculatedLastPage > lastPage) {
+          lastPage = calculatedLastPage;
+        }
+      }
+
+      const nextPageUrl = meta.next_page_url || data.next_page_url;
+
+      if (currentPage >= lastPage && !nextPageUrl) {
+        hasMorePages = false;
+      } else {
+        currentPage++;
+      }
+
+      // Trava de segurança para evitar loops infinitos (máximo 150 páginas = até ~15.000 produtos)
+      if (currentPage > 150) {
+        break;
+      }
     }
 
-    const data = await response.json();
-
-    // Aceita array direto ou em propriedades encapsuladas
-    const rawList: any[] = Array.isArray(data)
-      ? data
-      : (data.produtos || data.data || data.items || data.gradesprodutos || []);
-
-    if (!Array.isArray(rawList) || rawList.length === 0) {
+    if (allItemsRaw.length === 0) {
       return getFallbackProdutos();
     }
 
-    return rawList.map((item: any, index: number): MoblinkProduto => {
+    return allItemsRaw.map((item: any, index: number): MoblinkProduto => {
       const id = String(item.id || item.moblinkId || item.codigo || `MOB-${101 + index}`);
       const descricao = item.descricao || item.nome || item.descricaoMoblink || item.name || `Produto MobLink ${id}`;
       
@@ -115,14 +265,25 @@ export const getProdutosMoblink = async (): Promise<MoblinkProduto[]> => {
       return {
         id,
         descricao,
+        nome: item.nome || item.name || descricao,
         preco_venda,
         saldo_loja,
         foto_uri,
-        id_grade
+        id_grade,
+        precos: item.precos,
+        saldos_lojas: item.saldos_lojas,
+        compl_descr: item.compl_descr || item.descr_compl,
+        tamanhos: item.tamanhos,
+        categoria: item.categoria || item.category,
+        barcode: item.codigoBarras || item.barcode || item.codigo,
+        marca: item.marca,
+        material: item.material,
+        cor: item.cor,
+        genero: item.genero
       };
     });
   } catch (error) {
-    console.warn('[moblinkProductsService] Erro ao consumir GET /api/v1/produtos, utilizando produtos de fallback:', error);
+    console.warn('[moblinkProductsService] Erro ao consumir API oficial do MobLink ERP com Token Bearer:', error);
     return getFallbackProdutos();
   }
 };
@@ -143,7 +304,7 @@ const getFallbackProdutos = (): MoblinkProduto[] => [
     id: 'MOB-102',
     descricao: 'Mocassim Italiano Soft Confort Nobuck',
     preco_venda: 279.90,
-    saldo_loja: 0, // Esgotado (0)
+    saldo_loja: 0,
     foto_uri: 'https://images.unsplash.com/photo-1549298916-b41d501d3772?q=80&w=600&auto=format&fit=crop',
     id_grade: '1',
   },
@@ -175,9 +336,49 @@ const getFallbackProdutos = (): MoblinkProduto[] => [
     id: 'MOB-106',
     descricao: 'Carteira Slim Couro Bovino Evidência',
     preco_venda: 69.90,
-    saldo_loja: 0, // Esgotado e sem grade
+    saldo_loja: 0,
     foto_uri: 'https://images.unsplash.com/photo-1627123424574-724758594e93?q=80&w=600&auto=format&fit=crop',
     id_grade: null,
   }
 ];
+
+/**
+ * Compara se houve alteração real em preço, estoque ou nome do produto em relação ao banco (Delta Check).
+ * Evita regravações desnecessárias no Firestore quando os dados não mudaram.
+ */
+export const hasProductChanged = (existing?: Partial<Product>, fresh?: Partial<Product> | MoblinkProduto): boolean => {
+  if (!existing || !fresh) return true;
+
+  const freshPrice = (fresh as any).price ?? (fresh as any).preco_venda ?? extractPrecoVistaMoblink(fresh);
+  const existingPrice = existing.price ?? existing.preco_venda ?? 0;
+  if (Math.abs(freshPrice - existingPrice) > 0.001) return true;
+
+  const freshStock = (fresh as any).stock ?? (fresh as any).saldo_loja ?? extractSaldoLojaMoblink(fresh);
+  const existingStock = existing.stock ?? existing.saldo_loja ?? 0;
+  if (freshStock !== existingStock) return true;
+
+  const freshName = (fresh as any).name ?? (fresh as any).nome ?? (fresh as any).descricao;
+  if (freshName && existing.name !== freshName) return true;
+
+  return false;
+};
+
+/**
+ * Processa a sincronização incremental (Delta Sync).
+ * Retorna apenas os produtos que sofreram alterações reais de preço ou estoque.
+ */
+export const filterProductsRequiringSync = (existingProducts: Product[], freshMoblinkList: MoblinkProduto[]): MoblinkProduto[] => {
+  const existingMap = new Map<string, Product>();
+  existingProducts.forEach(p => {
+    const key = String(p.id || p.moblinkId);
+    existingMap.set(key, p);
+  });
+
+  return freshMoblinkList.filter(freshItem => {
+    const freshId = String(freshItem.id);
+    const existing = existingMap.get(freshId);
+    return hasProductChanged(existing, freshItem);
+  });
+};
+
 

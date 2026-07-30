@@ -18,6 +18,7 @@ if (typeof global.localStorage === 'undefined') {
 
 import { checkIsProfileComplete, isProfileIncomplete } from '../src/App';
 import { userDataService } from '../src/services/userDataService';
+import { cleanUndefinedFields, sanitizeProductForFirestore, hasProductChanged, filterProductsRequiringSync } from '../src/services/moblinkProductsService';
 
 
 
@@ -140,6 +141,55 @@ async function runAuthAndProfileTests() {
   const postLoginSession = JSON.parse(localStorage.getItem('evidencia_admin_user') || '{}');
   assert(postLoginSession.uid === 'google_uid_carlos_123', 'A conta Google deve vincular seu UID ao perfil de colaborador autorizados');
   assert(postLoginSession.role === 'admin', 'O privilégio de Administrador é preservado após o login com Google');
+
+  console.log('\n🧪 [SUITE 6] Testes de Sanitização de Payload para o Firestore (cleanUndefinedFields & sanitizeProductForFirestore)');
+
+  // 1. Teste de remoção de undefined em objetos aninhados
+  const rawPayloadWithUndefined = {
+    id: 'MOB-999',
+    name: 'Mocassim Teste Sanitizado',
+    originalPrice: undefined,
+    stock: 15,
+    customData: {
+      tag: 'couro',
+      nestedUndefined: undefined
+    }
+  };
+  const cleanedPayload = cleanUndefinedFields(rawPayloadWithUndefined);
+  assert(!('originalPrice' in cleanedPayload), 'cleanUndefinedFields deve remover propriedades no nível raiz com valor undefined');
+  assert(!('nestedUndefined' in cleanedPayload.customData), 'cleanUndefinedFields deve remover propriedades em objetos aninhados com valor undefined');
+
+  // 2. Teste de sanitização completa de Produto
+  const unSanitizedProduct = {
+    id: 'MOB-1000',
+    name: 'Sapato Social Premium',
+    price: 349.9,
+    originalPrice: undefined,
+    stock: -5, // deve converter para 0
+    images: undefined,
+    description: undefined
+  };
+  const sanitizedForFirestore = sanitizeProductForFirestore(unSanitizedProduct);
+  assert(sanitizedForFirestore.originalPrice === null, 'sanitizeProductForFirestore deve converter originalPrice undefined para null');
+  assert(sanitizedForFirestore.stock === 0, 'sanitizeProductForFirestore deve normalizar estoque negativo (-5) para 0');
+  assert(Array.isArray(sanitizedForFirestore.images) && sanitizedForFirestore.images.length > 0, 'sanitizeProductForFirestore deve garantir que images seja um array válido de strings');
+  assert(typeof sanitizedForFirestore.description === 'string' && sanitizedForFirestore.description.length > 0, 'sanitizeProductForFirestore deve fornecer string válida para description');
+  assert(!Object.values(sanitizedForFirestore).includes(undefined), 'Nenhuma propriedade do produto sanitizado pode conter valor undefined');
+
+  // SUITE 7: Testes de Sincronização Incremental (Delta Sync)
+  console.log('\n🧪 [SUITE 7] Testes de Sincronização Incremental / Delta Sync (hasProductChanged)');
+  const existingProd = { id: 'MOB-101', name: 'Sapato Oxford', price: 299.90, stock: 10 } as any;
+  const sameProd = { id: 'MOB-101', descricao: 'Sapato Oxford', preco_venda: 299.90, saldo_loja: 10 } as any;
+  const changedPriceProd = { id: 'MOB-101', descricao: 'Sapato Oxford', preco_venda: 349.90, saldo_loja: 10 } as any;
+  const changedStockProd = { id: 'MOB-101', descricao: 'Sapato Oxford', preco_venda: 299.90, saldo_loja: 5 } as any;
+
+  assert(hasProductChanged(existingProd, sameProd) === false, 'hasProductChanged deve retornar false para produto com mesmo preço e estoque');
+  assert(hasProductChanged(existingProd, changedPriceProd) === true, 'hasProductChanged deve detectar alteração de preço');
+  assert(hasProductChanged(existingProd, changedStockProd) === true, 'hasProductChanged deve detectar alteração de estoque');
+
+  const freshList = [sameProd, changedPriceProd, changedStockProd];
+  const requiredSync = filterProductsRequiringSync([existingProd], freshList);
+  assert(requiredSync.length === 2, 'filterProductsRequiringSync deve filtrar apenas os 2 produtos alterados');
 
 
   // Relatório Final
