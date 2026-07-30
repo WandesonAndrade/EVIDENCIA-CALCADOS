@@ -241,8 +241,10 @@ export const AdminPanel: React.FC = () => {
   const [ordersSearch, setOrdersSearch] = useState('');
   const [ordersStatusFilter, setOrdersStatusFilter] = useState<'Todos' | OrderStatus>('Todos');
   const [ordersPaymentFilter, setOrdersPaymentFilter] = useState<'Todos' | PaymentStatus>('Todos');
+  const [ordersSellerFilter, setOrdersSellerFilter] = useState<string>('Todos');
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   const [editingFreightMap, setEditingFreightMap] = useState<{ [orderId: string]: string }>({});
+
 
   // Users Management States
   const [users, setUsers] = useState<UserProfile[]>([]);
@@ -987,7 +989,16 @@ export const AdminPanel: React.FC = () => {
         )}
 
         {/* TAB 2: VENDAS & PEDIDOS DOS CLIENTES */}
-        {activeTab === 'sales' && (
+        {activeTab === 'sales' && (() => {
+          const sellersList = Array.from(
+            new Set([
+              ...users.filter(u => (u.role === 'admin' || u.role === 'seller' || u.isAuthorizedCollaborator) && u.isSeller !== false).map(u => u.name),
+              ...orders.map(o => o.sellerName).filter((s): s is string => Boolean(s && s.trim()))
+            ])
+          ).filter(Boolean);
+
+
+          return (
           <div className="space-y-6">
             <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
               <div>
@@ -1048,6 +1059,25 @@ export const AdminPanel: React.FC = () => {
                     <option value="Recusado">❌ Recusado</option>
                   </select>
                 </div>
+
+                {/* FILTRO DE VENDEDOR */}
+                <div className="flex items-center space-x-1">
+                  <span className="text-[10px] text-slate-400 uppercase font-bold">Vendedor:</span>
+                  <select
+                    value={ordersSellerFilter}
+                    onChange={(e) => setOrdersSellerFilter(e.target.value)}
+                    className={`p-1.5 rounded-xl text-xs font-bold border focus:outline-none cursor-pointer ${
+                      isDark ? 'bg-slate-900 border-slate-800 text-amber-400 font-extrabold' : 'bg-white border-slate-300 text-slate-900 font-bold'
+                    }`}
+                  >
+                    <option value="Todos">Todos Vendedores</option>
+                    {sellersList.map((sellerName) => (
+                      <option key={sellerName} value={sellerName}>
+                        👤 {sellerName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
             </div>
 
@@ -1080,6 +1110,19 @@ export const AdminPanel: React.FC = () => {
               </div>
             </div>
 
+            {/* Seller Filter Highlight Notification */}
+            {ordersSellerFilter !== 'Todos' && (
+              <div className="p-3.5 rounded-2xl bg-amber-400/10 border border-amber-400/30 text-amber-400 flex items-center justify-between text-xs font-bold shadow-sm">
+                <div className="flex items-center space-x-2">
+                  <User className="h-4 w-4 text-amber-400" />
+                  <span>Filtrando Vendas Atribuídas a <strong>{ordersSellerFilter}</strong></span>
+                </div>
+                <span>
+                  {orders.filter(o => o.sellerName === ordersSellerFilter).length} pedido(s) (R$ {orders.filter(o => o.sellerName === ordersSellerFilter).reduce((sum, o) => sum + o.total, 0).toFixed(2).replace('.', ',')})
+                </span>
+              </div>
+            )}
+
             {/* List of Orders */}
             {orders.length === 0 ? (
               <div className={`p-8 rounded-3xl border text-center space-y-2 ${
@@ -1101,8 +1144,13 @@ export const AdminPanel: React.FC = () => {
                       o.id.toLowerCase().includes(ordersSearch.toLowerCase());
                     const matchStatus = ordersStatusFilter === 'Todos' || o.status === ordersStatusFilter;
                     const matchPayment = ordersPaymentFilter === 'Todos' || (o.paymentStatus || 'Pendente') === ordersPaymentFilter;
-                    return matchSearch && matchStatus && matchPayment;
+                    const matchSeller = ordersSellerFilter === 'Todos' || 
+                      (o.sellerName && o.sellerName.toLowerCase().includes(ordersSellerFilter.toLowerCase())) ||
+                      (o.sellerEmail && o.sellerEmail.toLowerCase().includes(ordersSellerFilter.toLowerCase()));
+
+                    return matchSearch && matchStatus && matchPayment && matchSeller;
                   })
+
                   .map((o) => {
                     const isOtherCities = o.deliveryType === 'Entrega para Outras Cidades';
                     const hasPendingFreight = isOtherCities && (o.freightCost === undefined || o.freightCost === 0);
@@ -1126,7 +1174,14 @@ export const AdminPanel: React.FC = () => {
                             }`}>
                               {o.status}
                             </span>
+                            {o.sellerName && (
+                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-400/10 text-amber-400 border border-amber-400/30 flex items-center space-x-1">
+                                <User className="h-3 w-3" />
+                                <span>Vendedor: {o.sellerName}</span>
+                              </span>
+                            )}
                           </div>
+
 
                           <div className="flex flex-wrap items-center space-x-4 text-xs font-semibold gap-2">
                             <span className="text-slate-400">Data: {new Date(o.createdAt).toLocaleDateString('pt-BR')}</span>
@@ -1361,7 +1416,9 @@ export const AdminPanel: React.FC = () => {
               </div>
             )}
           </div>
-        )}
+          );
+        })()}
+
 
         {/* TAB: ANÁLISE DE CREDIÁRIO */}
         {activeTab === 'crediario' && (

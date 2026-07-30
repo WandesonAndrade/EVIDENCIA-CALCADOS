@@ -213,6 +213,8 @@ export interface UserProfile {
   cashbackValidUntil?: string;
   requiresPasswordChange?: boolean;
   tempPassword?: string;
+  isSeller?: boolean;
+  isAuthorizedCollaborator?: boolean;
 }
 
 

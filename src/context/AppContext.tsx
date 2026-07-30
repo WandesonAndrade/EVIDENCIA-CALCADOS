@@ -1198,6 +1198,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       customerPhone?: string; 
       deliveryAddress?: string; 
       overrideItems?: CartItem[];
+      sellerName?: string;
+      sellerEmail?: string;
     }
   ): Promise<Order> => {
     const targetItems = options?.overrideItems && options.overrideItems.length > 0 ? options.overrideItems : cart;
@@ -1249,7 +1251,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     message += `👤 *Dados do Cliente:*\n`;
     message += `- *Nome:* ${customerName}\n`;
     message += `- *E-mail:* ${customerEmail}\n`;
-    message += `- *Telefone:* ${options?.customerPhone || currentUser?.telefone || 'Não informado'}\n\n`;
+    message += `- *Telefone:* ${options?.customerPhone || currentUser?.telefone || 'Não informado'}\n`;
+    if (options?.sellerName && options.sellerName !== 'Atendimento Direto da Loja') {
+      message += `- *Atendido por (Vendedor):* ${options.sellerName}\n`;
+    }
+    message += `\n`;
     
     message += `🚚 *Modalidade de Entrega:* ${deliveryType}\n`;
     message += `📍 *Endereço:* ${deliveryAddressStr}\n\n`;
@@ -1295,7 +1301,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       installments,
       status: 'Pendente',
       createdAt: new Date().toISOString(),
-      whatsappUrl
+      whatsappUrl,
+      sellerName: options?.sellerName || '',
+      sellerEmail: options?.sellerEmail || ''
     };
 
     // Deduct used cashback if applicable

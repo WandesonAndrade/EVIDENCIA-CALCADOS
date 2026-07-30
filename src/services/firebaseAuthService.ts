@@ -187,7 +187,7 @@ export const firebaseAuthService = {
    * Cadastro de Novo Colaborador (Whitelist por E-mail) pelo Administrador no Painel.
    * Não exige criação de senha temporária: o colaborador acessará via Conta Google.
    */
-  async registerTeamMember(name: string, emailRaw: string, _role?: UserRole): Promise<UserProfile> {
+  async registerTeamMember(name: string, emailRaw: string, _role?: UserRole, isSeller: boolean = true): Promise<UserProfile> {
     const email = emailRaw.toLowerCase().trim();
 
     // 1. Verifica se já existe colaborador cadastrado no Firestore
@@ -211,6 +211,7 @@ export const firebaseAuthService = {
       email,
       role: 'admin',
       isAuthorizedCollaborator: true,
+      isSeller: isSeller,
       createdAt: existingData.createdAt || new Date().toISOString()
     };
 
@@ -219,6 +220,37 @@ export const firebaseAuthService = {
     await setDoc(userRef, teamMemberProfile, { merge: true });
     return teamMemberProfile;
   },
+
+  /**
+   * Retorna a lista de membros e vendedores pré-autorizados no Firestore
+   */
+  async getTeamMembers(): Promise<UserProfile[]> {
+    try {
+      const q = query(collection(db, 'users'));
+      const snapshot = await getDocs(q);
+      const members: UserProfile[] = [];
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data() as UserProfile;
+        if (data.role === 'admin' || data.role === 'seller' || data.isAuthorizedCollaborator) {
+          members.push({ uid: docSnap.id, ...data });
+        }
+      });
+      return members;
+    } catch (err) {
+      console.warn("📌 Non-fatal error fetching team members from Firestore:", err);
+      return [];
+    }
+  },
+
+  /**
+   * Retorna exclusivamente a lista de vendedores ATIVOS para a vitrine/checkout (isSeller !== false)
+   */
+  async getActiveSellers(): Promise<UserProfile[]> {
+    const members = await this.getTeamMembers();
+    return members.filter(m => m.isSeller !== false);
+  },
+
+
 
 
 
@@ -257,6 +289,15 @@ export const firebaseAuthService = {
     const userRef = doc(db, 'users', uid);
     await setDoc(userRef, { role: newRole, updatedAt: new Date().toISOString() }, { merge: true });
   },
+
+  /**
+   * Atualiza se o colaborador está ativo para vendas no e-commerce (isSeller)
+   */
+  async updateTeamMemberSellerStatus(uid: string, isSeller: boolean): Promise<void> {
+    const userRef = doc(db, 'users', uid);
+    await setDoc(userRef, { isSeller, updatedAt: new Date().toISOString() }, { merge: true });
+  },
+
 
   /**
    * Remove o documento do colaborador do Firestore

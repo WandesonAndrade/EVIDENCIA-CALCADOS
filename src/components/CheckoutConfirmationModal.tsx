@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
+import { UserProfile } from '../types';
+import { firebaseAuthService } from '../services/firebaseAuthService';
 import { 
   X, CheckCircle2, Truck, ShoppingBag, Zap, CreditCard, 
-  ShieldCheck, MapPin, Info, ArrowRight, MessageSquare, Sparkles 
+  ShieldCheck, MapPin, Info, ArrowRight, MessageSquare, Sparkles, User
 } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -14,7 +16,8 @@ interface CheckoutConfirmationModalProps {
   onConfirmOrder: (
     paymentMethod: 'Pix' | 'Cartão de Crédito' | 'Crediário da Loja', 
     deliveryType: 'Entrega em Caxias-MA' | 'Entrega para Outras Cidades' | 'Retirada na Loja',
-    installments?: number
+    installments?: number,
+    sellerName?: string
   ) => void;
   isProcessing: boolean;
 }
@@ -34,6 +37,18 @@ export const CheckoutConfirmationModal: React.FC<CheckoutConfirmationModalProps>
   const [paymentMethod, setPaymentMethod] = useState<'Pix' | 'Cartão de Crédito' | 'Crediário da Loja'>('Pix');
   const [installments, setInstallments] = useState<number>(1);
   const [crediarioInstallments, setCrediarioInstallments] = useState<number>(1);
+  const [selectedSellerName, setSelectedSellerName] = useState<string>('Atendimento Direto da Loja');
+  const [teamSellers, setTeamSellers] = useState<UserProfile[]>([]);
+
+  useEffect(() => {
+    let isMounted = true;
+    firebaseAuthService.getActiveSellers().then((members) => {
+      if (isMounted && members && members.length > 0) {
+        setTeamSellers(members);
+      }
+    });
+    return () => { isMounted = false; };
+  }, []);
 
   if (!isOpen || !currentUser) return null;
 
@@ -88,9 +103,11 @@ export const CheckoutConfirmationModal: React.FC<CheckoutConfirmationModalProps>
     onConfirmOrder(
       paymentMethod, 
       deliveryType, 
-      selectedInstallments
+      selectedInstallments,
+      selectedSellerName !== 'Atendimento Direto da Loja' ? selectedSellerName : undefined
     );
   };
+
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md overflow-y-auto">
@@ -393,10 +410,56 @@ export const CheckoutConfirmationModal: React.FC<CheckoutConfirmationModalProps>
             </div>
           </div>
 
-          {/* SECTION 3: RESUMO DE VALORES */}
+          {/* SECTION 3: SELEÇÃO DE VENDEDOR (OPCIONAL) */}
+          <div className="space-y-2">
+            <h4 className={`text-xs font-black uppercase tracking-wider flex items-center space-x-2 ${
+              isDark ? 'text-amber-400' : 'text-slate-900'
+            }`}>
+              <User className="h-4 w-4 text-amber-400 shrink-0" />
+              <span>3. Selecione um vendedor</span>
+            </h4>
+
+            <div className={`p-4 rounded-2xl border transition-all ${
+              isDark 
+                ? 'bg-slate-900/60 border-slate-800 focus-within:border-amber-400/50' 
+                : 'bg-slate-50 border-slate-200 focus-within:border-slate-800'
+            }`}>
+              <label className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 block mb-1.5">
+                Quem te atendeu ou indicou esta compra?
+              </label>
+              <div className="relative">
+                <select
+                  value={selectedSellerName}
+                  onChange={(e) => setSelectedSellerName(e.target.value)}
+                  className={`w-full p-3 rounded-xl text-xs font-bold border focus:outline-none cursor-pointer appearance-none pr-8 transition-all ${
+                    isDark 
+                      ? 'bg-slate-950 border-slate-800 text-amber-300 focus:border-amber-400' 
+                      : 'bg-white border-slate-300 text-slate-900 focus:border-slate-800'
+                  }`}
+                >
+                  <option value="Atendimento Direto da Loja">Sem indicação / Atendimento Direto da Loja</option>
+                  {teamSellers.map((seller) => (
+                    <option key={seller.uid || seller.email} value={seller.name}>
+                      {seller.name}
+                    </option>
+                  ))}
+                </select>
+                <div className="pointer-events-none absolute right-3 top-3 text-slate-400">
+                  <User className="h-4 w-4 text-amber-400" />
+                </div>
+              </div>
+              <p className="text-[11px] text-slate-400 font-medium mt-2">
+                Se você foi atendido por um de nossos colaboradores, selecione o nome dele para vincular o atendimento ao pedido.
+              </p>
+            </div>
+          </div>
+
+
+          {/* SECTION 4: RESUMO DE VALORES */}
           <div className={`p-4 rounded-2xl border space-y-2 text-xs font-semibold ${
             isDark ? 'bg-slate-950 border-slate-800 text-slate-300' : 'bg-slate-100 border-slate-200 text-slate-700'
           }`}>
+
             <div className="flex justify-between">
               <span>Subtotal ({cartItemsCount} itens):</span>
               <span>R$ {subtotal.toFixed(2).replace('.', ',')}</span>

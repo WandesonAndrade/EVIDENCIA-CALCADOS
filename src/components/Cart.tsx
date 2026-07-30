@@ -54,7 +54,8 @@ export const Cart: React.FC = () => {
   const handleConfirmOrder = async (
     paymentMethod: 'Pix' | 'Cartão de Crédito' | 'Crediário da Loja', 
     deliveryType: 'Entrega em Caxias-MA' | 'Entrega para Outras Cidades' | 'Retirada na Loja',
-    installments?: number
+    installments?: number,
+    sellerName?: string
   ) => {
     if (!currentUser) return;
     try {
@@ -63,11 +64,13 @@ export const Cart: React.FC = () => {
         paymentMethod,
         deliveryType,
         installments,
+        sellerName,
         customerPhone: currentUser.telefone || '',
         deliveryAddress: deliveryType === 'Retirada na Loja' 
           ? 'Retirada na Loja: Rua Afonso Pena, 295 - Centro, Caxias - MA'
           : `${currentUser.endereco || ''}, Nº ${currentUser.numero || ''} - ${currentUser.bairro || ''}`
       });
+
       setCreatedOrder(order);
       setIsConfirmationModalOpen(false);
       window.open(order.whatsappUrl, '_blank');

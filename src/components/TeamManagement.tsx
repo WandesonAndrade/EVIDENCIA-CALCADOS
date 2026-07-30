@@ -31,7 +31,9 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
   const [emailInput, setEmailInput] = useState('');
   const [roleInput, setRoleInput] = useState<UserRole>('admin');
   const [tempPassInput, setTempPassInput] = useState('evidencia2026');
+  const [isSellerInput, setIsSellerInput] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
 
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState('');
@@ -79,12 +81,13 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
       await firebaseAuthService.registerTeamMember(
         nameInput.trim(),
         emailInput.trim(),
-        'admin'
+        'admin',
+        isSellerInput
       );
 
       addToast(
-        'Administrador Autorizado!',
-        `${nameInput.trim()} (${emailInput.trim()}) foi cadastrado como Administrador da loja. O acesso via Google já está liberado.`,
+        'Colaborador Autorizado!',
+        `${nameInput.trim()} (${emailInput.trim()}) foi cadastrado na equipe.${isSellerInput ? ' Ativo para vendas no checkout.' : ''}`,
         'success'
       );
 
@@ -92,9 +95,11 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
       setNameInput('');
       setEmailInput('');
       setRoleInput('admin');
+      setIsSellerInput(true);
 
       // Refresh list
       onRefreshUsers();
+
     } catch (err: any) {
       console.error(err);
       addToast('Erro no Cadastro', err.message || 'Não foi possível cadastrar o colaborador.', 'error');
@@ -245,6 +250,30 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
               </div>
             </div>
 
+            {/* STATUS DE VENDEDOR NO E-COMMERCE */}
+            <div className={`p-3.5 rounded-2xl border flex items-center justify-between space-x-3 transition-all ${
+              isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-slate-50 border-slate-200'
+            }`}>
+              <div className="flex items-center space-x-3">
+                <input
+                  type="checkbox"
+                  id="isSellerCheckbox"
+                  checked={isSellerInput}
+                  onChange={(e) => setIsSellerInput(e.target.checked)}
+                  className="w-4 h-4 rounded text-amber-400 focus:ring-amber-400 border-slate-700 cursor-pointer accent-amber-400"
+                />
+                <label htmlFor="isSellerCheckbox" className="cursor-pointer space-y-0.5">
+                  <span className={`text-xs font-bold block ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>
+                    👤 Exibir como Vendedor Ativo no E-Commerce
+                  </span>
+                  <span className="text-[10px] text-slate-400 block font-medium">
+                    Quando marcado, o colaborador aparecerá na lista de vendedores do checkout para ser selecionado pelos clientes.
+                  </span>
+                </label>
+              </div>
+            </div>
+
+
             {/* AVISO DE ACESSO UNIFICADO TOTAIS */}
             <div className={`p-4 rounded-2xl border flex items-center space-x-3 ${
               isDark ? 'bg-amber-400/5 border-amber-400/20 text-amber-300' : 'bg-amber-50 border-amber-200 text-amber-900'
@@ -330,16 +359,17 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
                 isDark ? 'border-slate-800 bg-slate-950/90 text-slate-400' : 'border-slate-200 bg-slate-100 text-slate-700'
               }`}>
                 <th className="p-4">Colaborador / E-mail</th>
-                <th className="p-4">Cargo / Nível de Acesso</th>
+                <th className="p-4">Cargo / Acesso</th>
+                <th className="p-4">Vendedor no Checkout</th>
                 <th className="p-4">Autorização Google</th>
-                <th className="p-4">Data de Cadastro</th>
+                <th className="p-4">Data Cadastro</th>
                 {isAdmin && <th className="p-4 text-right">Ações de Gestão</th>}
               </tr>
             </thead>
             <tbody className={`divide-y font-semibold ${isDark ? 'divide-slate-800/40' : 'divide-slate-200'}`}>
               {filteredTeam.length === 0 ? (
                 <tr>
-                  <td colSpan={isAdmin ? 5 : 4} className="p-8 text-center text-slate-400">
+                  <td colSpan={isAdmin ? 6 : 5} className="p-8 text-center text-slate-400">
                     <AlertCircle className="h-7 w-7 mx-auto text-slate-500 mb-2" />
                     <p className="font-bold text-xs">Nenhum membro da equipe encontrado para os filtros aplicados.</p>
                   </td>
@@ -347,6 +377,7 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
               ) : (
                 filteredTeam.map((member) => {
                   const isSelf = currentAdminUser?.uid === member.uid;
+                  const isSellerActive = member.isSeller !== false;
 
                   return (
                     <tr key={member.uid} className={`transition-colors ${isDark ? 'hover:bg-amber-400/[0.02]' : 'hover:bg-slate-50'}`}>
@@ -378,6 +409,40 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
                         </span>
                       </td>
 
+                      {/* Seller Status Toggle */}
+                      <td className="p-4">
+                        <button
+                          onClick={async () => {
+                            const newStatus = !isSellerActive;
+                            await firebaseAuthService.updateTeamMemberSellerStatus(member.uid, newStatus);
+                            addToast(
+                              'Status de Vendedor Atualizado',
+                              `${member.name} ${newStatus ? 'agora é exibido no checkout como Vendedor Ativo' : 'não será mais listado como vendedor no checkout'}.`,
+                              'success'
+                            );
+                            onRefreshUsers();
+                          }}
+                          className={`inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                            isSellerActive
+                              ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/30'
+                              : 'bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-700'
+                          }`}
+                          title="Clique para alternar se este colaborador deve aparecer na lista de vendedores do checkout"
+                        >
+                          {isSellerActive ? (
+                            <>
+                              <CheckCircle2 className="h-3 w-3 text-emerald-400" />
+                              <span>✓ Vendedor Ativo</span>
+                            </>
+                          ) : (
+                            <>
+                              <X className="h-3 w-3 text-slate-400" />
+                              <span>Apenas Gestão</span>
+                            </>
+                          )}
+                        </button>
+                      </td>
+
                       {/* Google Authorization Status Badge */}
                       <td className="p-4">
                         <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
@@ -385,6 +450,7 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
                           <span>✓ Liberado via Google</span>
                         </span>
                       </td>
+
 
 
                       {/* Created At */}
