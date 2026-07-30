@@ -386,6 +386,28 @@ export const ProductDetail: React.FC = () => {
               </p>
             </div>
 
+            {/* Badges de Estoque Sincronizado do MobLink ERP */}
+            <div className="flex items-center gap-2 pt-1">
+              {(p.stock ?? p.saldo_loja ?? 0) > 0 ? (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                  <span>Em Estoque ({(p.stock ?? p.saldo_loja)} { (p.stock ?? p.saldo_loja) === 1 ? 'par' : 'pares' })</span>
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
+                  <AlertCircle className="h-3.5 w-3.5 text-rose-500" />
+                  <span>Produto Esgotado</span>
+                </span>
+              )}
+
+              {p.moblinkSyncStatus === 'synced' && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20" title="Preço e Estoque Sincronizados com o MobLink ERP">
+                  <Zap className="h-3 w-3 text-amber-500" />
+                  <span>MobLink ERP</span>
+                </span>
+              )}
+            </div>
+
             {p.crediarioProprio && (
               <p className={`text-xs font-semibold mt-2 ${isDark ? 'text-amber-300/90' : 'text-amber-900'}`}>
                 Crediário Próprio em até <strong className="font-extrabold text-amber-400">6x de R$ {(p.price / 6).toFixed(2).replace('.', ',')} sem juros</strong> no carnê Evidência!

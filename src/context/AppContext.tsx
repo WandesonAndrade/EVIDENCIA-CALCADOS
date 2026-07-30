@@ -7,6 +7,7 @@ import { sincomAuthService } from '../lib/sincomAuth';
 import { firebaseAuthService } from '../services/firebaseAuthService';
 import { userDataService } from '../services/userDataService';
 import { orderService } from '../services/orderService';
+import { getProdutosMoblink, extractPrecoVistaMoblink, extractSaldoLojaMoblink } from '../services/moblinkProductsService';
 
 
 interface AppContextProps {
@@ -599,8 +600,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
   };
 
-  // Crossing helper: merges real-time Moblink API data (name, price, stock, sku, category)
-  // with local database enriched fields (photos/images, rich description) matched by ID.
+  // Crossing helper: merges real-time Moblink API data (name, price, stock, sku)
+  // with local database enriched fields (photos/images, rich description, custom categories) matched by ID.
   const mergeMoblinkWithLocalDb = (moblinkRawList: any[], dbProducts: Product[]): Product[] => {
     const dbMap = new Map<string, Product>();
     dbProducts.forEach(p => {
@@ -615,53 +616,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const rawFotoUri = item.foto_uri || item.foto_url || item.fotoUri || item.fotoUrl || item.imagem || item.image || item.foto;
       const defaultCover = rawFotoUri || dbRecord?.foto_uri || (dbRecord?.images && dbRecord.images.length > 0 ? dbRecord.images[0] : null) || 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?q=80&w=600&auto=format&fit=crop';
 
-      // 1. LIVE DATA FROM MOBLINK API
+      // 1. LIVE DATA FROM MOBLINK API (Preço à Vista e Estoque Real >= 0)
       const liveName = item.descricao || item.nome || item.name || dbRecord?.name || dbRecord?.descricao || `Produto ${mobId}`;
-      const rawPrecoFracao = item.preco_venda_fracao ?? item.preco_venda ?? item.preco ?? item.price;
-      const livePrecoFracao = typeof rawPrecoFracao === 'number' 
-        ? rawPrecoFracao 
-        : rawPrecoFracao ? Number(String(rawPrecoFracao).replace(',', '.')) : 0;
-      const livePrice = livePrecoFracao || Number(dbRecord?.price ?? 0);
+      
+      const apiPrecoVista = extractPrecoVistaMoblink(item);
+      const livePrice = apiPrecoVista > 0 ? apiPrecoVista : Number(dbRecord?.price ?? 0);
       const liveOriginalPrice = typeof item.precoOriginal === 'number' ? item.precoOriginal : item.precoOriginal ? Number(item.precoOriginal) : dbRecord?.originalPrice;
 
-      // Calculate Stock including saldos_lojas array / store balance
-      let liveStock = 0;
-      if (typeof item.saldo_loja === 'number') {
-        liveStock = item.saldo_loja;
-      } else if (Array.isArray(item.saldos_lojas)) {
-        liveStock = item.saldos_lojas.reduce((acc: number, curr: any) => acc + (Number(curr?.saldo ?? curr?.qtd ?? curr?.quantidade ?? curr?.saldo_loja) || 0), 0);
-      } else if (typeof item.saldos_lojas === 'number') {
-        liveStock = item.saldos_lojas;
-      } else if (typeof item.estoque === 'number') {
-        liveStock = item.estoque;
-      } else {
-        liveStock = Number(item.stock ?? dbRecord?.stock ?? 0);
-      }
+      // Estoque (trata valores negativos como 0)
+      const liveStock = extractSaldoLojaMoblink(item);
 
       const liveSku = item.codigo || item.sku || dbRecord?.sku || mobId;
-      const liveCategory = item.categoria || item.category || dbRecord?.category || 'Geral';
+      const liveCategory = dbRecord?.category && dbRecord.category !== 'Geral' ? dbRecord.category : (item.categoria || item.category || 'Geral');
       const liveBarcode = item.codigoBarras || item.barcode || item.codigo || dbRecord?.barcode;
       const liveBrand = item.marca || dbRecord?.brand || 'Evidência';
       const liveMaterial = item.material || dbRecord?.material;
       const liveColor = item.cor || dbRecord?.color;
       const liveGender = item.genero || dbRecord?.gender;
-      const liveSizes = item.tamanhos || dbRecord?.sizes || [];
+      const liveSizes = dbRecord?.sizes && dbRecord.sizes.length > 0 ? dbRecord.sizes : (item.tamanhos || []);
       const liveIdGrade = item.id_grade ?? item.gradeId ?? dbRecord?.id_grade ?? dbRecord?.gradeId;
 
       // Extract Complementary Description (compl_descr)
       const liveComplDescr = item.compl_descr || item.descr_compl || item.descricao_complementar || item.compl_descricao || dbRecord?.compl_descr || '';
 
-      // 2. ENRICHED MEDIA & DESCRIPTION FROM LOCAL DATABASE (FIREBASE) / MOBLINK API
+      // 2. PRESERVE ENRICHED MEDIA & DESCRIPTION FROM LOCAL DATABASE (FIREBASE) / LOJISTA
       let combinedImages: string[] = [];
-      if (rawFotoUri) {
-        combinedImages = [rawFotoUri, ...(dbRecord?.images?.filter(img => img !== rawFotoUri) || [])];
-      } else if (dbRecord?.images && dbRecord.images.length > 0) {
+      if (dbRecord?.images && dbRecord.images.length > 0) {
         combinedImages = dbRecord.images;
+      } else if (rawFotoUri) {
+        combinedImages = [rawFotoUri];
       } else {
         combinedImages = [defaultCover];
       }
 
-      // Adaptation for Complete Description (Descrição + Descrição Complementar)
+      // Adaptation for Complete Description (Preserva cadastro manual do lojista se existir)
       let adaptedFullDescription = '';
       if (dbRecord?.description && dbRecord.description.trim() !== '') {
         adaptedFullDescription = dbRecord.description;
@@ -685,16 +673,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         descricao_completa: adaptedFullDescription,
         price: livePrice, // Direct from Moblink API
         preco_venda: livePrice,
-        preco_venda_fracao: livePrecoFracao,
-        originalPrice: liveOriginalPrice, // Direct from Moblink API
-        stock: liveStock, // Direct from Moblink API
+        preco_venda_fracao: livePrice,
+        originalPrice: liveOriginalPrice,
+        stock: liveStock, // Direct from Moblink API (>= 0)
         saldo_loja: liveStock,
         saldos_lojas: item.saldos_lojas,
-        category: liveCategory, // Direct from Moblink API
+        category: liveCategory, // Preserved from lojista or Moblink
         onSale: Boolean((liveOriginalPrice && liveOriginalPrice > livePrice) || dbRecord?.onSale),
-        images: combinedImages,
-        foto_uri: rawFotoUri || dbRecord?.foto_uri || combinedImages[0],
-        description: adaptedFullDescription, // Direct from Local DB or Moblink Adaptation
+        images: combinedImages, // Preserved from lojista
+        foto_uri: dbRecord?.foto_uri || rawFotoUri || combinedImages[0],
+        description: adaptedFullDescription, // Preserved from lojista
         sizes: liveSizes,
         id_grade: liveIdGrade,
         gradeId: liveIdGrade,
@@ -718,15 +706,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Sync MobLink products directly from API and cross with DB records
   const syncProductsFromMoblinkApi = async () => {
     try {
-      const res = await fetch('/api/v1/produtos?pdf=false', { headers: { 'Accept': 'application/json' } });
-      if (!res.ok) return;
-      const data = await res.json();
-      const rawList = Array.isArray(data) ? data : (data.produtos || data.data || []);
-      if (!Array.isArray(rawList) || rawList.length === 0) return;
+      const moblinkRawList = await getProdutosMoblink();
+      if (!moblinkRawList || moblinkRawList.length === 0) return;
 
       // Get current database products to merge
       const currentDbProducts = products.length > 0 ? products : getLocalProducts();
-      const crossedCatalog = mergeMoblinkWithLocalDb(rawList, currentDbProducts);
+      const crossedCatalog = mergeMoblinkWithLocalDb(moblinkRawList, currentDbProducts);
 
       // Save each crossed item into Firestore to keep database in sync
       for (const prod of crossedCatalog) {
@@ -1707,29 +1692,62 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const syncMoblinkStock = async (): Promise<{ success: boolean; message: string; updatedCount?: number }> => {
-    // Generate sync batch from current products that have SKUs or Moblink IDs
-    const syncPayload = products.map(p => ({
-      sku: p.sku || p.modelOrSku || p.id,
-      moblinkId: p.moblinkId || p.id,
-      name: p.name,
-      stock: Math.floor(Math.random() * 25) + 3, // Simulated live pull from Moblink API
-      sizeStockMap: p.sizes ? p.sizes.reduce((acc: any, sz) => ({ ...acc, [String(sz)]: Math.floor(Math.random() * 8) + 1 }), {}) : { "Único": 10 }
-    }));
-
-    const result = await importMoblinkStockBatch(syncPayload);
-    
-    // Also post to backend server
     try {
-      await fetch('/api/moblink/sync-batch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items: syncPayload, source: 'manual_api' })
-      });
-    } catch (e) {
-      // server call optional
-    }
+      const moblinkRawList = await getProdutosMoblink();
+      if (!moblinkRawList || moblinkRawList.length === 0) {
+        return { success: false, message: 'Nenhum produto retornado da API do Moblink ERP.' };
+      }
 
-    return result;
+      const currentDbProducts = products.length > 0 ? products : getLocalProducts();
+      const crossedCatalog = mergeMoblinkWithLocalDb(moblinkRawList, currentDbProducts);
+
+      // Save each crossed item into Firestore to keep database in sync
+      for (const prod of crossedCatalog) {
+        const docRef = doc(db, 'products', prod.id);
+        await setDoc(docRef, prod, { merge: true });
+      }
+
+      setProducts(crossedCatalog);
+      saveLocalProducts(crossedCatalog);
+
+      const nowIso = new Date().toISOString();
+      await updateMoblinkConfig({ lastSyncAt: nowIso });
+
+      // Add to audit logs
+      const newLog: MoblinkSyncLog = {
+        id: `log-${Date.now()}`,
+        timestamp: nowIso,
+        source: 'api',
+        status: 'success',
+        message: `Sincronização com API MobLink ERP concluída: ${crossedCatalog.length} produtos atualizados com estoque e preços à vista.`,
+        itemCount: crossedCatalog.length,
+        items: crossedCatalog.map(p => ({
+          sku: p.sku || p.id,
+          name: p.name,
+          stock: p.stock,
+          status: 'updated'
+        }))
+      };
+
+      setMoblinkLogs(prev => [newLog, ...prev]);
+      try {
+        localStorage.setItem('evidencia_moblink_logs', JSON.stringify([newLog, ...moblinkLogs]));
+      } catch (e) {
+        // storage fallback
+      }
+
+      return {
+        success: true,
+        message: `${crossedCatalog.length} produtos sincronizados com o estoque e preços à vista do MobLink ERP com sucesso!`,
+        updatedCount: crossedCatalog.length
+      };
+    } catch (err: any) {
+      console.error("Erro na sincronização MobLink:", err);
+      return {
+        success: false,
+        message: err.message || 'Erro ao sincronizar com a API do MobLink ERP.'
+      };
+    }
   };
 
   return (
