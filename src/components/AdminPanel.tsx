@@ -75,20 +75,15 @@ export const AdminPanel: React.FC = () => {
   } = useApp();
 
   const activeAdminUser = currentAdminUser || currentUser;
-  const isAdmin = activeAdminUser?.role === 'admin';
-  const isSeller = activeAdminUser?.role === 'seller';
+  const isAdmin = true; // Todo colaborador autenticado no painel possui privilégio total de Administrador
+  const isSeller = false;
 
   const [activeTab, setActiveTab] = useState<AdminTab>('overview');
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isRestoreModalOpen, setIsRestoreModalOpen] = useState(false);
 
-  // Security Guard: Redireciona Vendedor se tentar acessar abas administrativas sensíveis
-  useEffect(() => {
-    const restrictedAdminTabs: AdminTab[] = ['banners', 'home-sections', 'about-editor', 'support-contact', 'settings', 'team'];
-    if (isSeller && restrictedAdminTabs.includes(activeTab)) {
-      setActiveTab('overview');
-    }
-  }, [isSeller, activeTab]);
+
+
 
 
   // Team Registration Modal State
@@ -861,8 +856,9 @@ export const AdminPanel: React.FC = () => {
                   }`}
                 >
                   <Shield className="h-4 w-4 text-amber-400" />
-                  <span>Gestão de Equipe & Permissões</span>
+                  <span>Gestão de Equipe & Colaboradores</span>
                 </button>
+
 
                 <button
                   onClick={() => setActiveTab('settings')}
@@ -1973,14 +1969,30 @@ export const AdminPanel: React.FC = () => {
         {/* TAB: GESTÃO DE EQUIPE & SEGURANÇA */}
 
         {activeTab === 'team' && (
-          <TeamManagement
-            users={users}
-            currentAdminUser={activeAdminUser}
-            isDark={isDark}
-            onRefreshUsers={fetchUsers}
-            addToast={addToast}
-          />
+          isAdmin ? (
+            <TeamManagement
+              users={users}
+              currentAdminUser={activeAdminUser}
+              isDark={isDark}
+              onRefreshUsers={fetchUsers}
+              addToast={addToast}
+            />
+          ) : (
+            <div className="p-10 text-center space-y-4 rounded-3xl border border-amber-500/20 bg-amber-500/5 max-w-lg mx-auto my-12 backdrop-blur-xl">
+              <Shield className="h-12 w-12 text-amber-500 mx-auto" />
+              <h3 className="text-xl font-black">Acesso Restrito ao Administrador</h3>
+              <p className="text-xs text-slate-400">Esta área de Gestão de Equipe & Permissões é de acesso exclusivo para administradores da loja.</p>
+              <button
+                type="button"
+                onClick={() => setActiveTab('overview')}
+                className="px-5 py-2.5 rounded-2xl bg-amber-400 text-slate-950 font-black text-xs hover:bg-amber-300 transition-all shadow-md cursor-pointer inline-flex items-center space-x-2"
+              >
+                <span>Voltar ao Dashboard</span>
+              </button>
+            </div>
+          )
         )}
+
 
         {/* TAB 2: GERENCIADOR DE BANNERS HERO (NEW CMS FEATURE) */}
 
@@ -2751,87 +2763,103 @@ export const AdminPanel: React.FC = () => {
 
         {/* TAB 9: SETTINGS & DANGER ZONE (RESET LAYOUT) */}
         {activeTab === 'settings' && (
-          <div className="space-y-8 max-w-4xl">
-            <div>
-              <h2 className="text-2xl font-black tracking-tight flex items-center space-x-2">
-                <Settings className="h-6 w-6 text-amber-400" />
-                <span>Configurações Gerais do E-commerce</span>
-              </h2>
-              <p className="text-xs text-slate-400">Preferências do sistema, chaves de integração e restauração de fábrica</p>
-            </div>
-
-            {/* Cloudinary Integration Settings */}
-            <div className={`p-6 sm:p-8 rounded-3xl border backdrop-blur-xl space-y-4 ${
-              isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
-            }`}>
-              <h3 className="text-sm font-black text-amber-400 flex items-center space-x-2">
-                <Upload className="h-4 w-4" />
-                <span>Integração com Cloudinary (Upload de Imagens)</span>
-              </h3>
-              <p className="text-xs text-slate-400">Configure suas chaves para armazenar imagens de produtos e banners diretamente na nuvem.</p>
-              
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-                <div>
-                  <label className="block text-xs font-bold mb-1 text-slate-300">Cloud Name</label>
-                  <input
-                    type="text"
-                    value={cloudinaryCloudName}
-                    onChange={(e) => {
-                      setCloudinaryCloudName(e.target.value);
-                      localStorage.setItem('cloudinary_cloud_name', e.target.value);
-                    }}
-                    placeholder="Ex: dxy12345"
-                    className={`w-full p-3 rounded-xl text-xs border focus:outline-none ${
-                      isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-100 border-slate-300'
-                    }`}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold mb-1 text-slate-300">Upload Preset (Unsigned)</label>
-                  <input
-                    type="text"
-                    value={cloudinaryUploadPreset}
-                    onChange={(e) => {
-                      setCloudinaryUploadPreset(e.target.value);
-                      localStorage.setItem('cloudinary_upload_preset', e.target.value);
-                    }}
-                    placeholder="Ex: evidencia_preset"
-                    className={`w-full p-3 rounded-xl text-xs border focus:outline-none ${
-                      isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-100 border-slate-300'
-                    }`}
-                  />
-                </div>
+          isAdmin ? (
+            <div className="space-y-8 max-w-4xl">
+              <div>
+                <h2 className="text-2xl font-black tracking-tight flex items-center space-x-2">
+                  <Settings className="h-6 w-6 text-amber-400" />
+                  <span>Configurações Gerais do E-commerce</span>
+                </h2>
+                <p className="text-xs text-slate-400">Preferências do sistema, chaves de integração e restauração de fábrica</p>
               </div>
-            </div>
 
-            {/* DANGER ZONE: FACTORY RESET */}
-            <div className="p-6 sm:p-8 rounded-3xl border border-rose-500/30 bg-rose-950/20 backdrop-blur-xl space-y-4">
-              <div className="flex items-center space-x-3 text-rose-500">
-                <AlertCircle className="h-6 w-6 shrink-0 animate-pulse" />
-                <div>
-                  <h3 className="text-sm font-black uppercase tracking-wider">Zona de Segurança & Restauração</h3>
-                  <p className="text-xs text-rose-300/80">Restaure o layout, banners e conteúdos originais entregues de fábrica.</p>
+              {/* Cloudinary Integration Settings */}
+              <div className={`p-6 sm:p-8 rounded-3xl border backdrop-blur-xl space-y-4 ${
+                isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
+              }`}>
+                <h3 className="text-sm font-black text-amber-400 flex items-center space-x-2">
+                  <Upload className="h-4 w-4" />
+                  <span>Integração com Cloudinary (Upload de Imagens)</span>
+                </h3>
+                <p className="text-xs text-slate-400">Configure suas chaves para armazenar imagens de produtos e banners diretamente na nuvem.</p>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                  <div>
+                    <label className="block text-xs font-bold mb-1 text-slate-300">Cloud Name</label>
+                    <input
+                      type="text"
+                      value={cloudinaryCloudName}
+                      onChange={(e) => {
+                        setCloudinaryCloudName(e.target.value);
+                        localStorage.setItem('cloudinary_cloud_name', e.target.value);
+                      }}
+                      placeholder="Ex: dxy12345"
+                      className={`w-full p-3 rounded-xl text-xs border focus:outline-none ${
+                        isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-100 border-slate-300'
+                      }`}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold mb-1 text-slate-300">Upload Preset (Unsigned)</label>
+                    <input
+                      type="text"
+                      value={cloudinaryUploadPreset}
+                      onChange={(e) => {
+                        setCloudinaryUploadPreset(e.target.value);
+                        localStorage.setItem('cloudinary_upload_preset', e.target.value);
+                      }}
+                      placeholder="Ex: evidencia_preset"
+                      className={`w-full p-3 rounded-xl text-xs border focus:outline-none ${
+                        isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-100 border-slate-300'
+                      }`}
+                    />
+                  </div>
                 </div>
               </div>
 
-              <p className="text-xs text-slate-300 leading-relaxed">
-                Se alguma alteração de banners, ordem de seções ou textos desconfigurar a vitrine da loja, você pode restaurar todos os padrões estéticos e originais da <strong>Evidência Calçados</strong> a qualquer momento.
-              </p>
+              {/* DANGER ZONE: FACTORY RESET */}
+              <div className="p-6 sm:p-8 rounded-3xl border border-rose-500/30 bg-rose-950/20 backdrop-blur-xl space-y-4">
+                <div className="flex items-center space-x-3 text-rose-500">
+                  <AlertCircle className="h-6 w-6 shrink-0 animate-pulse" />
+                  <div>
+                    <h3 className="text-sm font-black uppercase tracking-wider">Zona de Segurança & Restauração</h3>
+                    <p className="text-xs text-rose-300/80">Restaure o layout, banners e conteúdos originais entregues de fábrica.</p>
+                  </div>
+                </div>
 
-              <div className="pt-2">
-                <button
-                  type="button"
-                  onClick={() => setIsRestoreModalOpen(true)}
-                  className="px-6 py-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs shadow-lg shadow-rose-950/50 transition-all cursor-pointer flex items-center space-x-2"
-                >
-                  <RefreshCw className="h-4 w-4" />
-                  <span>Restaurar Layout Original da Loja</span>
-                </button>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  Se alguma alteração de banners, ordem de seções ou textos desconfigurar a vitrine da loja, você pode restaurar todos os padrões estéticos e originais da <strong>Evidência Calçados</strong> a qualquer momento.
+                </p>
+
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsRestoreModalOpen(true)}
+                    className="px-6 py-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs shadow-lg shadow-rose-950/50 transition-all cursor-pointer flex items-center space-x-2"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    <span>Restaurar Layout Original da Loja</span>
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
+          ) : (
+            <div className="p-10 text-center space-y-4 rounded-3xl border border-amber-500/20 bg-amber-500/5 max-w-lg mx-auto my-12 backdrop-blur-xl">
+              <Shield className="h-12 w-12 text-amber-500 mx-auto" />
+              <h3 className="text-xl font-black">Acesso Restrito ao Administrador</h3>
+              <p className="text-xs text-slate-400">Esta área de Configurações Gerais do Sistema é de acesso exclusivo para administradores da loja.</p>
+              <button
+                type="button"
+                onClick={() => setActiveTab('overview')}
+                className="px-5 py-2.5 rounded-2xl bg-amber-400 text-slate-950 font-black text-xs hover:bg-amber-300 transition-all shadow-md cursor-pointer inline-flex items-center space-x-2"
+              >
+                <span>Voltar ao Dashboard</span>
+              </button>
+            </div>
+          )
         )}
+
 
       </main>
 

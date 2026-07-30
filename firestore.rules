@@ -35,13 +35,13 @@ service cloud.firestore {
 
     // Regra para Usuários e suas subcoleções (carrinho, favoritos, etc.)
     match /users/{userId} {
-      allow read: if isAuth();
-      allow write: if (isAuth() && request.auth.uid == userId) || isTeamMember();
+      allow read, write: if isAuth();
       
       match /{subcollection}/{document=**} {
-        allow read, write: if (isAuth() && request.auth.uid == userId) || isTeamMember();
+        allow read, write: if isAuth();
       }
     }
+
 
     // Regra para Solicitações de Crediário Próprio
     match /creditRequests/{requestId} {

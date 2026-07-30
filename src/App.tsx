@@ -51,10 +51,13 @@ export const isProfileIncomplete = (user: any): boolean => {
 
 
 const AppContent: React.FC = () => {
-  const { currentView, currentUser, theme, homeSections } = useApp();
+  const { currentView, currentUser, currentAdminUser, theme, homeSections } = useApp();
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
   const heroSection = homeSections?.find(s => s.id === 'hero');
+  const activeAdminUser = currentAdminUser || currentUser;
+  const hasAdminAccess = Boolean(activeAdminUser && activeAdminUser.role !== 'customer');
+
 
   React.useEffect(() => {
     const handleOpen = () => setIsProfileModalOpen(true);
@@ -91,8 +94,8 @@ const AppContent: React.FC = () => {
       case 'admin-login':
         return <AuthScreen mode="admin" />;
       case 'admin':
-        // Protect administrative route
-        if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'seller')) {
+        // Protect administrative route (allows admin & seller)
+        if (!hasAdminAccess) {
           return <AuthScreen mode="admin" />;
         }
         return <AdminPanel />;
@@ -108,7 +111,6 @@ const AppContent: React.FC = () => {
 
   const showIncompleteWarning = isProfileIncomplete(currentUser);
   const isAdminView = currentView === 'admin';
-  const hasAdminAccess = currentUser && (currentUser.role === 'admin' || currentUser.role === 'seller');
 
   if (isAdminView && hasAdminAccess) {
     return (
@@ -121,6 +123,7 @@ const AppContent: React.FC = () => {
       </div>
     );
   }
+
 
   return (
     <div className={`min-h-screen transition-colors duration-300 font-sans flex flex-col justify-between selection:bg-primary selection:text-white ${
