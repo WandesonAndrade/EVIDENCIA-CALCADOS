@@ -1,17 +1,37 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { User, Shield, Briefcase, Mail, Chrome, Sparkles, ChevronRight, ArrowLeft } from 'lucide-react';
+import { User, Shield, Briefcase, Mail, Chrome, Sparkles, ChevronRight, ArrowLeft, ShoppingBag, LogOut, ArrowRight } from 'lucide-react';
 import { BrandLogo } from './BrandLogo';
 import { AdminLogin } from './AdminLogin';
+import { UserProfile } from '../types';
 
 interface AuthScreenProps {
   mode?: 'customer' | 'admin';
 }
 
-
 export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => {
-  const { loginUser, registerUser, loginWithGoogle, loginWithGoogleSimulated, setCurrentView, theme } = useApp();
+  const { 
+    currentUser, 
+    currentAdminUser, 
+    loginUser, 
+    registerUser, 
+    loginWithGoogle, 
+    loginWithGoogleSimulated, 
+    logout, 
+    setCurrentView, 
+    theme 
+  } = useApp();
+
   const isDark = theme === 'dark';
+
+  const activeUser = currentAdminUser || currentUser;
+  const isUserCollaborator = (u: UserProfile | null): boolean => {
+    if (!u) return false;
+    return Boolean(u.role === 'admin' || u.role === 'seller' || u.isAuthorizedCollaborator);
+  };
+
+  const [authorizedUser, setAuthorizedUser] = useState<UserProfile | null>(activeUser);
+  const [showChoiceScreen, setShowChoiceScreen] = useState<boolean>(isUserCollaborator(activeUser));
 
   const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [email, setEmail] = useState('');
@@ -25,6 +45,15 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
   const [simEmail, setSimEmail] = useState('WandesonAndrade33@gmail.com');
   const [simSeed, setSimSeed] = useState('Wandeson');
 
+  const processPostAuth = (user: UserProfile | null) => {
+    if (isUserCollaborator(user)) {
+      setAuthorizedUser(user);
+      setShowChoiceScreen(true);
+    } else {
+      setCurrentView('home');
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
@@ -36,38 +65,19 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
 
     try {
       setIsLoading(true);
-      if (mode === 'customer') {
-        if (isRegisterMode) {
-          if (!name) {
-            setErrorMessage('Por favor, preencha o seu nome completo.');
-            setIsLoading(false);
-            return;
-          }
-          await registerUser(name, email, 'customer');
-        } else {
-          const loggedUser = await loginUser(email);
-          if (!loggedUser) {
-            // Auto register to keep UX super simple
-            await registerUser(email.split('@')[0], email, 'customer');
-          }
+      let loggedUser = await loginUser(email);
+      if (!loggedUser && isRegisterMode) {
+        if (!name) {
+          setErrorMessage('Por favor, preencha o seu nome completo.');
+          setIsLoading(false);
+          return;
         }
-        setCurrentView('home');
-      } else {
-        // Admin / Seller Login
-        const loggedUser = await loginUser(email);
-        if (loggedUser && (loggedUser.role === 'admin' || loggedUser.role === 'seller')) {
-          setCurrentView('admin');
-        } else if (email === 'admin@evidencia.com' || email === 'vendedor@evidencia.com') {
-          await registerUser(
-            email === 'admin@evidencia.com' ? 'Admin Evidência' : 'Carlos Vendedor',
-            email,
-            email === 'admin@evidencia.com' ? 'admin' : 'seller'
-          );
-          setCurrentView('admin');
-        } else {
-          setErrorMessage('Credenciais incorretas ou este perfil não possui privilégios administrativos.');
-        }
+        loggedUser = await registerUser(name, email, 'customer');
+      } else if (!loggedUser) {
+        loggedUser = await registerUser(email.split('@')[0], email, 'customer');
       }
+
+      processPostAuth(loggedUser);
     } catch (error) {
       console.error(error);
       setErrorMessage('Ocorreu um erro ao processar. Verifique sua conexão.');
@@ -82,7 +92,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
     try {
       const user = await loginWithGoogle();
       if (user) {
-        setCurrentView('home');
+        processPostAuth(user);
       }
     } catch (error: any) {
       console.error("Google popup error", error);
@@ -103,8 +113,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
     setErrorMessage('');
     try {
       const avatarUrl = `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(simSeed)}`;
-      await loginWithGoogleSimulated(simName, simEmail, avatarUrl);
-      setCurrentView('home');
+      const user = await loginWithGoogleSimulated(simName, simEmail, avatarUrl);
+      processPostAuth(user);
     } catch (e) {
       console.error(e);
       setErrorMessage('Falha ao simular login do Google.');
@@ -113,26 +123,138 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
     }
   };
 
-  const handleQuickLogin = async (testRole: 'admin' | 'seller') => {
-    setIsLoading(true);
-    setErrorMessage('');
-    try {
-      const testName = testRole === 'admin' ? 'Admin Evidência' : 'Carlos Vendedor';
-      const testEmail = testRole === 'admin' ? 'admin@evidencia.com' : 'vendedor@evidencia.com';
-      await registerUser(testName, testEmail, testRole);
-      setCurrentView('admin');
-    } catch (e) {
-      console.error("Quick login failed:", e);
-      setErrorMessage('Erro ao realizar login rápido administrativo.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  // --- SELETOR INTERMEDIÁRIO DE DESTINO PARA COLABORADORES AUTORIZADOS ---
+  if (showChoiceScreen && authorizedUser) {
+    return (
+      <div id="collaborator-choice-page" className="max-w-2xl mx-auto px-4 py-12 sm:py-16 animate-in fade-in duration-300">
+        <div className={`rounded-3xl border backdrop-blur-2xl shadow-2xl p-8 sm:p-10 space-y-8 text-center ${
+          isDark ? 'bg-slate-900/90 border-slate-800 text-white shadow-black/60' : 'bg-white border-slate-200/90 text-slate-800 shadow-xl'
+        }`}>
+          
+          {/* Header Greeting */}
+          <div className="space-y-3">
+            <div className="flex justify-center pb-1">
+              <BrandLogo size="md" />
+            </div>
 
-  // --- ISOLATED INTERFACE FOR ADMIN LOGIN ---
+            <div className="inline-flex items-center space-x-2 px-3.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-amber-400/10 text-amber-500 dark:text-amber-300 border border-amber-400/30">
+              <Shield className="h-3.5 w-3.5 text-amber-400" />
+              <span>Colaborador Autorizado • Evidência Calçados</span>
+            </div>
+
+            <div className="space-y-1">
+              <h2 className={`text-2xl sm:text-3xl font-black tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                Olá, {authorizedUser.name || 'Colaborador'}! 👋
+              </h2>
+              <p className={`text-xs sm:text-sm max-w-md mx-auto leading-relaxed font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                Sua conta (<strong>{authorizedUser.email}</strong>) possui autorização de equipe. Escolha como deseja navegar no sistema:
+              </p>
+            </div>
+          </div>
+
+          {/* 2 MAIN NAVIGATION CARDS */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            
+            {/* CARD 1: ACESSAR A LOJA */}
+            <div
+              onClick={() => setCurrentView('home')}
+              className={`p-6 rounded-3xl border text-left space-y-4 transition-all duration-300 cursor-pointer group hover:scale-[1.02] shadow-md ${
+                isDark 
+                  ? 'bg-slate-950/80 border-slate-800 hover:border-emerald-500/50 hover:shadow-emerald-500/10' 
+                  : 'bg-slate-50 border-slate-200 hover:border-emerald-500/50 hover:bg-white hover:shadow-xl'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <div className="p-3 rounded-2xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 group-hover:scale-110 transition-transform">
+                  <ShoppingBag className="h-6 w-6 text-emerald-400" />
+                </div>
+                <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                  E-Commerce
+                </span>
+              </div>
+
+              <div className="space-y-1">
+                <h3 className={`text-base font-black tracking-tight group-hover:text-emerald-400 transition-colors ${
+                  isDark ? 'text-white' : 'text-slate-900'
+                }`}>
+                  Acessar a Loja
+                </h3>
+                <p className={`text-xs leading-relaxed font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                  Navegue pela vitrine como cliente, consulte produtos, estoque e simule pedidos.
+                </p>
+              </div>
+
+              <div className="pt-1 flex items-center text-xs font-black uppercase tracking-wider text-emerald-400 group-hover:translate-x-1 transition-transform">
+                <span>Ir para a Loja</span>
+                <ChevronRight className="h-4 w-4 ml-1" />
+              </div>
+            </div>
+
+            {/* CARD 2: PAINEL ADMINISTRATIVO */}
+            <div
+              onClick={() => setCurrentView('admin')}
+              className={`p-6 rounded-3xl border text-left space-y-4 transition-all duration-300 cursor-pointer group hover:scale-[1.02] shadow-md ${
+                isDark 
+                  ? 'bg-slate-950/80 border-slate-800 hover:border-amber-400/50 hover:shadow-amber-400/10' 
+                  : 'bg-slate-50 border-slate-200 hover:border-amber-500/50 hover:bg-white hover:shadow-xl'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <div className="p-3 rounded-2xl bg-amber-400/10 text-amber-400 border border-amber-400/20 group-hover:scale-110 transition-transform">
+                  <Shield className="h-6 w-6 text-amber-400" />
+                </div>
+                <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-400/10 text-amber-400 border border-amber-400/30">
+                  Gestão Total
+                </span>
+              </div>
+
+              <div className="space-y-1">
+                <h3 className={`text-base font-black tracking-tight group-hover:text-amber-400 transition-colors ${
+                  isDark ? 'text-white' : 'text-slate-900'
+                }`}>
+                  Painel Administrativo
+                </h3>
+                <p className={`text-xs leading-relaxed font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                  Gerencie produtos, estoque ERP, vendas, relatórios, crediário e equipe.
+                </p>
+              </div>
+
+              <div className="pt-1 flex items-center text-xs font-black uppercase tracking-wider text-amber-400 group-hover:translate-x-1 transition-transform">
+                <span>Abrir Painel Admin</span>
+                <ChevronRight className="h-4 w-4 ml-1" />
+              </div>
+            </div>
+
+          </div>
+
+          {/* Logout / Switch Account Option */}
+          <div className={`pt-4 border-t flex justify-center ${isDark ? 'border-slate-800/60' : 'border-slate-200'}`}>
+            <button
+              type="button"
+              onClick={() => {
+                logout();
+                setShowChoiceScreen(false);
+                setAuthorizedUser(null);
+              }}
+              className={`text-xs font-bold transition-colors cursor-pointer flex items-center space-x-1.5 ${
+                isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <LogOut className="h-3.5 w-3.5 text-slate-400" />
+              <span>Sair desta conta ({authorizedUser.email})</span>
+            </button>
+          </div>
+
+        </div>
+      </div>
+    );
+  }
+
+  // --- ISOLATED INTERFACE FOR ADMIN CREDENTIAL LOGIN ---
   if (mode === 'admin') {
     return <AdminLogin />;
   }
+
 
   // --- ISOLATED INTERFACE FOR CUSTOMER LOGIN (100% FIREBASE GOOGLE FOCUSED) ---
 
