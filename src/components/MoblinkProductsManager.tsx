@@ -70,7 +70,7 @@ interface MoblinkRawProduct {
 }
 
 export const MoblinkProductsManager: React.FC = () => {
-  const { products, addProduct, updateProduct, theme } = useApp();
+  const { products, addProduct, updateProduct, deleteProduct, theme } = useApp();
 
   const [moblinkList, setMoblinkList] = useState<MoblinkRawProduct[]>(() => {
     return products.map(dbProd => ({
@@ -102,11 +102,21 @@ export const MoblinkProductsManager: React.FC = () => {
   const PAGE_SIZE = 50;
   const [currentPage, setCurrentPage] = useState(1);
 
-  // Selected Product for Enrichment Form
+  // Selected Product for Full Edit Form
   const [selectedProduct, setSelectedProduct] = useState<MoblinkRawProduct | null>(null);
   const [images, setImages] = useState<string[]>([]);
   const [newImageUrl, setNewImageUrl] = useState('');
   const [richDescription, setRichDescription] = useState('');
+
+  // Editable Product Fields State
+  const [editName, setEditName] = useState('');
+  const [editSku, setEditSku] = useState('');
+  const [editPrice, setEditPrice] = useState<number | string>('');
+  const [editOriginalPrice, setEditOriginalPrice] = useState<number | string>('');
+  const [editStock, setEditStock] = useState<number | string>('');
+  const [editCategory, setEditCategory] = useState('');
+  const [editVisible, setEditVisible] = useState(true);
+  const [editSizes, setEditSizes] = useState('');
   
   // Feedback and Upload state
   const [isUploading, setIsUploading] = useState(false);
@@ -170,13 +180,34 @@ export const MoblinkProductsManager: React.FC = () => {
     return products.find(p => p.id === moblinkId || p.moblinkId === moblinkId);
   };
 
-  // Open Enrichment Modal for a product
+  // Open Full Edit Modal for a product
   const handleOpenEnrichmentForm = (item: MoblinkRawProduct) => {
     const mobId = String(item.id || item.moblinkId || 'MOB-000');
     const existing = getExistingDbProduct(mobId);
 
     setSelectedProduct(item);
     setFeedback(null);
+
+    // Initialize Edit Form Input States
+    const initialName = existing?.name || item.nome || item.name || item.descricao || '';
+    const initialSku = existing?.sku || item.sku || item.codigo || mobId;
+    const initialPrice = existing?.price ?? extractPrecoVistaMoblink(item) ?? item.preco_venda ?? item.price ?? 0;
+    const initialOrigPrice = existing?.originalPrice ?? item.precoOriginal ?? '';
+    const initialStock = existing?.stock ?? extractSaldoLojaMoblink(item) ?? 0;
+    const initialCategory = existing?.category || item.categoria || item.category || 'Geral';
+    const initialVisible = existing?.visible ?? true;
+    const initialSizes = existing?.sizes && existing.sizes.length > 0
+      ? existing.sizes.join(', ')
+      : (item.tamanhos ? item.tamanhos.join(', ') : '37, 38, 39, 40, 41, 42, 43');
+
+    setEditName(initialName);
+    setEditSku(initialSku);
+    setEditPrice(initialPrice);
+    setEditOriginalPrice(initialOrigPrice || '');
+    setEditStock(initialStock);
+    setEditCategory(initialCategory);
+    setEditVisible(initialVisible);
+    setEditSizes(initialSizes);
 
     if (existing && existing.images && existing.images.length > 0) {
       const rawFoto = item.foto_uri || item.foto_url || item.foto || item.imagem || item.image;
@@ -189,7 +220,7 @@ export const MoblinkProductsManager: React.FC = () => {
     } else {
       const rawFoto = item.foto_uri || item.foto_url || item.foto || item.imagem || item.image;
       const complDescr = item.compl_descr || item.descr_compl || item.descricao_completa;
-      const baseDescr = item.nome || item.name || item.descricao || `Produto ${mobId}`;
+      const baseDescr = initialName || `Produto ${mobId}`;
       setImages(rawFoto ? [rawFoto] : []);
       setRichDescription(
         complDescr 
@@ -205,6 +236,14 @@ export const MoblinkProductsManager: React.FC = () => {
     setImages([]);
     setRichDescription('');
     setNewImageUrl('');
+    setEditName('');
+    setEditSku('');
+    setEditPrice('');
+    setEditOriginalPrice('');
+    setEditStock('');
+    setEditCategory('');
+    setEditVisible(true);
+    setEditSizes('');
     setFeedback(null);
   };
 
@@ -293,47 +332,46 @@ export const MoblinkProductsManager: React.FC = () => {
     }
   };
 
-  // Save media and rich description using MobLink ID as primary key
+  // Save full product details (name, sku, price, stock, category, sizes, media & description)
   const handleSaveProductEnrichment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedProduct) return;
 
     const mobId = String(selectedProduct.id || selectedProduct.moblinkId || 'MOB-000');
-    const productName = selectedProduct.nome || selectedProduct.name || `Produto ${mobId}`;
-    
-    // Extração rigorosa de Preço à Vista e Estoque (>= 0)
-    const productPrice = extractPrecoVistaMoblink(selectedProduct) || Number(selectedProduct.preco_venda || selectedProduct.preco || selectedProduct.price || 299.9);
-    const productStock = extractSaldoLojaMoblink(selectedProduct);
-    
-    const categoryName = selectedProduct.categoria || selectedProduct.category || 'Sapatos Sociais';
-    const sizesGrade = selectedProduct.tamanhos || [37, 38, 39, 40, 41, 42, 43];
-    const skuCode = selectedProduct.sku || mobId;
+    const productName = editName.trim() || selectedProduct.nome || selectedProduct.name || `Produto ${mobId}`;
+    const productSku = editSku.trim() || mobId;
+    const productPrice = Math.max(0, Number(editPrice) || 0);
+    const productOriginalPrice = Number(editOriginalPrice) > 0 ? Number(editOriginalPrice) : undefined;
+    const productStock = Math.max(0, Number(editStock) || 0);
+    const categoryName = editCategory.trim() || 'Geral';
+    const parsedSizes = editSizes.split(',').map(s => s.trim()).filter(s => s !== '');
 
     const defaultCover = 'https://images.unsplash.com/photo-1614252235316-8c857d38b5f4?auto=format&fit=crop&q=80&w=800';
     const finalImages = images.length > 0 ? images : [defaultCover];
 
     const updatedProductPayload: Product = {
-      id: mobId, // Primary key reference is Moblink ID
+      id: mobId,
       moblinkId: mobId,
       name: productName,
+      descricao: productName,
+      sku: productSku,
       description: richDescription || selectedProduct.compl_descr || selectedProduct.descricaoMoblink || selectedProduct.descricao || 'Produto com garantia de qualidade Evidência Calçados.',
       descricao_completa: richDescription || selectedProduct.compl_descr || selectedProduct.descricaoMoblink || selectedProduct.descricao || 'Produto com garantia de qualidade Evidência Calçados.',
       compl_descr: selectedProduct.compl_descr || selectedProduct.descr_compl,
       price: productPrice,
       preco_venda: productPrice,
       preco_venda_fracao: productPrice,
-      originalPrice: selectedProduct.precoOriginal,
-      onSale: false,
+      originalPrice: productOriginalPrice,
+      onSale: Boolean(productOriginalPrice && productOriginalPrice > productPrice),
       category: categoryName,
       images: finalImages,
-      sizes: sizesGrade,
+      sizes: parsedSizes.length > 0 ? parsedSizes : [37, 38, 39, 40, 41, 42, 43],
       crediarioProprio: true,
-      visible: true,
+      visible: editVisible,
       stockControl: true,
       stock: productStock,
       saldo_loja: productStock,
       saldos_lojas: selectedProduct.saldos_lojas,
-      sku: skuCode,
       barcode: selectedProduct.codigoBarras || selectedProduct.barcode,
       brand: selectedProduct.marca || 'Evidência Calçados',
       material: selectedProduct.material || 'Couro Legítimo',
@@ -343,6 +381,7 @@ export const MoblinkProductsManager: React.FC = () => {
       moblinkSyncStatus: 'synced'
     };
 
+    try {
       // Save in Firestore directly with ID = mobId (Mesclagem Não-Destrutiva Persistente Sanitizada)
       const sanitizedPayload = sanitizeProductForFirestore(updatedProductPayload);
       await setDoc(doc(db, 'products', mobId), sanitizedPayload, { merge: true });
@@ -354,14 +393,34 @@ export const MoblinkProductsManager: React.FC = () => {
         await addProduct(updatedProductPayload);
       }
 
+      // Atualiza também a lista local do MobLink no estado para refletir instantaneamente
+      setMoblinkList(prev => prev.map(item => {
+        if (String(item.id || item.moblinkId) === mobId) {
+          return {
+            ...item,
+            nome: productName,
+            name: productName,
+            sku: productSku,
+            preco_venda: productPrice,
+            price: productPrice,
+            saldo_loja: productStock,
+            estoque: productStock,
+            categoria: categoryName,
+            category: categoryName,
+            tamanhos: parsedSizes
+          };
+        }
+        return item;
+      }));
+
       setFeedback({
         success: true,
-        message: `Mídias e descrição salvas de forma permanente no banco de dados! Referência: ${mobId}`
+        message: `Produto "${productName}" (Ref: ${mobId}) atualizado com sucesso!`
       });
 
       setTimeout(() => {
         handleCloseEnrichmentForm();
-      }, 1800);
+      }, 1500);
     } catch (err: any) {
       console.warn('Erro ao salvar no Firestore, salvando localmente:', err);
       const existingInApp = products.find(p => p.id === mobId);
@@ -373,12 +432,12 @@ export const MoblinkProductsManager: React.FC = () => {
 
       setFeedback({
         success: true,
-        message: `Mídias e descrição salvas localmente para o produto ${mobId}.`
+        message: `Dados salvos localmente para o produto ${mobId}.`
       });
 
       setTimeout(() => {
         handleCloseEnrichmentForm();
-      }, 1800);
+      }, 1500);
     }
   };
 
@@ -633,16 +692,33 @@ export const MoblinkProductsManager: React.FC = () => {
 
                         {/* ACTIONS */}
                         <td className="p-4 text-right">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleOpenEnrichmentForm(item);
-                            }}
-                            className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black rounded-lg text-xs transition-all flex items-center gap-1.5 ml-auto cursor-pointer shadow-xs"
-                          >
-                            <ImageIcon className="h-3.5 w-3.5" />
-                            <span>Mídias &amp; Descrição</span>
-                          </button>
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenEnrichmentForm(item);
+                              }}
+                              className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black rounded-lg text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+                              title="Editar nome, preço, estoque, mídias e descrição"
+                            >
+                              <Edit3 className="h-3.5 w-3.5" />
+                              <span>Editar</span>
+                            </button>
+
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (window.confirm(`Tem certeza que deseja excluir o produto "${item.nome || item.name || mobId}"?`)) {
+                                  deleteProduct(mobId);
+                                  setMoblinkList(prev => prev.filter(p => String(p.id || p.moblinkId) !== mobId));
+                                }
+                              }}
+                              className="p-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/20 rounded-lg text-xs font-bold transition-all cursor-pointer"
+                              title="Excluir produto do catálogo"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -731,17 +807,143 @@ export const MoblinkProductsManager: React.FC = () => {
 
             <form onSubmit={handleSaveProductEnrichment} className="space-y-6">
               
-              {/* SECTION 1: PHOTOS & MEDIA */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between border-b pb-2 dark:border-slate-800">
+              {/* SECTION 1: MAIN PRODUCT DETAILS */}
+              <div className="space-y-4 border-b pb-5 dark:border-slate-800">
+                <h4 className="font-bold text-xs uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                  <Edit3 className="h-4 w-4 text-amber-500" />
+                  1. Informações Cadastrais &amp; Estoque da Loja
+                </h4>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* NOME DO PRODUTO */}
+                  <div className="sm:col-span-2 space-y-1">
+                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 block">
+                      Nome do Calçado / Produto
+                    </label>
+                    <input
+                      type="text"
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      placeholder="Ex: Sapato Social Oxford Couro Legítimo..."
+                      className="w-full p-2.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-xs font-semibold focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+
+                  {/* SKU / CÓDIGO */}
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 block">
+                      SKU / Código do Produto
+                    </label>
+                    <input
+                      type="text"
+                      value={editSku}
+                      onChange={(e) => setEditSku(e.target.value)}
+                      placeholder="Ex: SAP-OXF-41"
+                      className="w-full p-2.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-xs font-mono font-semibold focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+
+                  {/* CATEGORIA */}
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 block">
+                      Categoria do E-commerce
+                    </label>
+                    <input
+                      type="text"
+                      value={editCategory}
+                      onChange={(e) => setEditCategory(e.target.value)}
+                      placeholder="Ex: Sapatos Sociais, Botas, Mocassins..."
+                      className="w-full p-2.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-xs font-semibold focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+
+                  {/* PREÇO À VISTA */}
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 block">
+                      Preço à Vista / Venda (R$)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={editPrice}
+                      onChange={(e) => setEditPrice(e.target.value)}
+                      placeholder="299,90"
+                      className="w-full p-2.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-amber-400 text-xs font-mono font-bold focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+
+                  {/* PREÇO DE TABELA / ORIGINAL */}
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 block">
+                      Preço Original de Tabela R$ (Opcional - Promoção)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={editOriginalPrice}
+                      onChange={(e) => setEditOriginalPrice(e.target.value)}
+                      placeholder="Ex: 389,90 (deixa preço de corte 'De R$ 389 por R$ 299')"
+                      className="w-full p-2.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-xs font-mono font-semibold focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+
+                  {/* ESTOQUE EM LOJA */}
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 block">
+                      Estoque Atual (Unidades)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={editStock}
+                      onChange={(e) => setEditStock(e.target.value)}
+                      placeholder="Ex: 15"
+                      className="w-full p-2.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-emerald-400 text-xs font-mono font-bold focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+
+                  {/* GRADE DE TAMANHOS */}
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 block">
+                      Grade de Tamanhos (Separados por Vírgula)
+                    </label>
+                    <input
+                      type="text"
+                      value={editSizes}
+                      onChange={(e) => setEditSizes(e.target.value)}
+                      placeholder="Ex: 37, 38, 39, 40, 41, 42, 43"
+                      className="w-full p-2.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-xs font-mono font-semibold focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+                </div>
+
+                {/* TOGGLE VISIBILIDADE */}
+                <div className="pt-2">
+                  <label className="inline-flex items-center gap-2.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={editVisible}
+                      onChange={(e) => setEditVisible(e.target.checked)}
+                      className="w-4 h-4 rounded text-amber-500 border-slate-300 focus:ring-amber-500"
+                    />
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Exibir produto visível nas vitrines da loja virtual
+                    </span>
+                  </label>
+                </div>
+              </div>
+
+              {/* SECTION 2: PHOTOS & MEDIA */}
+              <div className="space-y-3 pt-2 border-b pb-5 dark:border-slate-800">
+                <div className="flex items-center justify-between pb-2">
                   <h4 className="font-bold text-xs uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-2">
                     <ImageIcon className="h-4 w-4 text-amber-500" />
-                    1. Galeria de Fotos do Produto
+                    2. Galeria de Fotos em Alta Resolução
                   </h4>
                   <span className="text-[11px] text-slate-400">{images.length} foto(s) anexada(s)</span>
                 </div>
-
-                {/* IMAGE INPUT CONTROLS */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div className="sm:col-span-2 flex gap-2">
                     <input
