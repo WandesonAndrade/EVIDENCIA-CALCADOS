@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { ShoppingBag, Search, User, LogOut, LayoutDashboard, History, ChevronDown, Heart, Sun, Moon } from 'lucide-react';
+import { ShoppingBag, Search, User, LogOut, LayoutDashboard, History, ChevronDown, Heart, Sun, Moon, Shield } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { BrandLogo } from './BrandLogo';
 import { checkIsProfileComplete } from '../App';
@@ -12,6 +12,7 @@ export const Header: React.FC = () => {
   const { 
     cart, 
     currentUser, 
+    currentAdminUser,
     logout, 
     currentView, 
     setCurrentView, 
@@ -26,6 +27,15 @@ export const Header: React.FC = () => {
 
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const isDark = theme === 'dark';
+
+  const activeUser = currentAdminUser || currentUser;
+  const isAuthorizedCollaborator = Boolean(
+    activeUser && (
+      activeUser.role === 'admin' || 
+      activeUser.role === 'seller' || 
+      activeUser.isAuthorizedCollaborator
+    )
+  );
 
   const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
 
@@ -145,7 +155,7 @@ export const Header: React.FC = () => {
 
 
             {/* Perfil do Usuário com Dropdown */}
-            {currentUser ? (
+            {activeUser ? (
               <div className="relative">
                 <motion.button
                   whileTap={{ scale: 0.95 }}
@@ -155,10 +165,10 @@ export const Header: React.FC = () => {
                     isDark ? 'bg-slate-900/80 border-slate-800 hover:border-slate-700' : 'bg-slate-100/80 border-slate-200/80 hover:border-slate-300'
                   }`}
                 >
-                  {currentUser.photoURL ? (
+                  {activeUser.photoURL ? (
                     <img 
-                      src={currentUser.photoURL} 
-                      alt={currentUser.name} 
+                      src={activeUser.photoURL} 
+                      alt={activeUser.name || 'Usuário'} 
                       className="w-7 h-7 rounded-full object-cover border border-slate-700"
                       referrerPolicy="no-referrer"
                     />
@@ -188,8 +198,8 @@ export const Header: React.FC = () => {
                         }`}
                       >
                         <div className={`px-4 py-2.5 border-b ${isDark ? 'border-slate-800' : 'border-slate-100'}`}>
-                          <p className="text-xs font-bold truncate">{currentUser.name}</p>
-                          <p className="text-[10px] text-slate-400 truncate">{currentUser.email}</p>
+                          <p className="text-xs font-bold truncate">{activeUser.name || 'Usuário'}</p>
+                          <p className="text-[10px] text-slate-400 truncate">{activeUser.email || ''}</p>
                         </div>
 
                         <div className="py-1">
@@ -206,7 +216,22 @@ export const Header: React.FC = () => {
                             <span>Meus Pedidos</span>
                           </button>
 
-                          {currentUser.role === 'customer' && (
+                          {isAuthorizedCollaborator && (
+                            <button
+                              onClick={() => {
+                                setCurrentView('admin');
+                                setIsDropdownOpen(false);
+                              }}
+                              className={`w-full text-left px-4 py-2 text-xs font-bold transition-colors flex items-center space-x-2 cursor-pointer ${
+                                isDark ? 'text-amber-400 hover:bg-slate-800/80' : 'text-amber-600 hover:bg-slate-100'
+                              }`}
+                            >
+                              <Shield className="h-4 w-4 text-amber-400" />
+                              <span>Painel Administrativo</span>
+                            </button>
+                          )}
+
+                          {activeUser.role === 'customer' && (
                             <button
                               onClick={() => {
                                 window.dispatchEvent(new CustomEvent('open-profile-modal'));
@@ -220,7 +245,7 @@ export const Header: React.FC = () => {
                                 <User className="h-4 w-4 text-slate-400" />
                                 <span>Dados Cadastrais</span>
                               </div>
-                              {checkIsProfileComplete(currentUser) ? (
+                              {checkIsProfileComplete(activeUser) ? (
                                 <span className="bg-emerald-500/20 text-emerald-400 text-[9px] font-bold px-2 py-0.5 rounded-full border border-emerald-500/30">
                                   ✓ Completo
                                 </span>
@@ -230,7 +255,6 @@ export const Header: React.FC = () => {
                                 </span>
                               )}
                             </button>
-
                           )}
                         </div>
 

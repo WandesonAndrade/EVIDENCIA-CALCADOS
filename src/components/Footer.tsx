@@ -51,22 +51,6 @@ export const Footer: React.FC = () => {
                   Sobre nós
                 </button>
               </li>
-              <li>
-                <button 
-                  onClick={() => setCurrentView('login')} 
-                  className="hover:text-amber-400 transition-colors cursor-pointer text-left"
-                >
-                  Minha Conta / Login
-                </button>
-              </li>
-              <li>
-                <button 
-                  onClick={() => setCurrentView('admin')} 
-                  className="hover:text-amber-400 transition-colors cursor-pointer text-left"
-                >
-                  Área Administrativa
-                </button>
-              </li>
               <li><a href="#" className="hover:text-amber-400 transition-colors">Privacidade</a></li>
               <li><a href="#" className="hover:text-amber-400 transition-colors">Termos de Uso</a></li>
             </ul>
