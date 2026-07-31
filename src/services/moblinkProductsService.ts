@@ -144,6 +144,8 @@ export const sanitizeProductForFirestore = (product: Partial<Product>): Record<s
     referenceCode,
     color: product.color || product.cor || 'Preto',
     cor: product.cor || product.color || 'Preto',
+    stockBySize: product.stockBySize || product.sizeStockMap || {},
+    sizeStockMap: product.sizeStockMap || product.stockBySize || {},
   };
 
   return cleanUndefinedFields(baseSanitized);

@@ -67,6 +67,7 @@ export interface Product {
   sku?: string;
   barcode?: string;
   sizeStockMap?: Record<string, number>;
+  stockBySize?: Record<string, number>;
   moblinkStock?: number;
   lastMoblinkSync?: string;
   moblinkSyncStatus?: 'synced' | 'pending' | 'error' | 'not_linked';

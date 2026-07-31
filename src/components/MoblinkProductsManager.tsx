@@ -142,6 +142,7 @@ export const MoblinkProductsManager: React.FC = () => {
   const [editVisible, setEditVisible] = useState(true);
   const [editSizes, setEditSizes] = useState('');
   const [editColor, setEditColor] = useState('');
+  const [editStockBySize, setEditStockBySize] = useState<Record<string, number>>({});
 
   // Estado para controle de Sanfona / Expansão Hierárquica por Modelo
   const [expandedModels, setExpandedModels] = useState<Record<string, boolean>>({});
@@ -280,6 +281,21 @@ export const MoblinkProductsManager: React.FC = () => {
     const rawVariant = extractBaseNameAndVariant(item.nome || item.name || item.descricao || '').variant;
     const initialColor = existing?.color || existing?.cor || item.cor || item.color || (rawVariant !== 'Padrão' ? rawVariant : 'Preto');
 
+    // Inicialização da Grade de Estoque por Tamanho
+    const initialStockMap: Record<string, number> = existing?.stockBySize || existing?.sizeStockMap || {};
+    const parsedSizeArray = initialSizes.split(',').map(s => s.trim()).filter(Boolean);
+    const finalStockMap: Record<string, number> = { ...initialStockMap };
+    
+    // Se não existir mapa detalhado anterior, inicializa com o estoque do MobLink ou distribui para edição
+    if (Object.keys(finalStockMap).length === 0 && parsedSizeArray.length > 0) {
+      const avgPerSize = Math.floor(initialStock / parsedSizeArray.length);
+      let remainder = initialStock % parsedSizeArray.length;
+      parsedSizeArray.forEach(sz => {
+        finalStockMap[sz] = avgPerSize + (remainder > 0 ? 1 : 0);
+        if (remainder > 0) remainder--;
+      });
+    }
+
     setEditName(initialName);
     setEditSku(initialSku);
     setEditModelCode(initialModelCode);
@@ -290,6 +306,7 @@ export const MoblinkProductsManager: React.FC = () => {
     setEditVisible(initialVisible);
     setEditSizes(initialSizes);
     setEditColor(initialColor);
+    setEditStockBySize(finalStockMap);
 
     if (existing && Array.isArray(existing.images) && existing.images.length > 0) {
       const rawFoto = item.foto_uri || item.foto_url || item.foto || item.imagem || item.image;
@@ -328,7 +345,57 @@ export const MoblinkProductsManager: React.FC = () => {
     setEditVisible(true);
     setEditSizes('');
     setEditColor('');
+    setEditStockBySize({});
     setFeedback(null);
+  };
+
+  // Alteração de Estoque por Tamanho Individual com Limite Máximo do Estoque Atual
+  const handleSizeStockChange = (size: string, qty: number) => {
+    const requestedQty = Math.max(0, isNaN(qty) ? 0 : qty);
+    const maxStockLimit = Number(editStock) || 0;
+
+    const activeSizes = editSizes.split(',').map(s => s.trim()).filter(Boolean);
+
+    // Calcular a soma das outras numerações ativas (exceto a numeração atual sendo editada)
+    const otherSizesSum = activeSizes
+      .filter(s => s !== size)
+      .reduce((acc, s) => acc + (Number(editStockBySize[s]) || 0), 0);
+
+    const maxAllowedForThisSize = Math.max(0, maxStockLimit - otherSizesSum);
+
+    let finalQty = requestedQty;
+    if (requestedQty > maxAllowedForThisSize) {
+      finalQty = maxAllowedForThisSize;
+      setFeedback({
+        success: false,
+        message: `⚠️ A soma das numerações não pode ultrapassar o Estoque Atual de ${maxStockLimit} unidades!`
+      });
+    } else {
+      setFeedback(null);
+    }
+
+    const updatedMap = {
+      ...editStockBySize,
+      [size]: finalQty
+    };
+
+    setEditStockBySize(updatedMap);
+  };
+
+  // Atualizar Grade de Tamanhos e Zerar a Soma de Pontuações Removidas ou Apagadas
+  const handleEditSizesChange = (newSizesStr: string) => {
+    setEditSizes(newSizesStr);
+    const activeSizes = newSizesStr.split(',').map(s => s.trim()).filter(Boolean);
+
+    setEditStockBySize(prev => {
+      const updated = { ...prev };
+      Object.keys(updated).forEach(sz => {
+        if (!activeSizes.includes(sz)) {
+          updated[sz] = 0; // Zerado o valor da soma para pontuações apagadas
+        }
+      });
+      return updated;
+    });
   };
 
   // Add Image URL manually
@@ -433,6 +500,20 @@ export const MoblinkProductsManager: React.FC = () => {
     const defaultCover = 'https://images.unsplash.com/photo-1614252235316-8c857d38b5f4?auto=format&fit=crop&q=80&w=800';
     const finalImages = images.length > 0 ? images : [defaultCover];
 
+    const cleanStockBySize: Record<string, number> = {};
+    parsedSizes.forEach(size => {
+      cleanStockBySize[size] = Math.max(0, Number(editStockBySize[size]) || 0);
+    });
+
+    const totalSizeStockSum = Object.values(cleanStockBySize).reduce((sum, val) => sum + val, 0);
+    if (totalSizeStockSum > productStock) {
+      setFeedback({
+        success: false,
+        message: `⚠️ Erro: A soma das numerações (${totalSizeStockSum} un) não pode ser maior que o Estoque Atual (${productStock} un). Reduza a quantidade de algum tamanho para salvar.`
+      });
+      return;
+    }
+
     const updatedProductPayload: Product = {
       id: mobId,
       moblinkId: mobId,
@@ -455,6 +536,8 @@ export const MoblinkProductsManager: React.FC = () => {
       stockControl: true,
       stock: productStock,
       saldo_loja: productStock,
+      stockBySize: cleanStockBySize,
+      sizeStockMap: cleanStockBySize,
       saldos_lojas: selectedProduct.saldos_lojas,
       barcode: selectedProduct.codigoBarras || selectedProduct.barcode,
       brand: selectedProduct.marca || 'Evidência Calçados',
@@ -1544,7 +1627,7 @@ export const MoblinkProductsManager: React.FC = () => {
                     <input
                       type="text"
                       value={editSizes}
-                      onChange={(e) => setEditSizes(e.target.value)}
+                      onChange={(e) => handleEditSizesChange(e.target.value)}
                       placeholder="Ex: 37, 38, 39, 40, 41, 42, 43"
                       className="w-full p-2.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-xs font-mono font-semibold focus:outline-none focus:border-amber-500"
                     />
@@ -1563,6 +1646,72 @@ export const MoblinkProductsManager: React.FC = () => {
                       placeholder="Ex: PRETO, OFF WHITE, CAFÉ, VERNIZ NUDE"
                       className="w-full p-2.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-amber-400 text-xs font-bold focus:outline-none focus:border-amber-500"
                     />
+                  </div>
+
+                  {/* MATRIZ DE ESTOQUE POR NUMERAÇÃO / TAMANHO */}
+                  <div className="sm:col-span-2 space-y-2 bg-slate-50 dark:bg-slate-900/60 p-3.5 rounded-xl border border-slate-200 dark:border-slate-800">
+                    {(() => {
+                      const activeSizes = editSizes.split(',').map(s => s.trim()).filter(Boolean);
+                      const totalSizeSum = activeSizes.reduce((sum, size) => sum + (Number(editStockBySize[size]) || 0), 0);
+                      const maxStockLimit = Number(editStock) || 0;
+                      const isOver = totalSizeSum > maxStockLimit;
+                      const isExact = totalSizeSum === maxStockLimit;
+
+                      return (
+                        <div className="flex items-center justify-between">
+                          <label className="text-[11px] font-black text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                            <Grid className="h-4 w-4 text-amber-500" />
+                            <span>Estoque por Numeração (Grade Individual)</span>
+                          </label>
+                          <span className={`text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-md border ${
+                            isOver
+                              ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30'
+                              : isExact
+                              ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
+                              : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
+                          }`}>
+                            {isOver
+                              ? `⚠️ Soma: ${totalSizeSum} / ${maxStockLimit} un (Excede em ${totalSizeSum - maxStockLimit} un)`
+                              : isExact
+                              ? `✓ Soma: ${totalSizeSum} / ${maxStockLimit} un (Total 100% Alocado)`
+                              : `Soma: ${totalSizeSum} / ${maxStockLimit} un (Restam ${maxStockLimit - totalSizeSum} un)`}
+                          </span>
+                        </div>
+                      );
+                    })()}
+
+                    <p className="text-[10px] text-slate-400">
+                      Defina a quantidade exata de pares disponíveis para cada numeração. O estoque total é atualizado automaticamente.
+                    </p>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2 pt-1">
+                      {editSizes
+                        .split(',')
+                        .map(s => s.trim())
+                        .filter(Boolean)
+                        .map((size) => {
+                          const sizeQty = editStockBySize[size] !== undefined ? editStockBySize[size] : 0;
+
+                          return (
+                            <div key={size} className="bg-white dark:bg-slate-800 p-2 rounded-lg border border-slate-200 dark:border-slate-700 space-y-1 text-center">
+                              <span className="text-[10px] font-mono font-black text-slate-500 dark:text-slate-400 block uppercase">
+                                Tam {size}
+                              </span>
+                              <input
+                                type="number"
+                                min="0"
+                                value={sizeQty}
+                                onChange={(e) => {
+                                  const raw = e.target.value;
+                                  const parsed = raw === '' ? 0 : parseInt(raw, 10);
+                                  handleSizeStockChange(size, isNaN(parsed) ? 0 : parsed);
+                                }}
+                                className="w-full text-center p-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded text-xs font-mono font-bold text-slate-900 dark:text-amber-400 focus:outline-none focus:border-amber-500"
+                              />
+                            </div>
+                          );
+                        })}
+                    </div>
                   </div>
                 </div>
 
