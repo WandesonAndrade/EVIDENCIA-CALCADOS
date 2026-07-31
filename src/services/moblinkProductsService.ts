@@ -76,7 +76,7 @@ export const sanitizeProductForFirestore = (product: Partial<Product>): Record<s
     descricao_completa: product.descricao_completa || description,
     sizes: Array.isArray(product.sizes) ? product.sizes : [],
     crediarioProprio: product.crediarioProprio ?? true,
-    visible: product.visible ?? true,
+    visible: product.visible !== undefined ? (stock <= 0 ? false : product.visible) : stock > 0,
     stockControl: product.stockControl ?? true,
   };
 
@@ -87,6 +87,8 @@ export const sanitizeProductForFirestore = (product: Partial<Product>): Record<s
  * Extrai o preço à vista preferencialmente do array `precos` ou do campo `preco_venda`.
  */
 export const extractPrecoVistaMoblink = (item: any): number => {
+  if (!item || typeof item !== 'object') return 0;
+
   if (Array.isArray(item.precos) && item.precos.length > 0) {
     // Busca por tabela/tipo de preço à vista
     const vistaObj = item.precos.find((p: any) => {
@@ -99,23 +101,23 @@ export const extractPrecoVistaMoblink = (item: any): number => {
 
     if (vistaObj) {
       const val = vistaObj.preco ?? vistaObj.preco_venda ?? vistaObj.valor ?? vistaObj.price;
-      if (typeof val === 'number') return val;
+      if (typeof val === 'number' && !isNaN(val)) return val;
       if (typeof val === 'string') return Number(val.replace(',', '.')) || 0;
     }
 
     // Usa a primeira tabela de preços se não houver 'VISTA' explícito
     const first = item.precos[0];
-    if (typeof first === 'number') return first;
+    if (typeof first === 'number' && !isNaN(first)) return first;
     if (typeof first === 'object' && first !== null) {
       const val = first.preco ?? first.preco_venda ?? first.valor ?? first.price;
-      if (typeof val === 'number') return val;
+      if (typeof val === 'number' && !isNaN(val)) return val;
       if (typeof val === 'string') return Number(val.replace(',', '.')) || 0;
     }
   }
 
   // Fallback para campos diretos de preço
   const raw = item.preco_venda ?? item.preco_venda_fracao ?? item.preco ?? item.price;
-  if (typeof raw === 'number') return raw;
+  if (typeof raw === 'number' && !isNaN(raw)) return raw;
   if (typeof raw === 'string') return Number(raw.replace(',', '.')) || 0;
   return 0;
 };
@@ -124,23 +126,24 @@ export const extractPrecoVistaMoblink = (item: any): number => {
  * Extrai o saldo_loja tratando valores negativos como 0.
  */
 export const extractSaldoLojaMoblink = (item: any): number => {
+  if (!item || typeof item !== 'object') return 0;
   let rawStock = 0;
 
-  if (typeof item.saldo_loja === 'number') {
+  if (typeof item.saldo_loja === 'number' && !isNaN(item.saldo_loja)) {
     rawStock = item.saldo_loja;
   } else if (Array.isArray(item.saldos_lojas)) {
     rawStock = item.saldos_lojas.reduce((acc: number, curr: any) => {
       const val = Number(curr?.saldo ?? curr?.qtd ?? curr?.quantidade ?? curr?.saldo_loja) || 0;
       return acc + val;
     }, 0);
-  } else if (typeof item.saldos_lojas === 'number') {
+  } else if (typeof item.saldos_lojas === 'number' && !isNaN(item.saldos_lojas)) {
     rawStock = item.saldos_lojas;
-  } else if (typeof item.estoque === 'number') {
+  } else if (typeof item.estoque === 'number' && !isNaN(item.estoque)) {
     rawStock = item.estoque;
-  } else if (typeof item.stock === 'number') {
+  } else if (typeof item.stock === 'number' && !isNaN(item.stock)) {
     rawStock = item.stock;
   } else {
-    rawStock = Number(item.saldo_loja ?? item.estoque ?? item.stock ?? 0);
+    rawStock = Number(item.saldo_loja ?? item.estoque ?? item.stock ?? 0) || 0;
   }
 
   // Regra Rígida: Tratar valores negativos como 0

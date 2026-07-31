@@ -373,7 +373,8 @@ export const ProductList: React.FC = () => {
       prod.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       prod.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
       prod.category.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesSearch && prod.visible;
+    const isAvailable = (prod.stock !== undefined ? prod.stock > 0 : (prod.saldo_loja ?? 0) > 0);
+    return matchesSearch && prod.visible && isAvailable;
   });
 
   const offersProducts = baseFilteredProducts.filter(

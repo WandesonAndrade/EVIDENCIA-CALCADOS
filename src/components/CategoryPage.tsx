@@ -200,7 +200,8 @@ export const CategoryPage: React.FC = () => {
         prod.category.toLowerCase().includes(searchQuery.toLowerCase())
       : true;
     
-    return prod.visible && matchesSearch && config.filter(prod);
+    const isAvailable = (prod.stock !== undefined ? prod.stock > 0 : (prod.saldo_loja ?? 0) > 0);
+    return prod.visible && isAvailable && matchesSearch && config.filter(prod);
   });
 
   // Section 1: Ofertas relacionadas (items on sale inside this category selection)

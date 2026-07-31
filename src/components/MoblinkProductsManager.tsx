@@ -70,26 +70,29 @@ interface MoblinkRawProduct {
 }
 
 export const MoblinkProductsManager: React.FC = () => {
-  const { products, addProduct, updateProduct, deleteProduct, theme } = useApp();
+  const { products, addProduct, updateProduct, deleteProduct, categories, theme } = useApp();
 
   const [moblinkList, setMoblinkList] = useState<MoblinkRawProduct[]>(() => {
-    return products.map(dbProd => ({
-      id: dbProd.id,
-      moblinkId: dbProd.moblinkId,
-      sku: dbProd.sku || dbProd.modelOrSku || dbProd.id,
-      nome: dbProd.name,
-      name: dbProd.name,
-      descricao: dbProd.description || dbProd.name,
-      preco_venda: dbProd.price,
-      price: dbProd.price,
-      saldo_loja: dbProd.stock,
-      estoque: dbProd.stock,
-      categoria: dbProd.category,
-      category: dbProd.category,
-      tamanhos: dbProd.sizes,
-      foto_uri: dbProd.images && dbProd.images.length > 0 ? dbProd.images[0] : dbProd.foto_uri,
-      isManual: !dbProd.moblinkId && !String(dbProd.id).startsWith('MOB-')
-    }));
+    return (products || []).map(dbProd => {
+      const dbId = String(dbProd?.id || `PROD-${Math.random()}`);
+      return {
+        id: dbId,
+        moblinkId: dbProd?.moblinkId,
+        sku: dbProd?.sku || dbProd?.modelOrSku || dbId,
+        nome: dbProd?.name || 'Produto sem nome',
+        name: dbProd?.name || 'Produto sem nome',
+        descricao: dbProd?.description || dbProd?.name || 'Sem descrição',
+        preco_venda: typeof dbProd?.price === 'number' ? dbProd.price : 0,
+        price: typeof dbProd?.price === 'number' ? dbProd.price : 0,
+        saldo_loja: typeof dbProd?.stock === 'number' ? Math.max(0, dbProd.stock) : 0,
+        estoque: typeof dbProd?.stock === 'number' ? Math.max(0, dbProd.stock) : 0,
+        categoria: dbProd?.category || 'Geral',
+        category: dbProd?.category || 'Geral',
+        tamanhos: Array.isArray(dbProd?.sizes) ? dbProd.sizes : [],
+        foto_uri: Array.isArray(dbProd?.images) && dbProd.images.length > 0 ? dbProd.images[0] : (dbProd?.foto_uri || ''),
+        isManual: !dbProd?.moblinkId && !dbId.startsWith('MOB-')
+      };
+    });
   });
 
   const [isLoading, setIsLoading] = useState(false);
@@ -128,24 +131,27 @@ export const MoblinkProductsManager: React.FC = () => {
 
   // Sincroniza estado inicial caso a lista do Moblink esteja vazia
   useEffect(() => {
-    if (moblinkList.length === 0 && products.length > 0) {
-      setMoblinkList(products.map(dbProd => ({
-        id: dbProd.id,
-        moblinkId: dbProd.moblinkId,
-        sku: dbProd.sku || dbProd.modelOrSku || dbProd.id,
-        nome: dbProd.name,
-        name: dbProd.name,
-        descricao: dbProd.description || dbProd.name,
-        preco_venda: dbProd.price,
-        price: dbProd.price,
-        saldo_loja: dbProd.stock,
-        estoque: dbProd.stock,
-        categoria: dbProd.category,
-        category: dbProd.category,
-        tamanhos: dbProd.sizes,
-        foto_uri: dbProd.images && dbProd.images.length > 0 ? dbProd.images[0] : dbProd.foto_uri,
-        isManual: !dbProd.moblinkId && !String(dbProd.id).startsWith('MOB-')
-      })));
+    if ((moblinkList || []).length === 0 && (products || []).length > 0) {
+      setMoblinkList((products || []).map(dbProd => {
+        const dbId = String(dbProd?.id || `PROD-${Math.random()}`);
+        return {
+          id: dbId,
+          moblinkId: dbProd?.moblinkId,
+          sku: dbProd?.sku || dbProd?.modelOrSku || dbId,
+          nome: dbProd?.name || 'Produto sem nome',
+          name: dbProd?.name || 'Produto sem nome',
+          descricao: dbProd?.description || dbProd?.name || 'Sem descrição',
+          preco_venda: typeof dbProd?.price === 'number' ? dbProd.price : 0,
+          price: typeof dbProd?.price === 'number' ? dbProd.price : 0,
+          saldo_loja: typeof dbProd?.stock === 'number' ? Math.max(0, dbProd.stock) : 0,
+          estoque: typeof dbProd?.stock === 'number' ? Math.max(0, dbProd.stock) : 0,
+          categoria: dbProd?.category || 'Geral',
+          category: dbProd?.category || 'Geral',
+          tamanhos: Array.isArray(dbProd?.sizes) ? dbProd.sizes : [],
+          foto_uri: Array.isArray(dbProd?.images) && dbProd.images.length > 0 ? dbProd.images[0] : (dbProd?.foto_uri || ''),
+          isManual: !dbProd?.moblinkId && !dbId.startsWith('MOB-')
+        };
+      }));
     }
   }, [products]);
 
@@ -160,7 +166,7 @@ export const MoblinkProductsManager: React.FC = () => {
     setFetchError(null);
     try {
       const items = await getProdutosMoblink();
-      if (items && items.length > 0) {
+      if (Array.isArray(items) && items.length > 0) {
         setMoblinkList(items);
       }
     } catch (err: any) {
@@ -177,11 +183,13 @@ export const MoblinkProductsManager: React.FC = () => {
 
   // Check if a Moblink product is already in our database
   const getExistingDbProduct = (moblinkId: string): Product | undefined => {
-    return products.find(p => p.id === moblinkId || p.moblinkId === moblinkId);
+    if (!moblinkId) return undefined;
+    return (products || []).find(p => p && (p.id === moblinkId || p.moblinkId === moblinkId));
   };
 
   // Open Full Edit Modal for a product
   const handleOpenEnrichmentForm = (item: MoblinkRawProduct) => {
+    if (!item) return;
     const mobId = String(item.id || item.moblinkId || 'MOB-000');
     const existing = getExistingDbProduct(mobId);
 
@@ -195,10 +203,10 @@ export const MoblinkProductsManager: React.FC = () => {
     const initialOrigPrice = existing?.originalPrice ?? item.precoOriginal ?? '';
     const initialStock = existing?.stock ?? extractSaldoLojaMoblink(item) ?? 0;
     const initialCategory = existing?.category || item.categoria || item.category || 'Geral';
-    const initialVisible = existing?.visible ?? true;
-    const initialSizes = existing?.sizes && existing.sizes.length > 0
+    const initialVisible = existing?.visible !== undefined ? (initialStock <= 0 ? false : existing.visible) : initialStock > 0;
+    const initialSizes = existing?.sizes && Array.isArray(existing.sizes) && existing.sizes.length > 0
       ? existing.sizes.join(', ')
-      : (item.tamanhos ? item.tamanhos.join(', ') : '37, 38, 39, 40, 41, 42, 43');
+      : (Array.isArray(item.tamanhos) ? item.tamanhos.join(', ') : '37, 38, 39, 40, 41, 42, 43');
 
     setEditName(initialName);
     setEditSku(initialSku);
@@ -209,9 +217,9 @@ export const MoblinkProductsManager: React.FC = () => {
     setEditVisible(initialVisible);
     setEditSizes(initialSizes);
 
-    if (existing && existing.images && existing.images.length > 0) {
+    if (existing && Array.isArray(existing.images) && existing.images.length > 0) {
       const rawFoto = item.foto_uri || item.foto_url || item.foto || item.imagem || item.image;
-      if (rawFoto && !existing.images.includes(rawFoto)) {
+      if (rawFoto && typeof rawFoto === 'string' && !existing.images.includes(rawFoto)) {
         setImages([rawFoto, ...existing.images]);
       } else {
         setImages(existing.images);
@@ -221,7 +229,7 @@ export const MoblinkProductsManager: React.FC = () => {
       const rawFoto = item.foto_uri || item.foto_url || item.foto || item.imagem || item.image;
       const complDescr = item.compl_descr || item.descr_compl || item.descricao_completa;
       const baseDescr = initialName || `Produto ${mobId}`;
-      setImages(rawFoto ? [rawFoto] : []);
+      setImages(rawFoto && typeof rawFoto === 'string' ? [rawFoto] : []);
       setRichDescription(
         complDescr 
           ? `<p><strong>${baseDescr}</strong></p>\n<p>${complDescr}</p>`
@@ -367,7 +375,7 @@ export const MoblinkProductsManager: React.FC = () => {
       images: finalImages,
       sizes: parsedSizes.length > 0 ? parsedSizes : [37, 38, 39, 40, 41, 42, 43],
       crediarioProprio: true,
-      visible: editVisible,
+      visible: productStock <= 0 ? false : editVisible,
       stockControl: true,
       stock: productStock,
       saldo_loja: productStock,
@@ -442,50 +450,75 @@ export const MoblinkProductsManager: React.FC = () => {
   };
 
   // Combine Moblink List with manual database products
-  const combinedCatalog: MoblinkRawProduct[] = [...moblinkList];
+  const combinedCatalog: MoblinkRawProduct[] = [...(moblinkList || [])];
   
   // Add manual products that do not exist in moblinkList
-  products.forEach(dbProd => {
-    const isAlreadyInMoblinkList = moblinkList.some(m => String(m.id || m.moblinkId) === String(dbProd.id || dbProd.moblinkId));
+  (products || []).forEach(dbProd => {
+    if (!dbProd) return;
+    const dbId = String(dbProd.id || '');
+    const isAlreadyInMoblinkList = (moblinkList || []).some(m => String(m?.id || m?.moblinkId || '') === dbId || (dbProd.moblinkId && String(m?.id || m?.moblinkId || '') === String(dbProd.moblinkId)));
     if (!isAlreadyInMoblinkList) {
+      const dbImages = Array.isArray(dbProd.images) ? dbProd.images : [];
       combinedCatalog.push({
-        id: dbProd.id,
+        id: dbId || `PROD-${Math.random()}`,
         moblinkId: dbProd.moblinkId,
-        sku: dbProd.sku || dbProd.modelOrSku || dbProd.id,
-        nome: dbProd.name,
-        name: dbProd.name,
-        descricao: dbProd.description || dbProd.name,
-        preco_venda: dbProd.price,
-        price: dbProd.price,
-        saldo_loja: dbProd.stock,
-        estoque: dbProd.stock,
-        categoria: dbProd.category,
-        category: dbProd.category,
-        tamanhos: dbProd.sizes,
-        foto_uri: dbProd.images && dbProd.images.length > 0 ? dbProd.images[0] : dbProd.foto_uri,
-        isManual: !dbProd.moblinkId && !dbProd.id.startsWith('MOB-')
+        sku: dbProd.sku || dbProd.modelOrSku || dbId,
+        nome: dbProd.name || 'Produto sem nome',
+        name: dbProd.name || 'Produto sem nome',
+        descricao: dbProd.description || dbProd.name || 'Sem descrição',
+        preco_venda: typeof dbProd.price === 'number' ? dbProd.price : 0,
+        price: typeof dbProd.price === 'number' ? dbProd.price : 0,
+        saldo_loja: typeof dbProd.stock === 'number' ? Math.max(0, dbProd.stock) : 0,
+        estoque: typeof dbProd.stock === 'number' ? Math.max(0, dbProd.stock) : 0,
+        categoria: dbProd.category || 'Geral',
+        category: dbProd.category || 'Geral',
+        tamanhos: Array.isArray(dbProd.sizes) ? dbProd.sizes : [],
+        foto_uri: dbImages.length > 0 ? dbImages[0] : (dbProd.foto_uri || ''),
+        isManual: !dbProd.moblinkId && !dbId.startsWith('MOB-')
       });
     }
   });
 
+  // Categorias oficiais da loja (unificadas com o Firestore/CMS e catálogo)
+  const storeCategories = Array.from(
+    new Set([
+      ...(categories || []).map(c => c?.name).filter(Boolean),
+      ...(products || []).map(p => p?.category).filter(Boolean),
+      'Sapatos Sociais',
+      'Mocassins',
+      'Botas',
+      'Sapatênis',
+      'Sandálias & Chinelos',
+      'Cintos & Carteiras',
+      'Acessórios',
+      'Geral'
+    ])
+  ).filter((c): c is string => Boolean(c && typeof c === 'string' && c.trim() !== ''));
+
   // Filtering list
-  const filteredMoblinkList = combinedCatalog.filter(item => {
-    const name = (item.nome || item.name || item.descricao || '').toLowerCase();
+  const filteredMoblinkList = (combinedCatalog || []).filter(item => {
+    if (!item) return false;
+    const name = String(item.nome || item.name || item.descricao || '').toLowerCase();
     const sku = String(item.sku || '').toLowerCase();
     const id = String(item.id || item.moblinkId || '').toLowerCase();
-    const query = searchQuery.toLowerCase();
+    const query = String(searchQuery || '').toLowerCase();
 
     const matchesSearch = name.includes(query) || sku.includes(query) || id.includes(query);
     const cat = item.categoria || item.category || 'Outros';
     const matchesCategory = categoryFilter === 'Todos' || cat === categoryFilter;
 
-    const isErpItem = Boolean(item.moblinkId || String(item.id).startsWith('MOB-') || !item.isManual);
+    const isErpItem = Boolean(item.moblinkId || String(item.id || '').startsWith('MOB-') || !item.isManual);
     const matchesSync = syncFilter === 'todos' || (syncFilter === 'erp' && isErpItem) || (syncFilter === 'manual' && !isErpItem);
 
     return matchesSearch && matchesCategory && matchesSync;
   });
 
-  const uniqueCategories = Array.from(new Set(combinedCatalog.map(i => i.categoria || i.category || 'Outros')));
+  const uniqueCategories = Array.from(
+    new Set([
+      ...storeCategories,
+      ...combinedCatalog.map(i => i?.categoria || i?.category || 'Outros')
+    ])
+  ).filter(Boolean);
 
   const totalPages = Math.max(1, Math.ceil(filteredMoblinkList.length / PAGE_SIZE));
   const currentPageSafe = Math.min(currentPage, totalPages);
@@ -843,18 +876,23 @@ export const MoblinkProductsManager: React.FC = () => {
                     />
                   </div>
 
-                  {/* CATEGORIA */}
+                  {/* CATEGORIA DO E-COMMERCE (VINCULADO ÀS CATEGORIAS DA LOJA) */}
                   <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 block">
-                      Categoria do E-commerce
+                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 flex items-center justify-between">
+                      <span>Categoria do E-commerce</span>
+                      <span className="text-[10px] text-amber-500 font-extrabold">Categorias da Loja</span>
                     </label>
-                    <input
-                      type="text"
+                    <select
                       value={editCategory}
                       onChange={(e) => setEditCategory(e.target.value)}
-                      placeholder="Ex: Sapatos Sociais, Botas, Mocassins..."
-                      className="w-full p-2.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-xs font-semibold focus:outline-none focus:border-amber-500"
-                    />
+                      className="w-full p-2.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-xs font-bold focus:outline-none focus:border-amber-500 cursor-pointer"
+                    >
+                      {Array.from(new Set([editCategory, ...storeCategories])).filter(Boolean).map((catName) => (
+                        <option key={catName} value={catName}>
+                          {catName}
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
                   {/* PREÇO À VISTA */}

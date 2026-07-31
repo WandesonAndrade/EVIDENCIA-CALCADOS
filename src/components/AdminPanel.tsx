@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext';
 import { Product, Order, OrderStatus, PaymentStatus, UserProfile, Category, HeroBanner, HomeSectionConfig, AboutConfig, ContactConfig } from '../types';
 import { MoblinkIntegrationPanel } from './MoblinkIntegrationPanel';
 import { MoblinkProductsManager } from './MoblinkProductsManager';
+import { ErrorBoundary } from './ErrorBoundary';
 import { AuthScreen } from './AuthScreen';
 import { TeamManagement } from './TeamManagement';
 import { checkIsProfileComplete } from '../App';
@@ -2676,7 +2677,9 @@ export const AdminPanel: React.FC = () => {
 
         {/* TAB 7: INVENTORY MANAGEMENT */}
         {activeTab === 'inventory' && (
-          <MoblinkProductsManager />
+          <ErrorBoundary fallbackTitle="Gestão de Produtos & Estoque (MobLink ERP)">
+            <MoblinkProductsManager />
+          </ErrorBoundary>
         )}
 
         {/* TAB 8: CATEGORIES MANAGER */}
