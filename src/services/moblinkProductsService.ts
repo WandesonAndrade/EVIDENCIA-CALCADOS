@@ -4,46 +4,62 @@ export const MOBLINK_OFFICIAL_API_URL = 'https://api.evidenciacalcados.com.br/ap
 export const MOBLINK_BEARER_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZFVzZXIiOiI3IiwiaWRMb2phIjoiMCIsImlhdCI6MTc4NTQyMzQ5NSwiZXhwIjoxNzg1NTA5ODk1fQ.Vmhm7qRc3e8hNudJjDPBkGfgpbZ0ejZ1vf2skw45fiY';
 
 /**
- * Extrai o nome-base (modelo principal) e a variação de cor/estilo de um nome completo de produto.
- * Exemplo: "Sapatênis Sound Kids - Azul" -> { baseName: "Sapatênis Sound Kids", variant: "Azul" }
+ * Extrai o nome-base (modelo principal/raiz) e a variação de cor/estilo de um nome completo de produto.
+ * Ignora termos comuns de cores no final (PRETO, BRANCO, OFF WHITE, VERNIZ, NUDE, etc.), 
+ * códigos numéricos de fábrica (231-032) e numeração de grades (25/26, 28/34) para normalizar o nome base.
+ *
+ * Exemplo: "BABUCHE MAS LUELUA 231-032 PRETO/LARANJA 25/26" 
+ *   -> { baseName: "BABUCHE MAS LUELUA", variant: "PRETO/LARANJA" }
  */
 export const extractBaseNameAndVariant = (rawName: string): { baseName: string; variant: string } => {
   if (!rawName || typeof rawName !== 'string') {
     return { baseName: 'Produto Sem Nome', variant: 'Padrão' };
   }
 
-  const trimmed = rawName.trim();
-  
-  // Separador por hífen (-)
-  const hyphenIndex = trimmed.lastIndexOf('-');
-  if (hyphenIndex > 0) {
-    const base = trimmed.substring(0, hyphenIndex).trim();
-    const variant = trimmed.substring(hyphenIndex + 1).trim();
-    if (base.length >= 2 && variant.length > 0) {
-      return { baseName: base, variant };
+  let cleaned = rawName.trim();
+  let extractedVariant = '';
+
+  // 1. Remover numerações de grades no final (ex: "25/26", "28/34", "37-38", "TAM 28/34", "TAM. 35", "TAM 38", "N 41", "41")
+  cleaned = cleaned.replace(/\s+[-/]?\s*(TAM\.?|TAMANHO|Nº?|NUMERAÇÃO)?\s*\b\d{2}\s*[/|-]\s*\d{2}\b\s*$/i, '').trim();
+  cleaned = cleaned.replace(/\s+[-/]?\s*(TAM\.?|TAMANHO|Nº?|NUMERAÇÃO)\s*\d{2}\b\s*$/i, '').trim();
+
+  // 2. Lista de palavras-chave de cores e acabamentos no segmento de calçados
+  const colorWordsPattern = '\\b(PRETO|BRANCO|OFF WHITE|OFF-WHITE|OFFWHITE|VERDE|VERMELHO|VERMEHO|AZUL|MARROM|VERNIZ|CARAMELO|NUDE|NUD|ROSA|PINK|ROXO|LILAS|DOURADO|PRATA|AMARELO|LARANJA|BEGE|GRAFITE|CINZA|CAFÉ|CAFE|PINHÃO|PINHAO|TAN|MARINHO|MUSTARDA|VINHO|BORDO|ICE|CHAMPAGNE|SAND|CONHAQUE|GELO|MUSTARD)\\b';
+  const colorWordsRegex = new RegExp(colorWordsPattern, 'i');
+
+  // Se houver hífen (-), verificar a última parte
+  const hyphenParts = cleaned.split(/\s*-\s*/);
+  if (hyphenParts.length > 1) {
+    const lastPart = hyphenParts[hyphenParts.length - 1].trim();
+    if (colorWordsRegex.test(lastPart) || /^TAM\s/i.test(lastPart)) {
+      extractedVariant = lastPart;
+      cleaned = hyphenParts.slice(0, hyphenParts.length - 1).join(' - ').trim();
     }
   }
 
-  // Separador por barra (/)
-  const slashIndex = trimmed.lastIndexOf('/');
-  if (slashIndex > 0) {
-    const base = trimmed.substring(0, slashIndex).trim();
-    const variant = trimmed.substring(slashIndex + 1).trim();
-    if (base.length >= 2 && variant.length > 0) {
-      return { baseName: base, variant };
+  // Tentar encontrar padrão de cor (única ou combinada como "PRETO/LARANJA" ou "AZUL / BRANCO") no final da string limpa
+  const colorBlockRegex = new RegExp(`(?:[\\s-/]+)(${colorWordsPattern}(?:[\\s/\\-]+${colorWordsPattern})*)`, 'i');
+  const match = cleaned.match(colorBlockRegex);
+  if (match && typeof match.index === 'number' && match.index > 2) {
+    if (!extractedVariant) {
+      extractedVariant = match[1].trim();
     }
+    cleaned = cleaned.substring(0, match.index).trim();
   }
 
-  // Palavras-chave de cores conhecidas no final
-  const colorRegex = /\b(preto|café|cafe|caramelo|marrom|azul|branco|tan|pinhão|pinhao|marinho|gelo|off white|conhaque|grafite|nude|rosa|vermelho|vinho|verde|bege|amarelo)\b/i;
-  const match = trimmed.match(colorRegex);
-  if (match && typeof match.index === 'number' && match.index > 3) {
-    const base = trimmed.substring(0, match.index).replace(/[-/:\s]+$/, '').trim();
-    const variant = trimmed.substring(match.index).trim();
-    return { baseName: base || trimmed, variant: variant || 'Padrão' };
-  }
+  // 3. Remover códigos numéricos isolados ou referências de fábrica no final do nome base (ex: "231-032", "REF 453", "1042", "231/032")
+  cleaned = cleaned.replace(/\s+[-/]?\s*(REF\.?|CÓD\.?|COD\.?)?\s*\b\d+([-\/]\d+)*\b\s*$/i, '').trim();
 
-  return { baseName: trimmed, variant: 'Padrão' };
+  // 4. Limpeza final de pontuações pendentes no final
+  cleaned = cleaned.replace(/[-/:,\s]+$/, '').trim();
+
+  const finalBaseName = cleaned.length >= 2 ? cleaned : rawName.trim();
+  const finalVariant = extractedVariant || (rawName.trim().replace(finalBaseName, '').replace(/^[-/:,\s]+/, '').trim() || 'Padrão');
+
+  return { 
+    baseName: finalBaseName, 
+    variant: finalVariant 
+  };
 };
 
 /**
@@ -105,6 +121,9 @@ export const sanitizeProductForFirestore = (product: Partial<Product>): Record<s
   const name = product.name || product.descricao || 'Produto Evidência';
   const category = product.category || 'Geral';
 
+  const modelCode = product.modelCode || product.referenceCode || null;
+  const referenceCode = product.referenceCode || product.modelCode || null;
+
   const baseSanitized = {
     ...product,
     name,
@@ -121,6 +140,10 @@ export const sanitizeProductForFirestore = (product: Partial<Product>): Record<s
     crediarioProprio: product.crediarioProprio ?? true,
     visible: product.visible !== undefined ? (stock <= 0 ? false : product.visible) : stock > 0,
     stockControl: product.stockControl ?? true,
+    modelCode,
+    referenceCode,
+    color: product.color || product.cor || 'Preto',
+    cor: product.cor || product.color || 'Preto',
   };
 
   return cleanUndefinedFields(baseSanitized);

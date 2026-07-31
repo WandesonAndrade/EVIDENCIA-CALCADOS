@@ -70,6 +70,8 @@ export interface Product {
   moblinkStock?: number;
   lastMoblinkSync?: string;
   moblinkSyncStatus?: 'synced' | 'pending' | 'error' | 'not_linked';
+  modelCode?: string;
+  referenceCode?: string;
 }
 
 export interface SincomAuthSession {

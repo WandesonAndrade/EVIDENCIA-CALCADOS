@@ -36,7 +36,15 @@ import {
   Palette,
   Grid,
   List,
-  Filter
+  Filter,
+  ChevronDown,
+  ChevronRight,
+  Hash,
+  FolderTree,
+  CheckSquare,
+  Square,
+  Check,
+  Tags
 } from 'lucide-react';
 
 interface MoblinkRawProduct {
@@ -126,12 +134,60 @@ export const MoblinkProductsManager: React.FC = () => {
   // Editable Product Fields State
   const [editName, setEditName] = useState('');
   const [editSku, setEditSku] = useState('');
+  const [editModelCode, setEditModelCode] = useState('');
   const [editPrice, setEditPrice] = useState<number | string>('');
   const [editOriginalPrice, setEditOriginalPrice] = useState<number | string>('');
   const [editStock, setEditStock] = useState<number | string>('');
   const [editCategory, setEditCategory] = useState('');
   const [editVisible, setEditVisible] = useState(true);
   const [editSizes, setEditSizes] = useState('');
+  const [editColor, setEditColor] = useState('');
+
+  // Estado para controle de Sanfona / Expansão Hierárquica por Modelo
+  const [expandedModels, setExpandedModels] = useState<Record<string, boolean>>({});
+
+  // Estado para Seleção por Checkbox e Edição em Lote da Ref Pai
+  const [selectedMobIds, setSelectedMobIds] = useState<Record<string, boolean>>({});
+  const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
+  const [batchModelCode, setBatchModelCode] = useState('');
+  const [isSavingBatch, setIsSavingBatch] = useState(false);
+
+  const selectedIdsList = Object.keys(selectedMobIds).filter(id => selectedMobIds[id]);
+
+  const toggleSelectProduct = (mobId: string) => {
+    setSelectedMobIds(prev => ({
+      ...prev,
+      [mobId]: !prev[mobId]
+    }));
+  };
+
+  const toggleSelectGroup = (groupItems: Array<{ mobId: string }>) => {
+    const groupMobIds = groupItems.map(i => i.mobId);
+    const allSelected = groupMobIds.every(id => selectedMobIds[id]);
+
+    setSelectedMobIds(prev => {
+      const next = { ...prev };
+      groupMobIds.forEach(id => {
+        if (allSelected) {
+          delete next[id];
+        } else {
+          next[id] = true;
+        }
+      });
+      return next;
+    });
+  };
+
+  const clearSelection = () => {
+    setSelectedMobIds({});
+  };
+
+  const toggleModelExpand = (baseName: string) => {
+    setExpandedModels(prev => ({
+      ...prev,
+      [baseName]: prev[baseName] !== undefined ? !prev[baseName] : false
+    }));
+  };
   
   // Feedback and Upload state
   const [isUploading, setIsUploading] = useState(false);
@@ -211,6 +267,7 @@ export const MoblinkProductsManager: React.FC = () => {
     // Initialize Edit Form Input States
     const initialName = existing?.name || item.nome || item.name || item.descricao || '';
     const initialSku = existing?.sku || item.sku || item.codigo || mobId;
+    const initialModelCode = existing?.modelCode || existing?.referenceCode || (item as any)?.modelCode || (item as any)?.referenceCode || '';
     const initialPrice = existing?.price ?? extractPrecoVistaMoblink(item) ?? item.preco_venda ?? item.price ?? 0;
     const initialOrigPrice = existing?.originalPrice ?? item.precoOriginal ?? '';
     const initialStock = existing?.stock ?? extractSaldoLojaMoblink(item) ?? 0;
@@ -220,14 +277,19 @@ export const MoblinkProductsManager: React.FC = () => {
       ? existing.sizes.join(', ')
       : (Array.isArray(item.tamanhos) ? item.tamanhos.join(', ') : '37, 38, 39, 40, 41, 42, 43');
 
+    const rawVariant = extractBaseNameAndVariant(item.nome || item.name || item.descricao || '').variant;
+    const initialColor = existing?.color || existing?.cor || item.cor || item.color || (rawVariant !== 'Padrão' ? rawVariant : 'Preto');
+
     setEditName(initialName);
     setEditSku(initialSku);
+    setEditModelCode(initialModelCode);
     setEditPrice(initialPrice);
     setEditOriginalPrice(initialOrigPrice || '');
     setEditStock(initialStock);
     setEditCategory(initialCategory);
     setEditVisible(initialVisible);
     setEditSizes(initialSizes);
+    setEditColor(initialColor);
 
     if (existing && Array.isArray(existing.images) && existing.images.length > 0) {
       const rawFoto = item.foto_uri || item.foto_url || item.foto || item.imagem || item.image;
@@ -258,12 +320,14 @@ export const MoblinkProductsManager: React.FC = () => {
     setNewImageUrl('');
     setEditName('');
     setEditSku('');
+    setEditModelCode('');
     setEditPrice('');
     setEditOriginalPrice('');
     setEditStock('');
     setEditCategory('');
     setEditVisible(true);
     setEditSizes('');
+    setEditColor('');
     setFeedback(null);
   };
 
@@ -395,10 +459,13 @@ export const MoblinkProductsManager: React.FC = () => {
       barcode: selectedProduct.codigoBarras || selectedProduct.barcode,
       brand: selectedProduct.marca || 'Evidência Calçados',
       material: selectedProduct.material || 'Couro Legítimo',
-      color: selectedProduct.cor || 'Preto',
+      color: editColor.trim() || selectedProduct.cor || 'Preto',
+      cor: editColor.trim() || selectedProduct.cor || 'Preto',
       gender: selectedProduct.genero || 'Masculino',
       lastMoblinkSync: new Date().toISOString(),
-      moblinkSyncStatus: 'synced'
+      moblinkSyncStatus: 'synced',
+      modelCode: editModelCode.trim() || undefined,
+      referenceCode: editModelCode.trim() || undefined,
     };
 
     try {
@@ -421,6 +488,10 @@ export const MoblinkProductsManager: React.FC = () => {
             nome: productName,
             name: productName,
             sku: productSku,
+            color: editColor.trim() || 'Preto',
+            cor: editColor.trim() || 'Preto',
+            modelCode: editModelCode.trim() || undefined,
+            referenceCode: editModelCode.trim() || undefined,
             preco_venda: productPrice,
             price: productPrice,
             saldo_loja: productStock,
@@ -458,6 +529,96 @@ export const MoblinkProductsManager: React.FC = () => {
       setTimeout(() => {
         handleCloseEnrichmentForm();
       }, 1500);
+    }
+  };
+
+  // Salvar Referência Pai em Lote para os produtos selecionados
+  const handleSaveBatchModelCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (selectedIdsList.length === 0) return;
+
+    const codeToApply = batchModelCode.trim() || undefined;
+    setIsSavingBatch(true);
+    setFeedback(null);
+
+    try {
+      let successCount = 0;
+
+      for (const mobId of selectedIdsList) {
+        const rawItem = combinedCatalog.find(i => String(i.id || i.moblinkId) === mobId);
+        const existingDb = getExistingDbProduct(mobId);
+
+        const productName = existingDb?.name || rawItem?.nome || rawItem?.name || rawItem?.descricao || `Produto ${mobId}`;
+        const productSku = existingDb?.sku || rawItem?.sku || mobId;
+        const productPrice = existingDb?.price ?? extractPrecoVistaMoblink(rawItem) ?? 0;
+        const productStock = existingDb?.stock ?? extractSaldoLojaMoblink(rawItem) ?? 0;
+        const categoryName = existingDb?.category || rawItem?.categoria || rawItem?.category || 'Geral';
+        const defaultCover = 'https://images.unsplash.com/photo-1614252235316-8c857d38b5f4?auto=format&fit=crop&q=80&w=800';
+
+        const updatedProductPayload: Product = {
+          id: mobId,
+          moblinkId: mobId,
+          name: productName,
+          descricao: productName,
+          sku: productSku,
+          description: existingDb?.description || rawItem?.compl_descr || rawItem?.descricao || 'Produto Evidência Calçados',
+          descricao_completa: existingDb?.description || rawItem?.compl_descr || rawItem?.descricao || 'Produto Evidência Calçados',
+          price: productPrice,
+          preco_venda: productPrice,
+          category: categoryName,
+          images: (existingDb?.images && existingDb.images.length > 0) ? existingDb.images : [(rawItem?.foto_uri || defaultCover)],
+          sizes: existingDb?.sizes || (Array.isArray(rawItem?.tamanhos) ? rawItem.tamanhos : [37, 38, 39, 40, 41, 42, 43]),
+          crediarioProprio: true,
+          visible: productStock <= 0 ? false : (existingDb?.visible ?? true),
+          stockControl: true,
+          stock: productStock,
+          saldo_loja: productStock,
+          lastMoblinkSync: new Date().toISOString(),
+          moblinkSyncStatus: 'synced',
+          modelCode: codeToApply,
+          referenceCode: codeToApply,
+        };
+
+        const sanitizedPayload = sanitizeProductForFirestore(updatedProductPayload);
+        await setDoc(doc(db, 'products', mobId), sanitizedPayload, { merge: true });
+
+        if (existingDb) {
+          await updateProduct(mobId, updatedProductPayload);
+        } else {
+          await addProduct(updatedProductPayload);
+        }
+
+        successCount++;
+      }
+
+      setMoblinkList(prev => prev.map(item => {
+        const mobId = String(item.id || item.moblinkId);
+        if (selectedIdsList.includes(mobId)) {
+          return {
+            ...item,
+            modelCode: codeToApply,
+            referenceCode: codeToApply
+          };
+        }
+        return item;
+      }));
+
+      setFeedback({
+        success: true,
+        message: `⚡ Sucesso! Código de Referência Pai "${codeToApply || 'Nenhum'}" aplicado a ${successCount} produto(s) simultaneamente!`
+      });
+
+      setSelectedMobIds({});
+      setIsBatchModalOpen(false);
+      setBatchModelCode('');
+    } catch (err: any) {
+      console.error('[MoblinkProductsManager] Erro ao salvar referência em lote:', err);
+      setFeedback({
+        success: false,
+        message: `Falha ao salvar lote: ${err.message || 'Erro inesperado'}`
+      });
+    } finally {
+      setIsSavingBatch(false);
     }
   };
 
@@ -570,10 +731,17 @@ export const MoblinkProductsManager: React.FC = () => {
     const hasEnrichedMedia = Boolean(existingDb && existingDb.images && existingDb.images.length > 0);
     const hasMedia = hasEnrichedMedia || Boolean(item.foto_uri || item.foto_url || item.foto || item.imagem || item.image);
 
+    const itemModelCode = existingDb?.modelCode || existingDb?.referenceCode || (item as any)?.modelCode || (item as any)?.referenceCode;
+    if (itemModelCode && !acc[baseName].modelCode) {
+      acc[baseName].modelCode = itemModelCode;
+    }
+
+    const displayColor = existingDb?.color || existingDb?.cor || item.cor || item.color || variant;
+
     acc[baseName].items.push({
       item,
       mobId,
-      variant,
+      variant: displayColor,
       precoVista,
       estoqueAtual,
       hasMedia,
@@ -586,6 +754,7 @@ export const MoblinkProductsManager: React.FC = () => {
   }, {} as Record<string, {
     baseName: string;
     category: string;
+    modelCode?: string;
     items: Array<{
       item: MoblinkRawProduct;
       mobId: string;
@@ -761,144 +930,267 @@ export const MoblinkProductsManager: React.FC = () => {
             <p className="text-xs font-bold text-slate-500">Nenhum produto encontrado.</p>
           </div>
         ) : isGroupedViewActive ? (
-          /* MODO AGRUPADO POR MODELO (VARIAÇÕES DE CORES LADO A LADO) */
-          <div className="p-4 space-y-5">
-            {paginatedGroupedList.map((group) => (
-              <div 
-                key={group.baseName}
-                className={`p-5 rounded-2xl border ${
-                  theme === 'dark' ? 'bg-slate-900/60 border-slate-800' : 'bg-slate-50/50 border-slate-200/80 shadow-xs'
-                }`}
-              >
-                {/* HEADER DO MODELO PRINCIPAL */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b dark:border-slate-800 gap-2">
-                  <div className="space-y-0.5">
-                    <div className="flex items-center gap-2">
-                      <Package className="h-4 w-4 text-amber-500" />
-                      <h3 className="font-black text-sm text-slate-800 dark:text-slate-100">
-                        {group.baseName}
-                      </h3>
-                      <span className="text-[10px] px-2 py-0.5 bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold rounded-full uppercase">
-                        {group.category}
+          /* MODO LISTA HIERÁRQUICA AGRUPADA POR NOME-BASE */
+          <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
+            {paginatedGroupedList.map((group) => {
+              const isExpanded = expandedModels[group.baseName] ?? true;
+              const modelRefCode = group.modelCode || 
+                group.items.find(i => i.existingDb?.modelCode || i.existingDb?.referenceCode)?.existingDb?.modelCode ||
+                group.items.find(i => i.existingDb?.modelCode || i.existingDb?.referenceCode)?.existingDb?.referenceCode;
+
+              return (
+                <div key={group.baseName} className="transition-colors">
+                  {/* CABEÇALHO DA LINHA HIERÁRQUICA PAI (MODELO BASE) */}
+                  <div 
+                    onClick={() => toggleModelExpand(group.baseName)}
+                    className={`p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 cursor-pointer select-none transition-all ${
+                      theme === 'dark' 
+                        ? 'bg-slate-900/80 hover:bg-slate-800/80' 
+                        : 'bg-slate-50/80 hover:bg-slate-100/80'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <button 
+                        type="button" 
+                        className="p-1.5 rounded-lg bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 transition-transform"
+                      >
+                        {isExpanded ? <ChevronDown className="h-4 w-4 text-amber-500" /> : <ChevronRight className="h-4 w-4" />}
+                      </button>
+
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Package className="h-4 w-4 text-amber-500 shrink-0" />
+                          <h3 className="font-black text-sm text-slate-800 dark:text-slate-100">
+                            {group.baseName}
+                          </h3>
+                          
+                          {modelRefCode && (
+                            <span className="inline-flex items-center gap-1 font-mono text-[10px] font-black px-2.5 py-0.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 rounded-md">
+                              <Hash className="h-3 w-3 text-amber-500" />
+                              Ref Pai: {modelRefCode}
+                            </span>
+                          )}
+
+                          <span className="text-[10px] px-2.5 py-0.5 bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold rounded-full uppercase">
+                            {group.category}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-400">
+                          Modelo Família com {group.items.length} variação(ões) de cores cadastradas no ERP
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 shrink-0 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const firstItem = group.items[0]?.item;
+                          if (firstItem) {
+                            handleOpenEnrichmentForm(firstItem);
+                          }
+                        }}
+                        className="px-2.5 py-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 font-bold rounded-lg text-[10px] border border-amber-500/20 flex items-center gap-1 cursor-pointer transition-all"
+                        title="Editar dados da família e definir Código de Referência Pai"
+                      >
+                        <Edit3 className="h-3 w-3 text-amber-500" />
+                        <span>{modelRefCode ? `Ref Pai: ${modelRefCode}` : '+ Definir Ref Pai'}</span>
+                      </button>
+
+                      <span className="text-xs font-bold px-3 py-1 bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 rounded-xl">
+                        Estoque Acumulado: <strong>{group.totalStock} un</strong>
+                      </span>
+
+                      <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                        {isExpanded ? 'Recolher Variações' : 'Expandir Variações'} ({group.items.length})
                       </span>
                     </div>
-                    <p className="text-[11px] text-slate-400">
-                      {group.items.length} variação(ões) de cor para este modelo
-                    </p>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold px-3 py-1 bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 rounded-xl">
-                      Estoque Total: <strong>{group.totalStock} un</strong>
-                    </span>
-                  </div>
-                </div>
+                  {/* VARIAÇÕES EXPANDIDAS DE CORES E IDS DO MOBLINK COM NOME ORIGINAL PRESERVADO */}
+                  {isExpanded && (
+                    <div className="bg-white dark:bg-[#0f172a] border-t border-slate-100 dark:border-slate-800/80 overflow-x-auto">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-slate-50/70 dark:bg-slate-900/40 text-slate-400 font-bold uppercase text-[9px] tracking-wider border-b border-slate-100 dark:border-slate-800/50">
+                            <th className="py-2.5 px-3 w-8 text-center">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleSelectGroup(group.items);
+                                }}
+                                className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-500 cursor-pointer"
+                                title="Selecionar/Desselecionar todas as cores desta família"
+                              >
+                                {group.items.every(i => selectedMobIds[i.mobId]) ? (
+                                  <CheckSquare className="h-4 w-4 text-amber-500" />
+                                ) : (
+                                  <Square className="h-4 w-4 text-slate-400" />
+                                )}
+                              </button>
+                            </th>
+                            <th className="py-2.5 px-4">Mídia</th>
+                            <th className="py-2.5 px-4">Nome Completo Original (ERP MobLink) &amp; Cor</th>
+                            <th className="py-2.5 px-4">ID MobLink / SKU / Ref Pai</th>
+                            <th className="py-2.5 px-4">Preço à Vista</th>
+                            <th className="py-2.5 px-4">Estoque</th>
+                            <th className="py-2.5 px-4">Status</th>
+                            <th className="py-2.5 px-4 text-right">Ação</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800/40">
+                          {group.items.map(({ item, mobId, variant, precoVista, estoqueAtual, hasMedia, existingDb }) => {
+                            const fullOriginalName = item.nome || item.name || item.descricao || item.descricao_completa || group.baseName;
+                            const itemRefCode = existingDb?.modelCode || existingDb?.referenceCode || (item as any)?.modelCode || (item as any)?.referenceCode;
+                            const sizesList = Array.isArray(item.tamanhos) && item.tamanhos.length > 0
+                              ? item.tamanhos.join(', ')
+                              : (Array.isArray(existingDb?.sizes) ? existingDb.sizes.join(', ') : undefined);
+                            const isItemSelected = Boolean(selectedMobIds[mobId]);
 
-                {/* GRID DE VARIAÇÕES DE COR LADO A LADO */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-4">
-                  {group.items.map(({ item, mobId, variant, precoVista, estoqueAtual, hasMedia, existingDb }) => (
-                    <div 
-                      key={mobId}
-                      onClick={() => handleOpenEnrichmentForm(item)}
-                      className={`p-4 rounded-xl border flex flex-col justify-between space-y-3 cursor-pointer transition-all hover:border-amber-500/50 ${
-                        theme === 'dark' ? 'bg-[#0f172a] border-slate-800' : 'bg-white border-slate-200/80 shadow-xs'
-                      }`}
-                    >
-                      <div className="flex items-start gap-3">
-                        {/* THUMBNAIL DA COR */}
-                        <div className="w-14 h-14 rounded-lg bg-slate-100 dark:bg-slate-800 overflow-hidden shrink-0 border border-slate-200 dark:border-slate-700 flex items-center justify-center">
-                          {(existingDb?.images?.[0] || item.foto_uri || item.foto_url || item.imagem || item.image) ? (
-                            <img 
-                              src={existingDb?.images?.[0] || item.foto_uri || item.foto_url || item.imagem || item.image} 
-                              alt={variant} 
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <ImageIcon className="h-6 w-6 text-slate-400" />
-                          )}
-                        </div>
+                            return (
+                              <tr 
+                                key={mobId}
+                                onClick={() => handleOpenEnrichmentForm(item)}
+                                className={`transition-colors cursor-pointer group/row ${
+                                  isItemSelected 
+                                    ? 'bg-amber-500/10 dark:bg-amber-500/10' 
+                                    : 'hover:bg-amber-500/5 dark:hover:bg-slate-800/30'
+                                }`}
+                              >
+                                {/* CHECKBOX SELEÇÃO */}
+                                <td className="py-3 px-3 text-center" onClick={(e) => e.stopPropagation()}>
+                                  <input
+                                    type="checkbox"
+                                    checked={isItemSelected}
+                                    onChange={() => toggleSelectProduct(mobId)}
+                                    className="w-4 h-4 rounded text-amber-500 border-slate-300 focus:ring-amber-500 cursor-pointer"
+                                  />
+                                </td>
 
-                        <div className="space-y-1 flex-1 min-w-0">
-                          <div className="flex items-center justify-between gap-1">
-                            <span className="font-black text-xs text-slate-800 dark:text-slate-100 truncate">
-                              Cor: <span className="text-amber-600 dark:text-amber-400">{variant}</span>
-                            </span>
-                            <span className="font-mono text-[9px] px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold rounded border border-slate-200 dark:border-slate-700">
-                              {mobId}
-                            </span>
-                          </div>
+                                {/* THUMBNAIL DA FOTO DA COR */}
+                                <td className="py-3 px-4">
+                                  <div className="w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-800 overflow-hidden shrink-0 border border-slate-200 dark:border-slate-700 flex items-center justify-center">
+                                    {(existingDb?.images?.[0] || item.foto_uri || item.foto_url || item.imagem || item.image) ? (
+                                      <img 
+                                        src={existingDb?.images?.[0] || item.foto_uri || item.foto_url || item.imagem || item.image} 
+                                        alt={variant} 
+                                        className="w-full h-full object-cover"
+                                      />
+                                    ) : (
+                                      <ImageIcon className="h-4 w-4 text-slate-400" />
+                                    )}
+                                  </div>
+                                </td>
 
-                          <p className="text-[10px] text-slate-400 font-mono truncate">
-                            SKU: {item.sku || mobId}
-                          </p>
+                                {/* NOME COMPLETO ORIGINAL DO ERP & COR */}
+                                <td className="py-3 px-4">
+                                  <p className="font-bold text-xs text-slate-800 dark:text-slate-100 group-hover/row:text-amber-600 dark:group-hover/row:text-amber-400 transition-colors leading-snug">
+                                    {fullOriginalName}
+                                  </p>
+                                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                    <span className="text-[10px] font-black px-2 py-0.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-md border border-amber-500/20">
+                                      Cor: {variant}
+                                    </span>
+                                    {sizesList && (
+                                      <span className="text-[9px] font-mono px-1.5 py-0.2 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded font-semibold">
+                                        Tam: {sizesList}
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
 
-                          <div className="flex items-center gap-2 pt-1">
-                            <span className="font-bold text-xs text-slate-900 dark:text-amber-400">
-                              R$ {precoVista.toFixed(2).replace('.', ',')}
-                            </span>
-                            
-                            {estoqueAtual > 0 ? (
-                              <span className="font-mono font-bold text-[10px] text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.2 rounded border border-emerald-500/20">
-                                {estoqueAtual} un
-                              </span>
-                            ) : (
-                              <span className="font-mono font-bold text-[10px] text-rose-600 dark:text-rose-400 bg-rose-500/10 px-1.5 py-0.2 rounded border border-rose-500/20">
-                                Esgotado
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
+                                {/* ID MOBLINK / SKU / REF PAI */}
+                                <td className="py-3 px-4 space-y-0.5">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="font-mono font-black text-[10px] px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-amber-400 rounded border border-slate-200 dark:border-slate-700">
+                                      {mobId}
+                                    </span>
+                                    {itemRefCode && (
+                                      <span className="font-mono text-[9px] font-black px-1.5 py-0.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded border border-amber-500/20">
+                                        Ref Pai: {itemRefCode}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-[9px] text-slate-400 font-mono">SKU: {item.sku || mobId}</p>
+                                </td>
 
-                      {/* BOTÕES DE AÇÃO */}
-                      <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800/80">
-                        {hasMedia ? (
-                          <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-600 dark:text-emerald-400">
-                            <CheckCircle2 className="h-3 w-3 text-emerald-500" />
-                            Com Fotos
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-[9px] font-bold text-amber-600 dark:text-amber-400">
-                            <AlertCircle className="h-3 w-3 text-amber-500" />
-                            Pendente
-                          </span>
-                        )}
+                                {/* PREÇO À VISTA */}
+                                <td className="py-3 px-4 font-bold text-xs text-slate-900 dark:text-amber-400">
+                                  R$ {precoVista.toFixed(2).replace('.', ',')}
+                                </td>
 
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleOpenEnrichmentForm(item);
-                            }}
-                            className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black rounded-md text-[10px] flex items-center gap-1 cursor-pointer transition-all"
-                            title="Editar esta cor"
-                          >
-                            <Edit3 className="h-3 w-3" />
-                            <span>Editar Cor</span>
-                          </button>
+                                {/* ESTOQUE */}
+                                <td className="py-3 px-4">
+                                  {estoqueAtual > 0 ? (
+                                    <span className="font-mono font-bold text-[10px] text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                                      {estoqueAtual} un
+                                    </span>
+                                  ) : (
+                                    <span className="font-mono font-bold text-[10px] text-rose-600 dark:text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-full border border-rose-500/20">
+                                      Esgotado
+                                    </span>
+                                  )}
+                                </td>
 
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (window.confirm(`Excluir a cor "${variant}" da referência ${mobId}?`)) {
-                                deleteProduct(mobId);
-                                setMoblinkList(prev => prev.filter(p => String(p.id || p.moblinkId) !== mobId));
-                              }
-                            }}
-                            className="p-1 text-rose-500 hover:bg-rose-500/10 rounded border border-rose-500/20 text-[10px] cursor-pointer"
-                            title="Excluir variação"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </button>
-                        </div>
-                      </div>
+                                {/* STATUS DE MÍDIA */}
+                                <td className="py-3 px-4">
+                                  {hasMedia ? (
+                                    <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-600 dark:text-emerald-400">
+                                      <CheckCircle2 className="h-3 w-3 text-emerald-500" />
+                                      Com Fotos
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 text-[9px] font-bold text-amber-600 dark:text-amber-400">
+                                      <AlertCircle className="h-3 w-3 text-amber-500" />
+                                      Pendente
+                                    </span>
+                                  )}
+                                </td>
+
+                                {/* AÇÃO */}
+                                <td className="py-3 px-4 text-right">
+                                  <div className="flex items-center justify-end gap-1.5">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleOpenEnrichmentForm(item);
+                                      }}
+                                      className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black rounded-md text-[10px] inline-flex items-center gap-1 cursor-pointer transition-all"
+                                      title="Editar variação e fotos"
+                                    >
+                                      <Edit3 className="h-3 w-3" />
+                                      <span>Editar</span>
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (window.confirm(`Excluir a cor "${variant}" da referência ${mobId}?`)) {
+                                          deleteProduct(mobId);
+                                          setMoblinkList(prev => prev.filter(p => String(p.id || p.moblinkId) !== mobId));
+                                        }
+                                      }}
+                                      className="p-1 text-rose-500 hover:bg-rose-500/10 rounded border border-rose-500/20 text-[10px] cursor-pointer"
+                                      title="Excluir variação"
+                                    >
+                                      <Trash2 className="h-3 w-3" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
                     </div>
-                  ))}
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <div>
@@ -944,8 +1236,13 @@ export const MoblinkProductsManager: React.FC = () => {
                           <p className="font-bold text-slate-800 dark:text-slate-100 text-xs group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
                             {item.nome || item.name || item.descricao}
                           </p>
-                          <div className="flex items-center gap-2 mt-0.5">
+                          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                             <span className="text-[10px] text-slate-400 font-mono">SKU: {item.sku || mobId}</span>
+                            {(existingDb?.modelCode || existingDb?.referenceCode) && (
+                              <span className="text-[9px] px-1.5 py-0.2 bg-amber-500/10 text-amber-600 dark:text-amber-400 font-mono font-black rounded border border-amber-500/20">
+                                Ref Pai: {existingDb.modelCode || existingDb.referenceCode}
+                              </span>
+                            )}
                             <span className="text-[9px] px-1.5 py-0.2 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded uppercase font-bold">
                               {item.categoria || item.category || 'Geral'}
                             </span>
@@ -1158,6 +1455,21 @@ export const MoblinkProductsManager: React.FC = () => {
                     />
                   </div>
 
+                  {/* CÓDIGO DO MODELO / REFERÊNCIA BASE (MODELO PAI) */}
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 block flex items-center justify-between">
+                      <span>Código do Modelo / Referência Base</span>
+                      <span className="text-[9px] text-amber-500 font-mono font-bold">Código Pai</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={editModelCode}
+                      onChange={(e) => setEditModelCode(e.target.value)}
+                      placeholder="Ex: REF-453M (Código compartilhado por todas as cores)"
+                      className="w-full p-2.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-amber-400 font-mono text-xs font-bold focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+
                   {/* CATEGORIA DO E-COMMERCE (VINCULADO ÀS CATEGORIAS DA LOJA) */}
                   <div className="space-y-1">
                     <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 flex items-center justify-between">
@@ -1235,6 +1547,21 @@ export const MoblinkProductsManager: React.FC = () => {
                       onChange={(e) => setEditSizes(e.target.value)}
                       placeholder="Ex: 37, 38, 39, 40, 41, 42, 43"
                       className="w-full p-2.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-xs font-mono font-semibold focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+
+                  {/* COR DO CALÇADO / PRODUTO */}
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 flex items-center justify-between">
+                      <span>Cor do Calçado / Produto</span>
+                      <span className="text-[9px] text-amber-500 font-bold">Exibida na Loja Virtual</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={editColor}
+                      onChange={(e) => setEditColor(e.target.value)}
+                      placeholder="Ex: PRETO, OFF WHITE, CAFÉ, VERNIZ NUDE"
+                      className="w-full p-2.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-amber-400 text-xs font-bold focus:outline-none focus:border-amber-500"
                     />
                   </div>
                 </div>
@@ -1405,6 +1732,117 @@ export const MoblinkProductsManager: React.FC = () => {
                 </button>
               </div>
 
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* BARRA FLUTUANTE DE AÇÕES EM LOTE */}
+      {selectedIdsList.length > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-slate-900/95 dark:bg-slate-900/95 text-white px-6 py-3.5 rounded-2xl shadow-2xl border border-slate-700/80 flex items-center gap-4 backdrop-blur-md animate-slide-up">
+          <div className="flex items-center gap-2">
+            <span className="flex h-2.5 w-2.5 relative">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
+            </span>
+            <span className="text-xs font-bold font-mono text-amber-400">
+              {selectedIdsList.length} variação(ões) selecionada(s)
+            </span>
+          </div>
+
+          <div className="h-4 w-px bg-slate-700"></div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setBatchModelCode('');
+              setIsBatchModalOpen(true);
+            }}
+            className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black rounded-xl text-xs flex items-center gap-2 transition-all shadow-md cursor-pointer"
+          >
+            <Tags className="h-4 w-4" />
+            <span>Definir Ref Pai em Lote</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={clearSelection}
+            className="px-3 py-2 text-slate-400 hover:text-white font-bold text-xs cursor-pointer transition-colors"
+          >
+            Desselecionar
+          </button>
+        </div>
+      )}
+
+      {/* MODAL RÁPIDO PARA DEFINIR REF PAI EM LOTE */}
+      {isBatchModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#0f172a] rounded-2xl max-w-md w-full p-6 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-5 animate-scale-up">
+            <div className="flex items-center justify-between border-b pb-4 dark:border-slate-800">
+              <div className="flex items-center gap-2">
+                <Tags className="h-5 w-5 text-amber-500" />
+                <h3 className="font-black text-sm text-slate-800 dark:text-slate-100">
+                  Definir Referência Pai em Lote
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsBatchModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Você está aplicando o <strong>Código de Referência Pai (Modelo)</strong> para 
+              <strong className="text-amber-500"> {selectedIdsList.length} variação(ões) selecionada(s)</strong> de forma persistente no Firestore.
+            </p>
+
+            <form onSubmit={handleSaveBatchModelCode} className="space-y-4">
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 block">
+                  Código da Referência Pai (Ex: REF-453M)
+                </label>
+                <input
+                  type="text"
+                  value={batchModelCode}
+                  onChange={(e) => setBatchModelCode(e.target.value)}
+                  placeholder="Ex: REF-453M ou LUELUA-231"
+                  className="w-full p-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-amber-400 font-mono text-sm font-bold focus:outline-none focus:border-amber-500"
+                  autoFocus
+                />
+                <span className="text-[10px] text-slate-400 block pt-0.5">
+                  Este código será gravado no Firestore para todos os SKUs selecionados.
+                </span>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsBatchModalOpen(false)}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingBatch}
+                  className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs rounded-xl flex items-center gap-2 cursor-pointer transition-all shadow-md disabled:opacity-50"
+                >
+                  {isSavingBatch ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                      <span>Aplicando em Lote...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="h-4 w-4" />
+                      <span>Aplicar a {selectedIdsList.length} Item(ns)</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </form>
           </div>
         </div>
