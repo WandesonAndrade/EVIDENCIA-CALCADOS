@@ -4,6 +4,49 @@ export const MOBLINK_OFFICIAL_API_URL = 'https://api.evidenciacalcados.com.br/ap
 export const MOBLINK_BEARER_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZFVzZXIiOiI3IiwiaWRMb2phIjoiMCIsImlhdCI6MTc4NTQyMzQ5NSwiZXhwIjoxNzg1NTA5ODk1fQ.Vmhm7qRc3e8hNudJjDPBkGfgpbZ0ejZ1vf2skw45fiY';
 
 /**
+ * Extrai o nome-base (modelo principal) e a variação de cor/estilo de um nome completo de produto.
+ * Exemplo: "Sapatênis Sound Kids - Azul" -> { baseName: "Sapatênis Sound Kids", variant: "Azul" }
+ */
+export const extractBaseNameAndVariant = (rawName: string): { baseName: string; variant: string } => {
+  if (!rawName || typeof rawName !== 'string') {
+    return { baseName: 'Produto Sem Nome', variant: 'Padrão' };
+  }
+
+  const trimmed = rawName.trim();
+  
+  // Separador por hífen (-)
+  const hyphenIndex = trimmed.lastIndexOf('-');
+  if (hyphenIndex > 0) {
+    const base = trimmed.substring(0, hyphenIndex).trim();
+    const variant = trimmed.substring(hyphenIndex + 1).trim();
+    if (base.length >= 2 && variant.length > 0) {
+      return { baseName: base, variant };
+    }
+  }
+
+  // Separador por barra (/)
+  const slashIndex = trimmed.lastIndexOf('/');
+  if (slashIndex > 0) {
+    const base = trimmed.substring(0, slashIndex).trim();
+    const variant = trimmed.substring(slashIndex + 1).trim();
+    if (base.length >= 2 && variant.length > 0) {
+      return { baseName: base, variant };
+    }
+  }
+
+  // Palavras-chave de cores conhecidas no final
+  const colorRegex = /\b(preto|café|cafe|caramelo|marrom|azul|branco|tan|pinhão|pinhao|marinho|gelo|off white|conhaque|grafite|nude|rosa|vermelho|vinho|verde|bege|amarelo)\b/i;
+  const match = trimmed.match(colorRegex);
+  if (match && typeof match.index === 'number' && match.index > 3) {
+    const base = trimmed.substring(0, match.index).replace(/[-/:\s]+$/, '').trim();
+    const variant = trimmed.substring(match.index).trim();
+    return { baseName: base || trimmed, variant: variant || 'Padrão' };
+  }
+
+  return { baseName: trimmed, variant: 'Padrão' };
+};
+
+/**
  * Remove recursivamente qualquer propriedade com valor `undefined` de um objeto ou array.
  * Evita o erro do Firestore: 'Unsupported field value: undefined'.
  */

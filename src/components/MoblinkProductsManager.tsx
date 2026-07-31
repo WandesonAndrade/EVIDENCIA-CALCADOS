@@ -1,7 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { Product } from '../types';
-import { getProdutosMoblink, extractPrecoVistaMoblink, extractSaldoLojaMoblink, sanitizeProductForFirestore } from '../services/moblinkProductsService';
+import { 
+  getProdutosMoblink, 
+  extractPrecoVistaMoblink, 
+  extractSaldoLojaMoblink, 
+  sanitizeProductForFirestore,
+  extractBaseNameAndVariant 
+} from '../services/moblinkProductsService';
 import { db } from '../lib/firebase';
 import { doc, setDoc } from 'firebase/firestore';
 import { 
@@ -26,7 +32,11 @@ import {
   X,
   Layers,
   ArrowRight,
-  ShieldCheck
+  ShieldCheck,
+  Palette,
+  Grid,
+  List,
+  Filter
 } from 'lucide-react';
 
 interface MoblinkRawProduct {
@@ -98,6 +108,8 @@ export const MoblinkProductsManager: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('Todos');
+  const [baseNameFilter, setBaseNameFilter] = useState('');
+  const [viewMode, setViewMode] = useState<'list' | 'grouped'>('list');
   const [syncFilter, setSyncFilter] = useState<'todos' | 'erp' | 'manual'>('todos');
   const [fetchError, setFetchError] = useState<string | null>(null);
 
@@ -155,10 +167,10 @@ export const MoblinkProductsManager: React.FC = () => {
     }
   }, [products]);
 
-  // Resetar página ao mudar filtros de busca/categoria/origem
+  // Resetar página ao mudar filtros de busca/categoria/origem/modelo/viewMode
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, categoryFilter, syncFilter]);
+  }, [searchQuery, categoryFilter, syncFilter, baseNameFilter, viewMode]);
 
   // Fetch products from GET /api/v1/produtos
   const fetchMoblinkProducts = async () => {
@@ -479,6 +491,41 @@ export const MoblinkProductsManager: React.FC = () => {
     }
   });
 
+  // Extrai lista única de Nomes-Base (Modelos Principais) para o filtro inteligente
+  const allBaseNames = Array.from(
+    new Set(
+      (combinedCatalog || []).map(item => {
+        const rawName = item.nome || item.name || item.descricao || '';
+        return extractBaseNameAndVariant(rawName).baseName;
+      }).filter(Boolean)
+    )
+  ).sort((a, b) => a.localeCompare(b));
+
+  // Filtering list com busca inteligente por ID, SKU, Nome Completo ou Modelo Principal
+  const filteredMoblinkList = (combinedCatalog || []).filter(item => {
+    if (!item) return false;
+    const rawName = String(item.nome || item.name || item.descricao || '');
+    const { baseName: itemBaseName } = extractBaseNameAndVariant(rawName);
+    const sku = String(item.sku || '').toLowerCase();
+    const id = String(item.id || item.moblinkId || '').toLowerCase();
+    const query = String(searchQuery || '').toLowerCase();
+
+    const matchesSearch = rawName.toLowerCase().includes(query) || 
+                          sku.includes(query) || 
+                          id.includes(query) || 
+                          itemBaseName.toLowerCase().includes(query);
+
+    const cat = item.categoria || item.category || 'Outros';
+    const matchesCategory = categoryFilter === 'Todos' || cat === categoryFilter;
+
+    const matchesBaseName = !baseNameFilter || itemBaseName.toLowerCase() === baseNameFilter.toLowerCase();
+
+    const isErpItem = Boolean(item.moblinkId || String(item.id || '').startsWith('MOB-') || !item.isManual);
+    const matchesSync = syncFilter === 'todos' || (syncFilter === 'erp' && isErpItem) || (syncFilter === 'manual' && !isErpItem);
+
+    return matchesSearch && matchesCategory && matchesBaseName && matchesSync;
+  });
+
   // Categorias oficiais da loja (unificadas com o Firestore/CMS e catálogo)
   const storeCategories = Array.from(
     new Set([
@@ -495,24 +542,6 @@ export const MoblinkProductsManager: React.FC = () => {
     ])
   ).filter((c): c is string => Boolean(c && typeof c === 'string' && c.trim() !== ''));
 
-  // Filtering list
-  const filteredMoblinkList = (combinedCatalog || []).filter(item => {
-    if (!item) return false;
-    const name = String(item.nome || item.name || item.descricao || '').toLowerCase();
-    const sku = String(item.sku || '').toLowerCase();
-    const id = String(item.id || item.moblinkId || '').toLowerCase();
-    const query = String(searchQuery || '').toLowerCase();
-
-    const matchesSearch = name.includes(query) || sku.includes(query) || id.includes(query);
-    const cat = item.categoria || item.category || 'Outros';
-    const matchesCategory = categoryFilter === 'Todos' || cat === categoryFilter;
-
-    const isErpItem = Boolean(item.moblinkId || String(item.id || '').startsWith('MOB-') || !item.isManual);
-    const matchesSync = syncFilter === 'todos' || (syncFilter === 'erp' && isErpItem) || (syncFilter === 'manual' && !isErpItem);
-
-    return matchesSearch && matchesCategory && matchesSync;
-  });
-
   const uniqueCategories = Array.from(
     new Set([
       ...storeCategories,
@@ -520,9 +549,67 @@ export const MoblinkProductsManager: React.FC = () => {
     ])
   ).filter(Boolean);
 
-  const totalPages = Math.max(1, Math.ceil(filteredMoblinkList.length / PAGE_SIZE));
+  // Estrutura Agrupada por Modelo (Nome-Base) para exibição de variações de cores lado a lado
+  const groupedMoblinkMap = filteredMoblinkList.reduce((acc, item) => {
+    const mobId = String(item.id || item.moblinkId || 'MOB-000');
+    const rawName = item.nome || item.name || item.descricao || '';
+    const { baseName, variant } = extractBaseNameAndVariant(rawName);
+    
+    if (!acc[baseName]) {
+      acc[baseName] = {
+        baseName,
+        category: item.categoria || item.category || 'Geral',
+        items: [],
+        totalStock: 0,
+      };
+    }
+
+    const existingDb = getExistingDbProduct(mobId);
+    const precoVista = extractPrecoVistaMoblink(item) || Number(item.preco_venda_fracao ?? item.preco_venda ?? item.preco ?? item.price ?? 0);
+    const estoqueAtual = extractSaldoLojaMoblink(item);
+    const hasEnrichedMedia = Boolean(existingDb && existingDb.images && existingDb.images.length > 0);
+    const hasMedia = hasEnrichedMedia || Boolean(item.foto_uri || item.foto_url || item.foto || item.imagem || item.image);
+
+    acc[baseName].items.push({
+      item,
+      mobId,
+      variant,
+      precoVista,
+      estoqueAtual,
+      hasMedia,
+      hasEnrichedMedia,
+      existingDb,
+    });
+
+    acc[baseName].totalStock += estoqueAtual;
+    return acc;
+  }, {} as Record<string, {
+    baseName: string;
+    category: string;
+    items: Array<{
+      item: MoblinkRawProduct;
+      mobId: string;
+      variant: string;
+      precoVista: number;
+      estoqueAtual: number;
+      hasMedia: boolean;
+      hasEnrichedMedia: boolean;
+      existingDb: Product | undefined;
+    }>;
+    totalStock: number;
+  }>);
+
+  const groupedList = Object.values(groupedMoblinkMap);
+  const isGroupedViewActive = viewMode === 'grouped' || Boolean(baseNameFilter);
+
+  const totalPages = isGroupedViewActive 
+    ? Math.max(1, Math.ceil(groupedList.length / PAGE_SIZE))
+    : Math.max(1, Math.ceil(filteredMoblinkList.length / PAGE_SIZE));
+
   const currentPageSafe = Math.min(currentPage, totalPages);
+
   const paginatedList = filteredMoblinkList.slice((currentPageSafe - 1) * PAGE_SIZE, currentPageSafe * PAGE_SIZE);
+  const paginatedGroupedList = groupedList.slice((currentPageSafe - 1) * PAGE_SIZE, currentPageSafe * PAGE_SIZE);
 
   return (
     <div className="space-y-6 text-left animate-fade-in">
@@ -538,7 +625,7 @@ export const MoblinkProductsManager: React.FC = () => {
             </h2>
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            Listagem oficial em tempo real da API do MobLink ERP. Clique em qualquer produto para gerenciar <strong>mídias em alta resolução</strong> e <strong>descrição enriquecida</strong> sem perder as sincronizações de estoque.
+            Listagem oficial em tempo real da API do MobLink ERP. Filtre por <strong>modelo principal</strong> para visualizar todas as <strong>cores lado a lado</strong>.
           </p>
         </div>
 
@@ -560,47 +647,102 @@ export const MoblinkProductsManager: React.FC = () => {
       )}
 
       {/* SEARCH AND FILTERS */}
-      <div className={`p-4 rounded-xl border flex flex-col md:flex-row items-center justify-between gap-4 ${
+      <div className={`p-4 rounded-xl border flex flex-col space-y-3 ${
         theme === 'dark' ? 'bg-[#0f172a] border-slate-800' : 'bg-white border-slate-100'
       }`}>
-        <div className="relative w-full md:max-w-md">
-          <input
-            type="text"
-            placeholder="Buscar por ID MobLink, SKU ou Nome do Calçado..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-medium text-xs focus:outline-none focus:border-amber-500"
-          />
-          <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
+        <div className="flex flex-col md:flex-row items-center justify-between gap-3">
+          {/* SEARCH INPUT */}
+          <div className="relative w-full md:max-w-md">
+            <input
+              type="text"
+              placeholder="Buscar por Modelo (ex: Sound Kids), ID MobLink ou SKU..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-medium text-xs focus:outline-none focus:border-amber-500"
+            />
+            <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
+          </div>
+
+          {/* VIEW MODE TOGGLE BUTTONS */}
+          <div className="flex items-center gap-2 w-full md:w-auto justify-end">
+            <div className="flex items-center p-0.5 bg-slate-100 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
+              <button
+                type="button"
+                onClick={() => setViewMode('list')}
+                className={`px-3 py-1.5 rounded-md text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  viewMode === 'list' && !baseNameFilter
+                    ? 'bg-amber-500 text-slate-950 shadow-xs'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+                title="Exibir listagem individual de itens em tabela"
+              >
+                <List className="h-3.5 w-3.5" />
+                <span>Lista Tabela</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setViewMode('grouped')}
+                className={`px-3 py-1.5 rounded-md text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  viewMode === 'grouped' || baseNameFilter
+                    ? 'bg-amber-500 text-slate-950 shadow-xs'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+                title="Agrupar produtos por modelo principal e exibir cores lado a lado"
+              >
+                <Grid className="h-3.5 w-3.5" />
+                <span>Agrupar Cores</span>
+              </button>
+            </div>
+          </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto justify-end">
-          {/* FILTRO DE ORIGEM DA SINCRONIZAÇÃO */}
-          <div className="flex items-center space-x-1.5">
-            <Sliders className="h-3.5 w-3.5 text-slate-400" />
-            <span className="text-[10px] font-bold text-slate-400 uppercase">Origem:</span>
+        {/* SECUNDARY FILTERS ROW */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100 dark:border-slate-800/80">
+          {/* FILTRO POR NOME-BASE (MODELO PRINCIPAL) */}
+          <div className="flex items-center space-x-1.5 flex-1 min-w-[240px]">
+            <Palette className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+            <span className="text-[10px] font-bold text-slate-400 uppercase shrink-0">Modelo Base:</span>
             <select
-              value={syncFilter}
-              onChange={(e) => setSyncFilter(e.target.value as any)}
-              className="p-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-xs font-bold focus:outline-none focus:border-amber-500"
+              value={baseNameFilter}
+              onChange={(e) => setBaseNameFilter(e.target.value)}
+              className="w-full p-1.5 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-xs font-bold focus:outline-none focus:border-amber-500 truncate"
             >
-              <option value="todos">Todos os Itens ({combinedCatalog.length})</option>
-              <option value="erp">Sincronizados MobLink ERP</option>
-              <option value="manual">Cadastro Manual</option>
+              <option value="">Todos os Modelos Principais ({allBaseNames.length})</option>
+              {allBaseNames.map(model => (
+                <option key={model} value={model}>{model}</option>
+              ))}
             </select>
           </div>
 
-          {/* FILTRO DE CATEGORIA */}
-          <select
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
-            className="p-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-xs font-bold focus:outline-none focus:border-amber-500"
-          >
-            <option value="Todos">Todas Categorias ({uniqueCategories.length})</option>
-            {uniqueCategories.map(cat => (
-              <option key={cat} value={cat}>{cat}</option>
-            ))}
-          </select>
+          <div className="flex flex-wrap items-center gap-2">
+            {/* FILTRO DE ORIGEM DA SINCRONIZAÇÃO */}
+            <div className="flex items-center space-x-1.5">
+              <Sliders className="h-3.5 w-3.5 text-slate-400" />
+              <span className="text-[10px] font-bold text-slate-400 uppercase">Origem:</span>
+              <select
+                value={syncFilter}
+                onChange={(e) => setSyncFilter(e.target.value as any)}
+                className="p-1.5 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-xs font-bold focus:outline-none focus:border-amber-500"
+              >
+                <option value="todos">Todos os Itens ({combinedCatalog.length})</option>
+                <option value="erp">Sincronizados MobLink ERP</option>
+                <option value="manual">Cadastro Manual</option>
+              </select>
+            </div>
+
+            {/* FILTRO DE CATEGORIA */}
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="p-1.5 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-xs font-bold focus:outline-none focus:border-amber-500"
+            >
+              <option value="Todos">Todas Categorias ({uniqueCategories.length})</option>
+              {uniqueCategories.map(cat => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
@@ -617,6 +759,146 @@ export const MoblinkProductsManager: React.FC = () => {
           <div className="p-12 text-center space-y-2">
             <Package className="h-10 w-10 text-slate-300 mx-auto" />
             <p className="text-xs font-bold text-slate-500">Nenhum produto encontrado.</p>
+          </div>
+        ) : isGroupedViewActive ? (
+          /* MODO AGRUPADO POR MODELO (VARIAÇÕES DE CORES LADO A LADO) */
+          <div className="p-4 space-y-5">
+            {paginatedGroupedList.map((group) => (
+              <div 
+                key={group.baseName}
+                className={`p-5 rounded-2xl border ${
+                  theme === 'dark' ? 'bg-slate-900/60 border-slate-800' : 'bg-slate-50/50 border-slate-200/80 shadow-xs'
+                }`}
+              >
+                {/* HEADER DO MODELO PRINCIPAL */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b dark:border-slate-800 gap-2">
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <Package className="h-4 w-4 text-amber-500" />
+                      <h3 className="font-black text-sm text-slate-800 dark:text-slate-100">
+                        {group.baseName}
+                      </h3>
+                      <span className="text-[10px] px-2 py-0.5 bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold rounded-full uppercase">
+                        {group.category}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-400">
+                      {group.items.length} variação(ões) de cor para este modelo
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold px-3 py-1 bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 rounded-xl">
+                      Estoque Total: <strong>{group.totalStock} un</strong>
+                    </span>
+                  </div>
+                </div>
+
+                {/* GRID DE VARIAÇÕES DE COR LADO A LADO */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-4">
+                  {group.items.map(({ item, mobId, variant, precoVista, estoqueAtual, hasMedia, existingDb }) => (
+                    <div 
+                      key={mobId}
+                      onClick={() => handleOpenEnrichmentForm(item)}
+                      className={`p-4 rounded-xl border flex flex-col justify-between space-y-3 cursor-pointer transition-all hover:border-amber-500/50 ${
+                        theme === 'dark' ? 'bg-[#0f172a] border-slate-800' : 'bg-white border-slate-200/80 shadow-xs'
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        {/* THUMBNAIL DA COR */}
+                        <div className="w-14 h-14 rounded-lg bg-slate-100 dark:bg-slate-800 overflow-hidden shrink-0 border border-slate-200 dark:border-slate-700 flex items-center justify-center">
+                          {(existingDb?.images?.[0] || item.foto_uri || item.foto_url || item.imagem || item.image) ? (
+                            <img 
+                              src={existingDb?.images?.[0] || item.foto_uri || item.foto_url || item.imagem || item.image} 
+                              alt={variant} 
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <ImageIcon className="h-6 w-6 text-slate-400" />
+                          )}
+                        </div>
+
+                        <div className="space-y-1 flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="font-black text-xs text-slate-800 dark:text-slate-100 truncate">
+                              Cor: <span className="text-amber-600 dark:text-amber-400">{variant}</span>
+                            </span>
+                            <span className="font-mono text-[9px] px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold rounded border border-slate-200 dark:border-slate-700">
+                              {mobId}
+                            </span>
+                          </div>
+
+                          <p className="text-[10px] text-slate-400 font-mono truncate">
+                            SKU: {item.sku || mobId}
+                          </p>
+
+                          <div className="flex items-center gap-2 pt-1">
+                            <span className="font-bold text-xs text-slate-900 dark:text-amber-400">
+                              R$ {precoVista.toFixed(2).replace('.', ',')}
+                            </span>
+                            
+                            {estoqueAtual > 0 ? (
+                              <span className="font-mono font-bold text-[10px] text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.2 rounded border border-emerald-500/20">
+                                {estoqueAtual} un
+                              </span>
+                            ) : (
+                              <span className="font-mono font-bold text-[10px] text-rose-600 dark:text-rose-400 bg-rose-500/10 px-1.5 py-0.2 rounded border border-rose-500/20">
+                                Esgotado
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* BOTÕES DE AÇÃO */}
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800/80">
+                        {hasMedia ? (
+                          <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-600 dark:text-emerald-400">
+                            <CheckCircle2 className="h-3 w-3 text-emerald-500" />
+                            Com Fotos
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-[9px] font-bold text-amber-600 dark:text-amber-400">
+                            <AlertCircle className="h-3 w-3 text-amber-500" />
+                            Pendente
+                          </span>
+                        )}
+
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenEnrichmentForm(item);
+                            }}
+                            className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black rounded-md text-[10px] flex items-center gap-1 cursor-pointer transition-all"
+                            title="Editar esta cor"
+                          >
+                            <Edit3 className="h-3 w-3" />
+                            <span>Editar Cor</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (window.confirm(`Excluir a cor "${variant}" da referência ${mobId}?`)) {
+                                deleteProduct(mobId);
+                                setMoblinkList(prev => prev.filter(p => String(p.id || p.moblinkId) !== mobId));
+                              }
+                            }}
+                            className="p-1 text-rose-500 hover:bg-rose-500/10 rounded border border-rose-500/20 text-[10px] cursor-pointer"
+                            title="Excluir variação"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
         ) : (
           <div>
