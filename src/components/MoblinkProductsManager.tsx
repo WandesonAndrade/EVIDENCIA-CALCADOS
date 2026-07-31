@@ -119,6 +119,8 @@ export const MoblinkProductsManager: React.FC = () => {
   const [baseNameFilter, setBaseNameFilter] = useState('');
   const [viewMode, setViewMode] = useState<'list' | 'grouped'>('list');
   const [syncFilter, setSyncFilter] = useState<'todos' | 'erp' | 'manual'>('todos');
+  const [hideOutOfStock, setHideOutOfStock] = useState(false);
+  const [sortBy, setSortBy] = useState<'nameSku' | 'refMoblink' | 'stockAsc' | 'stockDesc'>('nameSku');
   const [fetchError, setFetchError] = useState<string | null>(null);
 
   // Paginação da tabela (50 itens por página para suportar 1.800+ itens)
@@ -748,10 +750,17 @@ export const MoblinkProductsManager: React.FC = () => {
   // Filtering list com busca inteligente por ID, SKU, Nome Completo ou Modelo Principal
   const filteredMoblinkList = (combinedCatalog || []).filter(item => {
     if (!item) return false;
+    const mobId = String(item.id || item.moblinkId || 'MOB-000');
+    const existingDb = getExistingDbProduct(mobId);
+    const estoque = existingDb?.stock ?? extractSaldoLojaMoblink(item);
+
+    // Ignorar produtos com estoque zerado quando a opção estiver ativa
+    if (hideOutOfStock && estoque <= 0) return false;
+
     const rawName = String(item.nome || item.name || item.descricao || '');
     const { baseName: itemBaseName } = extractBaseNameAndVariant(rawName);
     const sku = String(item.sku || '').toLowerCase();
-    const id = String(item.id || item.moblinkId || '').toLowerCase();
+    const id = mobId.toLowerCase();
     const query = String(searchQuery || '').toLowerCase();
 
     const matchesSearch = rawName.toLowerCase().includes(query) || 
@@ -768,6 +777,31 @@ export const MoblinkProductsManager: React.FC = () => {
     const matchesSync = syncFilter === 'todos' || (syncFilter === 'erp' && isErpItem) || (syncFilter === 'manual' && !isErpItem);
 
     return matchesSearch && matchesCategory && matchesBaseName && matchesSync;
+  });
+
+  // Ordenação dinâmica da lista individual
+  filteredMoblinkList.sort((a, b) => {
+    const aMobId = String(a.id || a.moblinkId || '');
+    const bMobId = String(b.id || b.moblinkId || '');
+    const aDb = getExistingDbProduct(aMobId);
+    const bDb = getExistingDbProduct(bMobId);
+    const aStock = aDb?.stock ?? extractSaldoLojaMoblink(a);
+    const bStock = bDb?.stock ?? extractSaldoLojaMoblink(b);
+
+    if (sortBy === 'refMoblink') {
+      const aNum = parseInt(aMobId.replace(/\D/g, ''), 10) || 0;
+      const bNum = parseInt(bMobId.replace(/\D/g, ''), 10) || 0;
+      if (aNum !== bNum) return aNum - bNum;
+      return aMobId.localeCompare(bMobId);
+    }
+
+    if (sortBy === 'stockAsc') return aStock - bStock;
+    if (sortBy === 'stockDesc') return bStock - aStock;
+
+    // Default: 'nameSku' (Produto & SKU A-Z)
+    const aName = a.nome || a.name || a.descricao || '';
+    const bName = b.nome || b.name || b.descricao || '';
+    return aName.localeCompare(bName);
   });
 
   // Categorias oficiais da loja (unificadas com o Firestore/CMS e catálogo)
@@ -852,6 +886,36 @@ export const MoblinkProductsManager: React.FC = () => {
   }>);
 
   const groupedList = Object.values(groupedMoblinkMap);
+
+  // Ordenação dinâmica dos grupos de modelos família
+  groupedList.sort((a, b) => {
+    if (sortBy === 'refMoblink') {
+      const aFirstMobId = a.items[0]?.mobId || '';
+      const bFirstMobId = b.items[0]?.mobId || '';
+      const aNum = parseInt(aFirstMobId.replace(/\D/g, ''), 10) || 0;
+      const bNum = parseInt(bFirstMobId.replace(/\D/g, ''), 10) || 0;
+      if (aNum !== bNum) return aNum - bNum;
+      return aFirstMobId.localeCompare(bFirstMobId);
+    }
+    if (sortBy === 'stockAsc') return a.totalStock - b.totalStock;
+    if (sortBy === 'stockDesc') return b.totalStock - a.totalStock;
+    return a.baseName.localeCompare(b.baseName);
+  });
+
+  // Ordenar variações internas de cada grupo
+  groupedList.forEach(group => {
+    group.items.sort((a, b) => {
+      if (sortBy === 'refMoblink') {
+        const aNum = parseInt(a.mobId.replace(/\D/g, ''), 10) || 0;
+        const bNum = parseInt(b.mobId.replace(/\D/g, ''), 10) || 0;
+        if (aNum !== bNum) return aNum - bNum;
+        return a.mobId.localeCompare(b.mobId);
+      }
+      if (sortBy === 'stockAsc') return a.estoqueAtual - b.estoqueAtual;
+      if (sortBy === 'stockDesc') return b.estoqueAtual - a.estoqueAtual;
+      return a.variant.localeCompare(b.variant);
+    });
+  });
   const isGroupedViewActive = viewMode === 'grouped' || Boolean(baseNameFilter);
 
   const totalPages = isGroupedViewActive 
@@ -994,6 +1058,35 @@ export const MoblinkProductsManager: React.FC = () => {
                 <option key={cat} value={cat}>{cat}</option>
               ))}
             </select>
+
+            {/* ORDENAÇÃO DE PRODUTOS */}
+            <div className="flex items-center space-x-1.5">
+              <Filter className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+              <span className="text-[10px] font-bold text-slate-400 uppercase shrink-0">Ordenar Por:</span>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as any)}
+                className="p-1.5 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-800 dark:text-amber-400 text-xs font-bold focus:outline-none focus:border-amber-500"
+              >
+                <option value="nameSku">Produto &amp; SKU (A-Z)</option>
+                <option value="refMoblink">Ref MobLink (ID Numérico)</option>
+                <option value="stockDesc">Estoque Actual (Maior → Menor)</option>
+                <option value="stockAsc">Estoque Actual (Menor → Maior)</option>
+              </select>
+            </div>
+
+            {/* TOGGLE OCULTAR ESTOQUE ZERADO */}
+            <label className="inline-flex items-center gap-1.5 px-2 py-1.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg cursor-pointer select-none shrink-0 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
+              <input
+                type="checkbox"
+                checked={hideOutOfStock}
+                onChange={(e) => setHideOutOfStock(e.target.checked)}
+                className="w-3.5 h-3.5 rounded text-amber-500 border-slate-300 focus:ring-amber-500 cursor-pointer"
+              />
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
+                Ocultar Estoque Zerado (0)
+              </span>
+            </label>
           </div>
         </div>
       </div>
