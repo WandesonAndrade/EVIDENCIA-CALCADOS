@@ -138,7 +138,14 @@ export const CategoryPage: React.FC = () => {
       };
     }
 
-    return TAB_CONFIGS['lançamentos'];
+    const cleanTabStr = (selectedMenuTab || '').trim();
+    return {
+      title: cleanTabStr ? cleanTabStr.toUpperCase() : 'COLEÇÃO EVIDÊNCIA',
+      subtitle: `Confira nossa coleção de ${cleanTabStr} com condições e qualidade exclusivas Evidência Calçados.`,
+      bannerImage: 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?q=80&w=1600&auto=format&fit=crop',
+      badgeText: cleanTabStr.toUpperCase(),
+      filter: (prod: Product) => prod.category.toLowerCase().includes(cleanTabStr.toLowerCase()) || prod.category.toUpperCase() === cleanTabStr.toUpperCase()
+    };
   };
 
   const config = getTabConfig();

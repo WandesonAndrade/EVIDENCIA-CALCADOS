@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useApp } from "../context/AppContext";
 import { Product } from "../types";
 import {
@@ -384,11 +384,15 @@ export const ProductList: React.FC = () => {
         p.category.toUpperCase() === selectedCategory),
   );
 
-  const newArrivalsProducts = baseFilteredProducts.filter(
+  const explicitLaunches = baseFilteredProducts.filter((p) => p.newArrival);
+  const newArrivalsProducts = (
+    explicitLaunches.length > 0
+      ? explicitLaunches
+      : baseFilteredProducts.slice(0, 12)
+  ).filter(
     (p) =>
-      p.newArrival &&
-      (selectedCategory === "TODOS" ||
-        p.category.toUpperCase() === selectedCategory),
+      selectedCategory === "TODOS" ||
+      p.category.toUpperCase() === selectedCategory,
   );
 
   const shoesProducts = baseFilteredProducts.filter(
@@ -406,30 +410,91 @@ export const ProductList: React.FC = () => {
   );
 
   const totalFilteredCount =
-    offersProducts.length + shoesProducts.length + accessoriesProducts.length;
+    offersProducts.length + newArrivalsProducts.length + shoesProducts.length + accessoriesProducts.length;
   const maxIndex = Math.max(0, offersProducts.length - cardsPerPage);
   const activeIndex = Math.min(currentIndex, maxIndex);
 
   const maxLaunchIndex = Math.max(0, newArrivalsProducts.length - cardsPerPage);
   const activeLaunchIndex = Math.min(currentLaunchIndex, maxLaunchIndex);
 
-  // Primary Footwear Categories for Quick Access
-  const primaryFootwearPills = [
-    { id: "TODOS", label: "TODOS" },
-    { id: "CALÇADOS FEMININOS", label: "Calçados Femininos" },
-    { id: "CALÇADOS MASCULINOS", label: "Calçados Masculinos" },
-    { id: "CALÇADOS INFANTIL FEMININO", label: "Infantil Feminino" },
-    { id: "CALÇADOS INFANTIL MASCULINO", label: "Infantil Masculino" },
-  ];
+  // Computa em tempo real as categorias ativas cadastradas no Firestore + Produtos
+  const dynamicCategoriesList = useMemo(() => {
+    const rawCategories = [
+      ...dbCategories.filter((c) => c.active !== false).map((c) => c.name),
+      ...products.map((p) => p.category).filter(Boolean),
+    ];
 
-  // Secondary Departments Grouped in Combobox
-  const secondaryDepartments = [
-    { id: "COSMÉTICOS", label: "Cosméticos" },
-    { id: "PERFUMES", label: "Perfumes" },
-    { id: "ESCOLAR", label: "Escolar" },
-    { id: "ACESSÓRIOS", label: "Acessórios" },
-    { id: "ITENS DE VIAGENS", label: "Itens de Viagens" },
-  ];
+    const uniqueMap = new Map<string, string>();
+    rawCategories.forEach((cat) => {
+      const trimmed = cat.trim();
+      if (trimmed && !uniqueMap.has(trimmed.toUpperCase())) {
+        uniqueMap.set(trimmed.toUpperCase(), trimmed);
+      }
+    });
+
+    return Array.from(uniqueMap.values());
+  }, [dbCategories, products]);
+
+  // Pílulas de acesso rápido dinâmicas
+  const primaryFootwearPills = useMemo(() => {
+    const pills = [{ id: "TODOS", label: "TODOS" }];
+    const firstPills = dynamicCategoriesList.length > 0
+      ? dynamicCategoriesList.slice(0, 5)
+      : ["Calçados Femininos", "Calçados Masculinos", "Infantil Feminino", "Infantil Masculino"];
+
+    firstPills.forEach((cat) => {
+      pills.push({ id: cat.toUpperCase(), label: cat });
+    });
+    return pills;
+  }, [dynamicCategoriesList]);
+
+  // Departamentos secundários agrupados no combobox dropdown
+  const secondaryDepartments = useMemo(() => {
+    const rest = dynamicCategoriesList.slice(5);
+    if (rest.length === 0) {
+      return [
+        { id: "COSMÉTICOS", label: "Cosméticos" },
+        { id: "PERFUMES", label: "Perfumes" },
+        { id: "ESCOLAR", label: "Escolar" },
+        { id: "ACESSÓRIOS", label: "Acessórios" },
+        { id: "ITENS DE VIAGENS", label: "Itens de Viagens" },
+      ];
+    }
+    return rest.map((cat) => ({
+      id: cat.toUpperCase(),
+      label: cat,
+    }));
+  }, [dynamicCategoriesList]);
+
+  // Sequência ativa das seções da vitrine salva no Firestore (com Lançamentos fixo em #1)
+  const activeHomeSections = useMemo(() => {
+    const list = [
+      ...(homeSections && homeSections.length > 0
+        ? homeSections
+        : [
+            { id: "launches", name: "Novidades & Lançamentos", description: "As últimas tendências da estação", enabled: true },
+            { id: "offers", name: "Ofertas Relâmpago & Outlet", description: "Descontos exclusivos por tempo limitado", enabled: true },
+            { id: "shoes", name: "Calçados Premium", description: "Conforto, durabilidade e estilo", enabled: true },
+            { id: "accessories", name: "Acessórios", description: "Cintos, carteiras e bolsas em couro", enabled: true },
+            { id: "about", name: "Sobre Nós", description: "Nossa história e valores", enabled: true },
+          ]),
+    ];
+
+    let launchesIdx = list.findIndex((s) => s.id === "launches");
+    if (launchesIdx === -1) {
+      list.unshift({
+        id: "launches",
+        name: "Novidades & Lançamentos",
+        description: "As últimas tendências da estação",
+        enabled: true,
+      });
+    } else if (launchesIdx > 0) {
+      const [launchesSec] = list.splice(launchesIdx, 1);
+      list.unshift(launchesSec);
+    }
+
+    return list;
+  }, [homeSections]);
 
   const isSecondaryActive = secondaryDepartments.some(
     (d) => d.id === selectedCategory
@@ -586,42 +651,7 @@ export const ProductList: React.FC = () => {
         </motion.div>
       ) : (
         <div className="space-y-16">
-          {(homeSections && homeSections.length > 0
-            ? homeSections
-            : [
-                {
-                  id: "offers",
-                  name: "Ofertas Relâmpago & Outlet",
-                  description: "Descontos exclusivos por tempo limitado",
-                  enabled: true,
-                },
-                {
-                  id: "launches",
-                  name: "Novidades & Lançamentos",
-                  description: "As últimas tendências da estação",
-                  enabled: true,
-                },
-                {
-                  id: "shoes",
-                  name: "Calçados Premium",
-                  description:
-                    "Conforto, durabilidade e estilo para todas as ocasiões",
-                  enabled: true,
-                },
-                {
-                  id: "accessories",
-                  name: "Acessórios",
-                  description: "Cintos, carteiras e bolsas em couro nobre",
-                  enabled: true,
-                },
-                {
-                  id: "about",
-                  name: "Sobre Nós",
-                  description: "Nossa história e valores",
-                  enabled: true,
-                },
-              ]
-          ).map((sec) => {
+          {activeHomeSections.map((sec) => {
             if (sec.enabled === false) return null;
 
             // 1. SECTION: OFERTAS RELÂMPAGO & OUTLET
@@ -981,6 +1011,57 @@ export const ProductList: React.FC = () => {
                       </button>
                     </div>
                   )}
+                </div>
+              );
+            }
+
+            // 5. RENDERIZADOR GENÉRICO PARA SEÇÕES PERSONALIZADAS DO ADMIN
+            const customMatchedProducts = baseFilteredProducts.filter(
+              (p) =>
+                p.category.toLowerCase().includes(sec.id.toLowerCase()) ||
+                p.category.toLowerCase().includes((sec.name || "").toLowerCase()) ||
+                (sec.name || "").toLowerCase().includes(p.category.toLowerCase()),
+            );
+
+            if (customMatchedProducts.length > 0) {
+              return (
+                <div key={sec.id} className="space-y-6">
+                  <div
+                    className={`flex justify-between items-center border-b pb-4 ${
+                      isDark ? "border-slate-800/80" : "border-slate-200/80"
+                    }`}
+                  >
+                    <div>
+                      <h2
+                        className={`text-xl font-black tracking-tight ${
+                          isDark ? "text-slate-100" : "text-slate-900"
+                        }`}
+                      >
+                        {sec.name}
+                      </h2>
+                      {sec.description && (
+                        <p className="text-xs text-slate-400">
+                          {sec.description}
+                        </p>
+                      )}
+                    </div>
+                    <span className="text-xs font-mono font-bold text-slate-400">
+                      ({customMatchedProducts.length} itens)
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-6 py-2">
+                    {customMatchedProducts.slice(0, 8).map((prod) => (
+                      <ProductCard
+                        key={prod.id}
+                        product={prod}
+                        theme={theme}
+                        isFavorite={favorites.includes(prod.id)}
+                        onToggleFavorite={toggleFavorite}
+                        onViewDetails={handleVerDetalhes}
+                      />
+                    ))}
+                  </div>
                 </div>
               );
             }

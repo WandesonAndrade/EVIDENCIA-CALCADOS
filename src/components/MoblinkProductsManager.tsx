@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
 import { Product } from '../types';
 import { 
@@ -44,7 +44,8 @@ import {
   CheckSquare,
   Square,
   Check,
-  Tags
+  Tags,
+  Folder
 } from 'lucide-react';
 
 interface MoblinkRawProduct {
@@ -142,6 +143,7 @@ export const MoblinkProductsManager: React.FC = () => {
   const [editStock, setEditStock] = useState<number | string>('');
   const [editCategory, setEditCategory] = useState('');
   const [editVisible, setEditVisible] = useState(true);
+  const [editNewArrival, setEditNewArrival] = useState(false);
   const [editSizes, setEditSizes] = useState('');
   const [editColor, setEditColor] = useState('');
   const [editStockBySize, setEditStockBySize] = useState<Record<string, number>>({});
@@ -149,26 +151,30 @@ export const MoblinkProductsManager: React.FC = () => {
   // Estado para controle de Sanfona / Expansão Hierárquica por Modelo
   const [expandedModels, setExpandedModels] = useState<Record<string, boolean>>({});
 
-  // Estado para Seleção por Checkbox e Edição em Lote da Ref Pai
+  // Estado para Seleção por Checkbox e Edição em Lote da Ref Pai e Categoria
   const [selectedMobIds, setSelectedMobIds] = useState<Record<string, boolean>>({});
   const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
   const [batchModelCode, setBatchModelCode] = useState('');
   const [isSavingBatch, setIsSavingBatch] = useState(false);
 
+  // Estado para Edição em Lote de Categoria
+  const [isBatchCategoryModalOpen, setIsBatchCategoryModalOpen] = useState(false);
+  const [batchCategory, setBatchCategory] = useState('');
+  const [isSavingBatchCategory, setIsSavingBatchCategory] = useState(false);
+
   const selectedIdsList = Object.keys(selectedMobIds).filter(id => selectedMobIds[id]);
 
-  const toggleSelectProduct = (mobId: string) => {
+  const toggleSelectProduct = useCallback((mobId: string) => {
     setSelectedMobIds(prev => ({
       ...prev,
       [mobId]: !prev[mobId]
     }));
-  };
+  }, []);
 
-  const toggleSelectGroup = (groupItems: Array<{ mobId: string }>) => {
+  const toggleSelectGroup = useCallback((groupItems: Array<{ mobId: string }>) => {
     const groupMobIds = groupItems.map(i => i.mobId);
-    const allSelected = groupMobIds.every(id => selectedMobIds[id]);
-
     setSelectedMobIds(prev => {
+      const allSelected = groupMobIds.every(id => prev[id]);
       const next = { ...prev };
       groupMobIds.forEach(id => {
         if (allSelected) {
@@ -179,18 +185,18 @@ export const MoblinkProductsManager: React.FC = () => {
       });
       return next;
     });
-  };
+  }, []);
 
-  const clearSelection = () => {
+  const clearSelection = useCallback(() => {
     setSelectedMobIds({});
-  };
+  }, []);
 
-  const toggleModelExpand = (baseName: string) => {
+  const toggleModelExpand = useCallback((baseName: string) => {
     setExpandedModels(prev => ({
       ...prev,
       [baseName]: prev[baseName] !== undefined ? !prev[baseName] : false
     }));
-  };
+  }, []);
   
   // Feedback and Upload state
   const [isUploading, setIsUploading] = useState(false);
@@ -231,32 +237,98 @@ export const MoblinkProductsManager: React.FC = () => {
     setCurrentPage(1);
   }, [searchQuery, categoryFilter, syncFilter, baseNameFilter, viewMode]);
 
-  // Fetch products from GET /api/v1/produtos
+  // Sincronização manual por acionamento direto do botão [Atualizar Estoque ERP]
   const fetchMoblinkProducts = async () => {
     setIsLoading(true);
     setFetchError(null);
+    setFeedback(null);
     try {
       const items = await getProdutosMoblink();
       if (Array.isArray(items) && items.length > 0) {
         setMoblinkList(items);
+
+        let successCount = 0;
+        for (const item of items) {
+          const mobId = String(item.id || item.moblinkId || '');
+          if (!mobId) continue;
+
+          const existingDb = getExistingDbProduct(mobId);
+          const precoVista = extractPrecoVistaMoblink(item) || Number(item.preco_venda_fracao ?? item.preco_venda ?? item.preco ?? item.price ?? 0);
+          const estoqueAtual = extractSaldoLojaMoblink(item);
+          const rawName = item.nome || item.name || item.descricao || 'Produto MobLink';
+
+          const updatedProductPayload: Product = {
+            id: mobId,
+            moblinkId: mobId,
+            name: existingDb?.name || rawName,
+            descricao: rawName,
+            sku: existingDb?.sku || item.sku || mobId,
+            description: existingDb?.description || item.compl_descr || item.descricao || rawName,
+            price: existingDb?.price ?? precoVista,
+            preco_venda: existingDb?.price ?? precoVista,
+            category: existingDb?.category || item.categoria || item.category || 'Geral',
+            images: (existingDb?.images && existingDb.images.length > 0) ? existingDb.images : (item.foto_uri ? [item.foto_uri] : []),
+            sizes: existingDb?.sizes || (Array.isArray(item.tamanhos) ? item.tamanhos : []),
+            crediarioProprio: true,
+            visible: estoqueAtual <= 0 ? false : (existingDb?.visible ?? true),
+            stockControl: true,
+            stock: estoqueAtual,
+            saldo_loja: estoqueAtual,
+            stockBySize: existingDb?.stockBySize || existingDb?.sizeStockMap,
+            sizeStockMap: existingDb?.sizeStockMap || existingDb?.stockBySize,
+            lastMoblinkSync: new Date().toISOString(),
+            moblinkSyncStatus: 'synced',
+            modelCode: existingDb?.modelCode || existingDb?.referenceCode,
+            referenceCode: existingDb?.referenceCode || existingDb?.modelCode,
+            color: existingDb?.color || item.cor || 'Preto',
+            cor: existingDb?.cor || item.cor || 'Preto',
+          };
+
+          const sanitizedPayload = sanitizeProductForFirestore(updatedProductPayload);
+          await setDoc(doc(db, 'products', mobId), sanitizedPayload, { merge: true });
+          
+          if (existingDb) {
+            await updateProduct(mobId, updatedProductPayload);
+          } else {
+            await addProduct(updatedProductPayload);
+          }
+
+          successCount++;
+        }
+
+        setFeedback({
+          success: true,
+          message: `⚡ Sincronização ERP concluída com sucesso! ${successCount} produto(s) atualizado(s) no banco de dados.`
+        });
       }
     } catch (err: any) {
       console.warn('Fallback local para produtos do Moblink:', err);
-      setFetchError(err.message || 'Erro ao comunicar com a API do MobLink');
+      setFetchError(err.message || 'Erro ao comunicar com a API do MobLink ERP');
+      setFeedback({
+        success: false,
+        message: `Falha ao consultar MobLink ERP: ${err.message || 'Servidor temporariamente indisponível'}`
+      });
     } finally {
       setIsLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchMoblinkProducts();
-  }, []);
+  // Indexador em tempo constante O(1) para produtos do Firestore
+  const dbProductsMap = useMemo(() => {
+    const map = new Map<string, Product>();
+    (products || []).forEach(p => {
+      if (!p) return;
+      if (p.id) map.set(String(p.id), p);
+      if (p.moblinkId) map.set(String(p.moblinkId), p);
+    });
+    return map;
+  }, [products]);
 
   // Check if a Moblink product is already in our database
-  const getExistingDbProduct = (moblinkId: string): Product | undefined => {
+  const getExistingDbProduct = useCallback((moblinkId: string): Product | undefined => {
     if (!moblinkId) return undefined;
-    return (products || []).find(p => p && (p.id === moblinkId || p.moblinkId === moblinkId));
-  };
+    return dbProductsMap.get(String(moblinkId));
+  }, [dbProductsMap]);
 
   // Open Full Edit Modal for a product
   const handleOpenEnrichmentForm = (item: MoblinkRawProduct) => {
@@ -298,6 +370,8 @@ export const MoblinkProductsManager: React.FC = () => {
       });
     }
 
+    const initialNewArrival = Boolean(existing?.newArrival || (item as any)?.newArrival || false);
+
     setEditName(initialName);
     setEditSku(initialSku);
     setEditModelCode(initialModelCode);
@@ -306,6 +380,7 @@ export const MoblinkProductsManager: React.FC = () => {
     setEditStock(initialStock);
     setEditCategory(initialCategory);
     setEditVisible(initialVisible);
+    setEditNewArrival(initialNewArrival);
     setEditSizes(initialSizes);
     setEditColor(initialColor);
     setEditStockBySize(finalStockMap);
@@ -498,22 +573,29 @@ export const MoblinkProductsManager: React.FC = () => {
     const productStock = Math.max(0, Number(editStock) || 0);
     const categoryName = editCategory.trim() || 'Geral';
     const parsedSizes = editSizes.split(',').map(s => s.trim()).filter(s => s !== '');
+    const isSingleSizeProduct = parsedSizes.length === 0 || (parsedSizes.length === 1 && ['UNICA', 'ÚNICA', 'UN', 'U', 'TAMANHO ÚNICO', 'UNICO', 'ÚNICO'].includes(parsedSizes[0].toUpperCase()));
 
     const defaultCover = 'https://images.unsplash.com/photo-1614252235316-8c857d38b5f4?auto=format&fit=crop&q=80&w=800';
     const finalImages = images.length > 0 ? images : [defaultCover];
 
     const cleanStockBySize: Record<string, number> = {};
-    parsedSizes.forEach(size => {
-      cleanStockBySize[size] = Math.max(0, Number(editStockBySize[size]) || 0);
-    });
 
-    const totalSizeStockSum = Object.values(cleanStockBySize).reduce((sum, val) => sum + val, 0);
-    if (totalSizeStockSum > productStock) {
-      setFeedback({
-        success: false,
-        message: `⚠️ Erro: A soma das numerações (${totalSizeStockSum} un) não pode ser maior que o Estoque Atual (${productStock} un). Reduza a quantidade de algum tamanho para salvar.`
+    if (isSingleSizeProduct) {
+      const singleKey = parsedSizes[0] || 'UN';
+      cleanStockBySize[singleKey] = productStock;
+    } else {
+      parsedSizes.forEach(size => {
+        cleanStockBySize[size] = Math.max(0, Number(editStockBySize[size]) || 0);
       });
-      return;
+
+      const totalSizeStockSum = Object.values(cleanStockBySize).reduce((sum, val) => sum + val, 0);
+      if (totalSizeStockSum > productStock) {
+        setFeedback({
+          success: false,
+          message: `⚠️ Erro: A soma das variações (${totalSizeStockSum} un) não pode ser maior que o Estoque Atual (${productStock} un). Reduza a quantidade para salvar.`
+        });
+        return;
+      }
     }
 
     const updatedProductPayload: Product = {
@@ -535,6 +617,7 @@ export const MoblinkProductsManager: React.FC = () => {
       sizes: parsedSizes.length > 0 ? parsedSizes : [37, 38, 39, 40, 41, 42, 43],
       crediarioProprio: true,
       visible: productStock <= 0 ? false : editVisible,
+      newArrival: editNewArrival,
       stockControl: true,
       stock: productStock,
       saldo_loja: productStock,
@@ -583,7 +666,8 @@ export const MoblinkProductsManager: React.FC = () => {
             estoque: productStock,
             categoria: categoryName,
             category: categoryName,
-            tamanhos: parsedSizes
+            tamanhos: parsedSizes,
+            newArrival: editNewArrival
           };
         }
         return item;
@@ -707,215 +791,331 @@ export const MoblinkProductsManager: React.FC = () => {
     }
   };
 
-  // Combine Moblink List with manual database products
-  const combinedCatalog: MoblinkRawProduct[] = [...(moblinkList || [])];
-  
-  // Add manual products that do not exist in moblinkList
-  (products || []).forEach(dbProd => {
-    if (!dbProd) return;
-    const dbId = String(dbProd.id || '');
-    const isAlreadyInMoblinkList = (moblinkList || []).some(m => String(m?.id || m?.moblinkId || '') === dbId || (dbProd.moblinkId && String(m?.id || m?.moblinkId || '') === String(dbProd.moblinkId)));
-    if (!isAlreadyInMoblinkList) {
-      const dbImages = Array.isArray(dbProd.images) ? dbProd.images : [];
-      combinedCatalog.push({
-        id: dbId || `PROD-${Math.random()}`,
-        moblinkId: dbProd.moblinkId,
-        sku: dbProd.sku || dbProd.modelOrSku || dbId,
-        nome: dbProd.name || 'Produto sem nome',
-        name: dbProd.name || 'Produto sem nome',
-        descricao: dbProd.description || dbProd.name || 'Sem descrição',
-        preco_venda: typeof dbProd.price === 'number' ? dbProd.price : 0,
-        price: typeof dbProd.price === 'number' ? dbProd.price : 0,
-        saldo_loja: typeof dbProd.stock === 'number' ? Math.max(0, dbProd.stock) : 0,
-        estoque: typeof dbProd.stock === 'number' ? Math.max(0, dbProd.stock) : 0,
-        categoria: dbProd.category || 'Geral',
-        category: dbProd.category || 'Geral',
-        tamanhos: Array.isArray(dbProd.sizes) ? dbProd.sizes : [],
-        foto_uri: dbImages.length > 0 ? dbImages[0] : (dbProd.foto_uri || ''),
-        isManual: !dbProd.moblinkId && !dbId.startsWith('MOB-')
+  // Salvar Categoria em Lote para os produtos selecionados
+  const handleSaveBatchCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (selectedIdsList.length === 0 || !batchCategory.trim()) return;
+
+    const newCat = batchCategory.trim();
+    setIsSavingBatchCategory(true);
+    setFeedback(null);
+
+    try {
+      let successCount = 0;
+
+      for (const mobId of selectedIdsList) {
+        const rawItem = combinedCatalog.find(i => String(i.id || i.moblinkId) === mobId);
+        const existingDb = getExistingDbProduct(mobId);
+
+        const productName = existingDb?.name || rawItem?.nome || rawItem?.name || rawItem?.descricao || `Produto ${mobId}`;
+        const productSku = existingDb?.sku || rawItem?.sku || mobId;
+        const productPrice = existingDb?.price ?? extractPrecoVistaMoblink(rawItem) ?? 0;
+        const productStock = existingDb?.stock ?? extractSaldoLojaMoblink(rawItem) ?? 0;
+        const defaultCover = 'https://images.unsplash.com/photo-1614252235316-8c857d38b5f4?auto=format&fit=crop&q=80&w=800';
+
+        const updatedProductPayload: Product = {
+          id: mobId,
+          moblinkId: mobId,
+          name: productName,
+          descricao: productName,
+          sku: productSku,
+          description: existingDb?.description || rawItem?.compl_descr || rawItem?.descricao || 'Produto Evidência Calçados',
+          descricao_completa: existingDb?.description || rawItem?.compl_descr || rawItem?.descricao || 'Produto Evidência Calçados',
+          price: productPrice,
+          preco_venda: productPrice,
+          category: newCat,
+          images: (existingDb?.images && existingDb.images.length > 0) ? existingDb.images : [(rawItem?.foto_uri || defaultCover)],
+          sizes: existingDb?.sizes || (Array.isArray(rawItem?.tamanhos) ? rawItem.tamanhos : [37, 38, 39, 40, 41, 42, 43]),
+          crediarioProprio: true,
+          visible: productStock <= 0 ? false : (existingDb?.visible ?? true),
+          stockControl: true,
+          stock: productStock,
+          saldo_loja: productStock,
+          stockBySize: existingDb?.stockBySize || existingDb?.sizeStockMap,
+          sizeStockMap: existingDb?.sizeStockMap || existingDb?.stockBySize,
+          lastMoblinkSync: new Date().toISOString(),
+          moblinkSyncStatus: 'synced',
+          modelCode: existingDb?.modelCode || existingDb?.referenceCode,
+          referenceCode: existingDb?.referenceCode || existingDb?.modelCode,
+          color: existingDb?.color || rawItem?.cor || 'Preto',
+          cor: existingDb?.cor || rawItem?.cor || 'Preto',
+        };
+
+        const sanitizedPayload = sanitizeProductForFirestore(updatedProductPayload);
+        await setDoc(doc(db, 'products', mobId), sanitizedPayload, { merge: true });
+
+        if (existingDb) {
+          await updateProduct(mobId, updatedProductPayload);
+        } else {
+          await addProduct(updatedProductPayload);
+        }
+
+        successCount++;
+      }
+
+      setMoblinkList(prev => prev.map(item => {
+        const mobId = String(item.id || item.moblinkId);
+        if (selectedIdsList.includes(mobId)) {
+          return {
+            ...item,
+            categoria: newCat,
+            category: newCat
+          };
+        }
+        return item;
+      }));
+
+      setFeedback({
+        success: true,
+        message: `⚡ Sucesso! Categoria "${newCat}" aplicada a ${successCount} produto(s) simultaneamente!`
       });
+
+      setSelectedMobIds({});
+      setIsBatchCategoryModalOpen(false);
+      setBatchCategory('');
+    } catch (err: any) {
+      console.error('[MoblinkProductsManager] Erro ao alterar categoria em lote:', err);
+      setFeedback({
+        success: false,
+        message: `Falha ao alterar categoria em lote: ${err.message || 'Erro inesperado'}`
+      });
+    } finally {
+      setIsSavingBatchCategory(false);
     }
-  });
+  };
+
+  // Combine Moblink List with manual database products
+  const combinedCatalog: MoblinkRawProduct[] = useMemo(() => {
+    const catalog: MoblinkRawProduct[] = [...(moblinkList || [])];
+    const mobListIds = new Set(
+      (moblinkList || []).map(m => String(m?.id || m?.moblinkId || ''))
+    );
+
+    (products || []).forEach(dbProd => {
+      if (!dbProd) return;
+      const dbId = String(dbProd.id || '');
+      const mobId = dbProd.moblinkId ? String(dbProd.moblinkId) : '';
+      const isAlreadyInMoblinkList = mobListIds.has(dbId) || (mobId !== '' && mobListIds.has(mobId));
+      if (!isAlreadyInMoblinkList) {
+        const dbImages = Array.isArray(dbProd.images) ? dbProd.images : [];
+        catalog.push({
+          id: dbId || `PROD-${Math.random()}`,
+          moblinkId: dbProd.moblinkId,
+          sku: dbProd.sku || dbProd.modelOrSku || dbId,
+          nome: dbProd.name || 'Produto sem nome',
+          name: dbProd.name || 'Produto sem nome',
+          descricao: dbProd.description || dbProd.name || 'Sem descrição',
+          preco_venda: typeof dbProd.price === 'number' ? dbProd.price : 0,
+          price: typeof dbProd.price === 'number' ? dbProd.price : 0,
+          saldo_loja: typeof dbProd.stock === 'number' ? Math.max(0, dbProd.stock) : 0,
+          estoque: typeof dbProd.stock === 'number' ? Math.max(0, dbProd.stock) : 0,
+          categoria: dbProd.category || 'Geral',
+          category: dbProd.category || 'Geral',
+          tamanhos: Array.isArray(dbProd.sizes) ? dbProd.sizes : [],
+          foto_uri: dbImages.length > 0 ? dbImages[0] : (dbProd.foto_uri || ''),
+          isManual: !dbProd.moblinkId && !dbId.startsWith('MOB-')
+        });
+      }
+    });
+
+    return catalog;
+  }, [moblinkList, products]);
 
   // Extrai lista única de Nomes-Base (Modelos Principais) para o filtro inteligente
-  const allBaseNames = Array.from(
-    new Set(
-      (combinedCatalog || []).map(item => {
-        const rawName = item.nome || item.name || item.descricao || '';
-        return extractBaseNameAndVariant(rawName).baseName;
-      }).filter(Boolean)
-    )
-  ).sort((a, b) => a.localeCompare(b));
+  const allBaseNames = useMemo(() => {
+    return Array.from(
+      new Set(
+        (combinedCatalog || []).map(item => {
+          const rawName = item.nome || item.name || item.descricao || '';
+          return extractBaseNameAndVariant(rawName).baseName;
+        }).filter(Boolean)
+      )
+    ).sort((a, b) => a.localeCompare(b));
+  }, [combinedCatalog]);
 
   // Filtering list com busca inteligente por ID, SKU, Nome Completo ou Modelo Principal
-  const filteredMoblinkList = (combinedCatalog || []).filter(item => {
-    if (!item) return false;
-    const mobId = String(item.id || item.moblinkId || 'MOB-000');
-    const existingDb = getExistingDbProduct(mobId);
-    const estoque = existingDb?.stock ?? extractSaldoLojaMoblink(item);
-
-    // Ignorar produtos com estoque zerado quando a opção estiver ativa
-    if (hideOutOfStock && estoque <= 0) return false;
-
-    const rawName = String(item.nome || item.name || item.descricao || '');
-    const { baseName: itemBaseName } = extractBaseNameAndVariant(rawName);
-    const sku = String(item.sku || '').toLowerCase();
-    const id = mobId.toLowerCase();
+  const filteredMoblinkList = useMemo(() => {
     const query = String(searchQuery || '').toLowerCase();
 
-    const matchesSearch = rawName.toLowerCase().includes(query) || 
-                          sku.includes(query) || 
-                          id.includes(query) || 
-                          itemBaseName.toLowerCase().includes(query);
+    const filtered = (combinedCatalog || []).filter(item => {
+      if (!item) return false;
+      const mobId = String(item.id || item.moblinkId || 'MOB-000');
+      const existingDb = dbProductsMap.get(mobId);
+      const estoque = existingDb?.stock ?? extractSaldoLojaMoblink(item);
 
-    const cat = item.categoria || item.category || 'Outros';
-    const matchesCategory = categoryFilter === 'Todos' || cat === categoryFilter;
+      // Ignorar produtos com estoque zerado quando a opção estiver ativa
+      if (hideOutOfStock && estoque <= 0) return false;
 
-    const matchesBaseName = !baseNameFilter || itemBaseName.toLowerCase() === baseNameFilter.toLowerCase();
+      const rawName = String(item.nome || item.name || item.descricao || '');
+      const { baseName: itemBaseName } = extractBaseNameAndVariant(rawName);
+      const sku = String(item.sku || '').toLowerCase();
+      const id = mobId.toLowerCase();
 
-    const isErpItem = Boolean(item.moblinkId || String(item.id || '').startsWith('MOB-') || !item.isManual);
-    const matchesSync = syncFilter === 'todos' || (syncFilter === 'erp' && isErpItem) || (syncFilter === 'manual' && !isErpItem);
+      const matchesSearch = !query || 
+                            rawName.toLowerCase().includes(query) || 
+                            sku.includes(query) || 
+                            id.includes(query) || 
+                            itemBaseName.toLowerCase().includes(query);
 
-    return matchesSearch && matchesCategory && matchesBaseName && matchesSync;
-  });
+      const cat = item.categoria || item.category || 'Outros';
+      const matchesCategory = categoryFilter === 'Todos' || cat === categoryFilter;
 
-  // Ordenação dinâmica da lista individual
-  filteredMoblinkList.sort((a, b) => {
-    const aMobId = String(a.id || a.moblinkId || '');
-    const bMobId = String(b.id || b.moblinkId || '');
-    const aDb = getExistingDbProduct(aMobId);
-    const bDb = getExistingDbProduct(bMobId);
-    const aStock = aDb?.stock ?? extractSaldoLojaMoblink(a);
-    const bStock = bDb?.stock ?? extractSaldoLojaMoblink(b);
+      const matchesBaseName = !baseNameFilter || itemBaseName.toLowerCase() === baseNameFilter.toLowerCase();
 
-    if (sortBy === 'refMoblink') {
-      const aNum = parseInt(aMobId.replace(/\D/g, ''), 10) || 0;
-      const bNum = parseInt(bMobId.replace(/\D/g, ''), 10) || 0;
-      if (aNum !== bNum) return aNum - bNum;
-      return aMobId.localeCompare(bMobId);
-    }
+      const isErpItem = Boolean(item.moblinkId || String(item.id || '').startsWith('MOB-') || !item.isManual);
+      const matchesSync = syncFilter === 'todos' || (syncFilter === 'erp' && isErpItem) || (syncFilter === 'manual' && !isErpItem);
 
-    if (sortBy === 'stockAsc') return aStock - bStock;
-    if (sortBy === 'stockDesc') return bStock - aStock;
+      return matchesSearch && matchesCategory && matchesBaseName && matchesSync;
+    });
 
-    // Default: 'nameSku' (Produto & SKU A-Z)
-    const aName = a.nome || a.name || a.descricao || '';
-    const bName = b.nome || b.name || b.descricao || '';
-    return aName.localeCompare(bName);
-  });
+    // Ordenação dinâmica da lista individual
+    filtered.sort((a, b) => {
+      const aMobId = String(a.id || a.moblinkId || '');
+      const bMobId = String(b.id || b.moblinkId || '');
+      const aDb = dbProductsMap.get(aMobId);
+      const bDb = dbProductsMap.get(bMobId);
+      const aStock = aDb?.stock ?? extractSaldoLojaMoblink(a);
+      const bStock = bDb?.stock ?? extractSaldoLojaMoblink(b);
+
+      if (sortBy === 'refMoblink') {
+        const aNum = parseInt(aMobId.replace(/\D/g, ''), 10) || 0;
+        const bNum = parseInt(bMobId.replace(/\D/g, ''), 10) || 0;
+        if (aNum !== bNum) return aNum - bNum;
+        return aMobId.localeCompare(bMobId);
+      }
+
+      if (sortBy === 'stockAsc') return aStock - bStock;
+      if (sortBy === 'stockDesc') return bStock - aStock;
+
+      // Default: 'nameSku' (Produto & SKU A-Z)
+      const aName = a.nome || a.name || a.descricao || '';
+      const bName = b.nome || b.name || b.descricao || '';
+      return aName.localeCompare(bName);
+    });
+
+    return filtered;
+  }, [combinedCatalog, searchQuery, categoryFilter, baseNameFilter, syncFilter, hideOutOfStock, sortBy, dbProductsMap]);
 
   // Categorias oficiais da loja (unificadas com o Firestore/CMS e catálogo)
-  const storeCategories = Array.from(
-    new Set([
-      ...(categories || []).map(c => c?.name).filter(Boolean),
-      ...(products || []).map(p => p?.category).filter(Boolean),
-      'Sapatos Sociais',
-      'Mocassins',
-      'Botas',
-      'Sapatênis',
-      'Sandálias & Chinelos',
-      'Cintos & Carteiras',
-      'Acessórios',
-      'Geral'
-    ])
-  ).filter((c): c is string => Boolean(c && typeof c === 'string' && c.trim() !== ''));
+  const storeCategories = useMemo(() => {
+    return Array.from(
+      new Set([
+        ...(categories || []).map(c => c?.name).filter(Boolean),
+        ...(products || []).map(p => p?.category).filter(Boolean),
+        'Sapatos Sociais',
+        'Mocassins',
+        'Botas',
+        'Sapatênis',
+        'Sandálias & Chinelos',
+        'Cintos & Carteiras',
+        'Acessórios',
+        'Geral'
+      ])
+    ).filter((c): c is string => Boolean(c && typeof c === 'string' && c.trim() !== ''));
+  }, [categories, products]);
 
-  const uniqueCategories = Array.from(
-    new Set([
-      ...storeCategories,
-      ...combinedCatalog.map(i => i?.categoria || i?.category || 'Outros')
-    ])
-  ).filter(Boolean);
+  const uniqueCategories = useMemo(() => {
+    return Array.from(
+      new Set([
+        ...storeCategories,
+        ...combinedCatalog.map(i => i?.categoria || i?.category || 'Outros')
+      ])
+    ).filter(Boolean);
+  }, [storeCategories, combinedCatalog]);
 
   // Estrutura Agrupada por Modelo (Nome-Base) para exibição de variações de cores lado a lado
-  const groupedMoblinkMap = filteredMoblinkList.reduce((acc, item) => {
-    const mobId = String(item.id || item.moblinkId || 'MOB-000');
-    const rawName = item.nome || item.name || item.descricao || '';
-    const { baseName, variant } = extractBaseNameAndVariant(rawName);
-    
-    if (!acc[baseName]) {
-      acc[baseName] = {
-        baseName,
-        category: item.categoria || item.category || 'Geral',
-        items: [],
-        totalStock: 0,
-      };
-    }
-
-    const existingDb = getExistingDbProduct(mobId);
-    const precoVista = extractPrecoVistaMoblink(item) || Number(item.preco_venda_fracao ?? item.preco_venda ?? item.preco ?? item.price ?? 0);
-    const estoqueAtual = extractSaldoLojaMoblink(item);
-    const hasEnrichedMedia = Boolean(existingDb && existingDb.images && existingDb.images.length > 0);
-    const hasMedia = hasEnrichedMedia || Boolean(item.foto_uri || item.foto_url || item.foto || item.imagem || item.image);
-
-    const itemModelCode = existingDb?.modelCode || existingDb?.referenceCode || (item as any)?.modelCode || (item as any)?.referenceCode;
-    if (itemModelCode && !acc[baseName].modelCode) {
-      acc[baseName].modelCode = itemModelCode;
-    }
-
-    const displayColor = existingDb?.color || existingDb?.cor || item.cor || item.color || variant;
-
-    acc[baseName].items.push({
-      item,
-      mobId,
-      variant: displayColor,
-      precoVista,
-      estoqueAtual,
-      hasMedia,
-      hasEnrichedMedia,
-      existingDb,
-    });
-
-    acc[baseName].totalStock += estoqueAtual;
-    return acc;
-  }, {} as Record<string, {
-    baseName: string;
-    category: string;
-    modelCode?: string;
-    items: Array<{
-      item: MoblinkRawProduct;
-      mobId: string;
-      variant: string;
-      precoVista: number;
-      estoqueAtual: number;
-      hasMedia: boolean;
-      hasEnrichedMedia: boolean;
-      existingDb: Product | undefined;
-    }>;
-    totalStock: number;
-  }>);
-
-  const groupedList = Object.values(groupedMoblinkMap);
-
-  // Ordenação dinâmica dos grupos de modelos família
-  groupedList.sort((a, b) => {
-    if (sortBy === 'refMoblink') {
-      const aFirstMobId = a.items[0]?.mobId || '';
-      const bFirstMobId = b.items[0]?.mobId || '';
-      const aNum = parseInt(aFirstMobId.replace(/\D/g, ''), 10) || 0;
-      const bNum = parseInt(bFirstMobId.replace(/\D/g, ''), 10) || 0;
-      if (aNum !== bNum) return aNum - bNum;
-      return aFirstMobId.localeCompare(bFirstMobId);
-    }
-    if (sortBy === 'stockAsc') return a.totalStock - b.totalStock;
-    if (sortBy === 'stockDesc') return b.totalStock - a.totalStock;
-    return a.baseName.localeCompare(b.baseName);
-  });
-
-  // Ordenar variações internas de cada grupo
-  groupedList.forEach(group => {
-    group.items.sort((a, b) => {
-      if (sortBy === 'refMoblink') {
-        const aNum = parseInt(a.mobId.replace(/\D/g, ''), 10) || 0;
-        const bNum = parseInt(b.mobId.replace(/\D/g, ''), 10) || 0;
-        if (aNum !== bNum) return aNum - bNum;
-        return a.mobId.localeCompare(b.mobId);
+  const groupedList = useMemo(() => {
+    const groupedMoblinkMap = filteredMoblinkList.reduce((acc, item) => {
+      const mobId = String(item.id || item.moblinkId || 'MOB-000');
+      const rawName = item.nome || item.name || item.descricao || '';
+      const { baseName, variant } = extractBaseNameAndVariant(rawName);
+      
+      if (!acc[baseName]) {
+        acc[baseName] = {
+          baseName,
+          category: item.categoria || item.category || 'Geral',
+          items: [],
+          totalStock: 0,
+        };
       }
-      if (sortBy === 'stockAsc') return a.estoqueAtual - b.estoqueAtual;
-      if (sortBy === 'stockDesc') return b.estoqueAtual - a.estoqueAtual;
-      return a.variant.localeCompare(b.variant);
+
+      const existingDb = dbProductsMap.get(mobId);
+      const precoVista = extractPrecoVistaMoblink(item) || Number(item.preco_venda_fracao ?? item.preco_venda ?? item.preco ?? item.price ?? 0);
+      const estoqueAtual = extractSaldoLojaMoblink(item);
+      const hasEnrichedMedia = Boolean(existingDb && existingDb.images && existingDb.images.length > 0);
+      const hasMedia = hasEnrichedMedia || Boolean(item.foto_uri || item.foto_url || item.foto || item.imagem || item.image);
+
+      const itemModelCode = existingDb?.modelCode || existingDb?.referenceCode || (item as any)?.modelCode || (item as any)?.referenceCode;
+      if (itemModelCode && !acc[baseName].modelCode) {
+        acc[baseName].modelCode = itemModelCode;
+      }
+
+      const displayColor = existingDb?.color || existingDb?.cor || item.cor || item.color || variant;
+
+      acc[baseName].items.push({
+        item,
+        mobId,
+        variant: displayColor,
+        precoVista,
+        estoqueAtual,
+        hasMedia,
+        hasEnrichedMedia,
+        existingDb,
+      });
+
+      acc[baseName].totalStock += estoqueAtual;
+      return acc;
+    }, {} as Record<string, {
+      baseName: string;
+      category: string;
+      modelCode?: string;
+      items: Array<{
+        item: MoblinkRawProduct;
+        mobId: string;
+        variant: string;
+        precoVista: number;
+        estoqueAtual: number;
+        hasMedia: boolean;
+        hasEnrichedMedia: boolean;
+        existingDb: Product | undefined;
+      }>;
+      totalStock: number;
+    }>);
+
+    const groups = Object.values(groupedMoblinkMap);
+
+    // Ordenação dinâmica dos grupos de modelos família
+    groups.sort((a, b) => {
+      if (sortBy === 'refMoblink') {
+        const aFirstMobId = a.items[0]?.mobId || '';
+        const bFirstMobId = b.items[0]?.mobId || '';
+        const aNum = parseInt(aFirstMobId.replace(/\D/g, ''), 10) || 0;
+        const bNum = parseInt(bFirstMobId.replace(/\D/g, ''), 10) || 0;
+        if (aNum !== bNum) return aNum - bNum;
+        return aFirstMobId.localeCompare(bFirstMobId);
+      }
+      if (sortBy === 'stockAsc') return a.totalStock - b.totalStock;
+      if (sortBy === 'stockDesc') return b.totalStock - a.totalStock;
+      return a.baseName.localeCompare(b.baseName);
     });
-  });
+
+    // Ordenar variações internas de cada grupo
+    groups.forEach(group => {
+      group.items.sort((a, b) => {
+        if (sortBy === 'refMoblink') {
+          const aNum = parseInt(a.mobId.replace(/\D/g, ''), 10) || 0;
+          const bNum = parseInt(b.mobId.replace(/\D/g, ''), 10) || 0;
+          if (aNum !== bNum) return aNum - bNum;
+          return a.mobId.localeCompare(b.mobId);
+        }
+        if (sortBy === 'stockAsc') return a.estoqueAtual - b.estoqueAtual;
+        if (sortBy === 'stockDesc') return b.estoqueAtual - a.estoqueAtual;
+        return a.variant.localeCompare(b.variant);
+      });
+    });
+
+    return groups;
+  }, [filteredMoblinkList, sortBy, dbProductsMap]);
   const isGroupedViewActive = viewMode === 'grouped' || Boolean(baseNameFilter);
 
   const totalPages = isGroupedViewActive 
@@ -1269,9 +1469,27 @@ export const MoblinkProductsManager: React.FC = () => {
                                     <span className="text-[10px] font-black px-2 py-0.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-md border border-amber-500/20">
                                       Cor: {variant}
                                     </span>
-                                    {sizesList && (
-                                      <span className="text-[9px] font-mono px-1.5 py-0.2 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded font-semibold">
-                                        Tam: {sizesList}
+                                    {(() => {
+                                      const isSingle = !sizesList || ['UN', 'UNICA', 'ÚNICA', 'U', 'TAMANHO ÚNICO', 'UNICO', 'ÚNICO'].includes(sizesList.trim().toUpperCase());
+                                      if (isSingle) {
+                                        return (
+                                          <span className="text-[9px] font-bold px-2 py-0.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded border border-emerald-500/20 inline-flex items-center gap-1">
+                                            <Sparkles className="h-2.5 w-2.5 text-emerald-500" />
+                                            Tamanho Único
+                                          </span>
+                                        );
+                                      }
+                                      return (
+                                        <span className="text-[9px] font-mono px-1.5 py-0.2 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded font-semibold">
+                                          Tam: {sizesList}
+                                        </span>
+                                      );
+                                    })()}
+
+                                    {Boolean(existingDb?.newArrival || (item as any)?.newArrival || item.newArrival) && (
+                                      <span className="text-[9px] font-extrabold px-2 py-0.5 bg-purple-500/10 text-purple-600 dark:text-purple-300 rounded border border-purple-500/30 inline-flex items-center gap-1">
+                                        <Sparkles className="h-2.5 w-2.5 text-purple-500" />
+                                        Lançamento
                                       </span>
                                     )}
                                   </div>
@@ -1374,6 +1592,35 @@ export const MoblinkProductsManager: React.FC = () => {
               <table className="w-full border-collapse">
                 <thead>
                   <tr className="bg-slate-50 dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 text-slate-400 font-bold uppercase text-[9px] tracking-wider">
+                    <th className="p-4 w-10 text-center">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const pageMobIds = paginatedList.map(i => String(i.id || i.moblinkId || 'MOB-000'));
+                          const allSelected = pageMobIds.length > 0 && pageMobIds.every(id => selectedMobIds[id]);
+                          setSelectedMobIds(prev => {
+                            const next = { ...prev };
+                            pageMobIds.forEach(id => {
+                              if (allSelected) {
+                                delete next[id];
+                              } else {
+                                next[id] = true;
+                              }
+                            });
+                            return next;
+                          });
+                        }}
+                        className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-500 cursor-pointer"
+                        title="Selecionar/Desselecionar todos os produtos desta página"
+                      >
+                        {paginatedList.length > 0 && paginatedList.every(i => selectedMobIds[String(i.id || i.moblinkId || 'MOB-000')]) ? (
+                          <CheckSquare className="h-4 w-4 text-amber-500" />
+                        ) : (
+                          <Square className="h-4 w-4 text-slate-400" />
+                        )}
+                      </button>
+                    </th>
                     <th className="p-4 text-left">Ref MobLink</th>
                     <th className="p-4 text-left">Produto &amp; SKU</th>
                     <th className="p-4 text-left">Indicador de Sincronização</th>
@@ -1393,13 +1640,27 @@ export const MoblinkProductsManager: React.FC = () => {
 
                     const precoVista = extractPrecoVistaMoblink(item) || Number(item.preco_venda_fracao ?? item.preco_venda ?? item.preco ?? item.price ?? 0);
                     const estoqueAtual = extractSaldoLojaMoblink(item);
+                    const isItemSelected = Boolean(selectedMobIds[mobId]);
 
                     return (
                       <tr 
                         key={mobId}
                         onClick={() => handleOpenEnrichmentForm(item)}
-                        className="hover:bg-amber-500/5 dark:hover:bg-slate-800/40 transition-all cursor-pointer group"
+                        className={`transition-all cursor-pointer group ${
+                          isItemSelected 
+                            ? 'bg-amber-500/10 dark:bg-amber-500/10' 
+                            : 'hover:bg-amber-500/5 dark:hover:bg-slate-800/40'
+                        }`}
                       >
+                        {/* CHECKBOX SELEÇÃO */}
+                        <td className="p-4 text-center" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={isItemSelected}
+                            onChange={() => toggleSelectProduct(mobId)}
+                            className="w-4 h-4 rounded text-amber-500 border-slate-300 focus:ring-amber-500 cursor-pointer"
+                          />
+                        </td>
                         {/* ID MOBLINK PRIMARY KEY */}
                         <td className="p-4">
                           <span className="font-mono font-black text-xs px-2.5 py-1 bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-amber-400 rounded-lg border border-slate-200 dark:border-slate-700">
@@ -1422,6 +1683,28 @@ export const MoblinkProductsManager: React.FC = () => {
                             <span className="text-[9px] px-1.5 py-0.2 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded uppercase font-bold">
                               {item.categoria || item.category || 'Geral'}
                             </span>
+                            {(() => {
+                              const itemSizesStr = Array.isArray(item.tamanhos) && item.tamanhos.length > 0
+                                ? item.tamanhos.join(', ')
+                                : (Array.isArray(existingDb?.sizes) ? existingDb.sizes.join(', ') : '');
+                              const isSingle = !itemSizesStr || ['UN', 'UNICA', 'ÚNICA', 'U', 'TAMANHO ÚNICO', 'UNICO', 'ÚNICO'].includes(itemSizesStr.trim().toUpperCase());
+
+                              if (isSingle) {
+                                return (
+                                  <span className="text-[9px] font-bold px-2 py-0.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded border border-emerald-500/20 inline-flex items-center gap-1">
+                                    <Sparkles className="h-2.5 w-2.5 text-emerald-500" />
+                                    Tamanho Único
+                                  </span>
+                                );
+                              }
+                              return null;
+                            })()}
+                            {Boolean(existingDb?.newArrival || (item as any)?.newArrival || item.newArrival) && (
+                              <span className="text-[9px] font-extrabold px-2 py-0.5 bg-purple-500/10 text-purple-600 dark:text-purple-300 rounded border border-purple-500/30 inline-flex items-center gap-1">
+                                <Sparkles className="h-2.5 w-2.5 text-purple-500" />
+                                Lançamento
+                              </span>
+                            )}
                           </div>
                         </td>
 
@@ -1606,13 +1889,13 @@ export const MoblinkProductsManager: React.FC = () => {
                   {/* NOME DO PRODUTO */}
                   <div className="sm:col-span-2 space-y-1">
                     <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 block">
-                      Nome do Calçado / Produto
+                      Nome do Produto
                     </label>
                     <input
                       type="text"
                       value={editName}
                       onChange={(e) => setEditName(e.target.value)}
-                      placeholder="Ex: Sapato Social Oxford Couro Legítimo..."
+                      placeholder="Ex: Sapato Social, Bolsa Transversal Couro, Cinto Social..."
                       className="w-full p-2.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-xs font-semibold focus:outline-none focus:border-amber-500"
                     />
                   </div>
@@ -1626,7 +1909,7 @@ export const MoblinkProductsManager: React.FC = () => {
                       type="text"
                       value={editSku}
                       onChange={(e) => setEditSku(e.target.value)}
-                      placeholder="Ex: SAP-OXF-41"
+                      placeholder="Ex: SAP-OXF-41 ou BOLSA-COURO-01"
                       className="w-full p-2.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-xs font-mono font-semibold focus:outline-none focus:border-amber-500"
                     />
                   </div>
@@ -1712,104 +1995,129 @@ export const MoblinkProductsManager: React.FC = () => {
                     />
                   </div>
 
-                  {/* GRADE DE TAMANHOS */}
+                  {/* GRADE DE TAMANHOS / VARIAÇÕES */}
                   <div className="space-y-1">
                     <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 block">
-                      Grade de Tamanhos (Separados por Vírgula)
+                      Grade de Tamanhos / Variações (Separados por Vírgula)
                     </label>
                     <input
                       type="text"
                       value={editSizes}
                       onChange={(e) => handleEditSizesChange(e.target.value)}
-                      placeholder="Ex: 37, 38, 39, 40, 41, 42, 43"
+                      placeholder="Ex: 37, 38, 39 ou P, M, G ou UNICA"
                       className="w-full p-2.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-xs font-mono font-semibold focus:outline-none focus:border-amber-500"
                     />
                   </div>
 
-                  {/* COR DO CALÇADO / PRODUTO */}
+                  {/* COR / ACABAMENTO / DETALHE */}
                   <div className="space-y-1">
                     <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 flex items-center justify-between">
-                      <span>Cor do Calçado / Produto</span>
+                      <span>Cor / Acabamento / Detalhe</span>
                       <span className="text-[9px] text-amber-500 font-bold">Exibida na Loja Virtual</span>
                     </label>
                     <input
                       type="text"
                       value={editColor}
                       onChange={(e) => setEditColor(e.target.value)}
-                      placeholder="Ex: PRETO, OFF WHITE, CAFÉ, VERNIZ NUDE"
+                      placeholder="Ex: PRETO, OFF WHITE, CAFÉ, DOURADO, VERNIZ NUDE"
                       className="w-full p-2.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-amber-400 text-xs font-bold focus:outline-none focus:border-amber-500"
                     />
                   </div>
 
-                  {/* MATRIZ DE ESTOQUE POR NUMERAÇÃO / TAMANHO */}
+                  {/* MATRIZ DE ESTOQUE ADAPTATIVA POR NUMERAÇÃO / TAMANHO / PEÇA ÚNICA */}
                   <div className="sm:col-span-2 space-y-2 bg-slate-50 dark:bg-slate-900/60 p-3.5 rounded-xl border border-slate-200 dark:border-slate-800">
                     {(() => {
                       const activeSizes = editSizes.split(',').map(s => s.trim()).filter(Boolean);
+                      const isSingleSize = activeSizes.length === 0 || (activeSizes.length === 1 && ['UNICA', 'ÚNICA', 'UN', 'U', 'TAMANHO ÚNICO', 'UNICO', 'ÚNICO'].includes(activeSizes[0].toUpperCase()));
+
+                      if (isSingleSize) {
+                        const singleLabel = activeSizes[0] || 'UN';
+                        return (
+                          <div className="space-y-1 py-1">
+                            <div className="flex items-center justify-between">
+                              <label className="text-[11px] font-black text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                                <Grid className="h-4 w-4 text-emerald-500" />
+                                <span>Controle de Estoque — Peça / Tamanho Único ({singleLabel})</span>
+                              </label>
+                              <span className="text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                                ✓ Tamanho Único — Total: {editStock || 0} un
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-slate-500 dark:text-slate-400 pt-1">
+                              Este produto está configurado como peça/tamanho único (<strong>{singleLabel}</strong>). O estoque total de <strong>{editStock || 0} unidade(s)</strong> é atribuído diretamente ao produto, sem divisão por numeração.
+                            </p>
+                          </div>
+                        );
+                      }
+
+                      const isNumericGrade = activeSizes.every(s => !isNaN(Number(s)));
                       const totalSizeSum = activeSizes.reduce((sum, size) => sum + (Number(editStockBySize[size]) || 0), 0);
                       const maxStockLimit = Number(editStock) || 0;
                       const isOver = totalSizeSum > maxStockLimit;
                       const isExact = totalSizeSum === maxStockLimit;
+                      const matrixTitle = isNumericGrade 
+                        ? 'Estoque por Numeração (Grade Individual)' 
+                        : 'Estoque por Tamanho / Variação';
 
                       return (
-                        <div className="flex items-center justify-between">
-                          <label className="text-[11px] font-black text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                            <Grid className="h-4 w-4 text-amber-500" />
-                            <span>Estoque por Numeração (Grade Individual)</span>
-                          </label>
-                          <span className={`text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-md border ${
-                            isOver
-                              ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30'
-                              : isExact
-                              ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
-                              : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
-                          }`}>
-                            {isOver
-                              ? `⚠️ Soma: ${totalSizeSum} / ${maxStockLimit} un (Excede em ${totalSizeSum - maxStockLimit} un)`
-                              : isExact
-                              ? `✓ Soma: ${totalSizeSum} / ${maxStockLimit} un (Total 100% Alocado)`
-                              : `Soma: ${totalSizeSum} / ${maxStockLimit} un (Restam ${maxStockLimit - totalSizeSum} un)`}
-                          </span>
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <label className="text-[11px] font-black text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                              <Grid className="h-4 w-4 text-amber-500" />
+                              <span>{matrixTitle}</span>
+                            </label>
+                            <span className={`text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-md border ${
+                              isOver
+                                ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30'
+                                : isExact
+                                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
+                                : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
+                            }`}>
+                              {isOver
+                                ? `⚠️ Soma: ${totalSizeSum} / ${maxStockLimit} un (Excede em ${totalSizeSum - maxStockLimit} un)`
+                                : isExact
+                                ? `✓ Soma: ${totalSizeSum} / ${maxStockLimit} un (Total 100% Alocado)`
+                                : `Soma: ${totalSizeSum} / ${maxStockLimit} un (Restam ${maxStockLimit - totalSizeSum} un)`}
+                            </span>
+                          </div>
+
+                          <p className="text-[10px] text-slate-400">
+                            Defina a quantidade disponível para cada {isNumericGrade ? 'numeração' : 'tamanho/variação'}. O estoque total é atualizado automaticamente.
+                          </p>
+
+                          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2 pt-1">
+                            {activeSizes.map((size) => {
+                              const sizeQty = editStockBySize[size] !== undefined ? editStockBySize[size] : 0;
+                              const sizeLabel = isNumericGrade ? `Tam ${size}` : size;
+
+                              return (
+                                <div key={size} className="bg-white dark:bg-slate-800 p-2 rounded-lg border border-slate-200 dark:border-slate-700 space-y-1 text-center">
+                                  <span className="text-[10px] font-mono font-black text-slate-500 dark:text-slate-400 block uppercase">
+                                    {sizeLabel}
+                                  </span>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={sizeQty}
+                                    onChange={(e) => {
+                                      const raw = e.target.value;
+                                      const parsed = raw === '' ? 0 : parseInt(raw, 10);
+                                      handleSizeStockChange(size, isNaN(parsed) ? 0 : parsed);
+                                    }}
+                                    className="w-full text-center p-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded text-xs font-mono font-bold text-slate-900 dark:text-amber-400 focus:outline-none focus:border-amber-500"
+                                  />
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
                       );
                     })()}
-
-                    <p className="text-[10px] text-slate-400">
-                      Defina a quantidade exata de pares disponíveis para cada numeração. O estoque total é atualizado automaticamente.
-                    </p>
-
-                    <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2 pt-1">
-                      {editSizes
-                        .split(',')
-                        .map(s => s.trim())
-                        .filter(Boolean)
-                        .map((size) => {
-                          const sizeQty = editStockBySize[size] !== undefined ? editStockBySize[size] : 0;
-
-                          return (
-                            <div key={size} className="bg-white dark:bg-slate-800 p-2 rounded-lg border border-slate-200 dark:border-slate-700 space-y-1 text-center">
-                              <span className="text-[10px] font-mono font-black text-slate-500 dark:text-slate-400 block uppercase">
-                                Tam {size}
-                              </span>
-                              <input
-                                type="number"
-                                min="0"
-                                value={sizeQty}
-                                onChange={(e) => {
-                                  const raw = e.target.value;
-                                  const parsed = raw === '' ? 0 : parseInt(raw, 10);
-                                  handleSizeStockChange(size, isNaN(parsed) ? 0 : parsed);
-                                }}
-                                className="w-full text-center p-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded text-xs font-mono font-bold text-slate-900 dark:text-amber-400 focus:outline-none focus:border-amber-500"
-                              />
-                            </div>
-                          );
-                        })}
-                    </div>
                   </div>
                 </div>
 
-                {/* TOGGLE VISIBILIDADE */}
-                <div className="pt-2">
+                {/* TOGGLE VISIBILIDADE & MARCAR COMO LANÇAMENTO */}
+                <div className="pt-2 flex flex-col sm:flex-row items-start sm:items-center gap-4">
                   <label className="inline-flex items-center gap-2.5 cursor-pointer">
                     <input
                       type="checkbox"
@@ -1819,6 +2127,19 @@ export const MoblinkProductsManager: React.FC = () => {
                     />
                     <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
                       Exibir produto visível nas vitrines da loja virtual
+                    </span>
+                  </label>
+
+                  <label className="inline-flex items-center gap-2.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={editNewArrival}
+                      onChange={(e) => setEditNewArrival(e.target.checked)}
+                      className="w-4 h-4 rounded text-purple-600 border-slate-300 focus:ring-purple-500 cursor-pointer"
+                    />
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                      <Sparkles className="h-3.5 w-3.5 text-purple-500" />
+                      <span>Marcar como Lançamento / Novidade</span>
                     </span>
                   </label>
                 </div>
@@ -2008,6 +2329,18 @@ export const MoblinkProductsManager: React.FC = () => {
 
           <button
             type="button"
+            onClick={() => {
+              setBatchCategory('');
+              setIsBatchCategoryModalOpen(true);
+            }}
+            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl text-xs flex items-center gap-2 transition-all shadow-md cursor-pointer"
+          >
+            <Folder className="h-4 w-4" />
+            <span>Alterar Categoria em Lote</span>
+          </button>
+
+          <button
+            type="button"
             onClick={clearSelection}
             className="px-3 py-2 text-slate-400 hover:text-white font-bold text-xs cursor-pointer transition-colors"
           >
@@ -2081,6 +2414,92 @@ export const MoblinkProductsManager: React.FC = () => {
                     <>
                       <Check className="h-4 w-4" />
                       <span>Aplicar a {selectedIdsList.length} Item(ns)</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL RÁPIDO PARA ALTERAR CATEGORIA EM LOTE */}
+      {isBatchCategoryModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#0f172a] rounded-2xl max-w-md w-full p-6 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-5 animate-scale-up">
+            <div className="flex items-center justify-between border-b pb-4 dark:border-slate-800">
+              <div className="flex items-center gap-2">
+                <Folder className="h-5 w-5 text-emerald-500" />
+                <h3 className="font-black text-sm text-slate-800 dark:text-slate-100">
+                  Alterar Categoria em Lote
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsBatchCategoryModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Selecione ou digite a nova <strong>Categoria Oficial</strong> para 
+              <strong className="text-emerald-500"> {selectedIdsList.length} produto(s) selecionado(s)</strong>. Essa alteração será refletida na vitrine e nos filtros da loja virtual.
+            </p>
+
+            <form onSubmit={handleSaveBatchCategory} className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 block">
+                  Selecione uma Categoria Existente:
+                </label>
+                <select
+                  value={batchCategory}
+                  onChange={(e) => setBatchCategory(e.target.value)}
+                  className="w-full p-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 text-xs font-bold focus:outline-none focus:border-emerald-500"
+                >
+                  <option value="">-- Escolha uma Categoria --</option>
+                  {uniqueCategories.map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+
+                <div className="pt-2 space-y-1">
+                  <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 block">
+                    Ou digite um novo nome de categoria:
+                  </label>
+                  <input
+                    type="text"
+                    value={batchCategory}
+                    onChange={(e) => setBatchCategory(e.target.value)}
+                    placeholder="Ex: Babuches Infantis"
+                    className="w-full p-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-emerald-400 text-xs font-bold focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsBatchCategoryModalOpen(false)}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingBatchCategory || !batchCategory.trim()}
+                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl flex items-center gap-2 cursor-pointer transition-all shadow-md disabled:opacity-50"
+                >
+                  {isSavingBatchCategory ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                      <span>Salvando Categoria...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="h-4 w-4" />
+                      <span>Aplicar Categoria</span>
                     </>
                   )}
                 </button>

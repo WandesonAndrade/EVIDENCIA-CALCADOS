@@ -406,6 +406,22 @@ export const ProductDetail: React.FC = () => {
                   <span>MobLink ERP</span>
                 </span>
               )}
+
+              {/* INDICAÇÃO DE TAMANHO ÚNICO */}
+              {((p.sizes && p.sizes.length === 1 && ['UNICA', 'ÚNICA', 'UN', 'U', 'TAMANHO ÚNICO', 'UNICO', 'ÚNICO'].includes(String(p.sizes[0]).toUpperCase())) || (p.sizes && p.sizes.length === 0)) && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+                  <Sparkles className="h-3 w-3 text-emerald-500" />
+                  <span>Tamanho Único</span>
+                </span>
+              )}
+
+              {/* INDICAÇÃO DE LANÇAMENTO */}
+              {p.newArrival && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-500/30">
+                  <Sparkles className="h-3 w-3 text-purple-500" />
+                  <span>LANÇAMENTO</span>
+                </span>
+              )}
             </div>
 
             {p.crediarioProprio && (
@@ -421,50 +437,66 @@ export const ProductDetail: React.FC = () => {
           }`}>
             {/* SELEÇÃO DE TAMANHO / NUMERAÇÃO */}
             <div className="space-y-3">
-              <div className="flex justify-between items-center text-xs">
-                <label className={`font-bold uppercase tracking-wider text-xs flex items-center gap-1.5 ${
-                  isDark ? 'text-amber-400' : 'text-slate-900'
-                }`}>
-                  <span>1. Escolha o Tamanho:</span>
-                </label>
-                {selectedLinhaOption ? (
-                  <span className="text-xs text-emerald-500 font-bold flex items-center gap-1">
-                    <CheckCircle2 className="h-3.5 w-3.5" /> {selectedLinhaOption}
+              {((p.sizes && p.sizes.length === 1 && ['UNICA', 'ÚNICA', 'UN', 'U', 'TAMANHO ÚNICO', 'UNICO', 'ÚNICO'].includes(String(p.sizes[0]).toUpperCase())) || (p.sizes && p.sizes.length === 0)) ? (
+                <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-emerald-500" />
+                    <span className="text-xs font-extrabold text-emerald-700 dark:text-emerald-300">
+                      Tamanho Único (UN)
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-800 dark:text-emerald-200">
+                    Dimensões Padrão
                   </span>
-                ) : (
-                  <span className="text-[10px] text-rose-500 font-bold uppercase tracking-wider animate-pulse">Obrigatório *</span>
-                )}
-              </div>
+                </div>
+              ) : (
+                <>
+                  <div className="flex justify-between items-center text-xs">
+                    <label className={`font-bold uppercase tracking-wider text-xs flex items-center gap-1.5 ${
+                      isDark ? 'text-amber-400' : 'text-slate-900'
+                    }`}>
+                      <span>1. Escolha o Tamanho:</span>
+                    </label>
+                    {selectedLinhaOption ? (
+                      <span className="text-xs text-emerald-500 font-bold flex items-center gap-1">
+                        <CheckCircle2 className="h-3.5 w-3.5" /> {selectedLinhaOption}
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-rose-500 font-bold uppercase tracking-wider animate-pulse">Obrigatório *</span>
+                    )}
+                  </div>
 
-              <div className="grid grid-cols-4 sm:grid-cols-6 gap-2.5">
-                {linhaOptions.map((sizeOpt) => {
-                  const isSelected = selectedLinhaOption === sizeOpt;
-                  const isOutOfStock = p.sizeStockMap && p.sizeStockMap[String(sizeOpt)] === 0;
+                  <div className="grid grid-cols-4 sm:grid-cols-6 gap-2.5">
+                    {linhaOptions.map((sizeOpt) => {
+                      const isSelected = selectedLinhaOption === sizeOpt;
+                      const isOutOfStock = p.sizeStockMap && p.sizeStockMap[String(sizeOpt)] === 0;
 
-                  return (
-                    <motion.button
-                      key={String(sizeOpt)}
-                      whileHover={!isOutOfStock ? { scale: 1.05 } : {}}
-                      whileTap={!isOutOfStock ? { scale: 0.95 } : {}}
-                      disabled={isOutOfStock}
-                      onClick={() => setSelectedLinhaOption(sizeOpt)}
-                      className={`relative h-12 rounded-xl border flex flex-col items-center justify-center text-xs font-bold transition-all cursor-pointer ${
-                        isSelected
-                          ? isDark
-                            ? 'bg-amber-400 border-amber-400 text-slate-950 font-black shadow-[0_0_15px_rgba(245,158,11,0.35)] scale-105 z-10'
-                            : 'bg-slate-900 border-slate-900 text-white font-black shadow-lg scale-105 z-10'
-                          : isOutOfStock
-                            ? 'border-slate-800 text-slate-600 bg-slate-900/30 opacity-40 line-through cursor-not-allowed'
-                            : isDark
-                              ? 'border-slate-800 text-slate-300 bg-slate-900/80 hover:border-slate-700 hover:bg-slate-800'
-                              : 'border-slate-200 text-slate-700 bg-white hover:border-slate-400 hover:bg-slate-50'
-                      }`}
-                    >
-                      <span>{sizeOpt}</span>
-                    </motion.button>
-                  );
-                })}
-              </div>
+                      return (
+                        <motion.button
+                          key={String(sizeOpt)}
+                          whileHover={!isOutOfStock ? { scale: 1.05 } : {}}
+                          whileTap={!isOutOfStock ? { scale: 0.95 } : {}}
+                          disabled={isOutOfStock}
+                          onClick={() => setSelectedLinhaOption(sizeOpt)}
+                          className={`relative h-12 rounded-xl border flex flex-col items-center justify-center text-xs font-bold transition-all cursor-pointer ${
+                            isSelected
+                              ? isDark
+                                ? 'bg-amber-400 border-amber-400 text-slate-950 font-black shadow-[0_0_15px_rgba(245,158,11,0.35)] scale-105 z-10'
+                                : 'bg-slate-900 border-slate-900 text-white font-black shadow-lg scale-105 z-10'
+                              : isOutOfStock
+                                ? 'border-slate-800 text-slate-600 bg-slate-900/30 opacity-40 line-through cursor-not-allowed'
+                                : isDark
+                                  ? 'border-slate-800 text-slate-300 bg-slate-900/80 hover:border-slate-700 hover:bg-slate-800'
+                                  : 'border-slate-200 text-slate-700 bg-white hover:border-slate-400 hover:bg-slate-50'
+                          }`}
+                        >
+                          <span>{sizeOpt}</span>
+                        </motion.button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
             </div>
 
             {/* SELEÇÃO DE COR / ACABAMENTO */}

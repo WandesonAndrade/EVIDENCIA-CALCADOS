@@ -740,7 +740,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const initAndListen = async () => {
       try {
         await seedDatabaseIfNeeded();
-        await syncProductsFromMoblinkApi();
       } catch (error) {
         console.warn("Seeding skipped or failed. Using local storage products fallback:", error);
       }

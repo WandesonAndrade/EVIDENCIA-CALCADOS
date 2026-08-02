@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { Product, Order, OrderStatus, PaymentStatus, UserProfile, Category, HeroBanner, HomeSectionConfig, AboutConfig, ContactConfig } from '../types';
 import { MoblinkIntegrationPanel } from './MoblinkIntegrationPanel';
@@ -451,16 +451,67 @@ export const AdminPanel: React.FC = () => {
   };
 
   // --- CMS 2: HOME SECTIONS REORDERING & EDITING ---
+  // Sincroniza dinamicamente todas as categorias cadastradas na lista de seções da Home
+  const effectiveHomeSections = useMemo(() => {
+    const list = [...(homeSections || [])];
+
+    // Garante que 'launches' (Novidades & Lançamentos) é o destaque principal fixado no topo
+    const launchesIdx = list.findIndex((s) => s.id === 'launches');
+    if (launchesIdx === -1) {
+      list.unshift({
+        id: 'launches',
+        name: 'Novidades & Lançamentos',
+        description: 'Carrossel dos lançamentos da estação (Destaque Principal Fixado)',
+        enabled: true,
+      });
+    } else if (launchesIdx > 0) {
+      const [launchesSec] = list.splice(launchesIdx, 1);
+      list.unshift(launchesSec);
+    }
+
+    // Categorias ativas cadastradas no sistema
+    const activeCats = [
+      ...categories.filter((c) => c.active !== false).map((c) => ({ id: c.id || c.name.toLowerCase().replace(/\s+/g, '-'), name: c.name })),
+      ...products.map((p) => p.category).filter(Boolean).map((cat) => ({ id: cat.toLowerCase().replace(/\s+/g, '-'), name: cat })),
+    ];
+
+    const uniqueCatMap = new Map<string, { id: string; name: string }>();
+    activeCats.forEach((c) => {
+      if (!uniqueCatMap.has(c.name.toUpperCase())) {
+        uniqueCatMap.set(c.name.toUpperCase(), c);
+      }
+    });
+
+    uniqueCatMap.forEach((catObj, upperName) => {
+      const exists = list.some(
+        (s) =>
+          s.id === catObj.id ||
+          s.name.toUpperCase() === upperName ||
+          s.id.toUpperCase() === upperName
+      );
+      if (!exists) {
+        list.push({
+          id: catObj.id,
+          name: catObj.name,
+          description: `Prateleira da categoria ${catObj.name}`,
+          enabled: true,
+        });
+      }
+    });
+
+    return list;
+  }, [homeSections, categories, products]);
+
   const handleMoveSection = async (index: number, direction: 'up' | 'down') => {
     try {
-      const list = [...(homeSections || [])];
+      const list = [...effectiveHomeSections];
       const targetIdx = direction === 'up' ? index - 1 : index + 1;
-      if (targetIdx < 0 || targetIdx >= list.length) return;
+      if (targetIdx <= 0 || targetIdx >= list.length || index <= 0) return; // Lançamentos fica fixo em #1
       const temp = list[index];
       list[index] = list[targetIdx];
       list[targetIdx] = temp;
       await updateHomeSections(list);
-      addToast('Seções Reordenadas!', 'A nova sequência de seções foi atualizada.');
+      addToast('Seções Reordenadas!', 'A nova sequência de seções foi salva no Firestore.');
     } catch (err: any) {
       console.error("Erro ao reordenar seções:", err);
       addToast('Erro ao Salvar', 'Permissão negada ou erro de conexão com o Firestore.', 'error');
@@ -469,7 +520,7 @@ export const AdminPanel: React.FC = () => {
 
   const handleSaveHomeSectionsOrder = async () => {
     try {
-      await updateHomeSections(homeSections || []);
+      await updateHomeSections(effectiveHomeSections);
       addToast('Ordem salva com sucesso!', 'A nova ordem exata das seções da Home foi enviada para o Firestore.');
     } catch (err: any) {
       console.error("Erro ao salvar ordem das seções:", err);
@@ -479,7 +530,7 @@ export const AdminPanel: React.FC = () => {
 
   const handleToggleSectionEnabled = async (id: string) => {
     try {
-      const list = (homeSections || []).map(s => s.id === id ? { ...s, enabled: !s.enabled } : s);
+      const list = effectiveHomeSections.map(s => s.id === id ? { ...s, enabled: !s.enabled } : s);
       await updateHomeSections(list);
       addToast('Visibilidade Alterada!', 'O status da seção foi sincronizado com a loja.');
     } catch (err: any) {
@@ -499,7 +550,7 @@ export const AdminPanel: React.FC = () => {
     e.preventDefault();
     if (!editingSection) return;
     try {
-      const updatedList = (homeSections || []).map(s =>
+      const updatedList = effectiveHomeSections.map(s =>
         s.id === editingSection.id ? { ...s, name: sectionNameInput, description: sectionDescInput } : s
       );
       await updateHomeSections(updatedList);
@@ -2319,65 +2370,80 @@ export const AdminPanel: React.FC = () => {
             </div>
 
             <div className="space-y-4">
-              {(homeSections || []).map((sec, index) => (
-                <div
-                  key={sec.id}
-                  className={`p-5 rounded-2xl border backdrop-blur-xl flex items-center justify-between transition-all ${
-                    isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
-                  } ${!sec.enabled ? 'opacity-50' : ''}`}
-                >
-                  <div className="flex items-center space-x-4">
-                    <span className="w-8 h-8 rounded-xl bg-amber-400/10 text-amber-400 border border-amber-400/30 flex items-center justify-center font-black text-xs">
-                      #{index + 1}
-                    </span>
-                    <div>
-                      <h3 className="text-sm font-black">{sec.name}</h3>
-                      <p className="text-xs text-slate-400">{sec.description}</p>
+              {effectiveHomeSections.map((sec, index) => {
+                const isLaunches = sec.id === 'launches';
+
+                return (
+                  <div
+                    key={sec.id}
+                    className={`p-5 rounded-2xl border backdrop-blur-xl flex items-center justify-between transition-all ${
+                      isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
+                    } ${!sec.enabled ? 'opacity-50' : ''}`}
+                  >
+                    <div className="flex items-center space-x-4">
+                      <span className={`w-8 h-8 rounded-xl flex items-center justify-center font-black text-xs border ${
+                        isLaunches 
+                          ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-sm'
+                          : 'bg-amber-400/10 text-amber-400 border-amber-400/30'
+                      }`}>
+                        #{index + 1}
+                      </span>
+                      <div>
+                        <div className="flex items-center space-x-2">
+                          <h3 className="text-sm font-black">{sec.name}</h3>
+                          {isLaunches && (
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-amber-400/20 text-amber-400 border border-amber-400/30">
+                              ✨ Destaque Principal Fixado
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-slate-400">{sec.description}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center space-x-3">
+                      <button
+                        onClick={() => handleOpenEditSection(sec)}
+                        className="p-2 rounded-xl border border-slate-700 bg-slate-800 text-slate-300 hover:text-amber-400 cursor-pointer flex items-center space-x-1.5 text-xs font-bold"
+                        title="Editar título e subtítulo"
+                      >
+                        <Edit className="h-4 w-4" />
+                        <span className="hidden sm:inline">Editar</span>
+                      </button>
+
+                      <button
+                        onClick={() => handleMoveSection(index, 'up')}
+                        disabled={index <= 1 || isLaunches}
+                        className="p-2 rounded-xl border border-slate-700 bg-slate-800 text-slate-300 hover:text-white disabled:opacity-30 cursor-pointer"
+                        title="Mover para cima"
+                      >
+                        <ArrowUp className="h-4 w-4" />
+                      </button>
+
+                      <button
+                        onClick={() => handleMoveSection(index, 'down')}
+                        disabled={index === 0 || index === effectiveHomeSections.length - 1 || isLaunches}
+                        className="p-2 rounded-xl border border-slate-700 bg-slate-800 text-slate-300 hover:text-white disabled:opacity-30 cursor-pointer"
+                        title="Mover para baixo"
+                      >
+                        <ArrowDown className="h-4 w-4" />
+                      </button>
+
+                      <label className="flex items-center space-x-2 cursor-pointer border border-slate-700 px-3 py-1.5 rounded-xl bg-slate-800">
+                        <input
+                          type="checkbox"
+                          checked={sec.enabled}
+                          onChange={() => handleToggleSectionEnabled(sec.id)}
+                          className="rounded accent-amber-400 w-4 h-4"
+                        />
+                        <span className="text-xs font-bold text-slate-300">
+                          {sec.enabled ? 'Exibido' : 'Oculto'}
+                        </span>
+                      </label>
                     </div>
                   </div>
-
-                  <div className="flex items-center space-x-3">
-                    <button
-                      onClick={() => handleOpenEditSection(sec)}
-                      className="p-2 rounded-xl border border-slate-700 bg-slate-800 text-slate-300 hover:text-amber-400 cursor-pointer flex items-center space-x-1.5 text-xs font-bold"
-                      title="Editar título e subtítulo"
-                    >
-                      <Edit className="h-4 w-4" />
-                      <span className="hidden sm:inline">Editar</span>
-                    </button>
-
-                    <button
-                      onClick={() => handleMoveSection(index, 'up')}
-                      disabled={index === 0}
-                      className="p-2 rounded-xl border border-slate-700 bg-slate-800 text-slate-300 hover:text-white disabled:opacity-30 cursor-pointer"
-                      title="Mover para cima"
-                    >
-                      <ArrowUp className="h-4 w-4" />
-                    </button>
-
-                    <button
-                      onClick={() => handleMoveSection(index, 'down')}
-                      disabled={index === (homeSections || []).length - 1}
-                      className="p-2 rounded-xl border border-slate-700 bg-slate-800 text-slate-300 hover:text-white disabled:opacity-30 cursor-pointer"
-                      title="Mover para baixo"
-                    >
-                      <ArrowDown className="h-4 w-4" />
-                    </button>
-
-                    <label className="flex items-center space-x-2 cursor-pointer border border-slate-700 px-3 py-1.5 rounded-xl bg-slate-800">
-                      <input
-                        type="checkbox"
-                        checked={sec.enabled}
-                        onChange={() => handleToggleSectionEnabled(sec.id)}
-                        className="rounded accent-amber-400 w-4 h-4"
-                      />
-                      <span className="text-xs font-bold text-slate-300">
-                        {sec.enabled ? 'Exibido' : 'Oculto'}
-                      </span>
-                    </label>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             <div className="flex justify-end pt-4 border-t border-slate-800">
