@@ -384,15 +384,11 @@ export const ProductList: React.FC = () => {
         p.category.toUpperCase() === selectedCategory),
   );
 
-  const explicitLaunches = baseFilteredProducts.filter((p) => p.newArrival);
-  const newArrivalsProducts = (
-    explicitLaunches.length > 0
-      ? explicitLaunches
-      : baseFilteredProducts.slice(0, 12)
-  ).filter(
+  const newArrivalsProducts = baseFilteredProducts.filter(
     (p) =>
-      selectedCategory === "TODOS" ||
-      p.category.toUpperCase() === selectedCategory,
+      Boolean(p.newArrival) &&
+      (selectedCategory === "TODOS" ||
+        p.category.toUpperCase() === selectedCategory),
   );
 
   const shoesProducts = baseFilteredProducts.filter(

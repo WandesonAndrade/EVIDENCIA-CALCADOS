@@ -209,6 +209,7 @@ export interface UserProfile {
   rendaMensal?: string;
   referenciaPessoal?: string;
   // Crediário Status fields
+  solicitarCrediario?: boolean;
   crediarioStatus?: CrediarioStatus;
   crediarioSolicitadoEm?: string;
   crediarioAnalisadoEm?: string;

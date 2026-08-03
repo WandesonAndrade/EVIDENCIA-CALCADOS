@@ -8,6 +8,7 @@ import { firebaseAuthService } from '../services/firebaseAuthService';
 import { userDataService } from '../services/userDataService';
 import { orderService } from '../services/orderService';
 import { getProdutosMoblink, extractPrecoVistaMoblink, extractSaldoLojaMoblink, sanitizeProductForFirestore, cleanUndefinedFields, filterProductsRequiringSync } from '../services/moblinkProductsService';
+import { cleanUndefinedProperties } from '../utils/cleanObject';
 
 
 interface AppContextProps {
@@ -922,9 +923,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCurrentUser(profile);
     localStorage.setItem('evidencia_user', JSON.stringify(profile));
 
-    // Try Firestore
+    // Try Firestore with cleaned payload
     try {
-      await setDoc(doc(db, 'users', uid), profile);
+      const payload = cleanUndefinedProperties(profile);
+      await setDoc(doc(db, 'users', uid), payload, { merge: true });
     } catch (error) {
       console.warn("Firestore registration failed, stored profile locally:", error);
     }
@@ -1058,7 +1060,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem('evidencia_user', JSON.stringify(profile));
 
     try {
-      await setDoc(doc(db, 'users', uid), profile, { merge: true });
+      const payload = cleanUndefinedProperties(profile);
+      await setDoc(doc(db, 'users', uid), payload, { merge: true });
     } catch (error) {
       console.warn("Firestore simulation registration failed, stored profile locally:", error);
     }
@@ -1082,9 +1085,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Save active user to localStorage
     localStorage.setItem('evidencia_user', JSON.stringify(updatedProfile));
 
-    // Try Firestore with merge: true
+    // Try Firestore with merge: true & clean payload
     try {
-      await setDoc(doc(db, 'users', updatedProfile.uid), updatedProfile, { merge: true });
+      const payload = cleanUndefinedProperties(updatedProfile);
+      await setDoc(doc(db, 'users', updatedProfile.uid), payload, { merge: true });
     } catch (error) {
       console.warn("Firestore profile update failed, stored profile locally:", error);
     }
@@ -1142,10 +1146,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.setItem('evidencia_user', JSON.stringify(updatedCurrent));
     }
 
-    // 3. Try Firestore setDoc with merge: true
+    // 3. Try Firestore setDoc with merge: true & clean payload
     try {
       const userRef = doc(db, 'users', uid);
-      await setDoc(userRef, updates, { merge: true });
+      const payload = cleanUndefinedProperties(updates);
+      await setDoc(userRef, payload, { merge: true });
     } catch (err) {
       console.warn("Firestore update for crediario status encountered permissions restriction, updated local fallback state:", err);
     }
@@ -1171,10 +1176,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.setItem('evidencia_user', JSON.stringify(updatedCurrent));
     }
 
-    // 3. Try Firestore setDoc with merge: true
+    // 3. Try Firestore setDoc with merge: true & clean payload
     try {
       const userRef = doc(db, 'users', uid);
-      await setDoc(userRef, updates, { merge: true });
+      const payload = cleanUndefinedProperties(updates);
+      await setDoc(userRef, payload, { merge: true });
     } catch (err) {
       console.warn("Firestore update for cashback encountered error, updated local state:", err);
     }

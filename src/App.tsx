@@ -28,18 +28,25 @@ export const checkIsProfileComplete = (user: any): boolean => {
   // 1. Flag de conclusão explícita gravada no documento do Firestore
   if (user.isProfileComplete === true) return true;
 
-  // 2. Extração limpa dos campos essenciais do documento
-  const cpf = String(user.cpf || user.documento || user.rg || '').trim();
-  const address = String(user.endereco || user.address || (user.cidade && user.bairro) || user.logradouro || '').trim();
-  const birthDate = String(user.dataNascimento || user.birthDate || user.nascimento || user.data_nascimento || user.naturalidade || '').trim();
-  const phone = String(user.telefone || user.phone || user.whatsapp || user.celular || '').trim();
+  // 2. Extração dos campos obrigatórios padrão (Nome Completo, CPF e Telefone)
   const name = String(user.name || user.nome || user.email || '').trim();
+  const cpf = String(user.cpf || user.documento || user.rg || '').trim();
+  const phone = String(user.telefone || user.phone || user.whatsapp || user.celular || '').trim();
 
-  // 3. Considerar COMPLETO se possuir Documento/CPF E dados complementares (Endereço / Data de Nasc / Contato)
-  const hasCpf = cpf.length > 0;
-  const hasDetails = address.length > 0 || birthDate.length > 0 || phone.length > 0;
+  const hasStandardRequired = name.length > 0 && cpf.length > 0 && phone.length > 0;
 
-  return Boolean(hasCpf && hasDetails && name.length > 0);
+  // 3. Se o cliente optou por solicitar Crediário da Loja, valida os dados adicionais de análise de crédito
+  if (user.solicitarCrediario === true || user.crediarioStatus === 'EmAnalise' || user.crediarioStatus === 'Aprovado') {
+    const birthDate = String(user.dataNascimento || user.birthDate || user.nascimento || '').trim();
+    const rg = String(user.rg || '').trim();
+    const address = String(user.endereco || user.address || (user.cidade && user.bairro) || '').trim();
+    const hasCrediarioFields = birthDate.length > 0 && rg.length > 0 && address.length > 0;
+    
+    return hasStandardRequired && hasCrediarioFields;
+  }
+
+  // Cadastro comum padrão
+  return hasStandardRequired;
 };
 
 export const isProfileIncomplete = (user: any): boolean => {

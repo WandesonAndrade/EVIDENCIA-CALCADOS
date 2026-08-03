@@ -175,6 +175,7 @@ export const CrediarioBanner: React.FC = () => {
       <CompleteProfileModal
         isOpen={isProfileModalOpen}
         onClose={() => setIsProfileModalOpen(false)}
+        initialSolicitarCrediario={true}
       />
     </>
   );

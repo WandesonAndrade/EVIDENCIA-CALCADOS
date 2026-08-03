@@ -11,6 +11,7 @@ import {
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { UserProfile, UserRole } from '../types';
+import { cleanUndefinedProperties } from '../utils/cleanObject';
 
 export const firebaseAuthService = {
   /**
@@ -109,7 +110,7 @@ export const firebaseAuthService = {
       };
 
       try {
-        await setDoc(userRef, mergedProfile, { merge: true });
+        await setDoc(userRef, cleanUndefinedProperties(mergedProfile), { merge: true });
       } catch (err) {
         console.warn("📌 Erro ao salvar perfil sincronizado no Firestore:", err);
       }
@@ -128,7 +129,7 @@ export const firebaseAuthService = {
       };
 
       try {
-        await setDoc(userRef, initialProfile, { merge: true });
+        await setDoc(userRef, cleanUndefinedProperties(initialProfile), { merge: true });
       } catch (err) {
         console.warn("📌 Erro ao criar perfil no Firestore:", err);
       }
@@ -217,7 +218,7 @@ export const firebaseAuthService = {
 
     // Salva o registro de pré-autorização no Firestore
     const userRef = doc(db, 'users', docId);
-    await setDoc(userRef, teamMemberProfile, { merge: true });
+    await setDoc(userRef, cleanUndefinedProperties(teamMemberProfile), { merge: true });
     return teamMemberProfile;
   },
 
