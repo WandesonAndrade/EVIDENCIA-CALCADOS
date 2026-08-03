@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
-import { UserProfile, Product } from '../types';
+import { UserProfile, Product, CrediarioStatus } from '../types';
 import { moblinkClientesService } from '../services/moblinkClientesService';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, doc, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { 
   Users, 
@@ -33,18 +33,27 @@ import {
   Cake,
   Package,
   Info,
-  Check
+  Check,
+  ThumbsUp,
+  ThumbsDown,
+  Edit3
 } from 'lucide-react';
 
 interface MoblinkClientsManagerProps {
   isDark?: boolean;
 }
 
-export const isBirthdayMatch = (bdayStr?: string, filter?: 'Todos' | 'Dia' | 'Semana' | 'Mês'): boolean => {
-  if (!bdayStr || filter === 'Todos' || !filter) return true;
+export const isBirthdayMatch = (bdayStr?: string | null, filter?: 'Todos' | 'Dia' | 'Semana' | 'Mês'): boolean => {
+  // Se o filtro for 'Todos' ou não especificado, retorna true para exibir qualquer cliente
+  if (filter === 'Todos' || !filter) return true;
   
+  // Validação Estrita: Se a data for nula, indefinida, vazia ou zerada, ignora o cliente nos filtros de aniversariante
+  if (!bdayStr || typeof bdayStr !== 'string' || !bdayStr.trim() || bdayStr.trim().startsWith('0000')) {
+    return false;
+  }
+
   try {
-    const clean = bdayStr.split('T')[0];
+    const clean = bdayStr.trim().split('T')[0];
     const parts = clean.split(/[-/]/);
     let day = 0;
     let month = 0;
@@ -61,7 +70,9 @@ export const isBirthdayMatch = (bdayStr?: string, filter?: 'Todos' | 'Dia' | 'Se
       }
     }
 
-    if (isNaN(day) || isNaN(month)) return false;
+    if (isNaN(day) || isNaN(month) || day <= 0 || day > 31 || month < 0 || month > 11) {
+      return false;
+    }
 
     const now = new Date();
     const currentMonth = now.getMonth();
@@ -103,6 +114,10 @@ export const MoblinkClientsManager: React.FC<MoblinkClientsManagerProps> = ({ is
   const [selectedClient, setSelectedClient] = useState<UserProfile | null>(null);
   const [detailTab, setDetailTab] = useState<'pessoal' | 'contato' | 'financeiro' | 'produtos'>('pessoal');
   const [productTab, setProductTab] = useState<'carrinho' | 'favoritos'>('carrinho');
+
+  // Credit Action Form State
+  const [limitInput, setLimitInput] = useState<string>('500');
+  const [isUpdatingCredit, setIsUpdatingCredit] = useState(false);
 
   // Load clients from Firestore
   const loadClientsFromFirestore = async () => {
@@ -147,6 +162,52 @@ export const MoblinkClientsManager: React.FC<MoblinkClientsManagerProps> = ({ is
     } finally {
       setIsSyncing(false);
       setSyncProgressMessage('');
+    }
+  };
+
+  // Credit Approval & Rejection Direct Actions
+  const handleSetCrediarioStatus = async (client: UserProfile, newStatus: CrediarioStatus, approvedLimit?: number) => {
+    if (!client) return;
+    const targetUid = client.uid || (client as any).docId || (client as any).id;
+    if (!targetUid) {
+      addToast("Erro", "Identificador de cliente inválido.", "error");
+      return;
+    }
+
+    try {
+      setIsUpdatingCredit(true);
+      const docRef = doc(db, 'users', targetUid);
+      const updatedFields: any = {
+        crediarioStatus: newStatus,
+        updatedAt: new Date().toISOString()
+      };
+
+      if (newStatus === 'Aprovado') {
+        const parsedLimit = approvedLimit ?? parseFloat(limitInput) ?? 500;
+        updatedFields.limite_cred = parsedLimit;
+        updatedFields.sit_cred = 'A';
+      } else if (newStatus === 'Rejeitado') {
+        updatedFields.limite_cred = 0;
+        updatedFields.sit_cred = 'R';
+      }
+
+      await setDoc(docRef, updatedFields, { merge: true });
+
+      // Update local state
+      const updatedClient = { ...client, ...updatedFields };
+      setSelectedClient(updatedClient);
+      setClients(prev => prev.map(c => (c.uid === targetUid || (c as any).moblinkId === targetUid) ? updatedClient : c));
+
+      if (newStatus === 'Aprovado') {
+        addToast("Crediário Aprovado! 🎉", `Limite de R$ ${updatedFields.limite_cred?.toFixed(2)} concedido a ${client.name || (client as any).nome}.`, "success");
+      } else {
+        addToast("Crediário Rejeitado", `O crediário de ${client.name || (client as any).nome} foi alterado para Não Aprovado.`, "info");
+      }
+    } catch (err: any) {
+      console.error("Erro ao atualizar crediário:", err);
+      addToast("Erro ao Atualizar Crediário", err.message || "Falha na comunicação com o banco de dados.", "error");
+    } finally {
+      setIsUpdatingCredit(false);
     }
   };
 
@@ -289,7 +350,7 @@ export const MoblinkClientsManager: React.FC<MoblinkClientsManagerProps> = ({ is
             </span>
           </h2>
           <p className={`text-xs ${isDark ? 'text-slate-300' : 'text-slate-600'} mt-0.5 font-medium`}>
-            Consulte cadastros sincronizados do ERP, histórico de compras, limites de crediário, intenções de compra e envie mensagens via WhatsApp.
+            Consulte cadastros do ERP, analise solicitações e aprove o crediário próprio diretamente na ficha do cliente.
           </p>
         </div>
 
@@ -301,7 +362,7 @@ export const MoblinkClientsManager: React.FC<MoblinkClientsManagerProps> = ({ is
             className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-black text-xs shadow-md transition-all cursor-pointer flex items-center space-x-2 disabled:opacity-50"
           >
             <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
-            <span>{isSyncing ? 'Sincronizando...' : '🔄 Sincronizar Base de Clientes do ERP'}</span>
+            <span>{isSyncing ? 'Sincronizando...' : '🔄 Sincronizar Base do ERP'}</span>
           </button>
         </div>
       </div>
@@ -329,16 +390,16 @@ export const MoblinkClientsManager: React.FC<MoblinkClientsManagerProps> = ({ is
         </div>
 
         <div className={`p-4 rounded-2xl border ${isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-300 shadow-sm'}`}>
-          <span className="text-[10px] font-extrabold text-emerald-500 uppercase tracking-wider block">Do ERP MobLink</span>
-          <p className="text-2xl font-black text-emerald-500 mt-1 flex items-center space-x-1.5">
-            <Zap className="h-4 w-4" />
-            <span>{stats.erpCount}</span>
+          <span className="text-[10px] font-extrabold text-amber-400 uppercase tracking-wider block">Análises Pendentes</span>
+          <p className="text-2xl font-black text-amber-400 mt-1 flex items-center space-x-1.5">
+            <Clock className="h-5 w-5 animate-pulse text-amber-400" />
+            <span>{stats.pendingCredCount}</span>
           </p>
         </div>
 
         <div className={`p-4 rounded-2xl border ${isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-300 shadow-sm'}`}>
-          <span className="text-[10px] font-extrabold text-amber-500 uppercase tracking-wider block">Crediários Aprovados</span>
-          <p className="text-2xl font-black text-amber-500 mt-1 flex items-center space-x-1.5">
+          <span className="text-[10px] font-extrabold text-emerald-500 uppercase tracking-wider block">Crediários Aprovados</span>
+          <p className="text-2xl font-black text-emerald-500 mt-1 flex items-center space-x-1.5">
             <CreditCard className="h-4 w-4" />
             <span>{stats.approvedCredCount}</span>
           </p>
@@ -402,8 +463,8 @@ export const MoblinkClientsManager: React.FC<MoblinkClientsManagerProps> = ({ is
 
           {[
             { id: 'Todos', label: '🎉 Todos os Clientes', count: stats.total },
+            { id: 'EmAnalise', label: '⏳ Análises Pendentes', count: stats.pendingCredCount },
             { id: 'Aprovado', label: '💳 Crediário Aprovado', count: stats.approvedCredCount },
-            { id: 'EmAnalise', label: '⏳ Em Análise', count: stats.pendingCredCount },
             { id: 'NaoAprovado', label: '⚠️ Não Aprovado / Requer Análise', count: stats.notApprovedCredCount },
             { id: 'ComDebito', label: '⚠️ Com Débitos Vencidos', count: stats.debtCount }
           ].map(pill => {
@@ -483,7 +544,7 @@ export const MoblinkClientsManager: React.FC<MoblinkClientsManagerProps> = ({ is
                 <th className="py-3.5 px-4">CPF / CNPJ</th>
                 <th className="py-3.5 px-4">Contato / WhatsApp</th>
                 <th className="py-3.5 px-4">Cidade / UF</th>
-                <th className="py-3.5 px-4">Status & Regra de Crediário</th>
+                <th className="py-3.5 px-4">Status do Crediário</th>
                 <th className="py-3.5 px-4 text-right">Ação</th>
               </tr>
             </thead>
@@ -683,6 +744,7 @@ export const MoblinkClientsManager: React.FC<MoblinkClientsManagerProps> = ({ is
                             setSelectedClient(client);
                             setDetailTab('pessoal');
                             setProductTab('carrinho');
+                            setLimitInput(String(limitCred > 0 ? limitCred : 500));
                           }}
                           className="px-3 py-1.5 rounded-xl bg-amber-500 text-slate-950 hover:bg-amber-400 font-black text-xs transition-all shadow-xs cursor-pointer inline-flex items-center space-x-1.5"
                         >
@@ -699,7 +761,7 @@ export const MoblinkClientsManager: React.FC<MoblinkClientsManagerProps> = ({ is
         </div>
       </div>
 
-      {/* Modal de Detalhes Completo do Cliente */}
+      {/* Modal de Detalhes Completo do Cliente com Gestão de Crediário Unificada */}
       {selectedClient && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs overflow-y-auto">
           <div className="fixed inset-0" onClick={() => setSelectedClient(null)} />
@@ -744,6 +806,65 @@ export const MoblinkClientsManager: React.FC<MoblinkClientsManagerProps> = ({ is
               </button>
             </div>
 
+            {/* TOP BAR: DESTAQUE DE STATUS & AÇÕES RÁPIDAS DE CREDIÁRIO */}
+            <div className={`p-3.5 px-6 border-b flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 ${
+              selectedClient.crediarioStatus === 'Aprovado' || (selectedClient as any).sit_cred === 'A' || (selectedClient.limite_cred && selectedClient.limite_cred > 0)
+                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                : selectedClient.crediarioStatus === 'EmAnalise'
+                  ? 'bg-amber-500/15 border-amber-500/30 text-amber-300'
+                  : 'bg-slate-950/80 border-slate-800 text-slate-300'
+            }`}>
+              <div className="flex items-center space-x-2">
+                {selectedClient.crediarioStatus === 'Aprovado' || (selectedClient as any).sit_cred === 'A' || (selectedClient.limite_cred && selectedClient.limite_cred > 0) ? (
+                  <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" />
+                ) : selectedClient.crediarioStatus === 'EmAnalise' ? (
+                  <Clock className="h-5 w-5 text-amber-400 animate-pulse shrink-0" />
+                ) : (
+                  <Info className="h-5 w-5 text-amber-400 shrink-0" />
+                )}
+
+                <div>
+                  <span className="text-[10px] uppercase font-black tracking-wider block text-slate-400">Status do Crediário Próprio</span>
+                  <p className="text-xs font-black">
+                    {selectedClient.crediarioStatus === 'Aprovado' || (selectedClient as any).sit_cred === 'A' || (selectedClient.limite_cred && selectedClient.limite_cred > 0)
+                      ? `Crediário Aprovado (${formatCurrency(selectedClient.limite_cred ?? 500)})`
+                      : selectedClient.crediarioStatus === 'EmAnalise'
+                        ? 'Solicitação Pendente de Análise de Crédito'
+                        : selectedClient.crediarioStatus === 'Rejeitado'
+                          ? 'Crediário Não Aprovado / Rejeitado'
+                          : 'Crediário Não Aprovado (Requer Análise)'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Quick Action Buttons */}
+              <div className="flex items-center space-x-2 w-full sm:w-auto">
+                {selectedClient.crediarioStatus !== 'Aprovado' && (
+                  <button
+                    type="button"
+                    disabled={isUpdatingCredit}
+                    onClick={() => handleSetCrediarioStatus(selectedClient, 'Aprovado', parseFloat(limitInput) || 500)}
+                    className="flex-1 sm:flex-none px-3.5 py-1.5 rounded-xl bg-emerald-500 text-slate-950 hover:bg-emerald-400 font-black text-xs shadow-sm transition-all cursor-pointer inline-flex items-center justify-center space-x-1 disabled:opacity-50"
+                  >
+                    <ThumbsUp className="h-3.5 w-3.5" />
+                    <span>Aprovar Crediário</span>
+                  </button>
+                )}
+
+                {selectedClient.crediarioStatus !== 'Rejeitado' && (
+                  <button
+                    type="button"
+                    disabled={isUpdatingCredit}
+                    onClick={() => handleSetCrediarioStatus(selectedClient, 'Rejeitado')}
+                    className="flex-1 sm:flex-none px-3.5 py-1.5 rounded-xl bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 border border-rose-500/40 font-bold text-xs transition-all cursor-pointer inline-flex items-center justify-center space-x-1 disabled:opacity-50"
+                  >
+                    <ThumbsDown className="h-3.5 w-3.5" />
+                    <span>Rejeitar</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
             {/* Modal Tab Navigation */}
             <div className={`flex border-b px-6 overflow-x-auto ${
               isDark ? 'border-slate-800 bg-slate-950/80' : 'border-slate-300 bg-slate-100'
@@ -751,7 +872,7 @@ export const MoblinkClientsManager: React.FC<MoblinkClientsManagerProps> = ({ is
               {[
                 { id: 'pessoal', label: '👤 Dados Pessoais' },
                 { id: 'contato', label: '📍 Contato & Endereço' },
-                { id: 'financeiro', label: '💰 Crediário & Financeiro' },
+                { id: 'financeiro', label: '💰 Crediário & Gestão' },
                 { id: 'produtos', label: `🛒 Produtos (${getClientCartItems(selectedClient).length + getClientFavoriteIds(selectedClient).length})` }
               ].map(t => (
                 <button
@@ -909,21 +1030,56 @@ export const MoblinkClientsManager: React.FC<MoblinkClientsManagerProps> = ({ is
                 </div>
               )}
 
-              {/* TAB 3: FINANCEIRO & CREDIÁRIO */}
+              {/* TAB 3: FINANCEIRO & PAINEL DE GESTÃO DE CREDIÁRIO */}
               {detailTab === 'financeiro' && (
                 <div className="space-y-4 text-xs">
-                  {/* Status & Crediario Guidance Box */}
-                  <div className={`p-4 rounded-2xl border space-y-2 ${
-                    isDark ? 'bg-amber-500/10 border-amber-500/30 text-amber-200' : 'bg-amber-50 border-amber-300 text-amber-950'
+                  
+                  {/* Interactive Credit Approval Control Panel */}
+                  <div className={`p-4.5 rounded-2xl border space-y-3 ${
+                    isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-slate-50 border-slate-300 shadow-sm'
                   }`}>
-                    <div className="flex items-start space-x-2.5">
-                      <Info className="h-5 w-5 text-amber-400 shrink-0 mt-0.5" />
-                      <div className="space-y-1">
-                        <h4 className="font-extrabold text-xs">Regra de Concessão de Crediário Próprio</h4>
-                        <p className="text-[11px] leading-relaxed">
-                          Clientes sem cadastro histórico aprovado no ERP precisam submeter o formulário completo de análise de crédito (CPF, RG, Comprovante de Residência e Profissão) para liberação do carnê da loja.
-                        </p>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] uppercase font-black text-amber-400 flex items-center space-x-1.5">
+                        <CreditCard className="h-4 w-4 text-amber-400" />
+                        <span>Painel de Análise e Aprovação de Crediário Próprio</span>
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end pt-1">
+                      <div>
+                        <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">
+                          Definir Limite de Crédito (R$)
+                        </label>
+                        <input
+                          type="number"
+                          value={limitInput}
+                          onChange={(e) => setLimitInput(e.target.value)}
+                          placeholder="500"
+                          className={`w-full px-3.5 py-2.5 rounded-xl border text-xs font-mono font-bold focus:outline-none focus:ring-2 focus:ring-amber-400 ${
+                            isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
+                          }`}
+                        />
                       </div>
+
+                      <button
+                        type="button"
+                        disabled={isUpdatingCredit}
+                        onClick={() => handleSetCrediarioStatus(selectedClient, 'Aprovado', parseFloat(limitInput) || 500)}
+                        className="px-4 py-2.5 rounded-xl bg-emerald-500 text-slate-950 hover:bg-emerald-400 font-black text-xs transition-all cursor-pointer flex items-center justify-center space-x-1.5 disabled:opacity-50 shadow-sm"
+                      >
+                        <ThumbsUp className="h-4 w-4" />
+                        <span>Aprovar com Limite</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={isUpdatingCredit}
+                        onClick={() => handleSetCrediarioStatus(selectedClient, 'Rejeitado')}
+                        className="px-4 py-2.5 rounded-xl bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 border border-rose-500/40 font-bold text-xs transition-all cursor-pointer flex items-center justify-center space-x-1.5 disabled:opacity-50"
+                      >
+                        <ThumbsDown className="h-4 w-4" />
+                        <span>Rejeitar / Solicitar Ajuste</span>
+                      </button>
                     </div>
                   </div>
 
@@ -931,7 +1087,7 @@ export const MoblinkClientsManager: React.FC<MoblinkClientsManagerProps> = ({ is
                     <div className={`p-4 rounded-2xl border space-y-1.5 ${
                       isDark ? 'bg-slate-950/60 border-slate-800' : 'bg-slate-50 border-slate-300 shadow-2xs'
                     }`}>
-                      <span className="text-[10px] uppercase font-black text-amber-500 block">Status Atual do Crediário</span>
+                      <span className="text-[10px] uppercase font-black text-amber-500 block">Status Atual no Sistema</span>
                       <div className="flex items-center space-x-2">
                         {selectedClient.crediarioStatus === 'Aprovado' || (selectedClient as any).sit_cred === 'A' || (selectedClient as any).sit_cred === 'L' || (selectedClient.limite_cred && selectedClient.limite_cred > 0) ? (
                           <span className="px-3 py-1 rounded-full text-xs font-black uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
