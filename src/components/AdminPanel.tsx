@@ -3,11 +3,13 @@ import { useApp } from '../context/AppContext';
 import { Product, Order, OrderStatus, PaymentStatus, UserProfile, Category, HeroBanner, HomeSectionConfig, AboutConfig, ContactConfig } from '../types';
 import { MoblinkIntegrationPanel } from './MoblinkIntegrationPanel';
 import { MoblinkProductsManager } from './MoblinkProductsManager';
+import { MoblinkClientsManager } from './MoblinkClientsManager';
 import { ErrorBoundary } from './ErrorBoundary';
 import { AuthScreen } from './AuthScreen';
 import { TeamManagement } from './TeamManagement';
 import { checkIsProfileComplete } from '../App';
 import { storage, db, auth, app } from '../lib/firebase';
+import { moblinkClientesService } from '../services/moblinkClientesService';
 
 
 
@@ -253,6 +255,32 @@ export const AdminPanel: React.FC = () => {
   const [birthdayFilter, setBirthdayFilter] = useState<'Todos' | 'Dia' | 'Semana' | 'Mês'>('Todos');
   const [registrationFilter, setRegistrationFilter] = useState<'Todos' | 'Completo' | 'Incompleto'>('Todos');
   const [editingCashbackMap, setEditingCashbackMap] = useState<{ [uid: string]: { balance: string; validUntil: string } }>({});
+
+  // ERP MobLink Clientes Sync State
+  const [isSyncingMoblinkClientes, setIsSyncingMoblinkClientes] = useState(false);
+  const [syncMoblinkClientesProgress, setSyncMoblinkClientesProgress] = useState('');
+
+  const handleSyncMoblinkClientes = async () => {
+    try {
+      setIsSyncingMoblinkClientes(true);
+      setSyncMoblinkClientesProgress('Iniciando conexão com API do MobLink ERP...');
+      const result = await moblinkClientesService.syncClientesToFirestore((curr, tot, msg) => {
+        setSyncMoblinkClientesProgress(msg);
+      });
+      await fetchUsers();
+      addToast(
+        'Sincronização ERP Concluída!',
+        `${result.imported} novos clientes importados e ${result.updated} atualizados no banco de dados.`,
+        'success'
+      );
+    } catch (err: any) {
+      console.error("Erro na sincronização de clientes MobLink:", err);
+      addToast('Erro na Sincronização', err.message || 'Falha ao conectar com a API de clientes MobLink.', 'error');
+    } finally {
+      setIsSyncingMoblinkClientes(false);
+      setSyncMoblinkClientesProgress('');
+    }
+  };
 
   // Fetch users collection from Firestore for Crediário Analysis
   const fetchUsers = async () => {
@@ -1749,330 +1777,9 @@ export const AdminPanel: React.FC = () => {
           </div>
         )}
 
-        {/* TAB: BASE DE CLIENTES & CRM */}
+        {/* TAB: BASE DE CLIENTES & CRM MOBLINK ERP */}
         {activeTab === 'customers' && (
-          <div className="space-y-6">
-            {/* Header & Main Controls */}
-            <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
-              <div>
-                <h2 className="text-2xl font-black tracking-tight flex items-center space-x-2">
-                  <Users className="h-6 w-6 text-amber-400" />
-                  <span>Base de Clientes & CRM ({users.length})</span>
-                </h2>
-                <p className="text-xs text-slate-400">
-                  Gerencie cadastros completos/incompletos, consulte aniversariantes, intenções de compra e conceda cashback.
-                </p>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2">
-                {/* Search */}
-                <div className="relative">
-                  <Search className="h-4 w-4 absolute left-3 top-2.5 text-slate-400" />
-                  <input
-                    type="text"
-                    value={usersSearch}
-                    onChange={(e) => setUsersSearch(e.target.value)}
-                    placeholder="Buscar nome, e-mail, tel, CPF..."
-                    className={`pl-9 pr-3 py-1.5 rounded-xl text-xs border focus:outline-none w-56 ${
-                      isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-300 text-slate-900'
-                    }`}
-                  />
-                </div>
-
-                {/* Status Cadastro Filter */}
-                <select
-                  value={registrationFilter}
-                  onChange={(e) => setRegistrationFilter(e.target.value as any)}
-                  className={`p-1.5 rounded-xl text-xs font-bold border focus:outline-none cursor-pointer ${
-                    isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-300 text-slate-900'
-                  }`}
-                >
-                  <option value="Todos">Todos os Cadastros</option>
-                  <option value="Completo">✓ Cadastro Completo</option>
-                  <option value="Incompleto">⚠️ Cadastro Incompleto</option>
-                </select>
-
-                <button
-                  onClick={fetchUsers}
-                  className="p-1.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold border border-slate-700 transition-all cursor-pointer flex items-center space-x-1.5"
-                >
-                  <RefreshCw className="h-3.5 w-3.5 text-amber-400" />
-                  <span>Atualizar</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Birthday Filter Pills */}
-            <div className={`p-4 rounded-2xl border space-y-3 ${
-              isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
-            }`}>
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-black uppercase text-amber-400 flex items-center space-x-1.5">
-                  <Cake className="h-4 w-4 text-purple-400" />
-                  <span>Filtros de Aniversariantes para Campanhas</span>
-                </span>
-                <span className="text-[10px] text-slate-400">Identifique clientes com aniversário para enviar ofertas especiais</span>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                {[
-                  { id: 'Todos', label: '🎉 Todos os Clientes', count: users.length },
-                  { id: 'Dia', label: '🎂 Aniversariantes do Dia', count: users.filter(u => isBirthdayMatch(u.dataNascimento || (u as any).birthDate || (u as any).nascimento, 'Dia')).length },
-                  { id: 'Semana', label: '📅 Aniversariantes da Semana', count: users.filter(u => isBirthdayMatch(u.dataNascimento || (u as any).birthDate || (u as any).nascimento, 'Semana')).length },
-                  { id: 'Mês', label: '📆 Aniversariantes do Mês', count: users.filter(u => isBirthdayMatch(u.dataNascimento || (u as any).birthDate || (u as any).nascimento, 'Mês')).length }
-                ].map((pill) => (
-                  <button
-                    key={pill.id}
-                    onClick={() => setBirthdayFilter(pill.id as any)}
-                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center space-x-2 border ${
-                      birthdayFilter === pill.id
-                        ? 'bg-purple-500/20 text-purple-300 border-purple-500/50 shadow-sm'
-                        : isDark ? 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200' : 'bg-slate-100 border-slate-200 text-slate-600'
-                    }`}
-                  >
-                    <span>{pill.label}</span>
-                    <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-purple-500/20 text-purple-300">
-                      {pill.count}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Customers Grid */}
-            <div className="space-y-4">
-              {users
-                .filter(u => {
-                  const anyU = u as any;
-                  const phoneVal = u.telefone || anyU.phone || anyU.whatsapp || anyU.celular || '';
-                  const docVal = u.cpf || anyU.documento || u.rg || '';
-                  const bdayVal = u.dataNascimento || anyU.birthDate || anyU.nascimento || anyU.data_nascimento || '';
-
-                  const matchSearch = !usersSearch || 
-                    u.name.toLowerCase().includes(usersSearch.toLowerCase()) || 
-                    u.email.toLowerCase().includes(usersSearch.toLowerCase()) ||
-                    phoneVal.includes(usersSearch) ||
-                    docVal.includes(usersSearch);
-                  
-                  const isComplete = checkIsProfileComplete(u);
-                  const matchReg = registrationFilter === 'Todos' || 
-                    (registrationFilter === 'Completo' && isComplete) || 
-                    (registrationFilter === 'Incompleto' && !isComplete);
-
-                  const matchBday = birthdayFilter === 'Todos' || isBirthdayMatch(bdayVal, birthdayFilter);
-
-                  return matchSearch && matchReg && matchBday;
-                })
-                .map((u) => {
-                  const anyU = u as any;
-                  const phoneVal = u.telefone || anyU.phone || anyU.whatsapp || anyU.celular;
-                  const cpfVal = u.cpf || anyU.documento || u.rg;
-                  const bdayVal = u.dataNascimento || anyU.birthDate || anyU.nascimento || anyU.data_nascimento;
-                  const addressVal = u.endereco || anyU.address;
-
-                  const isComplete = checkIsProfileComplete(u);
-                  const isDayBday = isBirthdayMatch(bdayVal, 'Dia');
-                  const isWeekBday = isBirthdayMatch(bdayVal, 'Semana');
-                  const isMonthBday = isBirthdayMatch(bdayVal, 'Mês');
-
-                  const defaultDate30Days = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-                  const currentCbInput = editingCashbackMap[u.uid] || {
-                    balance: String(u.cashbackBalance || 0),
-                    validUntil: u.cashbackValidUntil || defaultDate30Days
-                  };
-
-                  return (
-                    <div
-                      key={u.uid}
-                      className={`p-6 rounded-3xl border backdrop-blur-xl space-y-4 transition-all shadow-md ${
-                        isDark ? 'bg-slate-900/80 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
-                      }`}
-                    >
-                      {/* Customer Row Header */}
-                      <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3 border-slate-800/50">
-                        <div className="flex items-center space-x-3">
-                          <div className="w-10 h-10 rounded-2xl bg-amber-400/10 border border-amber-400/30 text-amber-400 font-black text-sm flex items-center justify-center">
-                            {u.name ? u.name.charAt(0).toUpperCase() : 'C'}
-                          </div>
-                          <div>
-                            <div className="flex items-center space-x-2">
-                              <h3 className="font-black text-sm text-slate-100">{u.name}</h3>
-                              
-                              {/* Registration Status Badge */}
-                              <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase border ${
-                                isComplete 
-                                  ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' 
-                                  : 'bg-amber-400/20 text-amber-400 border-amber-400/30 animate-pulse'
-                              }`}>
-                                {isComplete ? '✓ Cadastro Completo' : '⚠️ Cadastro Incompleto'}
-                              </span>
-
-                              {/* Birthday Tag */}
-                              {isDayBday ? (
-                                <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase bg-purple-500/20 text-purple-300 border border-purple-500/40 animate-bounce">
-                                  🎂 Aniversariante HOJE!
-                                </span>
-                              ) : isWeekBday ? (
-                                <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase bg-purple-500/20 text-purple-300 border border-purple-500/30">
-                                  📅 Aniversariante da Semana
-                                </span>
-                              ) : isMonthBday ? (
-                                <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase bg-purple-500/10 text-purple-300 border border-purple-500/20">
-                                  📆 Aniversariante do Mês
-                                </span>
-                              ) : null}
-                            </div>
-                            <p className="text-xs text-slate-400">{u.email}</p>
-                          </div>
-                        </div>
-
-                        {/* Intent Tags & Actions */}
-                        <div className="flex flex-wrap items-center gap-2 text-xs">
-                          {/* Cart Intent Tag */}
-                          {(() => {
-                            const activeCartCount = u.cartItemsCount ?? (u.cartItems ? u.cartItems.reduce((acc, i) => acc + i.quantity, 0) : 0);
-                            const hasCart = activeCartCount > 0;
-                            return (
-                              <span className={`px-2.5 py-1 rounded-xl text-[10px] font-bold border flex items-center space-x-1 ${
-                                hasCart
-                                  ? 'bg-sky-500/20 text-sky-300 border-sky-500/40 animate-pulse'
-                                  : 'bg-slate-800/40 text-slate-400 border-slate-700/50'
-                              }`}>
-                                <ShoppingCart className="h-3 w-3" />
-                                <span>{hasCart ? `Carrinho Ativo (${activeCartCount} itens)` : 'Carrinho Vazio'}</span>
-                              </span>
-                            );
-                          })()}
-
-                          {/* Favorite Intent Tag */}
-                          {(() => {
-                            const activeFavCount = u.favoriteItemsCount ?? (u.favoriteIds ? u.favoriteIds.length : 0);
-                            const hasFav = activeFavCount > 0;
-                            return (
-                              <span className={`px-2.5 py-1 rounded-xl text-[10px] font-bold border flex items-center space-x-1 ${
-                                hasFav
-                                  ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
-                                  : 'bg-slate-800/40 text-slate-400 border-slate-700/50'
-                              }`}>
-                                <Heart className="h-3 w-3" />
-                                <span>{hasFav ? `Favoritos (${activeFavCount})` : 'Sem Favoritos'}</span>
-                              </span>
-                            );
-                          })()}
-
-                          {/* Crediario Badge */}
-                          <span className="px-2.5 py-1 rounded-xl text-[10px] font-bold border bg-slate-800 text-slate-300 border-slate-700">
-                            Crediário: {u.crediarioStatus || 'Não Solicitado'}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Customer Details Grid */}
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-                        {/* Col 1: Contato & Documentos */}
-                        <div className={`p-3.5 rounded-2xl border space-y-1.5 ${
-                          isDark ? 'bg-slate-950/50 border-slate-800' : 'bg-slate-50 border-slate-200'
-                        }`}>
-                          <span className="text-[10px] uppercase font-black text-amber-400 block">Dados de Contato</span>
-                          <p className="text-slate-300"><strong>Telefone/WhatsApp:</strong> {phoneVal || 'Não informado'}</p>
-                          <p className="text-slate-300 font-mono"><strong>CPF/Doc:</strong> {cpfVal || 'Não informado'}</p>
-                          <p className="text-slate-300"><strong>Data Nasc:</strong> {bdayVal || 'Não informada'}</p>
-                        </div>
-
-                        {/* Col 2: Endereço */}
-                        <div className={`p-3.5 rounded-2xl border space-y-1.5 ${
-                          isDark ? 'bg-slate-950/50 border-slate-800' : 'bg-slate-50 border-slate-200'
-                        }`}>
-                          <span className="text-[10px] uppercase font-black text-amber-400 block">Endereço Cadastrado</span>
-                          <p className="text-slate-300 leading-snug">
-                            {addressVal ? (
-                              addressVal.includes(',') ? addressVal : `${addressVal}${u.numero ? ', Nº ' + u.numero : ''}${u.bairro ? ' - ' + u.bairro : ''}${u.cidade ? ', ' + u.cidade : ''}${u.uf ? '/' + u.uf : ''}`
-                            ) : 'Endereço não preenchido'}
-                          </p>
-                        </div>
-
-
-                        {/* Col 3: Gestão de Cashback */}
-                        <div className={`p-3.5 rounded-2xl border space-y-2.5 ${
-                          (u.cashbackBalance && u.cashbackBalance > 0)
-                            ? 'bg-emerald-500/10 border-emerald-500/30'
-                            : isDark ? 'bg-slate-950/50 border-slate-800' : 'bg-slate-50 border-slate-200'
-                        }`}>
-                          <div className="flex items-center justify-between">
-                            <span className="text-[10px] uppercase font-black text-emerald-400 flex items-center space-x-1">
-                              <Gift className="h-3.5 w-3.5" />
-                              <span>Gestão de Cashback</span>
-                            </span>
-                            {u.cashbackBalance && u.cashbackBalance > 0 ? (
-                              <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                                Ativo: R$ {u.cashbackBalance.toFixed(2).replace('.', ',')}
-                              </span>
-                            ) : null}
-                          </div>
-
-                          <div className="flex items-center space-x-2">
-                            <div className="relative flex-1">
-                              <span className="absolute left-2.5 top-2 text-[11px] font-bold text-slate-400">R$</span>
-                              <input
-                                type="number"
-                                step="0.01"
-                                value={currentCbInput.balance}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  setEditingCashbackMap(prev => ({
-                                    ...prev,
-                                    [u.uid]: { ...currentCbInput, balance: val }
-                                  }));
-                                }}
-                                placeholder="Saldo"
-                                className={`w-full pl-8 pr-2 py-1 rounded-xl text-xs font-bold border focus:outline-none ${
-                                  isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
-                                }`}
-                              />
-                            </div>
-
-                            <input
-                              type="date"
-                              value={currentCbInput.validUntil}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                setEditingCashbackMap(prev => ({
-                                  ...prev,
-                                  [u.uid]: { ...currentCbInput, validUntil: val }
-                                }));
-                              }}
-                              className={`py-1 px-2 rounded-xl text-xs font-bold border focus:outline-none ${
-                                isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
-                              }`}
-                            />
-
-                            <button
-                              type="button"
-                              onClick={async () => {
-                                const val = parseFloat(currentCbInput.balance);
-                                const amount = isNaN(val) ? 0 : val;
-                                await updateUserCashback(u.uid, amount, currentCbInput.validUntil);
-                                addToast('Cashback Atualizado!', `Saldo de R$ ${amount.toFixed(2).replace('.', ',')} salvo para ${u.name}.`, 'success');
-                              }}
-                              className="px-3 py-1 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs transition-all shadow-sm cursor-pointer flex items-center space-x-1 shrink-0"
-                            >
-                              <Save className="h-3.5 w-3.5" />
-                              <span>Salvar</span>
-                            </button>
-                          </div>
-
-                          {u.cashbackValidUntil && (
-                            <p className="text-[10px] text-slate-400 font-medium">
-                              Válido até: <span className="text-emerald-400 font-bold">{new Date(u.cashbackValidUntil + 'T12:00:00').toLocaleDateString('pt-BR')}</span>
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-            </div>
-          </div>
+          <MoblinkClientsManager isDark={isDark} />
         )}
 
         {/* TAB: GESTÃO DE EQUIPE & SEGURANÇA */}

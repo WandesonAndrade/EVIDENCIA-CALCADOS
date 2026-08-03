@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { X, User, FileText, Calendar, MapPin, Phone, ShieldCheck, Sparkles, AlertCircle, CreditCard } from 'lucide-react';
+import { X, User, FileText, Calendar, MapPin, Phone, ShieldCheck, Sparkles, AlertCircle, CreditCard, CheckCircle2, Loader2 } from 'lucide-react';
+import { moblinkClientesService } from '../services/moblinkClientesService';
 
 interface CompleteProfileModalProps {
   isOpen: boolean;
@@ -41,10 +42,13 @@ export const CompleteProfileModal: React.FC<CompleteProfileModalProps> = ({
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
 
+  // States for automatic ERP customer match via CPF
+  const [isSearchingCpf, setIsSearchingCpf] = useState(false);
+  const [matchedErpClient, setMatchedErpClient] = useState<any | null>(null);
+
   // Load existing values when modal opens or user changes
   useEffect(() => {
     if (isOpen) {
-      // Define a opção do crediário como marcada por padrão (true) ao solicitar análise
       if (initialSolicitarCrediario !== undefined) {
         setSolicitarCrediario(initialSolicitarCrediario);
       } else if (currentUser && currentUser.solicitarCrediario === false) {
@@ -112,6 +116,47 @@ export const CompleteProfileModal: React.FC<CompleteProfileModalProps> = ({
     }
   };
 
+  // Instant CPF Search in ERP Database on first access
+  const handleCpfInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formatted = formatCPF(e.target.value);
+    setCpf(formatted);
+    const cleanDigits = formatted.replace(/\D/g, '');
+
+    if (cleanDigits.length === 11) {
+      setIsSearchingCpf(true);
+      try {
+        const matched = await moblinkClientesService.findClientByCpf(cleanDigits);
+        if (matched) {
+          setMatchedErpClient(matched);
+          // Auto-preenchimento com os dados prévios do ERP
+          if (matched.rg) setRg(matched.rg);
+          if (matched.nomeMae) setNomeMae(matched.nomeMae);
+          if (matched.dataNascimento) setDataNascimento(matched.dataNascimento);
+          if (matched.telefone) setTelefone(formatPhone(matched.telefone));
+          if (matched.endereco) setEndereco(matched.endereco);
+          if (matched.numero) setNumero(matched.numero);
+          if (matched.bairro) setBairro(matched.bairro);
+          if (matched.cidade) setCidade(matched.cidade);
+          if (matched.uf) setUf(matched.uf.toUpperCase());
+          if (matched.cep) setCep(formatCEP(matched.cep));
+
+          // Herança de Crediário Automática
+          if (matched.crediarioStatus === 'Aprovado' || (matched.limite_cred && matched.limite_cred > 0)) {
+            setSolicitarCrediario(true);
+          }
+        } else {
+          setMatchedErpClient(null);
+        }
+      } catch (err) {
+        console.warn("Erro ao pesquisar CPF no ERP:", err);
+      } finally {
+        setIsSearchingCpf(false);
+      }
+    } else {
+      setMatchedErpClient(null);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -122,8 +167,8 @@ export const CompleteProfileModal: React.FC<CompleteProfileModalProps> = ({
       return;
     }
 
-    // 2. Validação condicional para Crediário da Loja
-    if (solicitarCrediario) {
+    // 2. Validação condicional para Crediário da Loja (se não tiver herança direta do ERP)
+    if (solicitarCrediario && !matchedErpClient) {
       if (
         !rg.trim() || 
         !dataNascimento.trim() || 
@@ -149,9 +194,11 @@ export const CompleteProfileModal: React.FC<CompleteProfileModalProps> = ({
         ? `${endereco.trim()}, Nº ${numero.trim()}${bairro.trim() ? `, ${bairro.trim()}` : ''}${cidade.trim() ? `, ${cidade.trim()}` : ''}/${uf.trim()}${cep.trim() ? ` - CEP: ${cep.trim()}` : ''}${complemento.trim() ? ` (${complemento.trim()})` : ''}${pontoReferencia.trim() ? ` [Ref: ${pontoReferencia.trim()}]` : ''}`
         : (currentUser.endereco || '');
 
-      const nextCrediarioStatus = solicitarCrediario
-        ? (currentUser.crediarioStatus === 'Aprovado' ? 'Aprovado' : 'EmAnalise')
-        : (currentUser.crediarioStatus === 'Aprovado' ? 'Aprovado' : 'NaoSolicitado');
+      const nextCrediarioStatus = matchedErpClient?.crediarioStatus === 'Aprovado' || (matchedErpClient?.limite_cred && matchedErpClient.limite_cred > 0)
+        ? 'Aprovado'
+        : (solicitarCrediario
+            ? (currentUser.crediarioStatus === 'Aprovado' ? 'Aprovado' : 'EmAnalise')
+            : (currentUser.crediarioStatus === 'Aprovado' ? 'Aprovado' : 'NaoSolicitado'));
 
       await updateUserProfile({
         rg: rg.trim(),
@@ -174,6 +221,9 @@ export const CompleteProfileModal: React.FC<CompleteProfileModalProps> = ({
         pontoReferencia: pontoReferencia.trim(),
         solicitarCrediario: solicitarCrediario,
         isProfileComplete: true,
+        isErpCustomer: Boolean(matchedErpClient || currentUser.isErpCustomer),
+        moblinkId: matchedErpClient?.moblinkId || currentUser.moblinkId,
+        limite_cred: matchedErpClient?.limite_cred || currentUser.limite_cred || 500,
         crediarioStatus: nextCrediarioStatus,
         crediarioSolicitadoEm: solicitarCrediario ? (currentUser.crediarioSolicitadoEm || new Date().toISOString()) : currentUser.crediarioSolicitadoEm
       });
@@ -265,6 +315,21 @@ export const CompleteProfileModal: React.FC<CompleteProfileModalProps> = ({
               </label>
             </div>
 
+            {/* Banner de Cliente Reconhecido no ERP */}
+            {matchedErpClient && (
+              <div className="p-3.5 rounded-xl border border-emerald-300 bg-emerald-50 text-emerald-950 flex items-start space-x-3 shadow-xs animate-in fade-in zoom-in-95">
+                <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
+                <div className="text-xs space-y-0.5">
+                  <p className="font-bold text-emerald-950 flex items-center space-x-1.5">
+                    <span>🎉 Cliente Reconhecido no ERP Evidência!</span>
+                  </p>
+                  <p className="text-slate-700 leading-snug font-medium">
+                    Identificamos o seu histórico na loja física (<strong className="text-slate-900 font-bold">{matchedErpClient.name}</strong>). Seus dados e o seu <strong className="text-emerald-800 font-bold">Crediário (Limite R$ {(matchedErpClient.limite_cred || 500).toFixed(2).replace('.', ',')})</strong> foram vinculados automaticamente.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {error && (
               <div className="flex items-center space-x-2 p-3 bg-red-50 text-highlight-red rounded-lg border border-red-100 text-[11px] font-medium">
                 <AlertCircle className="h-4 w-4 shrink-0" />
@@ -274,7 +339,7 @@ export const CompleteProfileModal: React.FC<CompleteProfileModalProps> = ({
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               
-              {/* CPF (Estritamente Obrigatório Padrão) */}
+              {/* CPF (Consulta Instantânea no ERP) */}
               <div className="space-y-1">
                 <label className="text-[10px] font-bold text-slate-700 uppercase tracking-wider block">
                   CPF <span className="text-red-500 font-black">* (Obrigatório)</span>
@@ -285,10 +350,13 @@ export const CompleteProfileModal: React.FC<CompleteProfileModalProps> = ({
                     required
                     placeholder="000.000.000-00"
                     value={cpf}
-                    onChange={(e) => setCpf(formatCPF(e.target.value))}
-                    className="w-full pl-8 pr-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-primary text-slate-800 font-medium"
+                    onChange={handleCpfInputChange}
+                    className="w-full pl-8 pr-8 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-primary text-slate-800 font-medium"
                   />
                   <FileText className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
+                  {isSearchingCpf && (
+                    <Loader2 className="absolute right-2.5 top-2.5 h-4 w-4 text-amber-500 animate-spin" />
+                  )}
                 </div>
               </div>
 

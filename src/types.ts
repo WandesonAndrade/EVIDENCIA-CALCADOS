@@ -208,12 +208,18 @@ export interface UserProfile {
   profissao?: string;
   rendaMensal?: string;
   referenciaPessoal?: string;
-  // Crediário Status fields
+  // Crediário Status & MobLink ERP fields
   solicitarCrediario?: boolean;
   crediarioStatus?: CrediarioStatus;
   crediarioSolicitadoEm?: string;
   crediarioAnalisadoEm?: string;
   crediarioMotivoRejeicao?: string;
+  moblinkId?: string;
+  isErpCustomer?: boolean;
+  sit_cred?: string;
+  limite_cred?: number;
+  valor_vencido?: number;
+  valor_vencer?: number;
   // CRM, Intent Tags & Cashback fields
   isProfileComplete?: boolean;
   cartItemsCount?: number;
