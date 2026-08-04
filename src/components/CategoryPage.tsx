@@ -108,12 +108,14 @@ export const CategoryPage: React.FC = () => {
   const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE);
   const [cardsPerPage, setCardsPerPage] = useState(4);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [selectedSubcategory, setSelectedSubcategory] = useState<string>('TODAS');
   const [timeLeft, setTimeLeft] = useState({ horas: 23, minutos: 59, segundos: 59 });
   const gridSectionRef = useRef<HTMLDivElement | null>(null);
 
   // Smooth scroll to catalog grid when tab changes or component mounts
   useEffect(() => {
     setVisibleCount(ITEMS_PER_PAGE);
+    setSelectedSubcategory('TODAS');
     const timer = setTimeout(() => {
       scrollToSectionWithOffset(gridSectionRef.current || 'category-all-items-section');
     }, 120);
@@ -359,18 +361,17 @@ export const CategoryPage: React.FC = () => {
                               {prod.name}
                             </h3>
                             
-                            <div className="flex flex-col pt-1">
-                              <div className="flex items-baseline space-x-1.5">
-                                <span className={`text-[10px] sm:text-xs line-through font-medium ${
-                                  theme === 'dark' ? 'text-slate-500' : 'text-slate-400'
-                                }`}>
-                                  R$ {prod.originalPrice?.toFixed(2).replace('.', ',')}
-                                </span>
-                                <p className={`text-sm sm:text-base font-black ${
-                                  theme === 'dark' ? 'text-red-400' : 'text-[#9a031e]'
-                                }`}>
-                                  R$ {prod.price.toFixed(2).replace('.', ',')}
+                            <div className="flex flex-col pt-1 space-y-0.5">
+                              <span className={`text-[10px] font-bold ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>
+                                Tabela: R$ {prod.price.toFixed(2).replace('.', ',')}
+                              </span>
+                              <div className="flex items-center space-x-1.5 flex-wrap">
+                                <p className={`text-sm sm:text-base font-black ${theme === 'dark' ? 'text-emerald-400' : 'text-emerald-600'}`}>
+                                  R$ {(prod.precoVista || Math.round(prod.price * 0.9 * 100) / 100).toFixed(2).replace('.', ',')}
                                 </p>
+                                <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 border border-emerald-500/30">
+                                  ⚡ À Vista
+                                </span>
                               </div>
                             </div>
                           </div>
@@ -521,27 +522,18 @@ export const CategoryPage: React.FC = () => {
                           {prod.name}
                         </h3>
                         
-                        <div className="flex flex-col pt-1">
-                          {prod.onSale && prod.originalPrice ? (
-                            <div className="flex items-baseline space-x-1.5">
-                              <span className={`text-[10px] sm:text-xs line-through font-medium ${
-                                theme === 'dark' ? 'text-slate-500' : 'text-slate-400'
-                              }`}>
-                                R$ {prod.originalPrice.toFixed(2).replace('.', ',')}
-                              </span>
-                              <p className={`text-sm sm:text-base font-black ${
-                                theme === 'dark' ? 'text-red-400' : 'text-[#9a031e]'
-                              }`}>
-                                R$ {prod.price.toFixed(2).replace('.', ',')}
-                              </p>
-                            </div>
-                          ) : (
-                            <p className={`text-sm sm:text-base font-extrabold ${
-                              theme === 'dark' ? 'text-amber-400' : 'text-primary'
-                            }`}>
-                              R$ {prod.price.toFixed(2).replace('.', ',')}
+                        <div className="flex flex-col pt-1 space-y-0.5">
+                          <span className={`text-[10px] font-bold ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>
+                            Tabela: R$ {prod.price.toFixed(2).replace('.', ',')}
+                          </span>
+                          <div className="flex items-center space-x-1.5 flex-wrap">
+                            <p className={`text-sm sm:text-base font-black ${theme === 'dark' ? 'text-emerald-400' : 'text-emerald-600'}`}>
+                              R$ {(prod.precoVista || Math.round(prod.price * 0.9 * 100) / 100).toFixed(2).replace('.', ',')}
                             </p>
-                          )}
+                            <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 border border-emerald-500/30">
+                              ⚡ À Vista
+                            </span>
+                          </div>
                         </div>
                       </div>
 

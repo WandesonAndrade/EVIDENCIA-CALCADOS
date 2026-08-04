@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { Product, CartItem, Order, PaymentStatus, UserProfile, UserRole, CrediarioStatus, Category, MoblinkConfig, MoblinkSyncLog, MoblinkSyncLogItem, SincomAuthSession, HeroBanner, HomeSectionConfig, AboutConfig, ContactConfig, StoreConfig } from '../types';
 import { db, auth, seedDatabaseIfNeeded, SEED_PRODUCTS } from '../lib/firebase';
 import { collection, onSnapshot, doc, setDoc, getDoc, query, where, deleteDoc } from 'firebase/firestore';
@@ -7,7 +7,8 @@ import { sincomAuthService } from '../lib/sincomAuth';
 import { firebaseAuthService } from '../services/firebaseAuthService';
 import { userDataService } from '../services/userDataService';
 import { orderService } from '../services/orderService';
-import { getProdutosMoblink, extractPrecoVistaMoblink, extractSaldoLojaMoblink, sanitizeProductForFirestore, cleanUndefinedFields, filterProductsRequiringSync } from '../services/moblinkProductsService';
+import { getProdutosMoblink, extractPrecoVistaMoblink, extractSaldoLojaMoblink, sanitizeProductForFirestore, cleanUndefinedFields, filterProductsRequiringSync, extractClassificacaoCategoria } from '../services/moblinkProductsService';
+import { moblinkCategoriesService } from '../services/moblinkCategoriesService';
 import { cleanUndefinedProperties } from '../utils/cleanObject';
 
 
@@ -57,6 +58,8 @@ interface AppContextProps {
   setSearchQuery: (query: string) => void;
   selectedCategory: string;
   setSelectedCategory: (category: string) => void;
+  selectedSubcategory: string;
+  setSelectedSubcategory: (subcategory: string) => void;
   selectedMenuTab: string;
   setSelectedMenuTab: (tab: string) => void;
   favorites: string[];
@@ -274,7 +277,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [orders, setOrders] = useState<Order[]>(() => getLocalOrders());
   const [isLoadingOrders, setIsLoadingOrders] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('TODOS');
+  const [selectedCategory, setSelectedCategoryState] = useState('TODOS');
+  const [selectedSubcategory, setSelectedSubcategory] = useState('TODAS');
+
+  const setSelectedCategory = useCallback((category: string) => {
+    setSelectedCategoryState(category);
+    setSelectedSubcategory('TODAS');
+  }, []);
   const [selectedMenuTab, setSelectedMenuTab] = useState('lançamentos');
   const [currentView, setCurrentView] = useState<'home' | 'cart' | 'admin' | 'admin-login' | 'login' | 'orders' | 'product-detail' | 'portfolio-case' | 'category-page' | 'about' | 'support' | 'favorites'>('home');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -628,7 +637,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const liveStock = extractSaldoLojaMoblink(item);
 
       const liveSku = item.codigo || item.sku || dbRecord?.sku || mobId;
-      const liveCategory = dbRecord?.category && dbRecord.category !== 'Geral' ? dbRecord.category : (item.categoria || item.category || 'Geral');
+      const catInfo = extractClassificacaoCategoria(item);
+      const liveCategory = catInfo.category || item.categoria || item.category || (dbRecord?.category && dbRecord.category !== 'Geral' ? dbRecord.category : 'Geral');
+      const liveSubcategory = catInfo.subcategory || item.subcategoria || item.subcategory || dbRecord?.subcategory;
       const liveBarcode = item.codigoBarras || item.barcode || item.codigo || dbRecord?.barcode;
       const liveBrand = item.marca || dbRecord?.brand || 'Evidência';
       const liveMaterial = item.material || dbRecord?.material;
@@ -772,6 +783,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Seed and listen to categories in Firestore
   useEffect(() => {
+    // Sincroniza a rota de grupos oficial do MobLink ERP (GET /api/v1/produtos/grupos)
+    moblinkCategoriesService.syncCategoriesToFirestore(products).catch(err => {
+      console.warn("Sincronização de grupos MobLink via API falhou/adiada:", err);
+    });
+
     const unsubscribe = onSnapshot(collection(db, 'categories'), (snapshot) => {
       const catList: Category[] = [];
       snapshot.forEach((doc) => {
@@ -790,7 +806,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setIsLoadingCategories(false);
     });
     return unsubscribe;
-  }, []);
+  }, [products.length]);
 
   // Listen to orders with strict user UID isolation using orderService
   useEffect(() => {
@@ -1815,6 +1831,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setSearchQuery,
         selectedCategory,
         setSelectedCategory,
+        selectedSubcategory,
+        setSelectedSubcategory,
         selectedMenuTab,
         setSelectedMenuTab,
         currentView,

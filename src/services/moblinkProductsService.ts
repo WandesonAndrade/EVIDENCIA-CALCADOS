@@ -1,9 +1,10 @@
 import { MoblinkProduto, Product } from "../types";
+import { moblinkCategoriesService, normalizeSubcategoryName } from "./moblinkCategoriesService";
 
 export const MOBLINK_OFFICIAL_API_URL =
   "https://api.evidenciacalcados.com.br/api/v1/produtos?pdf=false";
 export const MOBLINK_BEARER_TOKEN =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZFVzZXIiOiI3IiwiaWRMb2phIjoiMCIsImlhdCI6MTc4NTY5MDY1NCwiZXhwIjoxNzg1Nzc3MDU0fQ.FshB4Lfn_uOKfNVTxDTr9_awnpfRS7NnekQTj4M8oXs";
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZFVzZXIiOiI3IiwiaWRMb2phIjoiMCIsImlhdCI6MTc4NTg0Mzg2MSwiZXhwIjoxNzg1OTMwMjYxfQ.-y3Ee_Pql3qa2Bp6g7li-ba3zzTSEJuL0JW3rEpvSIA";
 
 /**
  * Extrai o nome-base (modelo principal/raiz) e a variação de cor/estilo de um nome completo de produto.
@@ -138,15 +139,197 @@ export const cleanUndefinedFields = <T extends Record<string, any>>(
  * Sanitiza rigorosamente um objeto de Produto antes de salvar no Firestore (setDoc/updateDoc).
  * Garante que originalPrice, price, stock, images e description nunca sejam undefined.
  */
+/**
+ * Extrai o preço padrão de tabela (carnê / parcelado) do produto.
+ * Prioridade: preco_venda (campo direto da API) > price > precos[0]
+ */
+export const extractPrecoTabelaMoblink = (item: any): number => {
+  if (!item || typeof item !== "object") return 0;
+
+  // Prioridade 1: preco_venda direto da API MobLink ERP
+  const direct =
+    item.preco_venda ?? item.price ?? item.preco_venda_fracao ?? item.preco;
+  if (typeof direct === "number" && !isNaN(direct) && direct > 0) return direct;
+  if (typeof direct === "string") {
+    const parsed = Number(direct.replace(",", ".")) || 0;
+    if (parsed > 0) return parsed;
+  }
+
+  // Prioridade 2: primeiro item do array precos (fallback)
+  if (Array.isArray(item.precos) && item.precos.length > 0) {
+    for (const p of item.precos) {
+      if (typeof p === "number" && !isNaN(p) && p > 0) return p;
+      if (typeof p === "object" && p !== null) {
+        const val = p.preco ?? p.preco_venda ?? p.valor ?? p.price;
+        if (typeof val === "number" && !isNaN(val) && val > 0) return val;
+        if (typeof val === "string") {
+          const parsed = Number(val.replace(",", ".")) || 0;
+          if (parsed > 0) return parsed;
+        }
+      }
+    }
+  }
+
+  return 0;
+};
+
+/**
+ * Extrai o preço à vista buscando na lista `precos` pelo campo `nome_tab_preco === 'A VISTA'`.
+ * Fallback: tabela que contenha 'VISTA' ou 'PIX', depois 10% de desconto sobre o preço de tabela.
+ */
+export const extractPrecoVistaMoblink = (item: any): number => {
+  if (!item || typeof item !== "object") return 0;
+
+  if (Array.isArray(item.precos) && item.precos.length > 0) {
+    // Busca exata por nome_tab_preco: campo oficial da API MobLink
+    const vistaObj = item.precos.find((p: any) => {
+      if (typeof p !== "object" || p === null) return false;
+      const nomTab = String(
+        p.nome_tab_preco || p.tabela || p.tipo || p.nome || p.description || "",
+      ).toUpperCase();
+      return (
+        nomTab === "A VISTA" ||
+        nomTab.includes("VISTA") ||
+        nomTab.includes("PIX")
+      );
+    });
+
+    if (vistaObj) {
+      const val =
+        vistaObj.preco ??
+        vistaObj.preco_venda ??
+        vistaObj.valor ??
+        vistaObj.price;
+      if (typeof val === "number" && !isNaN(val) && val > 0) return val;
+      if (typeof val === "string") {
+        const parsed = Number(val.replace(",", ".")) || 0;
+        if (parsed > 0) return parsed;
+      }
+    }
+  }
+
+  // Fallback: preco_vista ou precoVista diretamente no objeto
+  const directVista = item.preco_vista ?? item.precoVista;
+  if (typeof directVista === "number" && !isNaN(directVista) && directVista > 0)
+    return directVista;
+
+  // Fallback: preco_promocao (se houver)
+  const rawPromo = item.preco_promocao;
+  if (typeof rawPromo === "number" && !isNaN(rawPromo) && rawPromo > 0)
+    return rawPromo;
+
+  // Fallback final: 10% de desconto sobre o preço de tabela
+  const basePrice = extractPrecoTabelaMoblink(item);
+  if (basePrice > 0) return Math.round(basePrice * 0.9 * 100) / 100;
+
+  return 0;
+};
+
+/**
+ * Extrai e normaliza a categoria a partir do campo `classificacao` da API MobLink.
+ *
+ * O campo `classificacao` pode ser:
+ * - Uma string legível: "CALCADOS", "ACESSORIO", "COSMETICO"
+ * - Um código numérico: "002.004" (cruzar com tabela de grupos via /api/v1/produtos/grupos)
+ * - Um objeto: { nome: "CALCADOS" }
+ */
+export const extractClassificacaoCategoria = (
+  item: any,
+): {
+  category: string;
+  subcategory: string;
+  nome_grupo: string;
+  nome_subgrupo: string;
+  classificacao: string;
+} => {
+  if (!item || typeof item !== "object") {
+    return {
+      category: "Geral",
+      subcategory: "",
+      nome_grupo: "Geral",
+      nome_subgrupo: "",
+      classificacao: "Geral",
+    };
+  }
+
+  // 1. Extrair o valor bruto do campo classificacao
+  let rawClassificacao = "";
+  if (
+    typeof item.classificacao === "string" &&
+    item.classificacao.trim() !== ""
+  ) {
+    rawClassificacao = item.classificacao.trim();
+  } else if (typeof item.classificacao === "number") {
+    rawClassificacao = String(item.classificacao);
+  } else if (
+    typeof item.classificacao === "object" &&
+    item.classificacao?.nome
+  ) {
+    rawClassificacao = String(item.classificacao.nome).trim();
+  } else {
+    // Sem fallback para nome_grupo; usa apenas a classificação pura ou 'Geral'
+    rawClassificacao = "Geral";
+  }
+
+  // 2. Extrair subclassificacao
+  let rawSubclassificacao = "";
+  if (
+    typeof item.subclassificacao === "string" &&
+    item.subclassificacao.trim() !== ""
+  ) {
+    rawSubclassificacao = item.subclassificacao.trim();
+  } else if (
+    typeof item.subclassificacao === "object" &&
+    item.subclassificacao?.nome
+  ) {
+    rawSubclassificacao = String(item.subclassificacao.nome).trim();
+  } else {
+    rawSubclassificacao =
+      item.nome_subgrupo ||
+      item.subgrupo ||
+      item.subcategoria ||
+      item.subcategory ||
+      "";
+  }
+
+  // 3. Normalizar (tratando tanto nomes legíveis quanto códigos numéricos ex: '002.004')
+  const isNumericCode = /^\d+(\.\d+)?$/.test(rawClassificacao);
+  let category = "Geral";
+  let subcategory = normalizeSubcategoryName(rawSubclassificacao);
+  let resolvedGrupo = rawClassificacao;
+  let resolvedSubgrupo = rawSubclassificacao;
+
+  if (isNumericCode) {
+    const resolved = moblinkCategoriesService.resolveClassificacao(rawClassificacao);
+    if (resolved && resolved.category !== "Geral") {
+      category = resolved.category;
+      subcategory = resolved.subcategory || subcategory;
+      resolvedGrupo = resolved.nome_grupo || resolvedGrupo;
+      resolvedSubgrupo = resolved.nome_subgrupo || resolvedSubgrupo;
+    }
+  } else {
+    // Se for string, tentamos capitalizar normalmente e usar como categoria
+    category = rawClassificacao || "Geral"; 
+  }
+
+  return {
+    category,
+    subcategory,
+    nome_grupo: resolvedGrupo,
+    nome_subgrupo: resolvedSubgrupo,
+    classificacao: rawClassificacao,
+  };
+};
+
+/**
+ * Sanitiza rigorosamente um objeto de Produto antes de salvar no Firestore (setDoc/updateDoc).
+ * Garante que originalPrice, price, precoVista, stock, images e description nunca sejam undefined.
+ */
 export const sanitizeProductForFirestore = (
   product: Partial<Product>,
 ): Record<string, any> => {
-  const price =
-    typeof product.price === "number" && !isNaN(product.price)
-      ? product.price
-      : typeof product.preco_venda === "number" && !isNaN(product.preco_venda)
-        ? product.preco_venda
-        : 0;
+  const price = extractPrecoTabelaMoblink(product);
+  const precoVista = extractPrecoVistaMoblink(product);
 
   const rawOriginalPrice =
     product.originalPrice ?? (product as any).precoOriginal;
@@ -155,7 +338,7 @@ export const sanitizeProductForFirestore = (
     !isNaN(rawOriginalPrice) &&
     rawOriginalPrice > 0
       ? rawOriginalPrice
-      : null; // Se ausente ou inválido, define como null (aceito pelo Firestore)
+      : null;
 
   const stock =
     typeof product.stock === "number" && !isNaN(product.stock)
@@ -184,7 +367,11 @@ export const sanitizeProductForFirestore = (
         "Produto Evidência Calçados";
 
   const name = product.name || product.descricao || "Produto Evidência";
-  const category = product.category || "Geral";
+
+  const catInfo = extractClassificacaoCategoria(product);
+  const category = catInfo.category;
+  const subcategory = catInfo.subcategory;
+  const classificacao = catInfo.classificacao;
 
   const modelCode = product.modelCode || product.referenceCode || null;
   const referenceCode = product.referenceCode || product.modelCode || null;
@@ -193,8 +380,13 @@ export const sanitizeProductForFirestore = (
     ...product,
     name,
     category,
+    subcategory,
+    nome_grupo: category,
+    nome_subgrupo: subcategory,
     price,
     preco_venda: price,
+    precoVista,
+    preco_vista: precoVista,
     originalPrice,
     stock,
     saldo_loja: stock,
@@ -219,53 +411,6 @@ export const sanitizeProductForFirestore = (
   };
 
   return cleanUndefinedFields(baseSanitized);
-};
-
-/**
- * Extrai o preço à vista preferencialmente do array `precos` ou do campo `preco_venda`.
- */
-export const extractPrecoVistaMoblink = (item: any): number => {
-  if (!item || typeof item !== "object") return 0;
-
-  if (Array.isArray(item.precos) && item.precos.length > 0) {
-    // Busca por tabela/tipo de preço à vista
-    const vistaObj = item.precos.find((p: any) => {
-      if (typeof p === "object" && p !== null) {
-        const tab = String(
-          p.tabela || p.tipo || p.nome || p.description || "",
-        ).toUpperCase();
-        return tab.includes("VISTA");
-      }
-      return false;
-    });
-
-    if (vistaObj) {
-      const val =
-        vistaObj.preco ??
-        vistaObj.preco_venda ??
-        vistaObj.valor ??
-        vistaObj.price;
-      if (typeof val === "number" && !isNaN(val)) return val;
-      if (typeof val === "string") return Number(val.replace(",", ".")) || 0;
-    }
-
-    // Usa a primeira tabela de preços se não houver 'VISTA' explícito
-    const first = item.precos[0];
-    if (typeof first === "number" && !isNaN(first)) return first;
-    if (typeof first === "object" && first !== null) {
-      const val =
-        first.preco ?? first.preco_venda ?? first.valor ?? first.price;
-      if (typeof val === "number" && !isNaN(val)) return val;
-      if (typeof val === "string") return Number(val.replace(",", ".")) || 0;
-    }
-  }
-
-  // Fallback para campos diretos de preço
-  const raw =
-    item.preco_venda ?? item.preco_venda_fracao ?? item.preco ?? item.price;
-  if (typeof raw === "number" && !isNaN(raw)) return raw;
-  if (typeof raw === "string") return Number(raw.replace(",", ".")) || 0;
-  return 0;
 };
 
 /**
@@ -306,100 +451,129 @@ export const extractSaldoLojaMoblink = (item: any): number => {
  * Consome a API oficial do MobLink ERP com Token Bearer e suporte a paginação completa
  * para buscar todos os lotes (suportando mais de 1.800 produtos).
  */
-export const getProdutosMoblink = async (): Promise<MoblinkProduto[]> => {
+export const getProdutosMoblink = async (
+  onProgress?: (current: number, total: number, phase: string) => void
+): Promise<MoblinkProduto[]> => {
   const allItemsRaw: any[] = [];
-  let currentPage = 1;
   let lastPage = 1;
-  let hasMorePages = true;
 
   try {
-    while (hasMorePages && currentPage <= lastPage) {
-      const fetchHeaders = {
-        Accept: "application/json",
-        Authorization: `Bearer ${MOBLINK_BEARER_TOKEN}`,
-      };
+    const fetchHeaders = {
+      Accept: "application/json",
+      Authorization: `Bearer ${MOBLINK_BEARER_TOKEN}`,
+    };
 
-      const primaryUrl =
-        currentPage === 1
-          ? MOBLINK_OFFICIAL_API_URL
-          : `https://api.evidenciacalcados.com.br/api/v1/produtos?pdf=false&page=${currentPage}`;
+    if (onProgress) {
+      onProgress(0, 1, 'Iniciando sincronização com ERP (página 1/1)...');
+    }
 
-      let response: Response;
-      try {
-        response = await fetch(primaryUrl, {
-          method: "GET",
-          headers: fetchHeaders,
+    // 1. Carrega a página 1 para detectar o número total de páginas (lastPage)
+    let response: Response;
+    try {
+      response = await fetch(MOBLINK_OFFICIAL_API_URL, {
+        method: "GET",
+        headers: fetchHeaders,
+      });
+    } catch (networkErr) {
+      const fallbackUrl = "/api/v1/produtos?pdf=false";
+      response = await fetch(fallbackUrl, {
+        method: "GET",
+        headers: fetchHeaders,
+      });
+    }
+
+    if (!response.ok) {
+      throw new Error(`Erro HTTP ${response.status} na API do MobLink (página 1)`);
+    }
+
+    const data = await response.json();
+    const page1List: any[] = Array.isArray(data)
+      ? data
+      : data.produtos || data.data || data.items || [];
+
+    if (Array.isArray(page1List) && page1List.length > 0) {
+      allItemsRaw.push(...page1List);
+    }
+
+    // Detecção dinâmica do número de páginas
+    const meta = data.meta || data.pagination || data;
+    const detectedLastPage =
+      meta.last_page ||
+      meta.lastPage ||
+      meta.total_pages ||
+      meta.totalPages ||
+      data.last_page;
+
+    if (typeof detectedLastPage === "number" && detectedLastPage > lastPage) {
+      lastPage = detectedLastPage;
+    }
+
+    const totalCount = meta.total || data.total;
+    if (typeof totalCount === "number" && totalCount > 0) {
+      const itemsPerPage = meta.per_page || data.per_page || page1List.length || 15;
+      const calculatedLastPage = Math.ceil(totalCount / itemsPerPage);
+      if (calculatedLastPage > lastPage) {
+        lastPage = calculatedLastPage;
+      }
+    }
+
+    // Se houver mais páginas, carrega em paralelo com limite de concorrência de 5
+    if (lastPage > 1) {
+      const remainingPages = Array.from({ length: lastPage - 1 }, (_, i) => i + 2);
+      const concurrencyLimit = 5;
+      let completedCount = 1;
+
+      if (onProgress) {
+        onProgress(completedCount, lastPage, `Lendo página 1/${lastPage} obtida...`);
+      }
+
+      for (let i = 0; i < remainingPages.length; i += concurrencyLimit) {
+        const chunk = remainingPages.slice(i, i + concurrencyLimit);
+        const chunkResults = await Promise.all(
+          chunk.map(async (page) => {
+            try {
+              const pageUrl = `https://api.evidenciacalcados.com.br/api/v1/produtos?pdf=false&page=${page}`;
+              let pageRes: Response;
+              try {
+                pageRes = await fetch(pageUrl, {
+                  method: "GET",
+                  headers: fetchHeaders,
+                });
+              } catch (err) {
+                const fallbackPageUrl = `/api/v1/produtos?pdf=false&page=${page}`;
+                pageRes = await fetch(fallbackPageUrl, {
+                  method: "GET",
+                  headers: fetchHeaders,
+                });
+              }
+
+              if (!pageRes.ok) return [];
+              const pageData = await pageRes.json();
+              const list = Array.isArray(pageData)
+                ? pageData
+                : pageData.produtos || pageData.data || pageData.items || [];
+
+              completedCount++;
+              if (onProgress) {
+                onProgress(
+                  completedCount,
+                  lastPage,
+                  `Baixando dados do ERP MobLink (${completedCount}/${lastPage} páginas)`
+                );
+              }
+              return list;
+            } catch (err) {
+              console.error(`Erro ao sincronizar página ${page}:`, err);
+              return [];
+            }
+          })
+        );
+
+        chunkResults.forEach((list) => {
+          if (Array.isArray(list)) {
+            allItemsRaw.push(...list);
+          }
         });
-      } catch (networkErr) {
-        // Fallback local se a chamada direta falhar por restrição do ambiente de desenvolvimento
-        const fallbackUrl =
-          currentPage === 1
-            ? "/api/v1/produtos?pdf=false"
-            : `/api/v1/produtos?pdf=false&page=${currentPage}`;
-
-        response = await fetch(fallbackUrl, {
-          method: "GET",
-          headers: fetchHeaders,
-        });
-      }
-
-      if (!response.ok) {
-        if (currentPage === 1) {
-          throw new Error(
-            `Erro HTTP ${response.status} na API oficial do MobLink`,
-          );
-        }
-        break;
-      }
-
-      const data = await response.json();
-
-      // Suporte flexível à estrutura da resposta (array direto ou chave interna data/produtos)
-      const pageList: any[] = Array.isArray(data)
-        ? data
-        : data.produtos || data.data || data.items || [];
-
-      if (Array.isArray(pageList) && pageList.length > 0) {
-        allItemsRaw.push(...pageList);
-      } else if (currentPage > 1) {
-        break;
-      }
-
-      // Detecção dinâmica de Metadados de Paginação
-      const meta = data.meta || data.pagination || data;
-      const detectedLastPage =
-        meta.last_page ||
-        meta.lastPage ||
-        meta.total_pages ||
-        meta.totalPages ||
-        data.last_page;
-
-      if (typeof detectedLastPage === "number" && detectedLastPage > lastPage) {
-        lastPage = detectedLastPage;
-      }
-
-      // Cálculo por Total de itens vs Itens por página
-      const totalCount = meta.total || data.total;
-      if (typeof totalCount === "number" && totalCount > 0) {
-        const itemsPerPage =
-          meta.per_page || data.per_page || pageList.length || 15;
-        const calculatedLastPage = Math.ceil(totalCount / itemsPerPage);
-        if (calculatedLastPage > lastPage) {
-          lastPage = calculatedLastPage;
-        }
-      }
-
-      const nextPageUrl = meta.next_page_url || data.next_page_url;
-
-      if (currentPage >= lastPage && !nextPageUrl) {
-        hasMorePages = false;
-      } else {
-        currentPage++;
-      }
-
-      // Trava de segurança para evitar loops infinitos (máximo 150 páginas = até ~15.000 produtos)
-      if (currentPage > 150) {
-        break;
       }
     }
 
@@ -445,11 +619,29 @@ export const getProdutosMoblink = async (): Promise<MoblinkProduto[]> => {
         id_grade = null;
       }
 
+      const catInfo = extractClassificacaoCategoria(item);
+
+      // Extrair preço de tabela (carnê) e preço à vista separadamente
+      const precoTabela = extractPrecoTabelaMoblink(item);
+      const precoVista = extractPrecoVistaMoblink(item);
+
+      // Extrair preço promocional (se existir)
+      const precoPromo =
+        typeof item.preco_promocao === "number" && item.preco_promocao > 0
+          ? item.preco_promocao
+          : undefined;
+
       return {
         id,
         descricao,
         nome: item.nome || item.name || descricao,
-        preco_venda,
+        /** Preço de tabela (carnê / parcelado) */
+        preco_venda: precoTabela,
+        /** Preço à vista (PIX / dinheiro) */
+        preco_vista: precoVista,
+        precoVista: precoVista,
+        /** Preço promocional opcional */
+        preco_promocao: precoPromo,
         saldo_loja,
         foto_uri,
         id_grade,
@@ -457,7 +649,12 @@ export const getProdutosMoblink = async (): Promise<MoblinkProduto[]> => {
         saldos_lojas: item.saldos_lojas,
         compl_descr: item.compl_descr || item.descr_compl,
         tamanhos: item.tamanhos,
-        categoria: item.categoria || item.category,
+        /** Código de classificação original do ERP */
+        classificacao: catInfo.classificacao,
+        categoria: catInfo.category,
+        subcategoria: catInfo.subcategory,
+        nome_grupo: catInfo.nome_grupo,
+        nome_subgrupo: catInfo.nome_subgrupo,
         barcode: item.codigoBarras || item.barcode || item.codigo,
         marca: item.marca,
         material: item.material,
@@ -544,23 +741,35 @@ export const hasProductChanged = (
 ): boolean => {
   if (!existing || !fresh) return true;
 
-  const freshPrice =
-    (fresh as any).price ??
-    (fresh as any).preco_venda ??
-    extractPrecoVistaMoblink(fresh);
+  // 1. Preço de Tabela (Carnê / Prazo)
+  const freshPrice = (fresh as any).price ?? (fresh as any).preco_venda ?? extractPrecoTabelaMoblink(fresh);
   const existingPrice = existing.price ?? existing.preco_venda ?? 0;
-  if (Math.abs(freshPrice - existingPrice) > 0.001) return true;
+  if (Math.abs(freshPrice - existingPrice) > 0.01) return true;
 
-  const freshStock =
-    (fresh as any).stock ??
-    (fresh as any).saldo_loja ??
-    extractSaldoLojaMoblink(fresh);
+  // 2. Preço à Vista (PIX)
+  const freshVista = (fresh as any).precoVista ?? (fresh as any).preco_vista ?? extractPrecoVistaMoblink(fresh);
+  const existingVista = existing.precoVista ?? existing.preco_vista ?? 0;
+  if (Math.abs(freshVista - existingVista) > 0.01) return true;
+
+  // 3. Estoque
+  const freshStock = (fresh as any).stock ?? (fresh as any).saldo_loja ?? extractSaldoLojaMoblink(fresh);
   const existingStock = existing.stock ?? existing.saldo_loja ?? 0;
   if (freshStock !== existingStock) return true;
 
-  const freshName =
-    (fresh as any).name ?? (fresh as any).nome ?? (fresh as any).descricao;
+  // 4. Nome / Descrição
+  const freshName = (fresh as any).name ?? (fresh as any).nome ?? (fresh as any).descricao;
   if (freshName && existing.name !== freshName) return true;
+
+  // 5. Classificação ERP
+  const freshClass = String((fresh as any).classificacao || '').trim();
+  const existingClass = String((existing as any).classificacao || '').trim();
+  if (freshClass && existingClass && freshClass !== existingClass) return true;
+
+  // 6. Complemento de descrição
+  const freshCompl = String((fresh as any).compl_descr || (fresh as any).descr_compl || '').trim();
+  const existingCompl = String((existing as any).compl_descr || (existing as any).description_completa || '').trim();
+  // Se antes não tinha descrição e agora tem, ou se mudou
+  if (freshCompl && existingCompl && freshCompl !== existingCompl) return true;
 
   return false;
 };
@@ -585,3 +794,48 @@ export const filterProductsRequiringSync = (
     return hasProductChanged(existing, freshItem);
   });
 };
+
+/**
+ * Salva a lista de produtos retornada pelo ERP Moblink em cache local (localStorage) com TTL.
+ */
+export const saveMoblinkCache = (items: MoblinkProduto[]): void => {
+  try {
+    const data = {
+      items,
+      cachedAt: new Date().toISOString(),
+    };
+    localStorage.setItem('moblink_products_cache', JSON.stringify(data));
+  } catch (err) {
+    console.warn('[moblinkProductsService] Falha ao salvar cache no localStorage:', err);
+  }
+};
+
+/**
+ * Recupera a lista de produtos salvos no cache. Retorna null se não houver ou se for inválido.
+ */
+export const loadMoblinkCache = (maxAgeMinutes = 30): MoblinkProduto[] | null => {
+  try {
+    const cacheStr = localStorage.getItem('moblink_products_cache');
+    if (!cacheStr) return null;
+
+    const cacheData = JSON.parse(cacheStr);
+    if (!cacheData || !cacheData.cachedAt || !Array.isArray(cacheData.items)) {
+      return null;
+    }
+
+    const cachedTime = new Date(cacheData.cachedAt).getTime();
+    const now = new Date().getTime();
+    const diffMin = (now - cachedTime) / (1000 * 60);
+
+    if (diffMin > maxAgeMinutes) {
+      localStorage.removeItem('moblink_products_cache'); // Expira o cache antigo
+      return null;
+    }
+
+    return cacheData.items;
+  } catch (err) {
+    console.warn('[moblinkProductsService] Falha ao ler cache do localStorage:', err);
+    return null;
+  }
+};
+

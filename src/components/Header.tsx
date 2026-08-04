@@ -349,7 +349,7 @@ export const Header: React.FC = () => {
               </button>
             ))}
 
-            {/* Menu Suspenso Outros Departamentos no Header */}
+            {/* Menu Suspenso Outros Departamentos no Header com Grupos & Subgrupos do ERP */}
             <div className="relative shrink-0">
               <select
                 value=""
@@ -364,12 +364,26 @@ export const Header: React.FC = () => {
                     : 'text-slate-700 bg-slate-100 border-slate-200 hover:bg-white'
                 }`}
               >
-                <option value="" disabled>Outros Departamentos ▾</option>
-                <option value="cosmeticos" className={isDark ? "bg-slate-900 text-slate-100" : "bg-white text-slate-900"}>Cosméticos</option>
-                <option value="perfumes" className={isDark ? "bg-slate-900 text-slate-100" : "bg-white text-slate-900"}>Perfumes</option>
-                <option value="escolar" className={isDark ? "bg-slate-900 text-slate-100" : "bg-white text-slate-900"}>Escolar</option>
-                <option value="acessorios" className={isDark ? "bg-slate-900 text-slate-100" : "bg-white text-slate-900"}>Acessórios</option>
-                <option value="itens-de-viagens" className={isDark ? "bg-slate-900 text-slate-100" : "bg-white text-slate-900"}>Itens de Viagens</option>
+                <option value="" disabled>Grupos & Departamentos ▾</option>
+                <optgroup label="Calçados">
+                  <option value="calcados-femininos" className={isDark ? "bg-slate-900 text-slate-100" : "bg-white text-slate-900"}>Calçados Femininos</option>
+                  <option value="calcados-masculinos" className={isDark ? "bg-slate-900 text-slate-100" : "bg-white text-slate-900"}>Calçados Masculinos</option>
+                  <option value="calcados-infantil-feminino" className={isDark ? "bg-slate-900 text-slate-100" : "bg-white text-slate-900"}>Infantil Feminino</option>
+                  <option value="calcados-infantil-masculino" className={isDark ? "bg-slate-900 text-slate-100" : "bg-white text-slate-900"}>Infantil Masculino</option>
+                </optgroup>
+                <optgroup label="Acessórios">
+                  <option value="acessorios" className={isDark ? "bg-slate-900 text-slate-100" : "bg-white text-slate-900"}>Acessórios (Geral)</option>
+                  <option value="acessorios" className={isDark ? "bg-slate-900 text-slate-100" : "bg-white text-slate-900"}>Bonés & Chapéus</option>
+                  <option value="acessorios" className={isDark ? "bg-slate-900 text-slate-100" : "bg-white text-slate-900"}>Relógios</option>
+                  <option value="acessorios" className={isDark ? "bg-slate-900 text-slate-100" : "bg-white text-slate-900"}>Bolsas & Carteiras</option>
+                  <option value="acessorios" className={isDark ? "bg-slate-900 text-slate-100" : "bg-white text-slate-900"}>Cintos</option>
+                </optgroup>
+                <optgroup label="Outros Departamentos">
+                  <option value="cosmeticos" className={isDark ? "bg-slate-900 text-slate-100" : "bg-white text-slate-900"}>Cosméticos</option>
+                  <option value="perfumes" className={isDark ? "bg-slate-900 text-slate-100" : "bg-white text-slate-900"}>Perfumes</option>
+                  <option value="escolar" className={isDark ? "bg-slate-900 text-slate-100" : "bg-white text-slate-900"}>Escolar</option>
+                  <option value="itens-de-viagens" className={isDark ? "bg-slate-900 text-slate-100" : "bg-white text-slate-900"}>Itens de Viagens</option>
+                </optgroup>
               </select>
             </div>
           </nav>

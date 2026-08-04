@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useApp } from "../context/AppContext";
 import { Product } from "../types";
 import {
@@ -11,11 +11,14 @@ import {
   Heart,
   CreditCard,
   Zap,
+  Filter,
+  Layers,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { scrollToSectionWithOffset } from "../lib/scrollUtils";
 import { AboutUs } from "./AboutUs";
 import { CrediarioBanner } from "./CrediarioBanner";
+import { normalizeCategoryName, normalizeSubcategoryName } from "../services/moblinkCategoriesService";
 
 interface ProductCardProps {
   product: Product;
@@ -154,29 +157,27 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
             {product.name}
           </h3>
 
-          <div className="pt-1">
-            {product.onSale &&
-            product.originalPrice &&
-            product.originalPrice > product.price ? (
-              <div className="flex items-baseline space-x-2">
-                <span
-                  className={`text-[11px] line-through font-medium ${isDark ? "text-slate-500" : "text-slate-400"}`}
-                >
-                  R$ {product.originalPrice.toFixed(2).replace(".", ",")}
+          {/* Exibição Dupla de Preços (Tabela vs. Preço à Vista no PIX) */}
+          <div className="pt-1 space-y-1">
+            <div className="flex items-center space-x-2 flex-wrap">
+              <span className={`text-[11px] font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                Tabela: <span className="font-bold">R$ {product.price.toFixed(2).replace('.', ',')}</span>
+              </span>
+              {product.originalPrice && product.originalPrice > product.price && (
+                <span className={`text-[10px] line-through ${isDark ? 'text-slate-600' : 'text-slate-400'}`}>
+                  R$ {product.originalPrice.toFixed(2).replace('.', ',')}
                 </span>
-                <p
-                  className={`text-base sm:text-lg font-black ${isDark ? "text-rose-400" : "text-rose-600"}`}
-                >
-                  R$ {product.price.toFixed(2).replace(".", ",")}
-                </p>
-              </div>
-            ) : (
-              <p
-                className={`text-base sm:text-lg font-black ${isDark ? "text-amber-400" : "text-slate-900"}`}
-              >
-                R$ {product.price.toFixed(2).replace(".", ",")}
+              )}
+            </div>
+
+            <div className="flex items-center space-x-2 flex-wrap">
+              <p className={`text-base sm:text-lg font-black ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
+                R$ {(product.precoVista || Math.round(product.price * 0.9 * 100) / 100).toFixed(2).replace('.', ',')}
               </p>
-            )}
+              <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 border border-emerald-500/30">
+                ⚡ À Vista
+              </span>
+            </div>
           </div>
         </div>
 
@@ -245,6 +246,8 @@ export const ProductList: React.FC = () => {
     isLoadingProducts,
     selectedCategory,
     setSelectedCategory,
+    selectedSubcategory,
+    setSelectedSubcategory,
     searchQuery,
     setCurrentView,
     setSelectedProduct,
@@ -367,42 +370,81 @@ export const ProductList: React.FC = () => {
 
   const formatNumber = (num: number) => num.toString().padStart(2, "0");
 
-  // Filter products matching search query and visibility
+  // Função de filtro universal combinada (Categoria/Grupo + Subcategoria/Subgrupo com normalização)
+  const matchesFilter = useCallback((p: Product) => {
+    // 1. Validação da Categoria (Grupo ERP)
+    let catMatch = false;
+    if (selectedCategory === "TODOS" || !selectedCategory) {
+      catMatch = true;
+    } else {
+      const targetCat = selectedCategory.toUpperCase().trim();
+      const pCatNorm = normalizeCategoryName(p.category || "").toUpperCase().trim();
+      const pGrupoNorm = normalizeCategoryName(p.nome_grupo || "").toUpperCase().trim();
+      const pClass = (p.classificacao || "").toUpperCase().trim();
+      const pRawCat = (p.category || "").toUpperCase().trim();
+      const pRawGrupo = (p.nome_grupo || "").toUpperCase().trim();
+
+      catMatch =
+        pCatNorm === targetCat ||
+        pGrupoNorm === targetCat ||
+        pRawCat === targetCat ||
+        pRawGrupo === targetCat ||
+        pClass === targetCat ||
+        pCatNorm.includes(targetCat) ||
+        pGrupoNorm.includes(targetCat);
+    }
+
+    if (!catMatch) return false;
+
+    // 2. Validação da Subcategoria (Subgrupo ERP)
+    if (!selectedSubcategory || selectedSubcategory === "TODAS" || selectedSubcategory === "TODOS") {
+      return true;
+    }
+
+    const targetSub = selectedSubcategory.toUpperCase().trim();
+    const pSubNorm = normalizeSubcategoryName(p.subcategory || "").toUpperCase().trim();
+    const pSubGrupoNorm = normalizeSubcategoryName(p.nome_subgrupo || "").toUpperCase().trim();
+    const pRawSub = (p.subcategory || "").toUpperCase().trim();
+    const pRawSubGrupo = (p.nome_subgrupo || "").toUpperCase().trim();
+
+    return (
+      pSubNorm === targetSub ||
+      pSubGrupoNorm === targetSub ||
+      pRawSub === targetSub ||
+      pRawSubGrupo === targetSub ||
+      pSubNorm.includes(targetSub) ||
+      pSubGrupoNorm.includes(targetSub)
+    );
+  }, [selectedCategory, selectedSubcategory]);
+
+  // Filtra os produtos pela busca do usuário e visibilidade/estoque
   const baseFilteredProducts = products.filter((prod) => {
+    const query = searchQuery.toLowerCase();
     const matchesSearch =
-      prod.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      prod.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      prod.category.toLowerCase().includes(searchQuery.toLowerCase());
+      prod.name.toLowerCase().includes(query) ||
+      prod.description.toLowerCase().includes(query) ||
+      prod.category.toLowerCase().includes(query) ||
+      (prod.subcategory && prod.subcategory.toLowerCase().includes(query)) ||
+      (prod.nome_grupo && prod.nome_grupo.toLowerCase().includes(query)) ||
+      (prod.nome_subgrupo && prod.nome_subgrupo.toLowerCase().includes(query));
     const isAvailable = (prod.stock !== undefined ? prod.stock > 0 : (prod.saldo_loja ?? 0) > 0);
     return matchesSearch && prod.visible && isAvailable;
   });
 
   const offersProducts = baseFilteredProducts.filter(
-    (p) =>
-      p.onSale &&
-      (selectedCategory === "TODOS" ||
-        p.category.toUpperCase() === selectedCategory),
+    (p) => p.onSale && matchesFilter(p)
   );
 
   const newArrivalsProducts = baseFilteredProducts.filter(
-    (p) =>
-      Boolean(p.newArrival) &&
-      (selectedCategory === "TODOS" ||
-        p.category.toUpperCase() === selectedCategory),
+    (p) => Boolean(p.newArrival) && matchesFilter(p)
   );
 
   const shoesProducts = baseFilteredProducts.filter(
-    (p) =>
-      p.category.toUpperCase() !== "ACESSÓRIOS" &&
-      (selectedCategory === "TODOS" ||
-        p.category.toUpperCase() === selectedCategory),
+    (p) => p.category.toUpperCase() !== "ACESSÓRIOS" && matchesFilter(p)
   );
 
   const accessoriesProducts = baseFilteredProducts.filter(
-    (p) =>
-      p.category.toUpperCase() === "ACESSÓRIOS" &&
-      (selectedCategory === "TODOS" ||
-        p.category.toUpperCase() === selectedCategory),
+    (p) => p.category.toUpperCase() === "ACESSÓRIOS" && matchesFilter(p)
   );
 
   const totalFilteredCount =
@@ -413,54 +455,100 @@ export const ProductList: React.FC = () => {
   const maxLaunchIndex = Math.max(0, newArrivalsProducts.length - cardsPerPage);
   const activeLaunchIndex = Math.min(currentLaunchIndex, maxLaunchIndex);
 
-  // Computa em tempo real as categorias ativas cadastradas no Firestore + Produtos
-  const dynamicCategoriesList = useMemo(() => {
-    const rawCategories = [
-      ...dbCategories.filter((c) => c.active !== false).map((c) => c.name),
-      ...products.map((p) => p.category).filter(Boolean),
-    ];
+  // Nível 1: Extração e Tratamento de Categorias (Grupos ERP + Banco de Categorias)
+  const categoriesList = useMemo(() => {
+    const uniqueMap = new Map<string, string>(); // UPPER -> Display Traduzido
+    uniqueMap.set("TODOS", "TODOS");
 
-    const uniqueMap = new Map<string, string>();
-    rawCategories.forEach((cat) => {
-      const trimmed = cat.trim();
-      if (trimmed && !uniqueMap.has(trimmed.toUpperCase())) {
-        uniqueMap.set(trimmed.toUpperCase(), trimmed);
+    (dbCategories || []).filter((c) => c && c.name && c.active !== false).forEach((c) => {
+      const normalized = normalizeCategoryName(c.name);
+      if (normalized && normalized !== "Geral" && !/^\d+(\.\d+)?$/.test(normalized)) {
+        uniqueMap.set(normalized.toUpperCase(), normalized);
       }
     });
 
-    return Array.from(uniqueMap.values());
+    (products || []).forEach((p) => {
+      const cat = (p.category || p.nome_grupo || "").trim();
+      if (cat && !/^\d+(\.\d+)?$/.test(cat)) {
+        const normalized = normalizeCategoryName(cat);
+        if (normalized && normalized !== "Geral" && !/^\d+(\.\d+)?$/.test(normalized)) {
+          if (!uniqueMap.has(normalized.toUpperCase())) {
+            uniqueMap.set(normalized.toUpperCase(), normalized);
+          }
+        }
+      }
+    });
+
+    return Array.from(uniqueMap.entries()).map(([key, label]) => ({
+      id: key,
+      label: label,
+    }));
   }, [dbCategories, products]);
 
-  // Pílulas de acesso rápido dinâmicas
+  // Pílulas principais do Nível 1 (primeiras 5 categorias + "TODOS")
   const primaryFootwearPills = useMemo(() => {
-    const pills = [{ id: "TODOS", label: "TODOS" }];
-    const firstPills = dynamicCategoriesList.length > 0
-      ? dynamicCategoriesList.slice(0, 5)
-      : ["Calçados Femininos", "Calçados Masculinos", "Infantil Feminino", "Infantil Masculino"];
+    return categoriesList.slice(0, 6);
+  }, [categoriesList]);
 
-    firstPills.forEach((cat) => {
-      pills.push({ id: cat.toUpperCase(), label: cat });
-    });
-    return pills;
-  }, [dynamicCategoriesList]);
-
-  // Departamentos secundários agrupados no combobox dropdown
+  // Departamentos secundários do Nível 1 para o dropdown
   const secondaryDepartments = useMemo(() => {
-    const rest = dynamicCategoriesList.slice(5);
-    if (rest.length === 0) {
-      return [
-        { id: "COSMÉTICOS", label: "Cosméticos" },
-        { id: "PERFUMES", label: "Perfumes" },
-        { id: "ESCOLAR", label: "Escolar" },
-        { id: "ACESSÓRIOS", label: "Acessórios" },
-        { id: "ITENS DE VIAGENS", label: "Itens de Viagens" },
-      ];
+    return categoriesList.slice(6);
+  }, [categoriesList]);
+
+  // Nível 2: Extração e Tratamento de Subcategorias (Subgrupos ERP) para a Categoria selecionada
+  const availableSubcategories = useMemo(() => {
+    const subMap = new Map<string, string>(); // UPPER -> Display Traduzido
+
+    // Subcategorias associadas no dbCategories para a categoria ativa
+    if (selectedCategory !== "TODOS") {
+      const foundCat = (dbCategories || []).find(
+        (c) => normalizeCategoryName(c.name).toUpperCase().trim() === selectedCategory
+      );
+      if (foundCat && Array.isArray(foundCat.subcategories)) {
+        foundCat.subcategories.forEach((sub) => {
+          if (sub && sub.name) {
+            const normalizedSub = normalizeSubcategoryName(sub.name);
+            if (normalizedSub && !/^\d+(\.\d+)?$/.test(normalizedSub)) {
+              subMap.set(normalizedSub.toUpperCase(), normalizedSub);
+            }
+          }
+        });
+      }
     }
-    return rest.map((cat) => ({
-      id: cat.toUpperCase(),
-      label: cat,
+
+    // Subcategorias dos produtos pertencentes à categoria ativa
+    (products || []).forEach((p) => {
+      let isCategoryMatch = false;
+      if (selectedCategory === "TODOS") {
+        isCategoryMatch = true;
+      } else {
+        const pCatNorm = normalizeCategoryName(p.category || p.nome_grupo || "").toUpperCase().trim();
+        isCategoryMatch = pCatNorm === selectedCategory || (p.nome_grupo && p.nome_grupo.toUpperCase().trim() === selectedCategory);
+      }
+
+      if (isCategoryMatch) {
+        const rawSub = p.subcategory || p.nome_subgrupo || p.subcategoria || "";
+        if (rawSub && !/^\d+(\.\d+)?$/.test(rawSub)) {
+          const normalizedSub = normalizeSubcategoryName(rawSub);
+          if (normalizedSub && !/^\d+(\.\d+)?$/.test(normalizedSub)) {
+            if (!subMap.has(normalizedSub.toUpperCase())) {
+              subMap.set(normalizedSub.toUpperCase(), normalizedSub);
+            }
+          }
+        }
+      }
+    });
+
+    const subList = Array.from(subMap.entries()).map(([key, label]) => ({
+      id: key,
+      label: label,
     }));
-  }, [dynamicCategoriesList]);
+
+    if (subList.length > 0) {
+      return [{ id: "TODAS", label: "Todas as Subcategorias" }, ...subList];
+    }
+    return [];
+  }, [selectedCategory, dbCategories, products]);
 
   // Sequência ativa das seções da vitrine salva no Firestore (com Lançamentos fixo em #1)
   const activeHomeSections = useMemo(() => {
@@ -505,30 +593,43 @@ export const ProductList: React.FC = () => {
       ref={catalogSectionRef}
       className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-10"
     >
-      {/* Categorias em Destaque: Footwear Highlights + Secondary Departments Combobox */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <span
-            className={`text-xs font-bold uppercase tracking-widest ${isDark ? "text-amber-400" : "text-slate-500"}`}
-          >
-            Navegação por Departamentos
-          </span>
-          {searchQuery && (
+      {/* Categorias & Subcategorias em Destaque (Nível 1 & Nível 2) */}
+      <div className="space-y-4">
+        {/* CABEÇALHO DO FILTRO */}
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2">
+            <Filter className="h-4 w-4 text-amber-500" />
             <span
-              className={`text-xs font-semibold ${isDark ? "text-slate-300" : "text-slate-600"}`}
+              className={`text-xs font-bold uppercase tracking-widest ${isDark ? "text-amber-400" : "text-slate-600"}`}
             >
-              Resultado para:{" "}
-              <span
-                className={`${isDark ? "text-amber-400" : "text-slate-900"} font-bold`}
-              >
-                "{searchQuery}"
-              </span>
+              Navegação por Departamentos
             </span>
-          )}
+          </div>
+
+          <div className="flex items-center gap-3">
+            {searchQuery && (
+              <span
+                className={`text-xs font-semibold ${isDark ? "text-slate-300" : "text-slate-600"}`}
+              >
+                Resultado para:{" "}
+                <span
+                  className={`${isDark ? "text-amber-400" : "text-slate-900"} font-bold`}
+                >
+                  "{searchQuery}"
+                </span>
+              </span>
+            )}
+
+            <span className={`text-[11px] font-extrabold px-3 py-1 rounded-full border ${
+              isDark ? 'bg-slate-900 border-slate-800 text-amber-400' : 'bg-slate-100 border-slate-200 text-slate-700'
+            }`}>
+              {totalFilteredCount} {totalFilteredCount === 1 ? 'produto' : 'produtos'}
+            </span>
+          </div>
         </div>
 
+        {/* NÍVEL 1: PILULAS DE CATEGORIAS PRINCIPAIS */}
         <div className="flex items-center space-x-2.5 overflow-x-auto no-scrollbar scroll-smooth py-2 px-1">
-          {/* Footwear Primary Access Pills */}
           {primaryFootwearPills.map((pill) => {
             const isSelected = selectedCategory === pill.id;
 
@@ -553,40 +654,89 @@ export const ProductList: React.FC = () => {
             );
           })}
 
-          {/* Combobox Dropdown for Secondary Departments */}
-          <div className="relative shrink-0">
-            <select
-              value={isSecondaryActive ? selectedCategory : ""}
-              onChange={(e) => {
-                if (e.target.value) {
-                  handleSelectCategory(e.target.value);
-                }
-              }}
-              className={`whitespace-nowrap px-4 py-2.5 rounded-full text-xs font-bold tracking-wider transition-all duration-200 cursor-pointer border focus:outline-none ${
-                isSecondaryActive
-                  ? isDark
-                    ? "bg-amber-400 text-slate-950 border-amber-300 font-black shadow-[0_0_20px_rgba(245,158,11,0.35)]"
-                    : "bg-slate-900 text-white border-slate-900 font-black shadow-lg"
-                  : isDark
-                    ? "bg-slate-900/60 border-slate-800/80 text-slate-300 hover:bg-slate-800 hover:border-slate-700 backdrop-blur-md"
-                    : "bg-white/80 border-slate-200 text-slate-700 hover:bg-slate-50 backdrop-blur-md"
-              }`}
-            >
-              <option value="" disabled>
-                {isSecondaryActive ? `Outros: ${activeSecondaryLabel}` : "Outros Departamentos ▾"}
-              </option>
-              {secondaryDepartments.map((dept) => (
-                <option 
-                  key={dept.id} 
-                  value={dept.id}
-                  className={isDark ? "bg-slate-900 text-slate-100" : "bg-white text-slate-900"}
-                >
-                  {dept.label}
+          {/* Combobox Dropdown para Departamentos Secundários */}
+          {secondaryDepartments.length > 0 && (
+            <div className="relative shrink-0">
+              <select
+                value={isSecondaryActive ? selectedCategory : ""}
+                onChange={(e) => {
+                  if (e.target.value) {
+                    handleSelectCategory(e.target.value);
+                  }
+                }}
+                className={`whitespace-nowrap px-4 py-2.5 rounded-full text-xs font-bold tracking-wider transition-all duration-200 cursor-pointer border focus:outline-none ${
+                  isSecondaryActive
+                    ? isDark
+                      ? "bg-amber-400 text-slate-950 border-amber-300 font-black shadow-[0_0_20px_rgba(245,158,11,0.35)]"
+                      : "bg-slate-900 text-white border-slate-900 font-black shadow-lg"
+                    : isDark
+                      ? "bg-slate-900/60 border-slate-800/80 text-slate-300 hover:bg-slate-800 hover:border-slate-700 backdrop-blur-md"
+                      : "bg-white/80 border-slate-200 text-slate-700 hover:bg-slate-50 backdrop-blur-md"
+                }`}
+              >
+                <option value="" disabled>
+                  {isSecondaryActive ? `Outros: ${activeSecondaryLabel}` : "Outros Departamentos ▾"}
                 </option>
-              ))}
-            </select>
-          </div>
+                {secondaryDepartments.map((dept) => (
+                  <option 
+                    key={dept.id} 
+                    value={dept.id}
+                    className={isDark ? "bg-slate-900 text-slate-100" : "bg-white text-slate-900"}
+                  >
+                    {dept.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
+
+        {/* NÍVEL 2: SUBCATEGORIAS (Subgrupos ERP) - Exibidas dinamicamente */}
+        {availableSubcategories.length > 1 && (
+          <div className={`p-3.5 rounded-2xl border space-y-2 animate-fade-in ${
+            isDark ? 'bg-slate-900/60 border-slate-800/80' : 'bg-slate-50/90 border-slate-200/70'
+          }`}>
+            <div className="flex items-center justify-between px-1">
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                <Layers className="h-3 w-3 text-amber-500" />
+                Subcategorias {selectedCategory !== 'TODOS' ? `em ${selectedCategory}` : ''}
+              </span>
+              {selectedSubcategory !== 'TODAS' && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedSubcategory('TODAS')}
+                  className="text-[10px] font-bold text-amber-500 hover:underline cursor-pointer"
+                >
+                  Limpar Subcategoria ✕
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center space-x-2 overflow-x-auto no-scrollbar py-1">
+              {availableSubcategories.map((sub) => {
+                const isSubSelected = selectedSubcategory === sub.id;
+                return (
+                  <button
+                    key={sub.id}
+                    type="button"
+                    onClick={() => setSelectedSubcategory(sub.id)}
+                    className={`whitespace-nowrap px-3.5 py-1.5 rounded-xl text-[11px] font-bold transition-all duration-200 cursor-pointer border ${
+                      isSubSelected
+                        ? isDark
+                          ? 'bg-amber-500 text-slate-950 border-amber-400 font-extrabold shadow-sm'
+                          : 'bg-slate-900 text-white border-slate-900 font-extrabold shadow-sm'
+                        : isDark
+                          ? 'bg-slate-800/80 border-slate-700/60 text-slate-300 hover:bg-slate-700/80 hover:text-white'
+                          : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
+                    }`}
+                  >
+                    {sub.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* BANNER DE DESTAQUE: CREDIÁRIO PRÓPRIO EVIDÊNCIA */}

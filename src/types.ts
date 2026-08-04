@@ -5,21 +5,44 @@ export interface GradeProduto {
   descr_coluna: string;
 }
 
+export interface MoblinkPrecoTabela {
+  nome_tab_preco?: string;  // Ex: "A VISTA", "CREDIARIO", "CARTAO"
+  tabela?: string;
+  tipo?: string;
+  nome?: string;
+  preco?: number;
+  valor?: number;
+  preco_venda?: number;
+  price?: number;
+}
+
 export interface MoblinkProduto {
   id: number | string;
   descricao: string;
   nome?: string;
   compl_descr?: string;
   descricao_completa?: string;
+  /** Código de classificação da categoria no ERP (ex: "002.004") */
+  classificacao?: string | number;
   preco_venda: number;
+  /** Preço promocional (quando houver) */
+  preco_promocao?: number;
   preco_venda_fracao?: number;
-  precos?: any[];
+  preco_vista?: number;
+  precoVista?: number;
+  precos?: MoblinkPrecoTabela[];
   saldo_loja?: number;
   saldos_lojas?: any[];
   foto_uri?: string;
   id_grade?: number | string;
   tamanhos?: (number | string)[];
   categoria?: string;
+  subcategoria?: string;
+  nome_grupo?: string;
+  nome_subgrupo?: string;
+  id_grupo?: string | number;
+  id_subgrupo?: string | number;
+  id_pai?: string | number;
   barcode?: string;
   marca?: string;
   material?: string;
@@ -32,9 +55,16 @@ export interface Product {
   name: string;
   description: string;
   price: number;
+  precoVista?: number;
   originalPrice?: number;
   onSale?: boolean;
   category: string;
+  subcategory?: string;
+  nome_grupo?: string;
+  nome_subgrupo?: string;
+  id_grupo?: string | number;
+  id_subgrupo?: string | number;
+  id_pai?: string | number;
   images: string[];
   sizes: (number | string)[];
   crediarioProprio: boolean;
@@ -55,8 +85,13 @@ export interface Product {
   descricao?: string;
   compl_descr?: string;
   descricao_completa?: string;
+  /** Código de classificação do ERP (ex: "002.004") */
+  classificacao?: string | number;
   preco_venda?: number;
   preco_venda_fracao?: number;
+  preco_vista?: number;
+  /** Preço promocional vindo do ERP */
+  preco_promocao?: number;
   saldo_loja?: number;
   saldos_lojas?: any;
   id_grade?: number | string;
@@ -73,6 +108,7 @@ export interface Product {
   moblinkSyncStatus?: 'synced' | 'pending' | 'error' | 'not_linked';
   modelCode?: string;
   referenceCode?: string;
+  cor?: string;
 }
 
 export interface SincomAuthSession {
@@ -173,10 +209,21 @@ export interface Order {
 
 export type UserRole = 'admin' | 'seller' | 'customer';
 
+export interface Subcategory {
+  id: string;
+  name: string;
+  parentId?: string;
+  id_subgrupo?: string | number;
+  id_pai?: string | number;
+  description?: string;
+}
+
 export interface Category {
   id: string;
   name: string;
   description?: string;
+  subcategories?: Subcategory[];
+  id_grupo?: string | number;
   createdAt?: string;
 }
 

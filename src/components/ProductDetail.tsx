@@ -371,19 +371,34 @@ export const ProductDetail: React.FC = () => {
               {p.name}
             </h1>
 
-            <div className="flex items-baseline space-x-3 mt-1">
-              {p.onSale && p.originalPrice && p.originalPrice > p.price && (
-                <span className={`text-base line-through font-medium ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                  R$ {p.originalPrice.toFixed(2).replace('.', ',')}
+            {/* Exibição Dupla de Preços (Preço à Vista no PIX vs Preço de Tabela) */}
+            <div className={`p-4 rounded-2xl border space-y-2.5 transition-all ${
+              isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-slate-50 border-slate-200'
+            }`}>
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div>
+                  <span className={`text-[10px] font-black uppercase tracking-wider block ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>
+                    ⚡ Preço à Vista (PIX / Dinheiro)
+                  </span>
+                  <p className={`text-3xl font-black ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
+                    R$ {(p.precoVista || Math.round(p.price * 0.9 * 100) / 100).toFixed(2).replace('.', ',')}
+                  </p>
+                </div>
+                <span className="px-3 py-1 rounded-full text-xs font-black uppercase bg-emerald-500 text-white shadow-md">
+                  10% OFF À VISTA
                 </span>
-              )}
-              <p className={`text-3xl font-black ${
-                p.onSale 
-                  ? isDark ? 'text-rose-400' : 'text-rose-600' 
-                  : isDark ? 'text-amber-400' : 'text-slate-900'
+              </div>
+
+              <div className={`pt-2.5 border-t flex items-center justify-between text-xs flex-wrap gap-2 ${
+                isDark ? 'border-slate-800' : 'border-slate-200'
               }`}>
-                R$ {p.price.toFixed(2).replace('.', ',')}
-              </p>
+                <span className={isDark ? 'text-slate-300' : 'text-slate-700'}>
+                  Preço de Tabela (Carnê / Cartão): <strong className="font-black">R$ {p.price.toFixed(2).replace('.', ',')}</strong>
+                </span>
+                <span className={`text-[11px] font-bold ${isDark ? 'text-amber-400' : 'text-amber-700'}`}>
+                  até 6x de R$ {(p.price / 6).toFixed(2).replace('.', ',')} s/ juros
+                </span>
+              </div>
             </div>
 
             {/* Badges de Estoque Sincronizado do MobLink ERP */}

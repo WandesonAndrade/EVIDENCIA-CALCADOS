@@ -1,10 +1,20 @@
-import { db } from '../lib/firebase';
-import { doc, getDoc, setDoc, collection, query, where, getDocs } from 'firebase/firestore';
-import { UserProfile } from '../types';
-import { cleanUndefinedProperties } from '../utils/cleanObject';
+import { db } from "../lib/firebase";
+import {
+  doc,
+  getDoc,
+  setDoc,
+  collection,
+  query,
+  where,
+  getDocs,
+} from "firebase/firestore";
+import { UserProfile } from "../types";
+import { cleanUndefinedProperties } from "../utils/cleanObject";
 
-export const MOBLINK_CLIENTES_API_URL = 'https://api.evidenciacalcados.com.br/api/v1/clientes';
-export const MOBLINK_CLIENTES_BEARER_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZFVzZXIiOiI3IiwiaWRMb2phIjoiMCIsImlhdCI6MTc4NTc3MjQxMCwiZXhwIjoxNzg1ODU4ODEwfQ.B1-GbpQrMFXaPUCpC3AdJVacGwVeTaXL-9zq9zxAyLY';
+export const MOBLINK_CLIENTES_API_URL =
+  "https://api.evidenciacalcados.com.br/api/v1/clientes";
+export const MOBLINK_CLIENTES_BEARER_TOKEN =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZFVzZXIiOiI3IiwiaWRMb2phIjoiMCIsImlhdCI6MTc4NTc3MjQxMCwiZXhwIjoxNzg1ODU4ODEwfQ.B1-GbpQrMFXaPUCpC3AdJVacGwVeTaXL-9zq9zxAyLY";
 
 export interface MoblinkRawClient {
   id: string;
@@ -51,17 +61,21 @@ export const moblinkClientesService = {
   /**
    * Busca uma página de clientes na API oficial do MobLink ERP
    */
-  async fetchClientesPage(page: number = 1): Promise<MoblinkClientesPageResponse> {
+  async fetchClientesPage(
+    page: number = 1,
+  ): Promise<MoblinkClientesPageResponse> {
     const response = await fetch(`${MOBLINK_CLIENTES_API_URL}?page=${page}`, {
-      method: 'GET',
+      method: "GET",
       headers: {
-        'accept': 'application/json',
-        'Authorization': `Bearer ${MOBLINK_CLIENTES_BEARER_TOKEN}`
-      }
+        accept: "application/json",
+        Authorization: `Bearer ${MOBLINK_CLIENTES_BEARER_TOKEN}`,
+      },
     });
 
     if (!response.ok) {
-      throw new Error(`Falha ao consultar API de Clientes MobLink (HTTP ${response.status})`);
+      throw new Error(
+        `Falha ao consultar API de Clientes MobLink (HTTP ${response.status})`,
+      );
     }
 
     return await response.json();
@@ -70,17 +84,22 @@ export const moblinkClientesService = {
   /**
    * Busca cliente diretamente por CPF/CNPJ na API oficial do MobLink ERP
    */
-  async fetchClienteByCpfDirectly(cleanCpf: string): Promise<UserProfile | null> {
+  async fetchClienteByCpfDirectly(
+    cleanCpf: string,
+  ): Promise<UserProfile | null> {
     if (!cleanCpf || cleanCpf.length < 11) return null;
 
     try {
-      const response = await fetch(`${MOBLINK_CLIENTES_API_URL}?cpf_cnpj=${cleanCpf}`, {
-        method: 'GET',
-        headers: {
-          'accept': 'application/json',
-          'Authorization': `Bearer ${MOBLINK_CLIENTES_BEARER_TOKEN}`
-        }
-      });
+      const response = await fetch(
+        `${MOBLINK_CLIENTES_API_URL}?cpf_cnpj=${cleanCpf}`,
+        {
+          method: "GET",
+          headers: {
+            accept: "application/json",
+            Authorization: `Bearer ${MOBLINK_CLIENTES_BEARER_TOKEN}`,
+          },
+        },
+      );
 
       if (response.ok) {
         const json: MoblinkClientesPageResponse = await response.json();
@@ -123,47 +142,61 @@ export const moblinkClientesService = {
   /**
    * Mapeia e salva um único cliente do ERP no Firestore
    */
-  async saveSingleClientToFirestore(client: MoblinkRawClient): Promise<UserProfile> {
-    const rawCpf = client.cpf_cnpj ? client.cpf_cnpj.replace(/\D/g, '') : '';
+  async saveSingleClientToFirestore(
+    client: MoblinkRawClient,
+  ): Promise<UserProfile> {
+    const rawCpf = client.cpf_cnpj ? client.cpf_cnpj.replace(/\D/g, "") : "";
 
-    const docId = rawCpf.length === 11 
-      ? `erp_cpf_${rawCpf}` 
-      : `moblink_client_${client.id}`;
+    const docId =
+      rawCpf.length === 11
+        ? `erp_cpf_${rawCpf}`
+        : `moblink_client_${client.id}`;
 
-    const userRef = doc(db, 'users', docId);
+    const userRef = doc(db, "users", docId);
     const existingSnap = await getDoc(userRef);
-    const existingData = existingSnap.exists() ? (existingSnap.data() as Partial<UserProfile>) : null;
+    const existingData = existingSnap.exists()
+      ? (existingSnap.data() as Partial<UserProfile>)
+      : null;
 
     const hasCreditApproved = Boolean(
-      (client.sit_cred && (client.sit_cred === 'A' || client.sit_cred === 'L' || client.sit_cred === 'N')) ||
-      (client.limite_cred && client.limite_cred > 0)
+      (client.sit_cred &&
+        (client.sit_cred === "A" ||
+          client.sit_cred === "L" ||
+          client.sit_cred === "N")) ||
+      (client.limite_cred && client.limite_cred > 0),
     );
 
     const mappedProfile: Partial<UserProfile> = {
       uid: existingData?.uid || docId,
       moblinkId: String(client.id),
-      name: client.nome || existingData?.name || 'Cliente Evidência',
-      email: (client.email || existingData?.email || '').toLowerCase().trim(),
-      cpf: rawCpf || existingData?.cpf || '',
-      rg: client.rg || existingData?.rg || '',
-      telefone: client.celular || client.telefone || existingData?.telefone || '',
-      endereco: client.endereco || existingData?.endereco || '',
-      numero: client.numero_end || existingData?.numero || '',
-      bairro: client.bairro || existingData?.bairro || '',
-      cidade: client.cidade || existingData?.cidade || 'Caxias',
-      uf: (client.uf || existingData?.uf || 'MA').toUpperCase(),
-      cep: client.cep || existingData?.cep || '',
-      dataNascimento: client.data_nasc || existingData?.dataNascimento || '',
-      role: existingData?.role || 'customer',
+      name: client.nome || existingData?.name || "Cliente Evidência",
+      email: (client.email || existingData?.email || "").toLowerCase().trim(),
+      cpf: rawCpf || existingData?.cpf || "",
+      rg: client.rg || existingData?.rg || "",
+      telefone:
+        client.celular || client.telefone || existingData?.telefone || "",
+      endereco: client.endereco || existingData?.endereco || "",
+      numero: client.numero_end || existingData?.numero || "",
+      bairro: client.bairro || existingData?.bairro || "",
+      cidade: client.cidade || existingData?.cidade || "Caxias",
+      uf: (client.uf || existingData?.uf || "MA").toUpperCase(),
+      cep: client.cep || existingData?.cep || "",
+      dataNascimento: client.data_nasc || existingData?.dataNascimento || "",
+      role: existingData?.role || "customer",
       isErpCustomer: true,
       isProfileComplete: true,
-      sit_cred: client.sit_cred || 'N',
+      sit_cred: client.sit_cred || "N",
       limite_cred: client.limite_cred || 0,
       valor_vencido: client.valor_vencido || 0,
       valor_vencer: client.valor_vencer || 0,
-      solicitarCrediario: hasCreditApproved ? true : existingData?.solicitarCrediario,
-      crediarioStatus: hasCreditApproved ? 'Aprovado' : (existingData?.crediarioStatus || 'NaoSolicitado'),
-      createdAt: existingData?.createdAt || client.data_cad || new Date().toISOString()
+      solicitarCrediario: hasCreditApproved
+        ? true
+        : existingData?.solicitarCrediario,
+      crediarioStatus: hasCreditApproved
+        ? "Aprovado"
+        : existingData?.crediarioStatus || "NaoSolicitado",
+      createdAt:
+        existingData?.createdAt || client.data_cad || new Date().toISOString(),
     };
 
     const payload = cleanUndefinedProperties({ ...client, ...mappedProfile });
@@ -175,17 +208,22 @@ export const moblinkClientesService = {
    * Sincroniza e importa todos os clientes do MobLink ERP para o Firestore
    */
   async syncClientesToFirestore(
-    onProgress?: (current: number, total: number, message: string) => void
+    onProgress?: (current: number, total: number, message: string) => void,
   ): Promise<{ imported: number; updated: number; errors: number }> {
-    if (onProgress) onProgress(0, 0, 'Conectando à API do MobLink ERP...');
-    
+    if (onProgress) onProgress(0, 0, "Conectando à API do MobLink ERP...");
+
     const rawClients = await this.fetchAllClientes();
     const total = rawClients.length;
     let imported = 0;
     let updated = 0;
     let errors = 0;
 
-    if (onProgress) onProgress(0, total, `Processando ${total} clientes importados do ERP...`);
+    if (onProgress)
+      onProgress(
+        0,
+        total,
+        `Processando ${total} clientes importados do ERP...`,
+      );
 
     for (let i = 0; i < rawClients.length; i++) {
       const client = rawClients[i];
@@ -194,16 +232,28 @@ export const moblinkClientesService = {
         await this.saveSingleClientToFirestore(client);
         imported++;
       } catch (err) {
-        console.error(`Erro ao salvar cliente ${client.nome} (${client.id}) no Firestore:`, err);
+        console.error(
+          `Erro ao salvar cliente ${client.nome} (${client.id}) no Firestore:`,
+          err,
+        );
         errors++;
       }
 
       if (onProgress && i % 10 === 0) {
-        onProgress(i + 1, total, `Sincronizados ${i + 1} de ${total} clientes...`);
+        onProgress(
+          i + 1,
+          total,
+          `Sincronizados ${i + 1} de ${total} clientes...`,
+        );
       }
     }
 
-    if (onProgress) onProgress(total, total, `Concluído! ${imported} clientes sincronizados no banco de dados.`);
+    if (onProgress)
+      onProgress(
+        total,
+        total,
+        `Concluído! ${imported} clientes sincronizados no banco de dados.`,
+      );
     return { imported, updated, errors };
   },
 
@@ -213,37 +263,47 @@ export const moblinkClientesService = {
    * 2. Fallback direto para a API do MobLink ERP com auto-save no Firestore
    */
   async findClientByCpf(cpfInput: string): Promise<UserProfile | null> {
-    const cleanCpf = cpfInput.replace(/\D/g, '');
+    const cleanCpf = cpfInput.replace(/\D/g, "");
     if (!cleanCpf || cleanCpf.length < 11) return null;
 
     try {
       // 1. Tenta buscar direto pela chave erp_cpf_{cleanCpf}
-      const directRef = doc(db, 'users', `erp_cpf_${cleanCpf}`);
+      const directRef = doc(db, "users", `erp_cpf_${cleanCpf}`);
       const directSnap = await getDoc(directRef);
       if (directSnap.exists()) {
         return directSnap.data() as UserProfile;
       }
 
       // 2. Tenta consultar a coleção 'users' onde cpf == cleanCpf ou cpf == cpfInput
-      const q1 = query(collection(db, 'users'), where('cpf', '==', cleanCpf));
+      const q1 = query(collection(db, "users"), where("cpf", "==", cleanCpf));
       const snap1 = await getDocs(q1);
       if (!snap1.empty) {
         return snap1.docs[0].data() as UserProfile;
       }
 
       // 3. Tenta consultar com formatação padrão 000.000.000-00
-      const formattedCpf = cleanCpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
-      const q2 = query(collection(db, 'users'), where('cpf', '==', formattedCpf));
+      const formattedCpf = cleanCpf.replace(
+        /(\d{3})(\d{3})(\d{3})(\d{2})/,
+        "$1.$2.$3-$4",
+      );
+      const q2 = query(
+        collection(db, "users"),
+        where("cpf", "==", formattedCpf),
+      );
       const snap2 = await getDocs(q2);
       if (!snap2.empty) {
         return snap2.docs[0].data() as UserProfile;
       }
 
       // 4. FALLBACK EM TEMPO REAL: Busca direto na API do MobLink ERP e grava no Firestore!
-      console.log(`📌 Cliente não encontrado no Firestore local. Consultando API MobLink ERP para CPF ${cleanCpf}...`);
+      console.log(
+        `📌 Cliente não encontrado no Firestore local. Consultando API MobLink ERP para CPF ${cleanCpf}...`,
+      );
       const erpClient = await this.fetchClienteByCpfDirectly(cleanCpf);
       if (erpClient) {
-        console.log(`✅ Cliente ${erpClient.name} localizado no ERP e salvo no Firestore!`);
+        console.log(
+          `✅ Cliente ${erpClient.name} localizado no ERP e salvo no Firestore!`,
+        );
         return erpClient;
       }
     } catch (err) {
@@ -257,21 +317,25 @@ export const moblinkClientesService = {
    * Consulta faturas e contas a receber de um cliente específico no MobLink ERP
    * GET https://api.evidenciacalcados.com.br/api/v1/clientes/{id}/contas-receber?formatada=false&vencidas=false
    */
-  async fetchClienteContasReceber(moblinkId: string): Promise<MoblinkContaReceber[]> {
+  async fetchClienteContasReceber(
+    moblinkId: string,
+  ): Promise<MoblinkContaReceber[]> {
     if (!moblinkId) return [];
 
     try {
       const url = `${MOBLINK_CLIENTES_API_URL}/${moblinkId}/contas-receber?formatada=false&vencidas=false`;
       const response = await fetch(url, {
-        method: 'GET',
+        method: "GET",
         headers: {
-          'accept': 'application/json',
-          'Authorization': `Bearer ${MOBLINK_CLIENTES_BEARER_TOKEN}`
-        }
+          accept: "application/json",
+          Authorization: `Bearer ${MOBLINK_CLIENTES_BEARER_TOKEN}`,
+        },
       });
 
       if (!response.ok) {
-        console.warn(`Aviso ao consultar contas a receber para cliente #${moblinkId}: HTTP ${response.status}`);
+        console.warn(
+          `Aviso ao consultar contas a receber para cliente #${moblinkId}: HTTP ${response.status}`,
+        );
         return [];
       }
 
@@ -280,10 +344,13 @@ export const moblinkClientesService = {
       if (resData && Array.isArray(resData.data)) return resData.data;
       return [];
     } catch (err) {
-      console.error(`Erro ao consultar contas a receber para cliente #${moblinkId}:`, err);
+      console.error(
+        `Erro ao consultar contas a receber para cliente #${moblinkId}:`,
+        err,
+      );
       return [];
     }
-  }
+  },
 };
 
 export interface MoblinkContaReceber {
@@ -321,31 +388,44 @@ export function getInstallmentAmount(inv: MoblinkContaReceber): {
   isPaid: boolean;
   isOverdue: boolean;
 } {
-  const statusRaw = (inv.situacao || inv.status || 'Pendente').toUpperCase();
-  const isPaid = statusRaw.includes('PAG') || statusRaw.includes('BAIX') || statusRaw === 'L';
-  const isOverdue = !isPaid && (statusRaw.includes('VENC') || statusRaw.includes('ATRAS'));
+  const statusRaw = (inv.situacao || inv.status || "Pendente").toUpperCase();
+  const isPaid =
+    statusRaw.includes("PAG") ||
+    statusRaw.includes("BAIX") ||
+    statusRaw === "L";
+  const isOverdue =
+    !isPaid && (statusRaw.includes("VENC") || statusRaw.includes("ATRAS"));
 
   const originalAmount = inv.valor_parcela ?? inv.valor ?? inv.saldo ?? 0;
 
   if (isPaid) {
     return {
-      displayAmount: inv.valor_pago && inv.valor_pago > 0 ? inv.valor_pago : originalAmount,
+      displayAmount:
+        inv.valor_pago && inv.valor_pago > 0 ? inv.valor_pago : originalAmount,
       originalAmount,
       hasInterest: false,
       interestAmount: 0,
       isPaid,
-      isOverdue: false
+      isOverdue: false,
     };
   }
 
   // Prioriza o campo saldo_devedor oficial do ERP MobLink (com juros/encargos aplicados)
-  const saldoDevedor = (inv.saldo_devedor !== undefined && inv.saldo_devedor !== null && inv.saldo_devedor >= 0)
-    ? inv.saldo_devedor
-    : (inv.saldo !== undefined && inv.saldo !== null && inv.saldo > 0 ? inv.saldo : originalAmount);
+  const saldoDevedor =
+    inv.saldo_devedor !== undefined &&
+    inv.saldo_devedor !== null &&
+    inv.saldo_devedor >= 0
+      ? inv.saldo_devedor
+      : inv.saldo !== undefined && inv.saldo !== null && inv.saldo > 0
+        ? inv.saldo
+        : originalAmount;
 
   // Cálculo de juros/encargos extras
   const explicitJuros = inv.juros ?? inv.valor_juros ?? 0;
-  const computedInterest = saldoDevedor > originalAmount ? saldoDevedor - originalAmount : explicitJuros;
+  const computedInterest =
+    saldoDevedor > originalAmount
+      ? saldoDevedor - originalAmount
+      : explicitJuros;
   const hasInterest = computedInterest > 0.01;
 
   return {
@@ -354,6 +434,6 @@ export function getInstallmentAmount(inv: MoblinkContaReceber): {
     hasInterest,
     interestAmount: computedInterest,
     isPaid,
-    isOverdue
+    isOverdue,
   };
 }

@@ -3,11 +3,16 @@ import { useApp } from '../context/AppContext';
 import { Product } from '../types';
 import { 
   getProdutosMoblink, 
+  extractPrecoTabelaMoblink,
   extractPrecoVistaMoblink, 
   extractSaldoLojaMoblink, 
   sanitizeProductForFirestore,
-  extractBaseNameAndVariant 
+  extractBaseNameAndVariant,
+  hasProductChanged,
+  saveMoblinkCache,
+  loadMoblinkCache
 } from '../services/moblinkProductsService';
+import { moblinkCategoriesService } from '../services/moblinkCategoriesService';
 import { db } from '../lib/firebase';
 import { doc, setDoc } from 'firebase/firestore';
 import { 
@@ -62,9 +67,26 @@ interface MoblinkRawProduct {
   descricao_completa?: string;
   preco?: number;
   price?: number;
+  /** Preço de tabela (carnê / parcelado) */
   preco_venda?: number;
   preco_venda_fracao?: number;
-  precos?: any[];
+  /** Preço à vista vindo do array precos (nome_tab_preco === 'A VISTA') */
+  preco_vista?: number;
+  precoVista?: number;
+  /** Preço promocional opcional */
+  preco_promocao?: number;
+  /** Código de classificação ERP (ex: '002.004' ou 'CALCADOS') */
+  classificacao?: string | number;
+  precos?: Array<{
+    nome_tab_preco?: string;
+    tabela?: string;
+    tipo?: string;
+    nome?: string;
+    preco?: number;
+    valor?: number;
+    preco_venda?: number;
+    price?: number;
+  }>;
   precoOriginal?: number;
   estoque?: number;
   stock?: number;
@@ -72,6 +94,9 @@ interface MoblinkRawProduct {
   saldos_lojas?: any;
   id_grade?: number | string;
   categoria?: string;
+  subcategoria?: string;
+  nome_grupo?: string;
+  nome_subgrupo?: string;
   category?: string;
   tamanhos?: (number | string)[];
   codigoBarras?: string;
@@ -86,12 +111,25 @@ interface MoblinkRawProduct {
   imagem?: string;
   image?: string;
   isManual?: boolean;
+  modelCode?: string;
+  referenceCode?: string;
+  newArrival?: boolean;
+  color?: string;
 }
 
 export const MoblinkProductsManager: React.FC = () => {
   const { products, addProduct, updateProduct, deleteProduct, categories, theme } = useApp();
 
+  const [syncProgress, setSyncProgress] = useState<{ current: number; total: number; phase: string } | null>(null);
+
   const [moblinkList, setMoblinkList] = useState<MoblinkRawProduct[]>(() => {
+    // 1. Tentar carregar do cache local primeiro
+    const cachedItems = loadMoblinkCache();
+    if (cachedItems && cachedItems.length > 0) {
+      return cachedItems as MoblinkRawProduct[];
+    }
+
+    // 2. Fallback para os produtos locais do Firebase
     return (products || []).map(dbProd => {
       const dbId = String(dbProd?.id || `PROD-${Math.random()}`);
       return {
@@ -101,14 +139,32 @@ export const MoblinkProductsManager: React.FC = () => {
         nome: dbProd?.name || 'Produto sem nome',
         name: dbProd?.name || 'Produto sem nome',
         descricao: dbProd?.description || dbProd?.name || 'Sem descrição',
+        compl_descr: (dbProd as any)?.compl_descr,
         preco_venda: typeof dbProd?.price === 'number' ? dbProd.price : 0,
         price: typeof dbProd?.price === 'number' ? dbProd.price : 0,
+        preco_vista: typeof (dbProd as any)?.precoVista === 'number' ? (dbProd as any).precoVista : (dbProd as any)?.preco_vista,
+        precoVista: typeof (dbProd as any)?.precoVista === 'number' ? (dbProd as any).precoVista : undefined,
+        preco_promocao: (dbProd as any)?.preco_promocao,
         saldo_loja: typeof dbProd?.stock === 'number' ? Math.max(0, dbProd.stock) : 0,
         estoque: typeof dbProd?.stock === 'number' ? Math.max(0, dbProd.stock) : 0,
+        /** Classificação ERP — preservada do Firebase */
+        classificacao: (dbProd as any)?.classificacao,
         categoria: dbProd?.category || 'Geral',
+        subcategoria: (dbProd as any)?.subcategory || dbProd?.nome_subgrupo,
+        nome_grupo: (dbProd as any)?.nome_grupo || dbProd?.category || 'Geral',
+        nome_subgrupo: dbProd?.nome_subgrupo || (dbProd as any)?.subcategory,
         category: dbProd?.category || 'Geral',
         tamanhos: Array.isArray(dbProd?.sizes) ? dbProd.sizes : [],
-        foto_uri: Array.isArray(dbProd?.images) && dbProd.images.length > 0 ? dbProd.images[0] : (dbProd?.foto_uri || ''),
+        foto_uri: Array.isArray(dbProd?.images) && dbProd.images.length > 0 ? dbProd.images[0] : ((dbProd as any)?.foto_uri || ''),
+        modelCode: dbProd?.modelCode || dbProd?.referenceCode,
+        referenceCode: dbProd?.referenceCode || dbProd?.modelCode,
+        cor: (dbProd as any)?.cor || dbProd?.color,
+        color: dbProd?.color || (dbProd as any)?.cor,
+        marca: (dbProd as any)?.brand || (dbProd as any)?.marca,
+        material: dbProd?.material,
+        genero: (dbProd as any)?.gender || (dbProd as any)?.genero,
+        barcode: dbProd?.barcode,
+        newArrival: dbProd?.newArrival,
         isManual: !dbProd?.moblinkId && !dbId.startsWith('MOB-')
       };
     });
@@ -218,14 +274,31 @@ export const MoblinkProductsManager: React.FC = () => {
           nome: dbProd?.name || 'Produto sem nome',
           name: dbProd?.name || 'Produto sem nome',
           descricao: dbProd?.description || dbProd?.name || 'Sem descrição',
+          compl_descr: (dbProd as any)?.compl_descr,
           preco_venda: typeof dbProd?.price === 'number' ? dbProd.price : 0,
           price: typeof dbProd?.price === 'number' ? dbProd.price : 0,
+          preco_vista: (dbProd as any)?.preco_vista ?? (dbProd as any)?.precoVista,
+          precoVista: (dbProd as any)?.precoVista,
+          preco_promocao: (dbProd as any)?.preco_promocao,
           saldo_loja: typeof dbProd?.stock === 'number' ? Math.max(0, dbProd.stock) : 0,
           estoque: typeof dbProd?.stock === 'number' ? Math.max(0, dbProd.stock) : 0,
+          classificacao: (dbProd as any)?.classificacao,
           categoria: dbProd?.category || 'Geral',
+          subcategoria: (dbProd as any)?.subcategory || dbProd?.nome_subgrupo,
+          nome_grupo: (dbProd as any)?.nome_grupo || dbProd?.category || 'Geral',
+          nome_subgrupo: dbProd?.nome_subgrupo || (dbProd as any)?.subcategory,
           category: dbProd?.category || 'Geral',
           tamanhos: Array.isArray(dbProd?.sizes) ? dbProd.sizes : [],
-          foto_uri: Array.isArray(dbProd?.images) && dbProd.images.length > 0 ? dbProd.images[0] : (dbProd?.foto_uri || ''),
+          foto_uri: Array.isArray(dbProd?.images) && dbProd.images.length > 0 ? dbProd.images[0] : ((dbProd as any)?.foto_uri || ''),
+          modelCode: dbProd?.modelCode || dbProd?.referenceCode,
+          referenceCode: dbProd?.referenceCode || dbProd?.modelCode,
+          cor: (dbProd as any)?.cor || dbProd?.color,
+          color: dbProd?.color || (dbProd as any)?.cor,
+          marca: (dbProd as any)?.brand || (dbProd as any)?.marca,
+          material: dbProd?.material,
+          genero: (dbProd as any)?.gender || (dbProd as any)?.genero,
+          barcode: dbProd?.barcode,
+          newArrival: dbProd?.newArrival,
           isManual: !dbProd?.moblinkId && !dbId.startsWith('MOB-')
         };
       }));
@@ -242,63 +315,111 @@ export const MoblinkProductsManager: React.FC = () => {
     setIsLoading(true);
     setFetchError(null);
     setFeedback(null);
+    setSyncProgress({ current: 0, total: 100, phase: 'Consultando produtos no ERP MobLink...' });
+    
     try {
-      const items = await getProdutosMoblink();
+      // 0. Sincroniza e pré-carrega as categorias (grupos do ERP) para permitir mapear a 'classificacao' corretamente (ex: 002.003 -> Calçados)
+      setSyncProgress({ current: 0, total: 100, phase: 'Sincronizando grupos e categorias (ERP)...' });
+      await moblinkCategoriesService.syncCategoriesToFirestore();
+
+      // 1. Busca todos os produtos paginados do ERP Moblink (em paralelo de 5 em 5)
+      const items = await getProdutosMoblink((current, total, phase) => {
+        setSyncProgress({ current, total, phase });
+      });
+
       if (Array.isArray(items) && items.length > 0) {
         setMoblinkList(items);
 
-        let successCount = 0;
-        for (const item of items) {
+        // 2. Filtra produtos com alterações reais comparando com o cache/Firestore (Delta Check)
+        setSyncProgress({ current: 0, total: items.length, phase: 'Analisando alterações nos produtos...' });
+        
+        const changedItems = items.filter(item => {
           const mobId = String(item.id || item.moblinkId || '');
-          if (!mobId) continue;
-
+          if (!mobId) return false;
           const existingDb = getExistingDbProduct(mobId);
-          const precoVista = extractPrecoVistaMoblink(item) || Number(item.preco_venda_fracao ?? item.preco_venda ?? item.preco ?? item.price ?? 0);
-          const estoqueAtual = extractSaldoLojaMoblink(item);
-          const rawName = item.nome || item.name || item.descricao || 'Produto MobLink';
+          return hasProductChanged(existingDb, item);
+        });
 
-          const updatedProductPayload: Product = {
-            id: mobId,
-            moblinkId: mobId,
-            name: existingDb?.name || rawName,
-            descricao: rawName,
-            sku: existingDb?.sku || item.sku || mobId,
-            description: existingDb?.description || item.compl_descr || item.descricao || rawName,
-            price: existingDb?.price ?? precoVista,
-            preco_venda: existingDb?.price ?? precoVista,
-            category: existingDb?.category || item.categoria || item.category || 'Geral',
-            images: (existingDb?.images && existingDb.images.length > 0) ? existingDb.images : (item.foto_uri ? [item.foto_uri] : []),
-            sizes: existingDb?.sizes || (Array.isArray(item.tamanhos) ? item.tamanhos : []),
-            crediarioProprio: true,
-            visible: estoqueAtual <= 0 ? false : (existingDb?.visible ?? true),
-            stockControl: true,
-            stock: estoqueAtual,
-            saldo_loja: estoqueAtual,
-            stockBySize: existingDb?.stockBySize || existingDb?.sizeStockMap,
-            sizeStockMap: existingDb?.sizeStockMap || existingDb?.stockBySize,
-            lastMoblinkSync: new Date().toISOString(),
-            moblinkSyncStatus: 'synced',
-            modelCode: existingDb?.modelCode || existingDb?.referenceCode,
-            referenceCode: existingDb?.referenceCode || existingDb?.modelCode,
-            color: existingDb?.color || item.cor || 'Preto',
-            cor: existingDb?.cor || item.cor || 'Preto',
-          };
+        const totalToSync = changedItems.length;
+        let successCount = 0;
 
-          const sanitizedPayload = sanitizeProductForFirestore(updatedProductPayload);
-          await setDoc(doc(db, 'products', mobId), sanitizedPayload, { merge: true });
-          
-          if (existingDb) {
-            await updateProduct(mobId, updatedProductPayload);
-          } else {
-            await addProduct(updatedProductPayload);
+        if (totalToSync > 0) {
+          // 3. Salva no Firestore em blocos/lotes de 15 em paralelo (amigável com plano gratuito)
+          const chunkSize = 15;
+          for (let i = 0; i < totalToSync; i += chunkSize) {
+            const chunk = changedItems.slice(i, i + chunkSize);
+            setSyncProgress({
+              current: i,
+              total: totalToSync,
+              phase: `Gravando alterações no Firestore (${i}/${totalToSync})...`
+            });
+
+            await Promise.all(chunk.map(async (item) => {
+              const mobId = String(item.id || item.moblinkId || '');
+              const existingDb = getExistingDbProduct(mobId);
+              
+              const precoTabela = extractPrecoTabelaMoblink(item);
+              const precoVista = extractPrecoVistaMoblink(item);
+              const estoqueAtual = extractSaldoLojaMoblink(item);
+              const rawName = item.nome || item.name || item.descricao || 'Produto MobLink';
+
+              const updatedProductPayload: Product = {
+                id: mobId,
+                moblinkId: mobId,
+                name: existingDb?.name || rawName,
+                descricao: rawName,
+                compl_descr: item.compl_descr || item.descr_compl,
+                sku: existingDb?.sku || item.sku || mobId,
+                description: existingDb?.description || item.compl_descr || item.descricao || rawName,
+                price: precoTabela,
+                preco_venda: precoTabela,
+                precoVista: precoVista,
+                preco_vista: precoVista,
+                preco_promocao: item.preco_promocao,
+                classificacao: item.classificacao,
+                category: (item.categoria && item.categoria !== 'Geral') ? item.categoria : (existingDb?.category || item.categoria || item.category || 'Geral'),
+                subcategory: item.subcategoria || existingDb?.subcategory || '',
+                nome_grupo: item.nome_grupo || existingDb?.nome_grupo || '',
+                nome_subgrupo: item.nome_subgrupo || existingDb?.nome_subgrupo || '',
+                foto_uri: item.foto_uri,
+                images: (existingDb?.images && existingDb.images.length > 0) ? existingDb.images : (item.foto_uri ? [item.foto_uri] : []),
+                sizes: existingDb?.sizes || (Array.isArray(item.tamanhos) ? item.tamanhos : []),
+                crediarioProprio: true,
+                visible: estoqueAtual <= 0 ? false : (existingDb?.visible ?? true),
+                stockControl: true,
+                stock: estoqueAtual,
+                saldo_loja: estoqueAtual,
+                stockBySize: existingDb?.stockBySize || existingDb?.sizeStockMap,
+                sizeStockMap: existingDb?.sizeStockMap || existingDb?.stockBySize,
+                lastMoblinkSync: new Date().toISOString(),
+                moblinkSyncStatus: 'synced',
+                modelCode: existingDb?.modelCode || existingDb?.referenceCode,
+                referenceCode: existingDb?.referenceCode || existingDb?.modelCode,
+                color: existingDb?.color || item.cor || 'Preto',
+                cor: existingDb?.cor || item.cor || 'Preto',
+              };
+
+              const sanitizedPayload = sanitizeProductForFirestore(updatedProductPayload);
+              await setDoc(doc(db, 'products', mobId), sanitizedPayload, { merge: true });
+              
+              if (existingDb) {
+                await updateProduct(mobId, updatedProductPayload);
+              } else {
+                await addProduct(updatedProductPayload);
+              }
+              successCount++;
+            }));
           }
-
-          successCount++;
         }
+
+        // 4. Salva a lista inteira no cache local de 30min
+        saveMoblinkCache(items);
 
         setFeedback({
           success: true,
-          message: `⚡ Sincronização ERP concluída com sucesso! ${successCount} produto(s) atualizado(s) no banco de dados.`
+          message: totalToSync > 0
+            ? `⚡ Sincronização concluída! ${successCount} produto(s) atualizado(s) de ${items.length} verificados.`
+            : `⚡ Sincronização concluída! Todos os ${items.length} produtos já estão atualizados.`
         });
       }
     } catch (err: any) {
@@ -309,6 +430,7 @@ export const MoblinkProductsManager: React.FC = () => {
         message: `Falha ao consultar MobLink ERP: ${err.message || 'Servidor temporariamente indisponível'}`
       });
     } finally {
+      setSyncProgress(null);
       setIsLoading(false);
     }
   };
@@ -342,8 +464,10 @@ export const MoblinkProductsManager: React.FC = () => {
     // Initialize Edit Form Input States
     const initialName = existing?.name || item.nome || item.name || item.descricao || '';
     const initialSku = existing?.sku || item.sku || item.codigo || mobId;
-    const initialModelCode = existing?.modelCode || existing?.referenceCode || (item as any)?.modelCode || (item as any)?.referenceCode || '';
-    const initialPrice = existing?.price ?? extractPrecoVistaMoblink(item) ?? item.preco_venda ?? item.price ?? 0;
+    const initialModelCode = existing?.modelCode || existing?.referenceCode || item.modelCode || item.referenceCode || '';
+    // Preço de tabela (carnê) como preço principal a ser editado
+    const initialPrice = existing?.price ?? extractPrecoTabelaMoblink(item) ?? item.preco_venda ?? item.price ?? 0;
+    // Preço à vista como originalPrice (referência de desconto)
     const initialOrigPrice = existing?.originalPrice ?? item.precoOriginal ?? '';
     const initialStock = existing?.stock ?? extractSaldoLojaMoblink(item) ?? 0;
     const initialCategory = existing?.category || item.categoria || item.category || 'Geral';
@@ -571,7 +695,8 @@ export const MoblinkProductsManager: React.FC = () => {
     const productPrice = Math.max(0, Number(editPrice) || 0);
     const productOriginalPrice = Number(editOriginalPrice) > 0 ? Number(editOriginalPrice) : undefined;
     const productStock = Math.max(0, Number(editStock) || 0);
-    const categoryName = editCategory.trim() || 'Geral';
+    // Categoria vem exclusivamente da API MobLink (classificacao/nome_grupo) — não é editável manualmente
+    const categoryName = selectedProduct.nome_grupo || selectedProduct.categoria || selectedProduct.category || 'Geral';
     const parsedSizes = editSizes.split(',').map(s => s.trim()).filter(s => s !== '');
     const isSingleSizeProduct = parsedSizes.length === 0 || (parsedSizes.length === 1 && ['UNICA', 'ÚNICA', 'UN', 'U', 'TAMANHO ÚNICO', 'UNICO', 'ÚNICO'].includes(parsedSizes[0].toUpperCase()));
 
@@ -607,12 +732,22 @@ export const MoblinkProductsManager: React.FC = () => {
       description: richDescription || selectedProduct.compl_descr || selectedProduct.descricaoMoblink || selectedProduct.descricao || 'Produto com garantia de qualidade Evidência Calçados.',
       descricao_completa: richDescription || selectedProduct.compl_descr || selectedProduct.descricaoMoblink || selectedProduct.descricao || 'Produto com garantia de qualidade Evidência Calçados.',
       compl_descr: selectedProduct.compl_descr || selectedProduct.descr_compl,
+      /** Preço de tabela (carnê) */
       price: productPrice,
       preco_venda: productPrice,
+      /** Preço à vista calculado do ERP (para exibição na vitrine) */
+      precoVista: extractPrecoVistaMoblink(selectedProduct),
+      preco_vista: extractPrecoVistaMoblink(selectedProduct),
+      preco_promocao: selectedProduct.preco_promocao,
       preco_venda_fracao: productPrice,
       originalPrice: productOriginalPrice,
       onSale: Boolean(productOriginalPrice && productOriginalPrice > productPrice),
       category: categoryName,
+      /** Classificação ERP — preservar sempre da API */
+      classificacao: selectedProduct.classificacao,
+      subcategory: selectedProduct.subcategoria,
+      nome_grupo: selectedProduct.nome_grupo,
+      nome_subgrupo: selectedProduct.nome_subgrupo,
       images: finalImages,
       sizes: parsedSizes.length > 0 ? parsedSizes : [37, 38, 39, 40, 41, 42, 43],
       crediarioProprio: true,
@@ -1154,6 +1289,37 @@ export const MoblinkProductsManager: React.FC = () => {
           {isLoading ? 'Sincronizando ERP...' : 'Atualizar Estoque ERP'}
         </button>
       </div>
+
+      {/* BARRA DE PROGRESSO DE SINCRONIZAÇÃO ERP */}
+      {syncProgress && (
+        <div className={`p-4 rounded-xl border space-y-2 animate-fade-in ${
+          theme === 'dark' ? 'bg-[#0f172a] border-slate-800' : 'bg-white border-slate-100 shadow-xs'
+        }`}>
+          <div className="flex justify-between items-center text-xs font-bold text-slate-700 dark:text-slate-200">
+            <span className="flex items-center gap-1.5">
+              <RefreshCw className="h-3.5 w-3.5 text-amber-500 animate-spin" />
+              {syncProgress.phase}
+            </span>
+            <span className="font-mono text-amber-500">
+              {syncProgress.total > 0 
+                ? `${Math.round((syncProgress.current / syncProgress.total) * 100)}%` 
+                : 'Processando...'}
+            </span>
+          </div>
+          <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2.5 overflow-hidden">
+            <div 
+              className="bg-amber-500 h-2.5 rounded-full transition-all duration-300 ease-out" 
+              style={{ 
+                width: `${syncProgress.total > 0 ? (syncProgress.current / syncProgress.total) * 100 : 0}%` 
+              }}
+            />
+          </div>
+          <div className="flex justify-between text-[10px] text-slate-400 font-semibold uppercase">
+            <span>Início</span>
+            <span>{syncProgress.current} / {syncProgress.total}</span>
+          </div>
+        </div>
+      )}
 
       {fetchError && (
         <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 text-xs flex items-center gap-3">
@@ -1856,24 +2022,64 @@ export const MoblinkProductsManager: React.FC = () => {
               </button>
             </div>
 
-            {/* READ-ONLY MOB LINK PARAMETERS SUMMARY */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 dark:bg-slate-800/60 p-3.5 rounded-xl border border-slate-200/80 dark:border-slate-700 text-xs">
-              <div>
-                <span className="text-[10px] text-slate-400 uppercase font-bold block">Preço à Vista</span>
-                <span className="font-bold text-primary dark:text-amber-400">R$ {(extractPrecoVistaMoblink(selectedProduct) || selectedProduct.preco_venda || selectedProduct.preco || selectedProduct.price || 0).toFixed(2).replace('.', ',')}</span>
+            {/* READ-ONLY ERP DATA SUMMARY — dados diretos da API MobLink, somente leitura */}
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-slate-50 dark:bg-slate-800/60 p-3.5 rounded-xl border border-slate-200/80 dark:border-slate-700 text-xs">
+                {/* Preço de Tabela (carnê/parcelado) */}
+                <div className="space-y-0.5">
+                  <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">Preço Tabela (Carnê)</span>
+                  <span className="font-black text-sm text-slate-800 dark:text-slate-100 font-mono">
+                    R$ {extractPrecoTabelaMoblink(selectedProduct).toFixed(2).replace('.', ',')}
+                  </span>
+                </div>
+
+                {/* Preço à Vista */}
+                <div className="space-y-0.5">
+                  <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">Preço à Vista (PIX)</span>
+                  <span className="font-black text-sm text-emerald-600 dark:text-emerald-400 font-mono">
+                    R$ {extractPrecoVistaMoblink(selectedProduct).toFixed(2).replace('.', ',')}
+                  </span>
+                  {selectedProduct.preco_promocao && Number(selectedProduct.preco_promocao) > 0 && (
+                    <span className="text-[9px] text-amber-500 font-bold block">Promo: R$ {Number(selectedProduct.preco_promocao).toFixed(2).replace('.', ',')}</span>
+                  )}
+                </div>
+
+                {/* Estoque ERP */}
+                <div className="space-y-0.5">
+                  <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">Estoque ERP</span>
+                  <span className={`font-black text-sm font-mono ${
+                    extractSaldoLojaMoblink(selectedProduct) > 0
+                      ? 'text-emerald-600 dark:text-emerald-400'
+                      : 'text-rose-500 dark:text-rose-400'
+                  }`}>
+                    {extractSaldoLojaMoblink(selectedProduct)} un
+                  </span>
+                </div>
+
+                {/* Classificação ERP */}
+                <div className="space-y-0.5">
+                  <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">Classificação ERP</span>
+                  <span className="font-mono font-bold text-xs text-amber-600 dark:text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20 inline-block">
+                    {selectedProduct.classificacao || selectedProduct.categoria || 'Geral'}
+                  </span>
+                  {selectedProduct.nome_grupo && selectedProduct.nome_grupo !== selectedProduct.classificacao && (
+                    <span className="text-[9px] text-slate-400 block">{selectedProduct.nome_grupo}{selectedProduct.nome_subgrupo ? ` › ${selectedProduct.nome_subgrupo}` : ''}</span>
+                  )}
+                </div>
               </div>
-              <div>
-                <span className="text-[10px] text-slate-400 uppercase font-bold block">Estoque ERP</span>
-                <span className="font-bold font-mono">{extractSaldoLojaMoblink(selectedProduct)} unidades</span>
-              </div>
-              <div>
-                <span className="text-[10px] text-slate-400 uppercase font-bold block">SKU</span>
-                <span className="font-bold font-mono">{selectedProduct.sku || selectedProduct.id}</span>
-              </div>
-              <div>
-                <span className="text-[10px] text-slate-400 uppercase font-bold block">Categoria</span>
-                <span className="font-bold">{selectedProduct.categoria || selectedProduct.category || 'Geral'}</span>
-              </div>
+
+              {/* Complemento de descrição vindo do ERP */}
+              {(selectedProduct.compl_descr || selectedProduct.descr_compl) && (
+                <div className="flex gap-2 items-start bg-blue-50 dark:bg-blue-950/30 border border-blue-200/60 dark:border-blue-800/40 rounded-xl px-3.5 py-2.5">
+                  <FileText className="h-3.5 w-3.5 text-blue-500 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="text-[10px] text-blue-500 font-bold uppercase block mb-0.5">Complemento (ERP)</span>
+                    <p className="text-[11px] text-slate-700 dark:text-slate-300 leading-relaxed">
+                      {selectedProduct.compl_descr || selectedProduct.descr_compl}
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
 
             <form onSubmit={handleSaveProductEnrichment} className="space-y-6">
@@ -1929,29 +2135,40 @@ export const MoblinkProductsManager: React.FC = () => {
                     />
                   </div>
 
-                  {/* CATEGORIA DO E-COMMERCE (VINCULADO ÀS CATEGORIAS DA LOJA) */}
+
+                  {/* CATEGORIA — somente leitura, fonte: API MobLink (classificacao) */}
                   <div className="space-y-1">
                     <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 flex items-center justify-between">
-                      <span>Categoria do E-commerce</span>
-                      <span className="text-[10px] text-amber-500 font-extrabold">Categorias da Loja</span>
+                      <span>Categoria (ERP MobLink)</span>
+                      <span className="text-[9px] text-emerald-500 font-extrabold flex items-center gap-1">
+                        <ShieldCheck className="h-3 w-3" />
+                        Definida pela API
+                      </span>
                     </label>
-                    <select
-                      value={editCategory}
-                      onChange={(e) => setEditCategory(e.target.value)}
-                      className="w-full p-2.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-xs font-bold focus:outline-none focus:border-amber-500 cursor-pointer"
-                    >
-                      {Array.from(new Set([editCategory, ...storeCategories])).filter(Boolean).map((catName) => (
-                        <option key={catName} value={catName}>
-                          {catName}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="w-full p-2.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-800/50 flex items-center justify-between gap-2">
+                      <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
+                        {selectedProduct?.nome_grupo || selectedProduct?.categoria || selectedProduct?.category || 'Geral'}
+                        {selectedProduct?.nome_subgrupo && (
+                          <span className="text-slate-400 font-normal"> › {selectedProduct.nome_subgrupo}</span>
+                        )}
+                      </span>
+                      {selectedProduct?.classificacao && (
+                        <span className="font-mono text-[10px] font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded shrink-0">
+                          {selectedProduct.classificacao}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[10px] text-slate-400 dark:text-slate-500">
+                      A categoria é definida automaticamente pelo campo <code className="font-mono bg-slate-100 dark:bg-slate-800 px-1 rounded">classificacao</code> da API do ERP e não pode ser editada manualmente.
+                    </p>
                   </div>
 
-                  {/* PREÇO À VISTA */}
+
+                  {/* PREÇO DE TABELA / CARNÊ */}
                   <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 block">
-                      Preço à Vista / Venda (R$)
+                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 block flex items-center justify-between">
+                      <span>Preço de Tabela / Carnê (R$)</span>
+                      <span className="text-[9px] text-amber-500 font-mono font-bold">Parcelado ERP</span>
                     </label>
                     <input
                       type="number"
@@ -1959,15 +2176,22 @@ export const MoblinkProductsManager: React.FC = () => {
                       min="0"
                       value={editPrice}
                       onChange={(e) => setEditPrice(e.target.value)}
-                      placeholder="299,90"
+                      placeholder="Ex: 339,90"
                       className="w-full p-2.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-amber-400 text-xs font-mono font-bold focus:outline-none focus:border-amber-500"
                     />
+                    {extractPrecoVistaMoblink(selectedProduct) > 0 && (
+                      <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
+                        ↳ À Vista (ERP): <strong>R$ {extractPrecoVistaMoblink(selectedProduct).toFixed(2).replace('.', ',')}</strong>
+                      </p>
+                    )}
                   </div>
 
-                  {/* PREÇO DE TABELA / ORIGINAL */}
+
+                  {/* PREÇO ORIGINAL DE TABELA / PROMOÇÃO */}
                   <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 block">
-                      Preço Original de Tabela R$ (Opcional - Promoção)
+                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 block flex items-center justify-between">
+                      <span>Preço Original (Opcional — Riscar)</span>
+                      <span className="text-[9px] text-slate-400 font-bold">Ex: "De R$389 por R$299"</span>
                     </label>
                     <input
                       type="number"
