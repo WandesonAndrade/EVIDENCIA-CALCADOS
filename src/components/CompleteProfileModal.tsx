@@ -46,6 +46,102 @@ export const CompleteProfileModal: React.FC<CompleteProfileModalProps> = ({
   const [isSearchingCpf, setIsSearchingCpf] = useState(false);
   const [matchedErpClient, setMatchedErpClient] = useState<any | null>(null);
 
+  // Helper para mapeamento e atribuição explícita de dados do cliente MobLink ERP nos estados do formulário
+  const autofillFromMatchedClient = (matched: any) => {
+    if (!matched) return;
+    setMatchedErpClient(matched);
+
+    // 1. CPF
+    const rawCpf = matched.cpf || matched.cpf_cnpj || matched.documento || '';
+    if (rawCpf) setCpf(formatCPF(rawCpf));
+
+    // 2. RG / Identidade
+    const rawRg = matched.rg || matched.rg_numero || matched.documento_rg || '';
+    if (rawRg) setRg(rawRg);
+
+    // 3. Filiação
+    const rawNomeMae = matched.nomeMae || matched.mae || matched.nome_mae || '';
+    if (rawNomeMae) setNomeMae(rawNomeMae);
+
+    const rawNomePai = matched.nomePai || matched.pai || matched.nome_pai || '';
+    if (rawNomePai) setNomePai(rawNomePai);
+
+    // 4. Data de Nascimento
+    const rawDataNasc = matched.dataNascimento || matched.data_nasc || matched.nascimento || matched.birthDate || matched.dt_nasc || '';
+    if (rawDataNasc) setDataNascimento(rawDataNasc);
+
+    // 5. Naturalidade
+    const rawNaturalidade = matched.naturalidade || matched.cidade_natal || '';
+    if (rawNaturalidade) setNaturalidade(rawNaturalidade);
+
+    // 6. Telefone / Celular / WhatsApp
+    const rawTelefone = matched.telefone || matched.celular || matched.phone || matched.whatsapp || matched.tel || '';
+    if (rawTelefone) setTelefone(formatPhone(rawTelefone));
+
+    // 7. Profissão & Renda
+    const rawProfissao = matched.profissao || matched.cargo || matched.ocupacao || '';
+    if (rawProfissao) setProfissao(rawProfissao);
+
+    const rawRenda = matched.rendaMensal || matched.renda || matched.salario || '';
+    if (rawRenda) setRendaMensal(String(rawRenda));
+
+    // 8. Endereço Estruturado
+    const rawEndereco = matched.endereco || matched.address || matched.logradouro || matched.rua || '';
+    if (rawEndereco) setEndereco(rawEndereco);
+
+    const rawNumero = matched.numero || matched.numero_end || matched.num || '';
+    if (rawNumero) setNumero(rawNumero);
+
+    const rawBairro = matched.bairro || matched.distrito || '';
+    if (rawBairro) setBairro(rawBairro);
+
+    const rawCidade = matched.cidade || matched.municipio || '';
+    if (rawCidade) setCidade(rawCidade);
+
+    const rawUf = matched.uf || matched.estado || 'MA';
+    if (rawUf) setUf(String(rawUf).toUpperCase());
+
+    const rawCep = matched.cep || matched.codigo_postal || '';
+    if (rawCep) setCep(formatCEP(rawCep));
+
+    const rawComplemento = matched.complemento || matched.complemento_end || '';
+    if (rawComplemento) setComplemento(rawComplemento);
+
+    const rawRef = matched.pontoReferencia || matched.ponto_ref || matched.referencia || '';
+    if (rawRef) setPontoReferencia(rawRef);
+
+    // 9. Herança de Status do Crediário
+    if (
+      matched.crediarioStatus === 'Aprovado' ||
+      (matched.limite_cred && matched.limite_cred > 0) ||
+      matched.sit_cred === 'A' ||
+      matched.sit_cred === 'L' ||
+      matched.sit_cred === 'N'
+    ) {
+      setSolicitarCrediario(true);
+    }
+  };
+
+  const lookupAndAutofillErpClient = async (cleanDigits: string) => {
+    if (cleanDigits.length !== 11) {
+      setMatchedErpClient(null);
+      return;
+    }
+    setIsSearchingCpf(true);
+    try {
+      const matched = await moblinkClientesService.findClientByCpf(cleanDigits);
+      if (matched) {
+        autofillFromMatchedClient(matched);
+      } else {
+        setMatchedErpClient(null);
+      }
+    } catch (err) {
+      console.warn("Erro ao pesquisar CPF no ERP:", err);
+    } finally {
+      setIsSearchingCpf(false);
+    }
+  };
+
   // Load existing values when modal opens or user changes
   useEffect(() => {
     if (isOpen) {
@@ -59,25 +155,33 @@ export const CompleteProfileModal: React.FC<CompleteProfileModalProps> = ({
 
       if (currentUser) {
         const anyUser = currentUser as any;
-        setRg(currentUser.rg || '');
-        setCpf(currentUser.cpf || anyUser.documento || '');
-        setNomePai(currentUser.nomePai || '');
-        setNomeMae(currentUser.nomeMae || '');
-        setDataNascimento(currentUser.dataNascimento || anyUser.birthDate || anyUser.nascimento || '');
+        const initialCpf = currentUser.cpf || anyUser.documento || anyUser.cpf_cnpj || '';
+        const formattedCpf = formatCPF(initialCpf);
+        
+        setRg(currentUser.rg || anyUser.rg_numero || '');
+        setCpf(formattedCpf);
+        setNomePai(currentUser.nomePai || anyUser.pai || '');
+        setNomeMae(currentUser.nomeMae || anyUser.mae || '');
+        setDataNascimento(currentUser.dataNascimento || anyUser.birthDate || anyUser.nascimento || anyUser.data_nasc || '');
         setNaturalidade(currentUser.naturalidade || 'Caxias/MA');
-        setTelefone(currentUser.telefone || anyUser.phone || anyUser.whatsapp || anyUser.celular || '');
-        setProfissao(currentUser.profissao || '');
+        setTelefone(formatPhone(currentUser.telefone || anyUser.phone || anyUser.whatsapp || anyUser.celular || ''));
+        setProfissao(currentUser.profissao || anyUser.cargo || '');
         setRendaMensal(currentUser.rendaMensal || '');
         setReferenciaPessoal(currentUser.referenciaPessoal || '');
         
-        setCep(currentUser.cep || '');
-        setEndereco(currentUser.endereco || anyUser.address || '');
-        setNumero(currentUser.numero || '');
+        setCep(formatCEP(currentUser.cep || anyUser.codigo_postal || ''));
+        setEndereco(currentUser.endereco || anyUser.address || anyUser.logradouro || '');
+        setNumero(currentUser.numero || anyUser.numero_end || '');
         setBairro(currentUser.bairro || '');
         setCidade(currentUser.cidade || '');
-        setUf(currentUser.uf || 'MA');
-        setComplemento(currentUser.complemento || '');
+        setUf((currentUser.uf || anyUser.estado || 'MA').toUpperCase());
+        setComplemento(currentUser.complemento || anyUser.complemento_end || '');
         setPontoReferencia(currentUser.pontoReferencia || '');
+
+        const cleanDigits = initialCpf.replace(/\D/g, '');
+        if (cleanDigits.length === 11) {
+          lookupAndAutofillErpClient(cleanDigits);
+        }
       }
     }
   }, [currentUser, isOpen, initialSolicitarCrediario]);
@@ -116,45 +220,12 @@ export const CompleteProfileModal: React.FC<CompleteProfileModalProps> = ({
     }
   };
 
-  // Instant CPF Search in ERP Database on first access
-  const handleCpfInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Instant CPF Search in ERP Database on input change
+  const handleCpfInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const formatted = formatCPF(e.target.value);
     setCpf(formatted);
     const cleanDigits = formatted.replace(/\D/g, '');
-
-    if (cleanDigits.length === 11) {
-      setIsSearchingCpf(true);
-      try {
-        const matched = await moblinkClientesService.findClientByCpf(cleanDigits);
-        if (matched) {
-          setMatchedErpClient(matched);
-          // Auto-preenchimento com os dados prévios do ERP
-          if (matched.rg) setRg(matched.rg);
-          if (matched.nomeMae) setNomeMae(matched.nomeMae);
-          if (matched.dataNascimento) setDataNascimento(matched.dataNascimento);
-          if (matched.telefone) setTelefone(formatPhone(matched.telefone));
-          if (matched.endereco) setEndereco(matched.endereco);
-          if (matched.numero) setNumero(matched.numero);
-          if (matched.bairro) setBairro(matched.bairro);
-          if (matched.cidade) setCidade(matched.cidade);
-          if (matched.uf) setUf(matched.uf.toUpperCase());
-          if (matched.cep) setCep(formatCEP(matched.cep));
-
-          // Herança de Crediário Automática
-          if (matched.crediarioStatus === 'Aprovado' || (matched.limite_cred && matched.limite_cred > 0)) {
-            setSolicitarCrediario(true);
-          }
-        } else {
-          setMatchedErpClient(null);
-        }
-      } catch (err) {
-        console.warn("Erro ao pesquisar CPF no ERP:", err);
-      } finally {
-        setIsSearchingCpf(false);
-      }
-    } else {
-      setMatchedErpClient(null);
-    }
+    lookupAndAutofillErpClient(cleanDigits);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

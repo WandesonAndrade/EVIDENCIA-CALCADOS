@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { ShoppingBag, Search, User, LogOut, LayoutDashboard, History, ChevronDown, Heart, Sun, Moon, Shield } from 'lucide-react';
+import { ShoppingBag, Search, User, LogOut, LayoutDashboard, History, ChevronDown, Heart, Sun, Moon, Shield, CreditCard } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { BrandLogo } from './BrandLogo';
 import { checkIsProfileComplete } from '../App';
@@ -214,6 +214,20 @@ export const Header: React.FC = () => {
                           >
                             <History className="h-4 w-4 text-slate-400" />
                             <span>Meus Pedidos</span>
+                          </button>
+
+                          {/* Meu Crediário / Faturas — acessível para todos os usuários (clientes, colaboradores e admins) */}
+                          <button
+                            onClick={() => {
+                              setCurrentView('meu-crediario');
+                              setIsDropdownOpen(false);
+                            }}
+                            className={`w-full text-left px-4 py-2 text-xs font-semibold transition-colors flex items-center space-x-2 cursor-pointer ${
+                              isDark ? 'text-slate-300 hover:bg-slate-800/80 hover:text-amber-400' : 'text-slate-700 hover:bg-slate-100'
+                            }`}
+                          >
+                            <CreditCard className="h-4 w-4 text-slate-400" />
+                            <span>Meu Crediário / Faturas</span>
                           </button>
 
                           {isAuthorizedCollaborator && (

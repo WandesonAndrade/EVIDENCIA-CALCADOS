@@ -166,9 +166,9 @@ export const moblinkClientesService = {
       createdAt: existingData?.createdAt || client.data_cad || new Date().toISOString()
     };
 
-    const payload = cleanUndefinedProperties(mappedProfile);
+    const payload = cleanUndefinedProperties({ ...client, ...mappedProfile });
     await setDoc(userRef, payload, { merge: true });
-    return { ...mappedProfile } as UserProfile;
+    return { ...client, ...mappedProfile } as UserProfile;
   },
 
   /**
@@ -251,5 +251,58 @@ export const moblinkClientesService = {
     }
 
     return null;
+  },
+
+  /**
+   * Consulta faturas e contas a receber de um cliente específico no MobLink ERP
+   * GET https://api.evidenciacalcados.com.br/api/v1/clientes/{id}/contas-receber?formatada=false&vencidas=false
+   */
+  async fetchClienteContasReceber(moblinkId: string): Promise<MoblinkContaReceber[]> {
+    if (!moblinkId) return [];
+
+    try {
+      const url = `${MOBLINK_CLIENTES_API_URL}/${moblinkId}/contas-receber?formatada=false&vencidas=false`;
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'accept': 'application/json',
+          'Authorization': `Bearer ${MOBLINK_CLIENTES_BEARER_TOKEN}`
+        }
+      });
+
+      if (!response.ok) {
+        console.warn(`Aviso ao consultar contas a receber para cliente #${moblinkId}: HTTP ${response.status}`);
+        return [];
+      }
+
+      const resData = await response.json();
+      if (Array.isArray(resData)) return resData;
+      if (resData && Array.isArray(resData.data)) return resData.data;
+      return [];
+    } catch (err) {
+      console.error(`Erro ao consultar contas a receber para cliente #${moblinkId}:`, err);
+      return [];
+    }
   }
 };
+
+export interface MoblinkContaReceber {
+  id?: string | number;
+  id_venda?: string | number | null;
+  documento?: string | number | null;
+  numero_documento?: string | number | null;
+  parcela?: string | number | null;
+  data_vencimento?: string | null;
+  vencimento?: string | null;
+  data_emissao?: string | null;
+  emissao?: string | null;
+  valor?: number | null;
+  valor_parcela?: number | null;
+  valor_pago?: number | null;
+  saldo?: number | null;
+  situacao?: string | null;
+  status?: string | null;
+  historico?: string | null;
+  historico_origem?: string | null;
+  loja?: string | null;
+}

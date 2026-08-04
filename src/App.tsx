@@ -21,6 +21,7 @@ import { AboutUs } from './components/AboutUs';
 import { SupportPage } from './components/SupportPage';
 import { FavoritesList } from './components/FavoritesList';
 import { FloatingAssistant } from './components/FloatingAssistant';
+import { MeuCrediario } from './components/MeuCrediario';
 
 export const checkIsProfileComplete = (user: any): boolean => {
   if (!user) return false;
@@ -73,7 +74,7 @@ const AppContent: React.FC = () => {
   }, []);
 
   React.useEffect(() => {
-    if (['product-detail', 'cart', 'orders', 'about', 'support', 'favorites', 'admin'].includes(currentView)) {
+    if (['product-detail', 'cart', 'orders', 'about', 'support', 'favorites', 'admin', 'meu-crediario'].includes(currentView)) {
       window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
     }
   }, [currentView]);
@@ -96,6 +97,8 @@ const AppContent: React.FC = () => {
         return <SupportPage />;
       case 'favorites':
         return <FavoritesList />;
+      case 'meu-crediario':
+        return <MeuCrediario />;
       case 'login':
         return <AuthScreen mode="customer" />;
       case 'admin-login':

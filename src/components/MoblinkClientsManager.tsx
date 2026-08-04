@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { UserProfile, Product, CrediarioStatus } from '../types';
-import { moblinkClientesService } from '../services/moblinkClientesService';
+import { moblinkClientesService, MoblinkContaReceber } from '../services/moblinkClientesService';
 import { collection, getDocs, doc, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { 
@@ -36,7 +36,9 @@ import {
   Check,
   ThumbsUp,
   ThumbsDown,
-  Edit3
+  Edit3,
+  ChevronDown,
+  ChevronRight
 } from 'lucide-react';
 
 interface MoblinkClientsManagerProps {
@@ -118,6 +120,154 @@ export const MoblinkClientsManager: React.FC<MoblinkClientsManagerProps> = ({ is
   // Credit Action Form State
   const [limitInput, setLimitInput] = useState<string>('500');
   const [isUpdatingCredit, setIsUpdatingCredit] = useState(false);
+
+  // Invoices & Contas a Receber Lazy Loading State
+  const [invoices, setInvoices] = useState<MoblinkContaReceber[]>([]);
+  const [isLoadingInvoices, setIsLoadingInvoices] = useState(false);
+  const [hasLoadedInvoices, setHasLoadedInvoices] = useState(false);
+
+  // Accordion state for grouped sales
+  const [expandedSales, setExpandedSales] = useState<{ [saleKey: string]: boolean }>({});
+
+  const toggleSaleAccordion = (saleKey: string) => {
+    setExpandedSales(prev => ({
+      ...prev,
+      [saleKey]: !prev[saleKey]
+    }));
+  };
+
+  // Reset Lazy Invoices state when selected client changes
+  useEffect(() => {
+    setInvoices([]);
+    setHasLoadedInvoices(false);
+    setIsLoadingInvoices(false);
+    setExpandedSales({});
+  }, [selectedClient?.uid, (selectedClient as any)?.moblinkId, (selectedClient as any)?.id]);
+
+  // Lazy Fetch Invoices when user switches to 'financeiro' tab
+  useEffect(() => {
+    if (detailTab === 'financeiro' && selectedClient && !hasLoadedInvoices && !isLoadingInvoices) {
+      const moblinkId = selectedClient.moblinkId || (selectedClient as any).id;
+      if (moblinkId) {
+        setIsLoadingInvoices(true);
+        moblinkClientesService.fetchClienteContasReceber(String(moblinkId))
+          .then(data => {
+            setInvoices(data || []);
+            setHasLoadedInvoices(true);
+          })
+          .catch(err => {
+            console.warn("Erro ao carregar faturas a receber:", err);
+            setHasLoadedInvoices(true);
+          })
+          .finally(() => {
+            setIsLoadingInvoices(false);
+          });
+      } else {
+        setHasLoadedInvoices(true);
+      }
+    }
+  }, [detailTab, selectedClient, hasLoadedInvoices, isLoadingInvoices]);
+
+  const handleReloadInvoices = () => {
+    if (!selectedClient) return;
+    const moblinkId = selectedClient.moblinkId || (selectedClient as any).id;
+    if (moblinkId) {
+      setIsLoadingInvoices(true);
+      moblinkClientesService.fetchClienteContasReceber(String(moblinkId))
+        .then(data => {
+          setInvoices(data || []);
+          setHasLoadedInvoices(true);
+          addToast("Faturas Atualizadas", `${data?.length || 0} contas/parcelas localizadas no ERP.`, "info");
+        })
+        .catch(err => {
+          console.warn("Erro ao recarregar faturas:", err);
+        })
+        .finally(() => {
+          setIsLoadingInvoices(false);
+        });
+    }
+  };
+
+  // Group invoices by id_venda / document number
+  const groupedInvoices = useMemo(() => {
+    const groupsMap: { 
+      [saleKey: string]: { 
+        saleKey: string;
+        idVenda: string | null;
+        docNum: string; 
+        historico: string; 
+        items: MoblinkContaReceber[]; 
+        totalVal: number; 
+        totalPaid: number; 
+        totalPending: number;
+        hasOverdue: boolean;
+      } 
+    } = {};
+
+    invoices.forEach(inv => {
+      const idVenda = inv.id_venda ? String(inv.id_venda) : null;
+      const docNum = String(inv.documento || inv.numero_documento || inv.id_venda || 'Sem N°');
+      const saleKey = idVenda ? `venda_${idVenda}` : `doc_${docNum}`;
+      
+      const historico = String(inv.historico || inv.historico_origem || 'Carnê de Loja Evidência');
+      const val = inv.valor_parcela ?? inv.valor ?? inv.saldo ?? 0;
+      const statusRaw = (inv.situacao || inv.status || 'Pendente').toUpperCase();
+      const isPaid = statusRaw.includes('PAG') || statusRaw.includes('BAIX') || statusRaw === 'L';
+      const isOverdue = !isPaid && (statusRaw.includes('VENC') || statusRaw.includes('ATRAS'));
+
+      if (!groupsMap[saleKey]) {
+        groupsMap[saleKey] = {
+          saleKey,
+          idVenda,
+          docNum,
+          historico,
+          items: [],
+          totalVal: 0,
+          totalPaid: 0,
+          totalPending: 0,
+          hasOverdue: false
+        };
+      }
+
+      groupsMap[saleKey].items.push(inv);
+      groupsMap[saleKey].totalVal += val;
+      if (isPaid) {
+        groupsMap[saleKey].totalPaid += val;
+      } else {
+        groupsMap[saleKey].totalPending += val;
+      }
+
+      if (isOverdue) {
+        groupsMap[saleKey].hasOverdue = true;
+      }
+    });
+
+    // Sort items within each purchase by installment number
+    Object.values(groupsMap).forEach(g => {
+      g.items.sort((a, b) => {
+        const parcA = parseInt(String(a.parcela || 1), 10);
+        const parcB = parseInt(String(b.parcela || 1), 10);
+        return parcA - parcB;
+      });
+    });
+
+    return Object.values(groupsMap);
+  }, [invoices]);
+
+  // Auto-expand sales that have pending/overdue debt or default to expanding the first sale
+  useEffect(() => {
+    if (groupedInvoices.length > 0) {
+      const initialMap: { [saleKey: string]: boolean } = {};
+      groupedInvoices.forEach((g, idx) => {
+        if (g.totalPending > 0 || idx === 0) {
+          initialMap[g.saleKey] = true;
+        }
+      });
+      setExpandedSales(initialMap);
+    } else {
+      setExpandedSales({});
+    }
+  }, [groupedInvoices]);
 
   // Load clients from Firestore
   const loadClientsFromFirestore = async () => {
@@ -330,7 +480,7 @@ export const MoblinkClientsManager: React.FC<MoblinkClientsManagerProps> = ({ is
       if (personTypeFilter === 'PJ') personOk = isPj;
 
       // Birthday Filter
-      const bdayVal = c.dataNascimento || anyC.data_nasc || anyC.birthDate;
+      const bdayVal = c.dataNascimento || anyC.data_nasc || anyC.birthDate || anyC.data_nascimento;
       const bdayOk = bdayFilter === 'Todos' || isBirthdayMatch(bdayVal, bdayFilter);
 
       return searchOk && credOk && personOk && bdayOk;
@@ -350,7 +500,7 @@ export const MoblinkClientsManager: React.FC<MoblinkClientsManagerProps> = ({ is
             </span>
           </h2>
           <p className={`text-xs ${isDark ? 'text-slate-300' : 'text-slate-600'} mt-0.5 font-medium`}>
-            Consulte cadastros do ERP, analise solicitações e aprove o crediário próprio diretamente na ficha do cliente.
+            Consulte cadastros do ERP, analise faturas a receber, limite de crédito e mensagens via WhatsApp.
           </p>
         </div>
 
@@ -573,7 +723,7 @@ export const MoblinkClientsManager: React.FC<MoblinkClientsManagerProps> = ({ is
                   const cityVal = client.cidade || anyC.cidade || 'Caxias';
                   const ufVal = (client.uf || anyC.uf || 'MA').toUpperCase();
                   const moblinkId = client.moblinkId || anyC.id;
-                  const bdayVal = client.dataNascimento || anyC.data_nasc || anyC.birthDate;
+                  const bdayVal = client.dataNascimento || anyC.data_nasc || anyC.birthDate || anyC.data_nascimento;
                   
                   const limitCred = client.limite_cred ?? anyC.limite_cred ?? 0;
                   const vencidoCred = client.valor_vencido ?? anyC.valor_vencido ?? 0;
@@ -761,7 +911,7 @@ export const MoblinkClientsManager: React.FC<MoblinkClientsManagerProps> = ({ is
         </div>
       </div>
 
-      {/* Modal de Detalhes Completo do Cliente com Gestão de Crediário Unificada */}
+      {/* Modal de Detalhes Completo do Cliente com Faturas & Contas a Receber Agrupadas por Venda / Acordeão */}
       {selectedClient && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs overflow-y-auto">
           <div className="fixed inset-0" onClick={() => setSelectedClient(null)} />
@@ -872,7 +1022,7 @@ export const MoblinkClientsManager: React.FC<MoblinkClientsManagerProps> = ({ is
               {[
                 { id: 'pessoal', label: '👤 Dados Pessoais' },
                 { id: 'contato', label: '📍 Contato & Endereço' },
-                { id: 'financeiro', label: '💰 Crediário & Gestão' },
+                { id: 'financeiro', label: '💰 Financeiro & Contas a Receber' },
                 { id: 'produtos', label: `🛒 Produtos (${getClientCartItems(selectedClient).length + getClientFavoriteIds(selectedClient).length})` }
               ].map(t => (
                 <button
@@ -1030,7 +1180,7 @@ export const MoblinkClientsManager: React.FC<MoblinkClientsManagerProps> = ({ is
                 </div>
               )}
 
-              {/* TAB 3: FINANCEIRO & PAINEL DE GESTÃO DE CREDIÁRIO */}
+              {/* TAB 3: FINANCEIRO, CREDIÁRIO & FATURAS A RECEBER AGRUPADAS POR VENDA / ACORDEÃO */}
               {detailTab === 'financeiro' && (
                 <div className="space-y-4 text-xs">
                   
@@ -1083,6 +1233,7 @@ export const MoblinkClientsManager: React.FC<MoblinkClientsManagerProps> = ({ is
                     </div>
                   </div>
 
+                  {/* Indicators Grid */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className={`p-4 rounded-2xl border space-y-1.5 ${
                       isDark ? 'bg-slate-950/60 border-slate-800' : 'bg-slate-50 border-slate-300 shadow-2xs'
@@ -1137,6 +1288,191 @@ export const MoblinkClientsManager: React.FC<MoblinkClientsManagerProps> = ({ is
                         {formatCurrency((selectedClient as any).valor_vencer || 0)}
                       </p>
                     </div>
+                  </div>
+
+                  {/* Faturas & Contas a Receber AGRUPADAS POR VENDA / ACORDEÃO EXPANSÍVEL */}
+                  <div className={`p-4.5 rounded-2xl border space-y-3.5 ${
+                    isDark ? 'bg-slate-950/60 border-slate-800' : 'bg-slate-50 border-slate-300 shadow-2xs'
+                  }`}>
+                    <div className="flex items-center justify-between border-b pb-2 border-slate-800/60">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-amber-400 flex items-center space-x-2">
+                        <FileText className="h-4 w-4 text-amber-400" />
+                        <span>Histórico de Vendas & Faturas (MobLink ERP)</span>
+                      </span>
+
+                      <button
+                        type="button"
+                        onClick={handleReloadInvoices}
+                        disabled={isLoadingInvoices}
+                        className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-bold border border-slate-700 transition-colors inline-flex items-center space-x-1 cursor-pointer disabled:opacity-50"
+                      >
+                        <RefreshCw className={`h-3 w-3 text-amber-400 ${isLoadingInvoices ? 'animate-spin' : ''}`} />
+                        <span>Atualizar</span>
+                      </button>
+                    </div>
+
+                    {isLoadingInvoices ? (
+                      <div className="py-8 text-center text-slate-400 space-y-2">
+                        <RefreshCw className="h-6 w-6 text-amber-400 animate-spin mx-auto" />
+                        <p className="text-xs font-medium">Buscando faturas e parcelas em aberto no MobLink ERP...</p>
+                      </div>
+                    ) : invoices.length === 0 ? (
+                      <div className="py-6 text-center text-slate-400 text-xs font-medium space-y-1">
+                        <p className="text-slate-300 font-bold">Nenhuma fatura ou parcela em aberto encontrada para este cliente.</p>
+                        <p className="text-[11px] text-slate-500">As parcelas de crediário e títulos a receber gerados no ERP aparecerão automaticamente nesta lista.</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {groupedInvoices.map((group) => {
+                          const isExpanded = expandedSales[group.saleKey] ?? false;
+
+                          return (
+                            <div 
+                              key={group.saleKey} 
+                              className={`rounded-2xl border overflow-hidden transition-all shadow-xs ${
+                                isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-300'
+                              }`}
+                            >
+                              {/* Expandable Accordion Header */}
+                              <button
+                                type="button"
+                                onClick={() => toggleSaleAccordion(group.saleKey)}
+                                className={`w-full p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-left transition-colors cursor-pointer ${
+                                  isExpanded 
+                                    ? isDark ? 'bg-slate-800/50' : 'bg-amber-50/50' 
+                                    : isDark ? 'hover:bg-slate-800/30' : 'hover:bg-slate-50'
+                                }`}
+                              >
+                                <div className="flex items-center space-x-3">
+                                  <div className={`p-1.5 rounded-lg border transition-transform duration-200 ${
+                                    isExpanded ? 'rotate-180 bg-amber-500/20 border-amber-500/40 text-amber-400' : 'bg-slate-800 border-slate-700 text-slate-400'
+                                  }`}>
+                                    <ChevronDown className="h-4 w-4" />
+                                  </div>
+
+                                  <div className="space-y-0.5">
+                                    <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+                                      <span className="font-black text-sm text-slate-100 flex items-center space-x-1.5">
+                                        <span>Venda / Doc #{group.docNum}</span>
+                                        {group.idVenda && group.idVenda !== group.docNum && (
+                                          <span className="text-amber-400 font-mono text-xs">(ID Venda: #{group.idVenda})</span>
+                                        )}
+                                      </span>
+
+                                      <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-slate-800 text-slate-300 border border-slate-700">
+                                        {group.items.length} {group.items.length === 1 ? 'Parcela' : 'Parcelas'}
+                                      </span>
+                                    </div>
+                                    <p className="text-[11px] text-slate-400 font-medium">{group.historico}</p>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center space-x-4 text-xs shrink-0 pl-8 sm:pl-0">
+                                  <div className="text-right">
+                                    <span className="text-[10px] text-slate-400 block font-bold uppercase">Total da Compra</span>
+                                    <span className="font-black text-slate-200">{formatCurrency(group.totalVal)}</span>
+                                  </div>
+
+                                  {group.totalPending > 0 ? (
+                                    <div className="text-right">
+                                      <span className="text-[10px] text-amber-400 block font-bold uppercase">Em Aberto</span>
+                                      <span className={`font-black ${group.hasOverdue ? 'text-rose-400 animate-pulse' : 'text-amber-400'}`}>
+                                        {formatCurrency(group.totalPending)}
+                                      </span>
+                                    </div>
+                                  ) : (
+                                    <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                                      ✓ Quitada
+                                    </span>
+                                  )}
+                                </div>
+                              </button>
+
+                              {/* Accordion Content Panel */}
+                              {isExpanded && (
+                                <div className={`p-4 pt-2 border-t space-y-3 animate-in fade-in duration-200 ${
+                                  isDark ? 'border-slate-800/80 bg-slate-950/40' : 'border-slate-200 bg-slate-50/50'
+                                }`}>
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                    {group.items.map((inv, idx) => {
+                                      const parcNum = inv.parcela || `${idx + 1}/${group.items.length}`;
+                                      const dtVenc = formatDate(inv.data_vencimento || inv.vencimento);
+                                      const dtEmis = formatDate(inv.data_emissao || inv.emissao);
+                                      const valParcela = inv.valor_parcela ?? inv.valor ?? inv.saldo ?? 0;
+                                      const statusRaw = (inv.situacao || inv.status || 'Pendente').toUpperCase();
+                                      
+                                      const isPaid = statusRaw.includes('PAG') || statusRaw.includes('BAIX') || statusRaw === 'L';
+                                      const isOverdue = statusRaw.includes('VENC') || statusRaw.includes('ATRAS');
+
+                                      return (
+                                        <div 
+                                          key={inv.id || idx}
+                                          className={`p-3.5 rounded-xl border flex items-center justify-between gap-3 ${
+                                            isPaid 
+                                              ? isDark ? 'bg-emerald-950/30 border-emerald-500/30' : 'bg-emerald-50 border-emerald-300'
+                                              : isOverdue
+                                                ? isDark ? 'bg-rose-950/40 border-rose-500/50' : 'bg-rose-50 border-rose-400'
+                                                : isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'
+                                          }`}
+                                        >
+                                          <div className="space-y-1.5">
+                                            <div className="flex items-center space-x-2">
+                                              <span className={`font-black text-sm leading-none ${
+                                                isDark ? 'text-white' : 'text-slate-900'
+                                              }`}>
+                                                Parcela {parcNum}
+                                              </span>
+                                              {isPaid ? (
+                                                <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-emerald-500/25 text-emerald-300 border border-emerald-500/50">
+                                                  ✓ Paga
+                                                </span>
+                                              ) : isOverdue ? (
+                                                <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-rose-500/25 text-rose-300 border border-rose-500/50 animate-pulse">
+                                                  ⚠️ Atrasada
+                                                </span>
+                                              ) : (
+                                                <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-sky-500/25 text-sky-300 border border-sky-500/50">
+                                                  A Vencer
+                                                </span>
+                                              )}
+                                            </div>
+
+                                            <p className={`text-xs font-bold ${
+                                              isDark ? 'text-slate-300' : 'text-slate-700'
+                                            }`}>
+                                              Vencimento:{' '}
+                                              <span className={`font-mono font-extrabold ${
+                                                isOverdue ? (isDark ? 'text-rose-400' : 'text-rose-600') : (isDark ? 'text-amber-300' : 'text-amber-700')
+                                              }`}>{dtVenc}</span>
+                                            </p>
+                                          </div>
+
+                                          <div className="text-right shrink-0">
+                                            <span className={`text-[10px] font-black uppercase tracking-wider block ${
+                                              isDark ? 'text-slate-400' : 'text-slate-600'
+                                            }`}>Valor</span>
+                                            <span className={`font-black text-sm leading-tight ${
+                                              isPaid 
+                                                ? (isDark ? 'text-slate-500 line-through' : 'text-slate-400 line-through')
+                                                : isOverdue
+                                                  ? (isDark ? 'text-rose-400' : 'text-rose-600')
+                                                  : (isDark ? 'text-emerald-400' : 'text-emerald-700')
+                                            }`}>
+                                              {formatCurrency(valParcela)}
+                                            </span>
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
 
                   <div className={`p-4 rounded-2xl border space-y-2 ${
