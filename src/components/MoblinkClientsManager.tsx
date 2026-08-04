@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { UserProfile, Product, CrediarioStatus } from '../types';
-import { moblinkClientesService, MoblinkContaReceber } from '../services/moblinkClientesService';
+import { moblinkClientesService, MoblinkContaReceber, getInstallmentAmount } from '../services/moblinkClientesService';
 import { collection, getDocs, doc, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { 
@@ -210,10 +210,11 @@ export const MoblinkClientsManager: React.FC<MoblinkClientsManagerProps> = ({ is
       const saleKey = idVenda ? `venda_${idVenda}` : `doc_${docNum}`;
       
       const historico = String(inv.historico || inv.historico_origem || 'Carnê de Loja Evidência');
-      const val = inv.valor_parcela ?? inv.valor ?? inv.saldo ?? 0;
-      const statusRaw = (inv.situacao || inv.status || 'Pendente').toUpperCase();
-      const isPaid = statusRaw.includes('PAG') || statusRaw.includes('BAIX') || statusRaw === 'L';
-      const isOverdue = !isPaid && (statusRaw.includes('VENC') || statusRaw.includes('ATRAS'));
+      const amountInfo = getInstallmentAmount(inv);
+      const val = amountInfo.originalAmount;
+      const currentPayableVal = amountInfo.displayAmount;
+      const isPaid = amountInfo.isPaid;
+      const isOverdue = amountInfo.isOverdue;
 
       if (!groupsMap[saleKey]) {
         groupsMap[saleKey] = {
@@ -232,9 +233,9 @@ export const MoblinkClientsManager: React.FC<MoblinkClientsManagerProps> = ({ is
       groupsMap[saleKey].items.push(inv);
       groupsMap[saleKey].totalVal += val;
       if (isPaid) {
-        groupsMap[saleKey].totalPaid += val;
+        groupsMap[saleKey].totalPaid += currentPayableVal;
       } else {
-        groupsMap[saleKey].totalPending += val;
+        groupsMap[saleKey].totalPending += currentPayableVal;
       }
 
       if (isOverdue) {
@@ -1398,11 +1399,9 @@ export const MoblinkClientsManager: React.FC<MoblinkClientsManagerProps> = ({ is
                                       const parcNum = inv.parcela || `${idx + 1}/${group.items.length}`;
                                       const dtVenc = formatDate(inv.data_vencimento || inv.vencimento);
                                       const dtEmis = formatDate(inv.data_emissao || inv.emissao);
-                                      const valParcela = inv.valor_parcela ?? inv.valor ?? inv.saldo ?? 0;
-                                      const statusRaw = (inv.situacao || inv.status || 'Pendente').toUpperCase();
-                                      
-                                      const isPaid = statusRaw.includes('PAG') || statusRaw.includes('BAIX') || statusRaw === 'L';
-                                      const isOverdue = statusRaw.includes('VENC') || statusRaw.includes('ATRAS');
+                                      const amountInfo = getInstallmentAmount(inv);
+                                      const isPaid = amountInfo.isPaid;
+                                      const isOverdue = amountInfo.isOverdue;
 
                                       return (
                                         <div 
@@ -1416,7 +1415,7 @@ export const MoblinkClientsManager: React.FC<MoblinkClientsManagerProps> = ({ is
                                           }`}
                                         >
                                           <div className="space-y-1.5">
-                                            <div className="flex items-center space-x-2">
+                                            <div className="flex items-center space-x-2 flex-wrap gap-y-1">
                                               <span className={`font-black text-sm leading-none ${
                                                 isDark ? 'text-white' : 'text-slate-900'
                                               }`}>
@@ -1435,6 +1434,11 @@ export const MoblinkClientsManager: React.FC<MoblinkClientsManagerProps> = ({ is
                                                   A Vencer
                                                 </span>
                                               )}
+                                              {amountInfo.hasInterest && (
+                                                <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-amber-500/25 text-amber-300 border border-amber-500/50" title={`Inclui ${formatCurrency(amountInfo.interestAmount)} de juros/encargos do ERP`}>
+                                                  + Juros ERP
+                                                </span>
+                                              )}
                                             </div>
 
                                             <p className={`text-xs font-bold ${
@@ -1450,16 +1454,23 @@ export const MoblinkClientsManager: React.FC<MoblinkClientsManagerProps> = ({ is
                                           <div className="text-right shrink-0">
                                             <span className={`text-[10px] font-black uppercase tracking-wider block ${
                                               isDark ? 'text-slate-400' : 'text-slate-600'
-                                            }`}>Valor</span>
-                                            <span className={`font-black text-sm leading-tight ${
+                                            }`}>
+                                              {isPaid ? 'Valor Pago' : (amountInfo.hasInterest ? 'Saldo a Pagar (c/ Juros)' : 'Saldo Devedor')}
+                                            </span>
+                                            <span className={`font-black text-sm leading-tight block ${
                                               isPaid 
                                                 ? (isDark ? 'text-slate-500 line-through' : 'text-slate-400 line-through')
                                                 : isOverdue
                                                   ? (isDark ? 'text-rose-400' : 'text-rose-600')
                                                   : (isDark ? 'text-emerald-400' : 'text-emerald-700')
                                             }`}>
-                                              {formatCurrency(valParcela)}
+                                              {formatCurrency(amountInfo.displayAmount)}
                                             </span>
+                                            {amountInfo.hasInterest && (
+                                              <span className={`text-[9px] font-bold block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                                Orig.: {formatCurrency(amountInfo.originalAmount)}
+                                              </span>
+                                            )}
                                           </div>
                                         </div>
                                       );

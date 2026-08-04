@@ -300,9 +300,60 @@ export interface MoblinkContaReceber {
   valor_parcela?: number | null;
   valor_pago?: number | null;
   saldo?: number | null;
+  saldo_devedor?: number | null;
+  valor_juros?: number | null;
+  juros?: number | null;
   situacao?: string | null;
   status?: string | null;
   historico?: string | null;
   historico_origem?: string | null;
   loja?: string | null;
+}
+
+/**
+ * Calcula o valor atualizado da parcela priorizando o campo `saldo_devedor` (com juros/encargos do ERP)
+ */
+export function getInstallmentAmount(inv: MoblinkContaReceber): {
+  displayAmount: number;
+  originalAmount: number;
+  hasInterest: boolean;
+  interestAmount: number;
+  isPaid: boolean;
+  isOverdue: boolean;
+} {
+  const statusRaw = (inv.situacao || inv.status || 'Pendente').toUpperCase();
+  const isPaid = statusRaw.includes('PAG') || statusRaw.includes('BAIX') || statusRaw === 'L';
+  const isOverdue = !isPaid && (statusRaw.includes('VENC') || statusRaw.includes('ATRAS'));
+
+  const originalAmount = inv.valor_parcela ?? inv.valor ?? inv.saldo ?? 0;
+
+  if (isPaid) {
+    return {
+      displayAmount: inv.valor_pago && inv.valor_pago > 0 ? inv.valor_pago : originalAmount,
+      originalAmount,
+      hasInterest: false,
+      interestAmount: 0,
+      isPaid,
+      isOverdue: false
+    };
+  }
+
+  // Prioriza o campo saldo_devedor oficial do ERP MobLink (com juros/encargos aplicados)
+  const saldoDevedor = (inv.saldo_devedor !== undefined && inv.saldo_devedor !== null && inv.saldo_devedor >= 0)
+    ? inv.saldo_devedor
+    : (inv.saldo !== undefined && inv.saldo !== null && inv.saldo > 0 ? inv.saldo : originalAmount);
+
+  // Cálculo de juros/encargos extras
+  const explicitJuros = inv.juros ?? inv.valor_juros ?? 0;
+  const computedInterest = saldoDevedor > originalAmount ? saldoDevedor - originalAmount : explicitJuros;
+  const hasInterest = computedInterest > 0.01;
+
+  return {
+    displayAmount: saldoDevedor,
+    originalAmount,
+    hasInterest,
+    interestAmount: computedInterest,
+    isPaid,
+    isOverdue
+  };
 }
