@@ -690,7 +690,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         stock: liveStock, // Direct from Moblink API (>= 0)
         saldo_loja: liveStock,
         saldos_lojas: item.saldos_lojas,
-        category: liveCategory, // Preserved from lojista or Moblink
+        // ---- Classificação ERP: todos os campos mapeados ----
+        category: liveCategory,
+        subcategory: liveSubcategory || catInfo.subcategory || '',
+        nome_grupo: catInfo.nome_grupo || liveCategory,
+        nome_subgrupo: catInfo.nome_subgrupo || liveSubcategory || '',
+        classificacao: catInfo.classificacao || item.classificacao || '',
+        // --------------------------------------------------------
         onSale: Boolean((liveOriginalPrice && liveOriginalPrice > livePrice) || dbRecord?.onSale),
         images: combinedImages, // Preserved from lojista
         foto_uri: dbRecord?.foto_uri || rawFotoUri || combinedImages[0],
@@ -760,7 +766,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const prodList: Product[] = [];
         snapshot.forEach((doc) => {
           const data = doc.data() as Product;
-          prodList.push({ id: doc.id, ...data });
+          const prod = { id: doc.id, ...data };
+
+          // Enriquece campos de categoria se estiverem ausentes ou genéricos
+          // Usa extractClassificacaoCategoria que consulta o classificacaoIndex já populado em memória
+          const needsEnrichment =
+            !prod.nome_grupo ||
+            prod.nome_grupo === 'Geral' ||
+            prod.nome_grupo === prod.classificacao;
+
+          if (needsEnrichment && prod.classificacao) {
+            const catInfo = extractClassificacaoCategoria(prod);
+            if (catInfo.category && catInfo.category !== 'Geral') {
+              prod.category = prod.category && prod.category !== 'Geral' ? prod.category : catInfo.category;
+              prod.subcategory = prod.subcategory || catInfo.subcategory;
+              prod.nome_grupo = catInfo.nome_grupo || prod.nome_grupo;
+              prod.nome_subgrupo = catInfo.nome_subgrupo || prod.nome_subgrupo || '';
+            }
+          }
+
+          prodList.push(prod);
         });
         
         // Populate state directly with products from Firestore database
@@ -783,8 +808,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Seed and listen to categories in Firestore
   useEffect(() => {
-    // Sincroniza a rota de grupos oficial do MobLink ERP (GET /api/v1/produtos/grupos)
-    moblinkCategoriesService.syncCategoriesToFirestore(products).catch(err => {
+    // Sincroniza a rota de grupos oficial do MobLink ERP apenas uma vez no mount.
+    // A guarda _gruposApiFailed no serviço previne spam em caso de token expirado (401).
+    moblinkCategoriesService.syncCategoriesToFirestore().catch(err => {
       console.warn("Sincronização de grupos MobLink via API falhou/adiada:", err);
     });
 
@@ -806,7 +832,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setIsLoadingCategories(false);
     });
     return unsubscribe;
-  }, [products.length]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Listen to orders with strict user UID isolation using orderService
   useEffect(() => {

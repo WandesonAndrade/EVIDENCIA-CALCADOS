@@ -20,6 +20,10 @@ export const Header: React.FC = () => {
     setSearchQuery,
     selectedMenuTab,
     setSelectedMenuTab,
+    selectedCategory,
+    setSelectedCategory,
+    selectedSubcategory,
+    setSelectedSubcategory,
     favorites = [],
     theme,
     toggleTheme
@@ -39,6 +43,7 @@ export const Header: React.FC = () => {
 
   const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
 
+  // Navega para category-page somente quando necessário (hero banners, etc)
   const handleMenuClick = (tab: string) => {
     setSelectedMenuTab(tab);
     setCurrentView('category-page');
@@ -47,10 +52,34 @@ export const Header: React.FC = () => {
     }, 100);
   };
 
+  // Filtra inline na vitrine principal sem mudar de view
+  const handleDeptFilter = (categoryName: string) => {
+    setSelectedCategory(categoryName.toUpperCase());
+    if (currentView !== 'home') {
+      setCurrentView('home');
+    }
+    setTimeout(() => {
+      scrollToSectionWithOffset('catalog-products-section');
+    }, 120);
+  };
+
   const getNavLinkClass = (tab: string) => {
     const isActive = currentView === 'category-page' && selectedMenuTab === tab;
     return `relative text-xs sm:text-sm font-black tracking-widest uppercase transition-all cursor-pointer px-4 py-1.5 rounded-full flex items-center space-x-1.5 ${
       isActive 
+        ? isDark
+          ? 'text-amber-400 bg-amber-400/10 border border-amber-400/30 shadow-[0_0_15px_rgba(245,158,11,0.25)]'
+          : 'text-slate-900 bg-slate-100 border border-slate-200/80 shadow-xs'
+        : isDark
+          ? 'text-slate-300 hover:text-amber-400 hover:bg-slate-800/50'
+          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+    }`;
+  };
+
+  const getDeptPillClass = (categoryUpper: string) => {
+    const isActive = currentView === 'home' && selectedCategory === categoryUpper;
+    return `relative text-xs sm:text-sm font-black tracking-widest uppercase transition-all cursor-pointer px-4 py-1.5 rounded-full flex items-center space-x-1.5 ${
+      isActive
         ? isDark
           ? 'text-amber-400 bg-amber-400/10 border border-amber-400/30 shadow-[0_0_15px_rgba(245,158,11,0.25)]'
           : 'text-slate-900 bg-slate-100 border border-slate-200/80 shadow-xs'
@@ -329,63 +358,28 @@ export const Header: React.FC = () => {
           </div>
         </div>
 
-        {/* LINHA INFERIOR (TIER 2): Barra de Navegação Dedicada aos Macro-Departamentos */}
+        {/* LINHA INFERIOR (TIER 2): Barra de Navegação — Categorias Principais (Departamentos) */}
         <div className={`border-t py-2 flex items-center overflow-x-auto no-scrollbar ${
           isDark ? 'border-slate-800/60' : 'border-slate-200/60'
         }`}>
           <nav id="macro-departments-nav" className="flex items-center space-x-2 sm:space-x-3 py-0.5 whitespace-nowrap">
             {[
-              { id: 'calcados-femininos', label: 'Calçados Femininos' },
-              { id: 'calcados-masculinos', label: 'Calçados Masculinos' },
-              { id: 'calcados-infantil-feminino', label: 'Infantil Feminino' },
-              { id: 'calcados-infantil-masculino', label: 'Infantil Masculino' }
+              { id: 'TODOS', label: 'Todos os Departamentos' },
+              { id: 'CALÇADOS', label: 'Calçados' },
+              { id: 'ACESSÓRIOS', label: 'Acessórios' },
+              { id: 'COSMÉTICOS', label: 'Cosméticos' },
+              { id: 'PERFUMES', label: 'Perfumes' },
+              { id: 'ESCOLAR', label: 'Escolar' },
+              { id: 'ITENS DE VIAGENS', label: 'Itens de Viagens' },
             ].map(dept => (
               <button 
                 key={dept.id}
-                onClick={() => handleMenuClick(dept.id)}
-                className={getNavLinkClass(dept.id)}
+                onClick={() => handleDeptFilter(dept.id)}
+                className={getDeptPillClass(dept.id)}
               >
                 {dept.label}
               </button>
             ))}
-
-            {/* Menu Suspenso Outros Departamentos no Header com Grupos & Subgrupos do ERP */}
-            <div className="relative shrink-0">
-              <select
-                value=""
-                onChange={(e) => {
-                  if (e.target.value) {
-                    handleMenuClick(e.target.value);
-                  }
-                }}
-                className={`text-xs font-black tracking-widest uppercase transition-all cursor-pointer px-3 py-1.5 rounded-full border focus:outline-none ${
-                  isDark
-                    ? 'text-slate-300 bg-slate-900/90 border-slate-800 hover:border-slate-700'
-                    : 'text-slate-700 bg-slate-100 border-slate-200 hover:bg-white'
-                }`}
-              >
-                <option value="" disabled>Grupos & Departamentos ▾</option>
-                <optgroup label="Calçados">
-                  <option value="calcados-femininos" className={isDark ? "bg-slate-900 text-slate-100" : "bg-white text-slate-900"}>Calçados Femininos</option>
-                  <option value="calcados-masculinos" className={isDark ? "bg-slate-900 text-slate-100" : "bg-white text-slate-900"}>Calçados Masculinos</option>
-                  <option value="calcados-infantil-feminino" className={isDark ? "bg-slate-900 text-slate-100" : "bg-white text-slate-900"}>Infantil Feminino</option>
-                  <option value="calcados-infantil-masculino" className={isDark ? "bg-slate-900 text-slate-100" : "bg-white text-slate-900"}>Infantil Masculino</option>
-                </optgroup>
-                <optgroup label="Acessórios">
-                  <option value="acessorios" className={isDark ? "bg-slate-900 text-slate-100" : "bg-white text-slate-900"}>Acessórios (Geral)</option>
-                  <option value="acessorios" className={isDark ? "bg-slate-900 text-slate-100" : "bg-white text-slate-900"}>Bonés & Chapéus</option>
-                  <option value="acessorios" className={isDark ? "bg-slate-900 text-slate-100" : "bg-white text-slate-900"}>Relógios</option>
-                  <option value="acessorios" className={isDark ? "bg-slate-900 text-slate-100" : "bg-white text-slate-900"}>Bolsas & Carteiras</option>
-                  <option value="acessorios" className={isDark ? "bg-slate-900 text-slate-100" : "bg-white text-slate-900"}>Cintos</option>
-                </optgroup>
-                <optgroup label="Outros Departamentos">
-                  <option value="cosmeticos" className={isDark ? "bg-slate-900 text-slate-100" : "bg-white text-slate-900"}>Cosméticos</option>
-                  <option value="perfumes" className={isDark ? "bg-slate-900 text-slate-100" : "bg-white text-slate-900"}>Perfumes</option>
-                  <option value="escolar" className={isDark ? "bg-slate-900 text-slate-100" : "bg-white text-slate-900"}>Escolar</option>
-                  <option value="itens-de-viagens" className={isDark ? "bg-slate-900 text-slate-100" : "bg-white text-slate-900"}>Itens de Viagens</option>
-                </optgroup>
-              </select>
-            </div>
           </nav>
         </div>
 

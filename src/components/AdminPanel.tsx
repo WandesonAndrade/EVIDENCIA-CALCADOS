@@ -23,8 +23,10 @@ import {
   Settings, ArrowLeft, UserCheck, EyeOff, ChevronRight, 
   Info, Sliders, Zap, Barcode, Image, ArrowUp, ArrowDown,
   BookOpen, PhoneCall, Globe, CheckCircle2, Sparkles, Layout, HelpCircle,
-  FileText, Briefcase, MapPin, Gift, Heart, ShoppingCart, Cake, AlertTriangle, LogOut, Shield
+  FileText, Briefcase, MapPin, Gift, Heart, ShoppingCart, Cake, AlertTriangle, LogOut, Shield,
+  FolderTree, Tag
 } from 'lucide-react';
+import { moblinkCategoriesService, normalizeCategoryName, normalizeSubcategoryName } from '../services/moblinkCategoriesService';
 
 type AdminTab = 
   | 'overview' 
@@ -84,6 +86,74 @@ export const AdminPanel: React.FC = () => {
   const [activeTab, setActiveTab] = useState<AdminTab>('overview');
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isRestoreModalOpen, setIsRestoreModalOpen] = useState(false);
+  const [isSyncingCategories, setIsSyncingCategories] = useState(false);
+  const [catSyncFeedback, setCatSyncFeedback] = useState<string | null>(null);
+
+  const handleSyncCategoriesFromERP = async () => {
+    setIsSyncingCategories(true);
+    setCatSyncFeedback(null);
+    try {
+      const updatedTree = await moblinkCategoriesService.syncCategoriesToFirestore(products);
+      setCatSyncFeedback(`⚡ Sincronização concluída! ${updatedTree.length} categoria(s) e subcategoria(s) traduzidas salvas.`);
+      addToast("Categorias Atualizadas", "Árvore de categorias e subcategorias do ERP sincronizada com sucesso!");
+    } catch (err: any) {
+      setCatSyncFeedback(`Falha ao sincronizar categorias: ${err.message || 'Erro de conexão'}`);
+      addToast("Erro na Sincronização", err.message || "Não foi possível sincronizar categorias com o ERP", "error");
+    } finally {
+      setIsSyncingCategories(false);
+    }
+  };
+
+  // Tratamento rigoroso das categorias para exibir APENAS nomes legíveis e traduzidos
+  const cleanCategories = useMemo(() => {
+    const map = new Map<string, Category>();
+
+    (categories || []).forEach(cat => {
+      if (!cat || !cat.name) return;
+      const rawName = cat.name.trim();
+
+      // Ignora códigos numéricos brutos (ex: 002.003) ou 'Geral' isolado
+      if (rawName === 'Geral' || /^\d+(\.\d+)?$/.test(rawName)) return;
+
+      const normCatName = normalizeCategoryName(rawName);
+      if (!normCatName || normCatName === 'Geral') return;
+
+      const catKey = normCatName.toUpperCase();
+
+      // Trata e normaliza a lista de subcategorias
+      const cleanSubs = (cat.subcategories || [])
+        .map(sub => {
+          if (!sub || !sub.name) return null;
+          const normSubName = normalizeSubcategoryName(sub.name);
+          if (!normSubName || /^\d+(\.\d+)?$/.test(normSubName)) return null;
+          return {
+            ...sub,
+            name: normSubName
+          };
+        })
+        .filter(Boolean) as any[];
+
+      // Remove subcategorias duplicadas pelo nome normalizado
+      const uniqueSubsMap = new Map<string, any>();
+      cleanSubs.forEach(s => {
+        uniqueSubsMap.set(s.name.toUpperCase(), s);
+      });
+
+      if (!map.has(catKey)) {
+        map.set(catKey, {
+          ...cat,
+          name: normCatName,
+          subcategories: Array.from(uniqueSubsMap.values())
+        });
+      } else {
+        const existing = map.get(catKey)!;
+        (existing.subcategories || []).forEach(s => uniqueSubsMap.set(s.name.toUpperCase(), s));
+        existing.subcategories = Array.from(uniqueSubsMap.values());
+      }
+    });
+
+    return Array.from(map.values());
+  }, [categories]);
 
 
 
@@ -479,7 +549,7 @@ export const AdminPanel: React.FC = () => {
   };
 
   // --- CMS 2: HOME SECTIONS REORDERING & EDITING ---
-  // Sincroniza dinamicamente todas as categorias cadastradas na lista de seções da Home
+  // Sincroniza dinamicamente todas as categorias atuais cadastradas na lista de seções da Home
   const effectiveHomeSections = useMemo(() => {
     const list = [...(homeSections || [])];
 
@@ -497,31 +567,44 @@ export const AdminPanel: React.FC = () => {
       list.unshift(launchesSec);
     }
 
-    // Categorias ativas cadastradas no sistema
-    const activeCats = [
-      ...categories.filter((c) => c.active !== false).map((c) => ({ id: c.id || c.name.toLowerCase().replace(/\s+/g, '-'), name: c.name })),
-      ...products.map((p) => p.category).filter(Boolean).map((cat) => ({ id: cat.toLowerCase().replace(/\s+/g, '-'), name: cat })),
-    ];
+    // Extrai todas as categorias/grupos atuais ativas no sistema (do ERP e do banco)
+    const activeCatNames = new Set<string>();
 
-    const uniqueCatMap = new Map<string, { id: string; name: string }>();
-    activeCats.forEach((c) => {
-      if (!uniqueCatMap.has(c.name.toUpperCase())) {
-        uniqueCatMap.set(c.name.toUpperCase(), c);
+    (categories || []).filter((c) => c && c.active !== false && c.name).forEach((c) => {
+      const norm = normalizeCategoryName(c.name);
+      if (norm && norm !== 'Geral' && !/^\d+(\.\d+)?$/.test(norm)) {
+        activeCatNames.add(norm);
       }
     });
 
-    uniqueCatMap.forEach((catObj, upperName) => {
+    (products || []).forEach((p) => {
+      const raw = p.nome_grupo || p.category || '';
+      if (raw && !/^\d+(\.\d+)?$/.test(raw)) {
+        const norm = normalizeCategoryName(raw);
+        if (norm && norm !== 'Geral' && !/^\d+(\.\d+)?$/.test(norm)) {
+          activeCatNames.add(norm);
+        }
+      }
+    });
+
+    // Para cada categoria atual, garante que exista uma seção correspondente
+    activeCatNames.forEach((catName) => {
+      const catId = catName.toLowerCase().replace(/\s+/g, '-');
+      const upperName = catName.toUpperCase();
+
       const exists = list.some(
         (s) =>
-          s.id === catObj.id ||
+          s.id === catId ||
           s.name.toUpperCase() === upperName ||
-          s.id.toUpperCase() === upperName
+          s.id.toUpperCase() === upperName ||
+          normalizeCategoryName(s.name).toUpperCase() === upperName
       );
+
       if (!exists) {
         list.push({
-          id: catObj.id,
-          name: catObj.name,
-          description: `Prateleira da categoria ${catObj.name}`,
+          id: catId,
+          name: catName,
+          description: `Grade de produtos da categoria ${catName}`,
           enabled: true,
         });
       }
@@ -2171,15 +2254,47 @@ export const AdminPanel: React.FC = () => {
         {/* TAB 8: CATEGORIES MANAGER */}
         {activeTab === 'categories' && (
           <div className="space-y-6 max-w-4xl">
-            <div>
-              <h2 className="text-2xl font-black tracking-tight">Categorias da Loja</h2>
-              <p className="text-xs text-slate-400">Gerencie subcategorias e taxonomias do e-commerce</p>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h2 className="text-2xl font-black tracking-tight flex items-center gap-2">
+                  <FolderTree className="h-6 w-6 text-amber-400" />
+                  <span>Categorias da Loja</span>
+                </h2>
+                <p className="text-xs text-slate-400">
+                  Taxonomia oficial traduzida do e-commerce (exibindo apenas categorias e subcategorias tratadas)
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleSyncCategoriesFromERP}
+                disabled={isSyncingCategories}
+                className="px-4 py-2.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs rounded-xl flex items-center gap-2 transition-all shadow-xs shrink-0 cursor-pointer disabled:opacity-50"
+              >
+                <RefreshCw className={`h-4 w-4 ${isSyncingCategories ? 'animate-spin' : ''}`} />
+                <span>{isSyncingCategories ? 'Sincronizando ERP...' : 'Sincronizar do ERP (MobLink)'}</span>
+              </button>
             </div>
 
+            {catSyncFeedback && (
+              <div className={`p-4 rounded-xl text-xs flex items-center gap-3 ${
+                catSyncFeedback.includes('Falha')
+                  ? 'bg-rose-500/10 border border-rose-500/20 text-rose-300'
+                  : 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-300'
+              }`}>
+                <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
+                <span>{catSyncFeedback}</span>
+              </div>
+            )}
+
+            {/* ADICIONAR NOVA CATEGORIA MANUAL */}
             <div className={`p-6 rounded-3xl border backdrop-blur-xl space-y-4 ${
               isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-200'
             }`}>
-              <h3 className="text-sm font-black">Adicionar Nova Categoria</h3>
+              <h3 className="text-sm font-black text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                <Plus className="h-4 w-4 text-amber-500" />
+                Adicionar Nova Categoria Manual
+              </h3>
               <div className="flex space-x-3">
                 <input
                   type="text"
@@ -2191,36 +2306,98 @@ export const AdminPanel: React.FC = () => {
                   }`}
                 />
                 <button
+                  type="button"
                   onClick={() => {
-                    if (newCatName) {
-                      addCategory({ id: newCatName.toLowerCase().replace(/\s+/g, '-'), name: newCatName });
+                    if (newCatName.trim()) {
+                      const norm = normalizeCategoryName(newCatName.trim());
+                      addCategory({ id: norm.toLowerCase().replace(/\s+/g, '-'), name: norm });
                       setNewCatName('');
+                      addToast("Categoria Adicionada", `Categoria "${norm}" criada com sucesso!`);
                     }
                   }}
-                  className="px-5 py-3 rounded-xl bg-amber-400 text-slate-950 font-black text-xs hover:bg-amber-300 cursor-pointer"
+                  className="px-5 py-3 rounded-xl bg-amber-400 text-slate-950 font-black text-xs hover:bg-amber-300 cursor-pointer shadow-xs"
                 >
                   Adicionar
                 </button>
               </div>
             </div>
 
+            {/* GRID DE CATEGORIAS E SUBCATEGORIAS TRADUZIDAS */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {categories.map((cat) => (
-                <div key={cat.id} className={`p-4 rounded-2xl border flex items-center justify-between ${
-                  isDark ? 'bg-slate-900/40 border-slate-800' : 'bg-white border-slate-200'
-                }`}>
-                  <div>
-                    <p className="font-bold text-sm">{cat.name}</p>
-                    <p className="text-[10px] text-slate-400">ID: {cat.id}</p>
+              {cleanCategories.length > 0 ? (
+                cleanCategories.map((cat) => (
+                  <div key={cat.id} className={`p-5 rounded-2xl border flex flex-col justify-between space-y-4 transition-all shadow-xs ${
+                    isDark ? 'bg-slate-900/50 border-slate-800/80 hover:border-slate-700' : 'bg-white border-slate-200 hover:border-slate-300'
+                  }`}>
+                    <div className="space-y-3">
+                      {/* Cabeçalho da Categoria Traduzida */}
+                      <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800/80">
+                        <div className="flex items-center gap-2.5">
+                          <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-500">
+                            <FolderTree className="h-4 w-4" />
+                          </div>
+                          <div>
+                            <h3 className="font-extrabold text-sm text-slate-800 dark:text-slate-100">
+                              {cat.name}
+                            </h3>
+                            <span className="text-[10px] text-slate-400 font-mono">
+                              {cat.subcategories?.length || 0} subcategoria(s)
+                            </span>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            deleteCategory(cat.id);
+                            addToast("Categoria Removida", `Categoria ${cat.name} foi excluída.`);
+                          }}
+                          title="Excluir Categoria"
+                          className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 rounded-xl transition-all cursor-pointer"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+
+                      {/* Lista de Subcategorias Traduzidas */}
+                      <div className="space-y-1.5 pt-1">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                          Subcategorias Traduzidas:
+                        </span>
+                        
+                        {cat.subcategories && cat.subcategories.length > 0 ? (
+                          <div className="flex flex-wrap gap-1.5">
+                            {cat.subcategories.map((sub: any) => (
+                              <span
+                                key={sub.id || sub.name}
+                                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border flex items-center gap-1 ${
+                                  isDark 
+                                    ? 'bg-slate-800/80 border-slate-700/80 text-slate-200' 
+                                    : 'bg-slate-100 border-slate-200 text-slate-700'
+                                }`}
+                              >
+                                <Tag className="h-3 w-3 text-amber-500 shrink-0" />
+                                {sub.name}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-[11px] text-slate-400 italic">
+                            Nenhuma subcategoria vinculada.
+                          </p>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                  <button
-                    onClick={() => deleteCategory(cat.id)}
-                    className="p-2 text-rose-400 hover:bg-rose-500/10 rounded-xl"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                ))
+              ) : (
+                <div className="col-span-full p-8 rounded-2xl border text-center space-y-3 bg-slate-50 dark:bg-slate-900/30 border-slate-200 dark:border-slate-800">
+                  <FolderTree className="h-8 w-8 text-amber-500 mx-auto" />
+                  <p className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                    Nenhuma categoria traduzida cadastrada. Clique no botão "Sincronizar do ERP (MobLink)" para importar a árvore tratada!
+                  </p>
                 </div>
-              ))}
+              )}
             </div>
           </div>
         )}

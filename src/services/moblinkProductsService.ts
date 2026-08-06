@@ -1,10 +1,13 @@
 import { MoblinkProduto, Product } from "../types";
-import { moblinkCategoriesService, normalizeSubcategoryName } from "./moblinkCategoriesService";
+import {
+  moblinkCategoriesService,
+  normalizeSubcategoryName,
+} from "./moblinkCategoriesService";
 
 export const MOBLINK_OFFICIAL_API_URL =
   "https://api.evidenciacalcados.com.br/api/v1/produtos?pdf=false";
 export const MOBLINK_BEARER_TOKEN =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZFVzZXIiOiI3IiwiaWRMb2phIjoiMCIsImlhdCI6MTc4NTg0Mzg2MSwiZXhwIjoxNzg1OTMwMjYxfQ.-y3Ee_Pql3qa2Bp6g7li-ba3zzTSEJuL0JW3rEpvSIA";
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZFVzZXIiOiI3IiwiaWRMb2phIjoiMCIsImlhdCI6MTc4NTk1NjQwMiwiZXhwIjoxNzg2MDQyODAyfQ.YWNd_X5z0xOIBrusf4K0gf-zVzkP3723qQIxME50k98";
 
 /**
  * Extrai o nome-base (modelo principal/raiz) e a variação de cor/estilo de um nome completo de produto.
@@ -300,7 +303,8 @@ export const extractClassificacaoCategoria = (
   let resolvedSubgrupo = rawSubclassificacao;
 
   if (isNumericCode) {
-    const resolved = moblinkCategoriesService.resolveClassificacao(rawClassificacao);
+    const resolved =
+      moblinkCategoriesService.resolveClassificacao(rawClassificacao);
     if (resolved && resolved.category !== "Geral") {
       category = resolved.category;
       subcategory = resolved.subcategory || subcategory;
@@ -309,7 +313,7 @@ export const extractClassificacaoCategoria = (
     }
   } else {
     // Se for string, tentamos capitalizar normalmente e usar como categoria
-    category = rawClassificacao || "Geral"; 
+    category = rawClassificacao || "Geral";
   }
 
   return {
@@ -381,8 +385,11 @@ export const sanitizeProductForFirestore = (
     name,
     category,
     subcategory,
-    nome_grupo: category,
-    nome_subgrupo: subcategory,
+    // Preserva os campos de grupo ERP originais (ex: "CALCADOS", "INFANTIL MASCULINO")
+    // sem sobrescrever com a versão normalizada que perderia a estrutura hierárquica do ERP
+    nome_grupo: catInfo.nome_grupo || (product as any).nome_grupo || category,
+    nome_subgrupo: catInfo.nome_subgrupo || (product as any).nome_subgrupo || subcategory,
+    classificacao: classificacao || (product as any).classificacao || '',
     price,
     preco_venda: price,
     precoVista,
@@ -452,7 +459,7 @@ export const extractSaldoLojaMoblink = (item: any): number => {
  * para buscar todos os lotes (suportando mais de 1.800 produtos).
  */
 export const getProdutosMoblink = async (
-  onProgress?: (current: number, total: number, phase: string) => void
+  onProgress?: (current: number, total: number, phase: string) => void,
 ): Promise<MoblinkProduto[]> => {
   const allItemsRaw: any[] = [];
   let lastPage = 1;
@@ -464,7 +471,7 @@ export const getProdutosMoblink = async (
     };
 
     if (onProgress) {
-      onProgress(0, 1, 'Iniciando sincronização com ERP (página 1/1)...');
+      onProgress(0, 1, "Iniciando sincronização com ERP (página 1/1)...");
     }
 
     // 1. Carrega a página 1 para detectar o número total de páginas (lastPage)
@@ -483,7 +490,9 @@ export const getProdutosMoblink = async (
     }
 
     if (!response.ok) {
-      throw new Error(`Erro HTTP ${response.status} na API do MobLink (página 1)`);
+      throw new Error(
+        `Erro HTTP ${response.status} na API do MobLink (página 1)`,
+      );
     }
 
     const data = await response.json();
@@ -510,7 +519,8 @@ export const getProdutosMoblink = async (
 
     const totalCount = meta.total || data.total;
     if (typeof totalCount === "number" && totalCount > 0) {
-      const itemsPerPage = meta.per_page || data.per_page || page1List.length || 15;
+      const itemsPerPage =
+        meta.per_page || data.per_page || page1List.length || 15;
       const calculatedLastPage = Math.ceil(totalCount / itemsPerPage);
       if (calculatedLastPage > lastPage) {
         lastPage = calculatedLastPage;
@@ -519,12 +529,19 @@ export const getProdutosMoblink = async (
 
     // Se houver mais páginas, carrega em paralelo com limite de concorrência de 5
     if (lastPage > 1) {
-      const remainingPages = Array.from({ length: lastPage - 1 }, (_, i) => i + 2);
+      const remainingPages = Array.from(
+        { length: lastPage - 1 },
+        (_, i) => i + 2,
+      );
       const concurrencyLimit = 5;
       let completedCount = 1;
 
       if (onProgress) {
-        onProgress(completedCount, lastPage, `Lendo página 1/${lastPage} obtida...`);
+        onProgress(
+          completedCount,
+          lastPage,
+          `Lendo página 1/${lastPage} obtida...`,
+        );
       }
 
       for (let i = 0; i < remainingPages.length; i += concurrencyLimit) {
@@ -558,7 +575,7 @@ export const getProdutosMoblink = async (
                 onProgress(
                   completedCount,
                   lastPage,
-                  `Baixando dados do ERP MobLink (${completedCount}/${lastPage} páginas)`
+                  `Baixando dados do ERP MobLink (${completedCount}/${lastPage} páginas)`,
                 );
               }
               return list;
@@ -566,7 +583,7 @@ export const getProdutosMoblink = async (
               console.error(`Erro ao sincronizar página ${page}:`, err);
               return [];
             }
-          })
+          }),
         );
 
         chunkResults.forEach((list) => {
@@ -742,32 +759,48 @@ export const hasProductChanged = (
   if (!existing || !fresh) return true;
 
   // 1. Preço de Tabela (Carnê / Prazo)
-  const freshPrice = (fresh as any).price ?? (fresh as any).preco_venda ?? extractPrecoTabelaMoblink(fresh);
+  const freshPrice =
+    (fresh as any).price ??
+    (fresh as any).preco_venda ??
+    extractPrecoTabelaMoblink(fresh);
   const existingPrice = existing.price ?? existing.preco_venda ?? 0;
   if (Math.abs(freshPrice - existingPrice) > 0.01) return true;
 
   // 2. Preço à Vista (PIX)
-  const freshVista = (fresh as any).precoVista ?? (fresh as any).preco_vista ?? extractPrecoVistaMoblink(fresh);
+  const freshVista =
+    (fresh as any).precoVista ??
+    (fresh as any).preco_vista ??
+    extractPrecoVistaMoblink(fresh);
   const existingVista = existing.precoVista ?? existing.preco_vista ?? 0;
   if (Math.abs(freshVista - existingVista) > 0.01) return true;
 
   // 3. Estoque
-  const freshStock = (fresh as any).stock ?? (fresh as any).saldo_loja ?? extractSaldoLojaMoblink(fresh);
+  const freshStock =
+    (fresh as any).stock ??
+    (fresh as any).saldo_loja ??
+    extractSaldoLojaMoblink(fresh);
   const existingStock = existing.stock ?? existing.saldo_loja ?? 0;
   if (freshStock !== existingStock) return true;
 
   // 4. Nome / Descrição
-  const freshName = (fresh as any).name ?? (fresh as any).nome ?? (fresh as any).descricao;
+  const freshName =
+    (fresh as any).name ?? (fresh as any).nome ?? (fresh as any).descricao;
   if (freshName && existing.name !== freshName) return true;
 
   // 5. Classificação ERP
-  const freshClass = String((fresh as any).classificacao || '').trim();
-  const existingClass = String((existing as any).classificacao || '').trim();
+  const freshClass = String((fresh as any).classificacao || "").trim();
+  const existingClass = String((existing as any).classificacao || "").trim();
   if (freshClass && existingClass && freshClass !== existingClass) return true;
 
   // 6. Complemento de descrição
-  const freshCompl = String((fresh as any).compl_descr || (fresh as any).descr_compl || '').trim();
-  const existingCompl = String((existing as any).compl_descr || (existing as any).description_completa || '').trim();
+  const freshCompl = String(
+    (fresh as any).compl_descr || (fresh as any).descr_compl || "",
+  ).trim();
+  const existingCompl = String(
+    (existing as any).compl_descr ||
+      (existing as any).description_completa ||
+      "",
+  ).trim();
   // Se antes não tinha descrição e agora tem, ou se mudou
   if (freshCompl && existingCompl && freshCompl !== existingCompl) return true;
 
@@ -804,18 +837,23 @@ export const saveMoblinkCache = (items: MoblinkProduto[]): void => {
       items,
       cachedAt: new Date().toISOString(),
     };
-    localStorage.setItem('moblink_products_cache', JSON.stringify(data));
+    localStorage.setItem("moblink_products_cache", JSON.stringify(data));
   } catch (err) {
-    console.warn('[moblinkProductsService] Falha ao salvar cache no localStorage:', err);
+    console.warn(
+      "[moblinkProductsService] Falha ao salvar cache no localStorage:",
+      err,
+    );
   }
 };
 
 /**
  * Recupera a lista de produtos salvos no cache. Retorna null se não houver ou se for inválido.
  */
-export const loadMoblinkCache = (maxAgeMinutes = 30): MoblinkProduto[] | null => {
+export const loadMoblinkCache = (
+  maxAgeMinutes = 30,
+): MoblinkProduto[] | null => {
   try {
-    const cacheStr = localStorage.getItem('moblink_products_cache');
+    const cacheStr = localStorage.getItem("moblink_products_cache");
     if (!cacheStr) return null;
 
     const cacheData = JSON.parse(cacheStr);
@@ -828,14 +866,16 @@ export const loadMoblinkCache = (maxAgeMinutes = 30): MoblinkProduto[] | null =>
     const diffMin = (now - cachedTime) / (1000 * 60);
 
     if (diffMin > maxAgeMinutes) {
-      localStorage.removeItem('moblink_products_cache'); // Expira o cache antigo
+      localStorage.removeItem("moblink_products_cache"); // Expira o cache antigo
       return null;
     }
 
     return cacheData.items;
   } catch (err) {
-    console.warn('[moblinkProductsService] Falha ao ler cache do localStorage:', err);
+    console.warn(
+      "[moblinkProductsService] Falha ao ler cache do localStorage:",
+      err,
+    );
     return null;
   }
 };
-

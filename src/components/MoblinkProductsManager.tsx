@@ -12,7 +12,7 @@ import {
   saveMoblinkCache,
   loadMoblinkCache
 } from '../services/moblinkProductsService';
-import { moblinkCategoriesService } from '../services/moblinkCategoriesService';
+import { moblinkCategoriesService, normalizeCategoryName, normalizeSubcategoryName } from '../services/moblinkCategoriesService';
 import { db } from '../lib/firebase';
 import { doc, setDoc } from 'firebase/firestore';
 import { 
@@ -931,7 +931,7 @@ export const MoblinkProductsManager: React.FC = () => {
     e.preventDefault();
     if (selectedIdsList.length === 0 || !batchCategory.trim()) return;
 
-    const newCat = batchCategory.trim();
+    const newCat = normalizeCategoryName(batchCategory.trim());
     setIsSavingBatchCategory(true);
     setFeedback(null);
 
@@ -1092,8 +1092,9 @@ export const MoblinkProductsManager: React.FC = () => {
                             id.includes(query) || 
                             itemBaseName.toLowerCase().includes(query);
 
-      const cat = item.categoria || item.category || 'Outros';
-      const matchesCategory = categoryFilter === 'Todos' || cat === categoryFilter;
+      const rawCat = item.categoria || item.category || item.nome_grupo || 'Geral';
+      const normCat = normalizeCategoryName(rawCat);
+      const matchesCategory = categoryFilter === 'Todos' || normCat.toUpperCase() === categoryFilter.toUpperCase() || rawCat.toUpperCase() === categoryFilter.toUpperCase();
 
       const matchesBaseName = !baseNameFilter || itemBaseName.toLowerCase() === baseNameFilter.toLowerCase();
 
@@ -1131,31 +1132,54 @@ export const MoblinkProductsManager: React.FC = () => {
     return filtered;
   }, [combinedCatalog, searchQuery, categoryFilter, baseNameFilter, syncFilter, hideOutOfStock, sortBy, dbProductsMap]);
 
-  // Categorias oficiais da loja (unificadas com o Firestore/CMS e catálogo)
+  // Categorias oficiais traduzidas da loja
   const storeCategories = useMemo(() => {
-    return Array.from(
-      new Set([
-        ...(categories || []).map(c => c?.name).filter(Boolean),
-        ...(products || []).map(p => p?.category).filter(Boolean),
-        'Sapatos Sociais',
-        'Mocassins',
-        'Botas',
-        'Sapatênis',
-        'Sandálias & Chinelos',
-        'Cintos & Carteiras',
-        'Acessórios',
-        'Geral'
-      ])
-    ).filter((c): c is string => Boolean(c && typeof c === 'string' && c.trim() !== ''));
+    const rawList = [
+      ...(categories || []).map(c => c?.name).filter(Boolean),
+      ...(products || []).map(p => p?.category).filter(Boolean),
+      'Calçados',
+      'Acessórios',
+      'Cosméticos',
+      'Perfumes',
+      'Escolar',
+      'Itens de Viagens'
+    ];
+
+    const uniqueMap = new Map<string, string>();
+    rawList.forEach((c) => {
+      if (typeof c === 'string' && c.trim()) {
+        const raw = c.trim();
+        if (/^\d+(\.\d+)?$/.test(raw)) return;
+        const normalized = normalizeCategoryName(raw);
+        if (normalized && normalized !== 'Geral' && !/^\d+(\.\d+)?$/.test(normalized)) {
+          if (!uniqueMap.has(normalized.toUpperCase())) {
+            uniqueMap.set(normalized.toUpperCase(), normalized);
+          }
+        }
+      }
+    });
+
+    return Array.from(uniqueMap.values());
   }, [categories, products]);
 
   const uniqueCategories = useMemo(() => {
-    return Array.from(
-      new Set([
-        ...storeCategories,
-        ...combinedCatalog.map(i => i?.categoria || i?.category || 'Outros')
-      ])
-    ).filter(Boolean);
+    const uniqueMap = new Map<string, string>();
+
+    storeCategories.forEach(c => uniqueMap.set(c.toUpperCase(), c));
+
+    combinedCatalog.forEach(i => {
+      const raw = (i?.categoria || i?.category || i?.nome_grupo || '').trim();
+      if (raw && !/^\d+(\.\d+)?$/.test(raw)) {
+        const normalized = normalizeCategoryName(raw);
+        if (normalized && normalized !== 'Geral' && !/^\d+(\.\d+)?$/.test(normalized)) {
+          if (!uniqueMap.has(normalized.toUpperCase())) {
+            uniqueMap.set(normalized.toUpperCase(), normalized);
+          }
+        }
+      }
+    });
+
+    return Array.from(uniqueMap.values());
   }, [storeCategories, combinedCatalog]);
 
   // Estrutura Agrupada por Modelo (Nome-Base) para exibição de variações de cores lado a lado
@@ -1846,9 +1870,22 @@ export const MoblinkProductsManager: React.FC = () => {
                                 Ref Pai: {existingDb.modelCode || existingDb.referenceCode}
                               </span>
                             )}
-                            <span className="text-[9px] px-1.5 py-0.2 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded uppercase font-bold">
-                              {item.categoria || item.category || 'Geral'}
-                            </span>
+                            {(() => {
+                              const rawCat = item.categoria || item.category || item.nome_grupo || 'Geral';
+                              const normCat = normalizeCategoryName(rawCat);
+                              const rawSub = item.subcategoria || item.subcategory || item.nome_subgrupo || '';
+                              const normSub = normalizeSubcategoryName(rawSub);
+
+                              return (
+                                <span className="text-[9px] px-2 py-0.5 bg-slate-100 dark:bg-slate-800/90 text-slate-700 dark:text-slate-200 rounded-md font-extrabold border border-slate-200/60 dark:border-slate-700/60 inline-flex items-center gap-1">
+                                  <Tag className="h-2.5 w-2.5 text-amber-500 shrink-0" />
+                                  <span>{normCat}</span>
+                                  {normSub && (
+                                    <span className="text-slate-400 dark:text-slate-400 font-medium"> › {normSub}</span>
+                                  )}
+                                </span>
+                              );
+                            })()}
                             {(() => {
                               const itemSizesStr = Array.isArray(item.tamanhos) && item.tamanhos.length > 0
                                 ? item.tamanhos.join(', ')
@@ -2057,14 +2094,26 @@ export const MoblinkProductsManager: React.FC = () => {
                 </div>
 
                 {/* Classificação ERP */}
-                <div className="space-y-0.5">
-                  <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">Classificação ERP</span>
-                  <span className="font-mono font-bold text-xs text-amber-600 dark:text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20 inline-block">
-                    {selectedProduct.classificacao || selectedProduct.categoria || 'Geral'}
-                  </span>
-                  {selectedProduct.nome_grupo && selectedProduct.nome_grupo !== selectedProduct.classificacao && (
-                    <span className="text-[9px] text-slate-400 block">{selectedProduct.nome_grupo}{selectedProduct.nome_subgrupo ? ` › ${selectedProduct.nome_subgrupo}` : ''}</span>
-                  )}
+                <div className="space-y-1.5">
+                  <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">Categoria / Classificação</span>
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    {/* ESQUERDA: Nome amigável traduzido */}
+                    <span className="inline-flex items-center gap-1.5 text-xs font-extrabold text-slate-800 dark:text-slate-100">
+                      <Tag className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                      <span>{normalizeCategoryName(selectedProduct.nome_grupo || selectedProduct.categoria || selectedProduct.category || 'Geral')}</span>
+                      {(selectedProduct.nome_subgrupo || selectedProduct.subcategoria || selectedProduct.subcategory) && (
+                        <span className="text-slate-400 font-medium">
+                          {' › '}{normalizeSubcategoryName(selectedProduct.nome_subgrupo || selectedProduct.subcategoria || selectedProduct.subcategory || '')}
+                        </span>
+                      )}
+                    </span>
+                    {/* DIREITA: Código bruto ERP (badge) */}
+                    {selectedProduct.classificacao && (
+                      <span className="font-mono font-black text-[11px] text-amber-600 dark:text-amber-400 bg-amber-500/10 border border-amber-500/25 px-2 py-0.5 rounded-lg shrink-0">
+                        {selectedProduct.classificacao}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -2145,19 +2194,40 @@ export const MoblinkProductsManager: React.FC = () => {
                         Definida pela API
                       </span>
                     </label>
-                    <div className="w-full p-2.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-800/50 flex items-center justify-between gap-2">
-                      <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
-                        {selectedProduct?.nome_grupo || selectedProduct?.categoria || selectedProduct?.category || 'Geral'}
-                        {selectedProduct?.nome_subgrupo && (
-                          <span className="text-slate-400 font-normal"> › {selectedProduct.nome_subgrupo}</span>
+
+                    <div className="w-full p-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-800/50">
+                      {/* Layout: esquerda = nome traduzido, direita = código bruto badge */}
+                      <div className="flex items-center justify-between gap-3">
+                        {/* ESQUERDA: Categoria › Subcategoria traduzidas */}
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="p-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 shrink-0">
+                            <Tag className="h-3.5 w-3.5 text-amber-500" />
+                          </div>
+                          <div className="min-w-0">
+                            <span className="text-xs font-extrabold text-slate-800 dark:text-slate-100 block truncate">
+                              {normalizeCategoryName(
+                                (selectedProduct?.categoria || selectedProduct?.category || selectedProduct?.nome_grupo || 'Geral') as string
+                              )}
+                            </span>
+                            {(selectedProduct?.subcategoria || selectedProduct?.subcategory || selectedProduct?.nome_subgrupo) && (
+                              <span className="text-[11px] text-slate-400 dark:text-slate-500 font-medium block truncate">
+                                {'› '}{normalizeSubcategoryName(
+                                  (selectedProduct?.subcategoria || selectedProduct?.subcategory || selectedProduct?.nome_subgrupo || '') as string
+                                )}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* DIREITA: Código bruto do ERP */}
+                        {selectedProduct?.classificacao && (
+                          <span className="font-mono text-[11px] font-black text-amber-600 dark:text-amber-400 bg-amber-500/10 border border-amber-500/25 px-2.5 py-1 rounded-xl shrink-0">
+                            {String(selectedProduct.classificacao)}
+                          </span>
                         )}
-                      </span>
-                      {selectedProduct?.classificacao && (
-                        <span className="font-mono text-[10px] font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded shrink-0">
-                          {selectedProduct.classificacao}
-                        </span>
-                      )}
+                      </div>
                     </div>
+
                     <p className="text-[10px] text-slate-400 dark:text-slate-500">
                       A categoria é definida automaticamente pelo campo <code className="font-mono bg-slate-100 dark:bg-slate-800 px-1 rounded">classificacao</code> da API do ERP e não pode ser editada manualmente.
                     </p>

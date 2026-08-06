@@ -249,6 +249,7 @@ export const ProductList: React.FC = () => {
     selectedSubcategory,
     setSelectedSubcategory,
     searchQuery,
+    setSearchQuery,
     setCurrentView,
     setSelectedProduct,
     favorites = [],
@@ -340,29 +341,6 @@ export const ProductList: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Departamentos oficiais do e-commerce
-  const defaultSubcategories = [
-    "Cosméticos",
-    "Perfumes",
-    "Escolar",
-    "Acessórios",
-    "Calçados infantil masculino",
-    "Calçados infantil feminino",
-    "Calçados masculinos",
-    "Calçados femininos",
-    "Itens de viagens"
-  ];
-
-  const allSubcategories = Array.from(
-    new Set([
-      ...defaultSubcategories,
-      ...dbCategories.map((c) => c.name),
-      ...products.map((p) => p.category).filter(Boolean),
-    ]),
-  );
-
-  const filterTabs = ["TODOS", ...allSubcategories.map((c) => c.toUpperCase())];
-
   const handleVerDetalhes = (prod: Product) => {
     setSelectedProduct(prod);
     setCurrentView("product-detail");
@@ -370,51 +348,52 @@ export const ProductList: React.FC = () => {
 
   const formatNumber = (num: number) => num.toString().padStart(2, "0");
 
-  // Função de filtro universal combinada (Categoria/Grupo + Subcategoria/Subgrupo com normalização)
+  // Função de filtro universal centrada exclusivamente em nome_grupo e nome_subgrupo
   const matchesFilter = useCallback((p: Product) => {
-    // 1. Validação da Categoria (Grupo ERP)
-    let catMatch = false;
-    if (selectedCategory === "TODOS" || !selectedCategory) {
-      catMatch = true;
-    } else {
+    // 1. Validação do Grupo / Categoria (nome_grupo > category)
+    if (selectedCategory !== "TODOS" && selectedCategory) {
       const targetCat = selectedCategory.toUpperCase().trim();
-      const pCatNorm = normalizeCategoryName(p.category || "").toUpperCase().trim();
-      const pGrupoNorm = normalizeCategoryName(p.nome_grupo || "").toUpperCase().trim();
-      const pClass = (p.classificacao || "").toUpperCase().trim();
-      const pRawCat = (p.category || "").toUpperCase().trim();
-      const pRawGrupo = (p.nome_grupo || "").toUpperCase().trim();
 
-      catMatch =
-        pCatNorm === targetCat ||
-        pGrupoNorm === targetCat ||
-        pRawCat === targetCat ||
-        pRawGrupo === targetCat ||
-        pClass === targetCat ||
-        pCatNorm.includes(targetCat) ||
-        pGrupoNorm.includes(targetCat);
+      const grupoRaw = (p.nome_grupo || p.category || "").toUpperCase().trim();
+      const grupoNorm = normalizeCategoryName(p.nome_grupo || p.category || "").toUpperCase().trim();
+      const catNorm = normalizeCategoryName(p.category || "").toUpperCase().trim();
+
+      const catMatch =
+        grupoRaw === targetCat ||
+        grupoNorm === targetCat ||
+        catNorm === targetCat ||
+        (grupoNorm && (grupoNorm.includes(targetCat) || targetCat.includes(grupoNorm))) ||
+        (grupoRaw && (grupoRaw.includes(targetCat) || targetCat.includes(grupoRaw))) ||
+        (targetCat.includes("CALÇADO") && (grupoNorm === "CALÇADOS" || catNorm === "CALÇADOS" || grupoRaw.includes("CALCAD"))) ||
+        (targetCat.includes("ACESSÓRIO") && (grupoNorm === "ACESSÓRIOS" || catNorm === "ACESSÓRIOS" || grupoRaw.includes("ACESSOR"))) ||
+        (targetCat.includes("COSMÉTICO") && (grupoNorm === "COSMÉTICOS" || catNorm === "COSMÉTICOS" || grupoRaw.includes("COSMET"))) ||
+        (targetCat.includes("PERFUME") && (grupoNorm === "PERFUMES" || catNorm === "PERFUMES" || grupoRaw.includes("PERFUM"))) ||
+        (targetCat.includes("ESCOLAR") && (grupoNorm === "ESCOLAR" || catNorm === "ESCOLAR" || grupoRaw.includes("ESCOLAR")));
+
+      if (!catMatch) return false;
     }
 
-    if (!catMatch) return false;
+    // 2. Validação do Subgrupo / Subcategoria (nome_subgrupo > subcategory)
+    if (selectedSubcategory && selectedSubcategory !== "TODAS" && selectedSubcategory !== "TODOS") {
+      const targetSub = selectedSubcategory.toUpperCase().trim();
 
-    // 2. Validação da Subcategoria (Subgrupo ERP)
-    if (!selectedSubcategory || selectedSubcategory === "TODAS" || selectedSubcategory === "TODOS") {
-      return true;
+      const subgrupoRaw = (p.nome_subgrupo || p.subcategory || "").toUpperCase().trim();
+      const subgrupoNorm = normalizeSubcategoryName(p.nome_subgrupo || p.subcategory || "").toUpperCase().trim();
+      const subNorm = normalizeSubcategoryName(p.subcategory || "").toUpperCase().trim();
+
+      const subMatch =
+        subgrupoRaw === targetSub ||
+        subgrupoNorm === targetSub ||
+        subNorm === targetSub ||
+        (subgrupoNorm && (subgrupoNorm.includes(targetSub) || targetSub.includes(subgrupoNorm))) ||
+        (subgrupoRaw && (subgrupoRaw.includes(targetSub) || targetSub.includes(subgrupoRaw))) ||
+        (targetSub.includes("FEMININ") && (subgrupoNorm.includes("FEMININ") || subgrupoRaw.includes("FEMININ") || subNorm.includes("FEMININ"))) ||
+        (targetSub.includes("MASCULIN") && (subgrupoNorm.includes("MASCULIN") || subgrupoRaw.includes("MASCULIN") || subNorm.includes("MASCULIN")));
+
+      if (!subMatch) return false;
     }
 
-    const targetSub = selectedSubcategory.toUpperCase().trim();
-    const pSubNorm = normalizeSubcategoryName(p.subcategory || "").toUpperCase().trim();
-    const pSubGrupoNorm = normalizeSubcategoryName(p.nome_subgrupo || "").toUpperCase().trim();
-    const pRawSub = (p.subcategory || "").toUpperCase().trim();
-    const pRawSubGrupo = (p.nome_subgrupo || "").toUpperCase().trim();
-
-    return (
-      pSubNorm === targetSub ||
-      pSubGrupoNorm === targetSub ||
-      pRawSub === targetSub ||
-      pRawSubGrupo === targetSub ||
-      pSubNorm.includes(targetSub) ||
-      pSubGrupoNorm.includes(targetSub)
-    );
+    return true;
   }, [selectedCategory, selectedSubcategory]);
 
   // Filtra os produtos pela busca do usuário e visibilidade/estoque
@@ -423,39 +402,40 @@ export const ProductList: React.FC = () => {
     const matchesSearch =
       prod.name.toLowerCase().includes(query) ||
       prod.description.toLowerCase().includes(query) ||
-      prod.category.toLowerCase().includes(query) ||
-      (prod.subcategory && prod.subcategory.toLowerCase().includes(query)) ||
       (prod.nome_grupo && prod.nome_grupo.toLowerCase().includes(query)) ||
-      (prod.nome_subgrupo && prod.nome_subgrupo.toLowerCase().includes(query));
+      (prod.nome_subgrupo && prod.nome_subgrupo.toLowerCase().includes(query)) ||
+      prod.category.toLowerCase().includes(query) ||
+      (prod.subcategory && prod.subcategory.toLowerCase().includes(query));
     const isAvailable = (prod.stock !== undefined ? prod.stock > 0 : (prod.saldo_loja ?? 0) > 0);
     return matchesSearch && prod.visible && isAvailable;
   });
 
-  const offersProducts = baseFilteredProducts.filter(
-    (p) => p.onSale && matchesFilter(p)
-  );
+  const matchingCatalog = useMemo(() => {
+    return baseFilteredProducts.filter(matchesFilter);
+  }, [baseFilteredProducts, matchesFilter]);
 
-  const newArrivalsProducts = baseFilteredProducts.filter(
-    (p) => Boolean(p.newArrival) && matchesFilter(p)
-  );
+  const offersProducts = matchingCatalog.filter((p) => p.onSale);
 
-  const shoesProducts = baseFilteredProducts.filter(
-    (p) => p.category.toUpperCase() !== "ACESSÓRIOS" && matchesFilter(p)
-  );
+  const newArrivalsProducts = matchingCatalog.filter((p) => Boolean(p.newArrival));
 
-  const accessoriesProducts = baseFilteredProducts.filter(
-    (p) => p.category.toUpperCase() === "ACESSÓRIOS" && matchesFilter(p)
-  );
+  const shoesProducts = matchingCatalog.filter((p) => {
+    const groupUpper = (p.nome_grupo || p.category || "").toUpperCase();
+    return !groupUpper.includes("ACESSÓRIO") && !groupUpper.includes("ACESSORIO");
+  });
 
-  const totalFilteredCount =
-    offersProducts.length + newArrivalsProducts.length + shoesProducts.length + accessoriesProducts.length;
+  const accessoriesProducts = matchingCatalog.filter((p) => {
+    const groupUpper = (p.nome_grupo || p.category || "").toUpperCase();
+    return groupUpper.includes("ACESSÓRIO") || groupUpper.includes("ACESSORIO");
+  });
+
+  const totalFilteredCount = matchingCatalog.length;
   const maxIndex = Math.max(0, offersProducts.length - cardsPerPage);
   const activeIndex = Math.min(currentIndex, maxIndex);
 
   const maxLaunchIndex = Math.max(0, newArrivalsProducts.length - cardsPerPage);
   const activeLaunchIndex = Math.min(currentLaunchIndex, maxLaunchIndex);
 
-  // Nível 1: Extração e Tratamento de Categorias (Grupos ERP + Banco de Categorias)
+  // Nível 1: Extração de Grupos para Categorias (centrado em nome_grupo)
   const categoriesList = useMemo(() => {
     const uniqueMap = new Map<string, string>(); // UPPER -> Display Traduzido
     uniqueMap.set("TODOS", "TODOS");
@@ -468,7 +448,7 @@ export const ProductList: React.FC = () => {
     });
 
     (products || []).forEach((p) => {
-      const cat = (p.category || p.nome_grupo || "").trim();
+      const cat = (p.nome_grupo || p.category || "").trim();
       if (cat && !/^\d+(\.\d+)?$/.test(cat)) {
         const normalized = normalizeCategoryName(cat);
         if (normalized && normalized !== "Geral" && !/^\d+(\.\d+)?$/.test(normalized)) {
@@ -495,7 +475,7 @@ export const ProductList: React.FC = () => {
     return categoriesList.slice(6);
   }, [categoriesList]);
 
-  // Nível 2: Extração e Tratamento de Subcategorias (Subgrupos ERP) para a Categoria selecionada
+  // Nível 2: Extração e Tratamento de Subgrupos (nome_subgrupo ERP) para a Categoria/Grupo selecionado
   const availableSubcategories = useMemo(() => {
     const subMap = new Map<string, string>(); // UPPER -> Display Traduzido
 
@@ -516,18 +496,24 @@ export const ProductList: React.FC = () => {
       }
     }
 
-    // Subcategorias dos produtos pertencentes à categoria ativa
+    // Subgrupos dos produtos pertencentes ao grupo ativo
     (products || []).forEach((p) => {
       let isCategoryMatch = false;
       if (selectedCategory === "TODOS") {
         isCategoryMatch = true;
       } else {
-        const pCatNorm = normalizeCategoryName(p.category || p.nome_grupo || "").toUpperCase().trim();
-        isCategoryMatch = pCatNorm === selectedCategory || (p.nome_grupo && p.nome_grupo.toUpperCase().trim() === selectedCategory);
+        const targetCat = selectedCategory.toUpperCase().trim();
+        const pGrupoNorm = normalizeCategoryName(p.nome_grupo || p.category || "").toUpperCase().trim();
+        const pGrupoRaw = (p.nome_grupo || p.category || "").toUpperCase().trim();
+        isCategoryMatch =
+          pGrupoNorm === targetCat ||
+          pGrupoRaw === targetCat ||
+          pGrupoNorm.includes(targetCat) ||
+          targetCat.includes(pGrupoNorm);
       }
 
       if (isCategoryMatch) {
-        const rawSub = p.subcategory || p.nome_subgrupo || p.subcategoria || "";
+        const rawSub = (p.nome_subgrupo || p.subcategory || p.subcategoria || "").trim();
         if (rawSub && !/^\d+(\.\d+)?$/.test(rawSub)) {
           const normalizedSub = normalizeSubcategoryName(rawSub);
           if (normalizedSub && !/^\d+(\.\d+)?$/.test(normalizedSub)) {
@@ -593,17 +579,28 @@ export const ProductList: React.FC = () => {
       ref={catalogSectionRef}
       className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-10"
     >
-      {/* Categorias & Subcategorias em Destaque (Nível 1 & Nível 2) */}
-      <div className="space-y-4">
-        {/* CABEÇALHO DO FILTRO */}
-        <div className="flex items-center justify-between flex-wrap gap-2">
+      {/* CAIXA DE SUBCATEGORIAS & FILTROS DA VITRINE */}
+      <div className={`p-4 sm:p-6 rounded-3xl border transition-all space-y-4 shadow-xs backdrop-blur-xl ${
+        isDark ? 'bg-slate-900/70 border-slate-800/90' : 'bg-white/80 border-slate-200/90'
+      }`}>
+        {/* CABEÇALHO DO FILTRO DA VITRINE */}
+        <div className="flex items-center justify-between flex-wrap gap-3 pb-1">
           <div className="flex items-center gap-2">
-            <Filter className="h-4 w-4 text-amber-500" />
-            <span
-              className={`text-xs font-bold uppercase tracking-widest ${isDark ? "text-amber-400" : "text-slate-600"}`}
-            >
-              Navegação por Departamentos
-            </span>
+            <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-500">
+              <Layers className="h-4 w-4" />
+            </div>
+            <div>
+              <span className={`text-xs font-black uppercase tracking-widest block ${isDark ? "text-amber-400" : "text-slate-800"}`}>
+                {selectedCategory !== 'TODOS'
+                  ? `Subcategorias • ${normalizeCategoryName(selectedCategory)}`
+                  : 'Navegação por Subcategorias (Todos os Departamentos)'}
+              </span>
+              <span className="text-[10px] text-slate-400 font-medium">
+                {selectedCategory !== 'TODOS'
+                  ? `Filtre os subgrupos de ${normalizeCategoryName(selectedCategory)}`
+                  : 'Selecione a subcategoria para refinar os produtos exibidos na vitrine'}
+              </span>
+            </div>
           </div>
 
           <div className="flex items-center gap-3">
@@ -611,7 +608,7 @@ export const ProductList: React.FC = () => {
               <span
                 className={`text-xs font-semibold ${isDark ? "text-slate-300" : "text-slate-600"}`}
               >
-                Resultado para:{" "}
+                Busca por:{" "}
                 <span
                   className={`${isDark ? "text-amber-400" : "text-slate-900"} font-bold`}
                 >
@@ -620,121 +617,98 @@ export const ProductList: React.FC = () => {
               </span>
             )}
 
-            <span className={`text-[11px] font-extrabold px-3 py-1 rounded-full border ${
-              isDark ? 'bg-slate-900 border-slate-800 text-amber-400' : 'bg-slate-100 border-slate-200 text-slate-700'
+            <span className={`text-xs font-black px-3.5 py-1.5 rounded-xl border flex items-center gap-1.5 ${
+              isDark ? 'bg-slate-950 border-slate-800 text-amber-400' : 'bg-slate-100 border-slate-200 text-slate-800'
             }`}>
-              {totalFilteredCount} {totalFilteredCount === 1 ? 'produto' : 'produtos'}
+              <Sparkles className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+              {totalFilteredCount} {totalFilteredCount === 1 ? 'produto encontrado' : 'produtos encontrados'}
             </span>
           </div>
         </div>
 
-        {/* NÍVEL 1: PILULAS DE CATEGORIAS PRINCIPAIS */}
-        <div className="flex items-center space-x-2.5 overflow-x-auto no-scrollbar scroll-smooth py-2 px-1">
-          {primaryFootwearPills.map((pill) => {
-            const isSelected = selectedCategory === pill.id;
-
-            return (
-              <motion.button
-                key={pill.id}
-                whileHover={{ scale: 1.04 }}
-                whileTap={{ scale: 0.96 }}
-                onClick={() => handleSelectCategory(pill.id)}
-                className={`whitespace-nowrap px-5 py-2.5 rounded-full text-xs font-bold tracking-wider transition-all duration-200 cursor-pointer border ${
-                  isSelected
-                    ? isDark
-                      ? "bg-amber-400 text-slate-950 border-amber-300 font-black shadow-[0_0_20px_rgba(245,158,11,0.35)] scale-105 z-10"
-                      : "bg-slate-900 text-white border-slate-900 font-black shadow-lg scale-105 z-10"
-                    : isDark
-                      ? "bg-slate-900/40 border-slate-800/80 text-slate-400 hover:bg-slate-800/60 hover:text-slate-200 backdrop-blur-md"
-                      : "bg-white/70 border-slate-200/80 text-slate-600 hover:bg-slate-100 backdrop-blur-md"
-                }`}
-              >
-                {pill.label}
-              </motion.button>
-            );
-          })}
-
-          {/* Combobox Dropdown para Departamentos Secundários */}
-          {secondaryDepartments.length > 0 && (
-            <div className="relative shrink-0">
-              <select
-                value={isSecondaryActive ? selectedCategory : ""}
-                onChange={(e) => {
-                  if (e.target.value) {
-                    handleSelectCategory(e.target.value);
-                  }
-                }}
-                className={`whitespace-nowrap px-4 py-2.5 rounded-full text-xs font-bold tracking-wider transition-all duration-200 cursor-pointer border focus:outline-none ${
-                  isSecondaryActive
-                    ? isDark
-                      ? "bg-amber-400 text-slate-950 border-amber-300 font-black shadow-[0_0_20px_rgba(245,158,11,0.35)]"
-                      : "bg-slate-900 text-white border-slate-900 font-black shadow-lg"
-                    : isDark
-                      ? "bg-slate-900/60 border-slate-800/80 text-slate-300 hover:bg-slate-800 hover:border-slate-700 backdrop-blur-md"
-                      : "bg-white/80 border-slate-200 text-slate-700 hover:bg-slate-50 backdrop-blur-md"
-                }`}
-              >
-                <option value="" disabled>
-                  {isSecondaryActive ? `Outros: ${activeSecondaryLabel}` : "Outros Departamentos ▾"}
-                </option>
-                {secondaryDepartments.map((dept) => (
-                  <option 
-                    key={dept.id} 
-                    value={dept.id}
-                    className={isDark ? "bg-slate-900 text-slate-100" : "bg-white text-slate-900"}
-                  >
-                    {dept.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-        </div>
-
-        {/* NÍVEL 2: SUBCATEGORIAS (Subgrupos ERP) - Exibidas dinamicamente */}
-        {availableSubcategories.length > 1 && (
-          <div className={`p-3.5 rounded-2xl border space-y-2 animate-fade-in ${
-            isDark ? 'bg-slate-900/60 border-slate-800/80' : 'bg-slate-50/90 border-slate-200/70'
-          }`}>
-            <div className="flex items-center justify-between px-1">
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                <Layers className="h-3 w-3 text-amber-500" />
-                Subcategorias {selectedCategory !== 'TODOS' ? `em ${selectedCategory}` : ''}
-              </span>
-              {selectedSubcategory !== 'TODAS' && (
+        {/* PÍLULAS DE SUBCATEGORIAS (SUBGRUPOS ERP) DA CATEGORIA SELECIONADA NO HEADER */}
+        {availableSubcategories.length > 0 && (
+          <div className="flex items-center space-x-2 overflow-x-auto no-scrollbar py-1">
+            {availableSubcategories.map((sub) => {
+              const isSubSelected = selectedSubcategory === sub.id;
+              return (
                 <button
+                  key={sub.id}
                   type="button"
-                  onClick={() => setSelectedSubcategory('TODAS')}
-                  className="text-[10px] font-bold text-amber-500 hover:underline cursor-pointer"
+                  onClick={() => setSelectedSubcategory(sub.id)}
+                  className={`whitespace-nowrap px-4 py-2.5 rounded-2xl text-xs font-extrabold transition-all duration-200 cursor-pointer border flex items-center gap-2 ${
+                    isSubSelected
+                      ? isDark
+                        ? 'bg-amber-400 text-slate-950 border-amber-300 font-black shadow-[0_0_20px_rgba(245,158,11,0.35)] scale-105 z-10'
+                        : 'bg-slate-900 text-white border-slate-900 font-black shadow-lg scale-105 z-10'
+                      : isDark
+                        ? 'bg-slate-950/60 border-slate-800/80 text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                        : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                  }`}
                 >
-                  Limpar Subcategoria ✕
+                  {sub.label}
                 </button>
-              )}
-            </div>
+              );
+            })}
+          </div>
+        )}
 
-            <div className="flex items-center space-x-2 overflow-x-auto no-scrollbar py-1">
-              {availableSubcategories.map((sub) => {
-                const isSubSelected = selectedSubcategory === sub.id;
-                return (
-                  <button
-                    key={sub.id}
-                    type="button"
-                    onClick={() => setSelectedSubcategory(sub.id)}
-                    className={`whitespace-nowrap px-3.5 py-1.5 rounded-xl text-[11px] font-bold transition-all duration-200 cursor-pointer border ${
-                      isSubSelected
-                        ? isDark
-                          ? 'bg-amber-500 text-slate-950 border-amber-400 font-extrabold shadow-sm'
-                          : 'bg-slate-900 text-white border-slate-900 font-extrabold shadow-sm'
-                        : isDark
-                          ? 'bg-slate-800/80 border-slate-700/60 text-slate-300 hover:bg-slate-700/80 hover:text-white'
-                          : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
-                    }`}
-                  >
-                    {sub.label}
-                  </button>
-                );
-              })}
-            </div>
+        {/* BARRA DE FILTROS ATIVOS E ATALHO DE LIMPEZA GERAL */}
+        {(selectedCategory !== 'TODOS' || selectedSubcategory !== 'TODAS' || searchQuery) && (
+          <div className="flex items-center gap-2 flex-wrap pt-2 border-t border-slate-100 dark:border-slate-800/80">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+              Filtros Ativos:
+            </span>
+            {selectedCategory !== 'TODOS' && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400">
+                <span>Dep: {normalizeCategoryName(selectedCategory)}</span>
+                <button 
+                  type="button"
+                  onClick={() => setSelectedCategory('TODOS')} 
+                  className="hover:text-rose-500 cursor-pointer ml-1 font-black"
+                  title="Remover filtro de departamento"
+                >
+                  ✕
+                </button>
+              </span>
+            )}
+            {selectedSubcategory !== 'TODAS' && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400">
+                <span>Sub: {selectedSubcategory}</span>
+                <button 
+                  type="button"
+                  onClick={() => setSelectedSubcategory('TODAS')} 
+                  className="hover:text-rose-500 cursor-pointer ml-1 font-black"
+                  title="Remover filtro de subcategoria"
+                >
+                  ✕
+                </button>
+              </span>
+            )}
+            {searchQuery && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400">
+                <span>Busca: "{searchQuery}"</span>
+                <button 
+                  type="button"
+                  onClick={() => setSearchQuery && setSearchQuery('')} 
+                  className="hover:text-rose-500 cursor-pointer ml-1 font-black"
+                  title="Limpar busca"
+                >
+                  ✕
+                </button>
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedCategory('TODOS');
+                setSelectedSubcategory('TODAS');
+                if (setSearchQuery) setSearchQuery('');
+              }}
+              className="text-[10px] font-extrabold text-rose-500 hover:underline cursor-pointer ml-auto"
+            >
+              Limpar Todos os Filtros ✕
+            </button>
           </div>
         )}
       </div>
@@ -1161,13 +1135,20 @@ export const ProductList: React.FC = () => {
               );
             }
 
-            // 5. RENDERIZADOR GENÉRICO PARA SEÇÕES PERSONALIZADAS DO ADMIN
-            const customMatchedProducts = baseFilteredProducts.filter(
-              (p) =>
-                p.category.toLowerCase().includes(sec.id.toLowerCase()) ||
-                p.category.toLowerCase().includes((sec.name || "").toLowerCase()) ||
-                (sec.name || "").toLowerCase().includes(p.category.toLowerCase()),
-            );
+            // 5. RENDERIZADOR GENÉRICO PARA SEÇÕES PERSONALIZADAS DO ADMIN (CATEGORIAS ATUAIS)
+            const customMatchedProducts = matchingCatalog.filter((p) => {
+              const pCatNorm = normalizeCategoryName(p.nome_grupo || p.category || "").toUpperCase();
+              const pGrupoRaw = (p.nome_grupo || p.category || "").toUpperCase();
+              const secNameNorm = normalizeCategoryName(sec.name || "").toUpperCase();
+              const secIdUpper = (sec.id || "").toUpperCase();
+
+              return (
+                pCatNorm === secNameNorm ||
+                pCatNorm === secIdUpper ||
+                pGrupoRaw.includes(secNameNorm) ||
+                secNameNorm.includes(pCatNorm)
+              );
+            });
 
             if (customMatchedProducts.length > 0) {
               return (

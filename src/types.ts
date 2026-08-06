@@ -212,6 +212,7 @@ export type UserRole = 'admin' | 'seller' | 'customer';
 export interface Subcategory {
   id: string;
   name: string;
+  subCode?: string;
   parentId?: string;
   id_subgrupo?: string | number;
   id_pai?: string | number;
@@ -220,11 +221,13 @@ export interface Subcategory {
 
 export interface Category {
   id: string;
+  code?: string;
   name: string;
   description?: string;
   subcategories?: Subcategory[];
   id_grupo?: string | number;
   createdAt?: string;
+  updatedAt?: string;
 }
 
 export type CrediarioStatus = 'NaoSolicitado' | 'EmAnalise' | 'Aprovado' | 'Rejeitado';

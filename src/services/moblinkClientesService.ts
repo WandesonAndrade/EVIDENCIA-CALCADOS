@@ -14,7 +14,7 @@ import { cleanUndefinedProperties } from "../utils/cleanObject";
 export const MOBLINK_CLIENTES_API_URL =
   "https://api.evidenciacalcados.com.br/api/v1/clientes";
 export const MOBLINK_CLIENTES_BEARER_TOKEN =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZFVzZXIiOiI3IiwiaWRMb2phIjoiMCIsImlhdCI6MTc4NTc3MjQxMCwiZXhwIjoxNzg1ODU4ODEwfQ.B1-GbpQrMFXaPUCpC3AdJVacGwVeTaXL-9zq9zxAyLY";
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZFVzZXIiOiI3IiwiaWRMb2phIjoiMCIsImlhdCI6MTc4NTk1NjQwMiwiZXhwIjoxNzg2MDQyODAyfQ.YWNd_X5z0xOIBrusf4K0gf-zVzkP3723qQIxME50k98";
 
 export interface MoblinkRawClient {
   id: string;
