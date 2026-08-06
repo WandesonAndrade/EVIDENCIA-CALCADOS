@@ -5,9 +5,15 @@ import {
 } from "./moblinkCategoriesService";
 
 export const MOBLINK_OFFICIAL_API_URL =
+  (import.meta as any).env?.VITE_MOBLINK_API_URL ||
+  (import.meta as any).env?.MOBLINK_API_URL ||
   "https://api.evidenciacalcados.com.br/api/v1/produtos?pdf=false";
+
 export const MOBLINK_BEARER_TOKEN =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZFVzZXIiOiI3IiwiaWRMb2phIjoiMCIsImlhdCI6MTc4NTk1NjQwMiwiZXhwIjoxNzg2MDQyODAyfQ.YWNd_X5z0xOIBrusf4K0gf-zVzkP3723qQIxME50k98";
+  (import.meta as any).env?.VITE_MOBLINK_TOKEN ||
+  (import.meta as any).env?.MOBLINK_API_TOKEN ||
+  (import.meta as any).env?.VITE_SINCOM_API_TOKEN ||
+  "";
 
 /**
  * Extrai o nome-base (modelo principal/raiz) e a variação de cor/estilo de um nome completo de produto.

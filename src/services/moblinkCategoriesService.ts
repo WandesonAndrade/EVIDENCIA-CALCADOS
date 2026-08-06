@@ -1,11 +1,17 @@
 import { db } from "../lib/firebase";
-import { collection, getDocs, doc, setDoc } from "firebase/firestore";
+import { doc, setDoc } from "firebase/firestore";
 import { Category, Subcategory, Product, MoblinkProduto } from "../types";
 
 export const MOBLINK_GRUPOS_API_URL =
-  "https://api.evidenciacalcados.com.br/api/v1/produtos/grupos";
+  (import.meta as any).env?.VITE_MOBLINK_GRUPOS_API_URL ||
+  (import.meta as any).env?.MOBLINK_GRUPOS_API_URL ||
+  "";
+
 export const MOBLINK_BEARER_TOKEN =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZFVzZXIiOiI3IiwiaWRMb2phIjoiMCIsImlhdCI6MTc4NjAxMjY3NCwiZXhwIjoxNzg2MDk5MDc0fQ.FqmMgmQa-4xYv47UR5GUrq1jBvcT4xr8ZErNbfw1O3Y";
+  (import.meta as any).env?.VITE_MOBLINK_TOKEN ||
+  (import.meta as any).env?.MOBLINK_API_TOKEN ||
+  (import.meta as any).env?.VITE_SINCOM_API_TOKEN ||
+  "";
 
 export interface MoblinkGrupoRaw {
   id?: number | string;
@@ -94,9 +100,6 @@ export const DEFAULT_CATEGORY_TREE: Category[] = [
   },
 ];
 
-/**
- * Normaliza nomes de grupos do ERP MobLink para nomes amigáveis de exibição na loja
- */
 export function normalizeCategoryName(raw: string): string {
   if (!raw) return "Geral";
   const clean = raw.trim().toUpperCase();
@@ -112,13 +115,9 @@ export function normalizeCategoryName(raw: string): string {
     return "Itens de Viagens";
   if (clean.includes("ROUPA") || clean.includes("VESTUARIO")) return "Roupas";
 
-  // Capitalize normal text
   return raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase();
 }
 
-/**
- * Normaliza nomes de subgrupos do ERP para subcategorias no e-commerce
- */
 export function normalizeSubcategoryName(raw: string): string {
   if (!raw) return "";
   const clean = raw.trim().toUpperCase();
@@ -149,11 +148,6 @@ export function normalizeSubcategoryName(raw: string): string {
   return raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase();
 }
 
-/**
- * Mapa de resolução de classificacao numérica para categoria/subcategoria.
- * Chave: código de classificacao (ex: "002", "002.004")
- * Valor: { category, subcategory, nome_grupo, nome_subgrupo }
- */
 export const classificacaoIndex = new Map<
   string,
   {
@@ -164,32 +158,27 @@ export const classificacaoIndex = new Map<
   }
 >();
 
-// Guard global: evita spam de retries após 401 (token expirado)
 let _gruposApiFailed = false;
 
 export const moblinkCategoriesService = {
-  /**
-   * Consome a rota oficial de grupos do ERP MobLink: GET https://api.evidenciacalcados.com.br/api/v1/produtos/grupos
-   */
   async fetchMoblinkGruposApi(): Promise<MoblinkGrupoRaw[]> {
-    if (_gruposApiFailed) {
-      return [];
-    }
+    if (_gruposApiFailed) return [];
 
     try {
+      const headers: Record<string, string> = { Accept: "application/json" };
+      if (MOBLINK_BEARER_TOKEN) {
+        headers["Authorization"] = `Bearer ${MOBLINK_BEARER_TOKEN}`;
+      }
+
       const response = await fetch(MOBLINK_GRUPOS_API_URL, {
         method: "GET",
-        headers: {
-          Accept: "application/json",
-          Authorization: `Bearer ${MOBLINK_BEARER_TOKEN}`,
-        },
+        headers,
       });
 
       if (response.status === 401 || response.status === 403) {
         _gruposApiFailed = true;
         console.warn(
-          `[moblinkCategoriesService] Token Bearer expirado ou inválido (${response.status}). ` +
-            "Sincronização de grupos suspensa até renovação do token.",
+          `[moblinkCategoriesService] Token Bearer desatualizado ou inválido (${response.status}).`,
         );
         return [];
       }
@@ -199,23 +188,17 @@ export const moblinkCategoriesService = {
         const rawList = Array.isArray(data)
           ? data
           : data.grupos || data.data || data.items || [];
-        if (Array.isArray(rawList) && rawList.length > 0) {
+        if (Array.isArray(rawList)) {
           _gruposApiFailed = false;
           return rawList;
         }
       }
     } catch (err) {
-      console.warn(
-        "📌 Erro ao consultar a rota oficial de grupos MobLink:",
-        err,
-      );
+      console.warn("📌 Erro ao consultar API de grupos MobLink:", err);
     }
     return [];
   },
 
-  /**
-   * Resolve o campo `classificacao` numérico (ex: "002.004") para {category, subcategory}.
-   */
   resolveClassificacao(code: string | number | undefined): {
     category: string;
     subcategory: string;
@@ -230,13 +213,10 @@ export const moblinkCategoriesService = {
         nome_subgrupo: "",
       };
     const key = String(code).trim();
-
     if (classificacaoIndex.has(key)) return classificacaoIndex.get(key)!;
-
     const parentCode = key.split(".")[0];
     if (classificacaoIndex.has(parentCode))
       return classificacaoIndex.get(parentCode)!;
-
     return {
       category: "Geral",
       subcategory: "",
@@ -245,13 +225,6 @@ export const moblinkCategoriesService = {
     };
   },
 
-  /**
-   * Constrói a árvore hierárquica de categorias e subcategorias a partir dos grupos da API do ERP e dos produtos.
-   * Regras de Agrupamento:
-   * 1. Grupo Pai (Categoria): ID isolado antes do ponto (ex: "002"). Documento no Firestore com ID "002".
-   * 2. Nome da Categoria: 'nome_grupo' limpo e formatado com primeira letra maiúscula (ex: "Calçados").
-   * 3. Subcategorias: Objetos limpos contendo { id: "002.003", subCode: "003", name: "Infantil Masculino" }.
-   */
   buildCategoryTree(
     productsList?: (Product | MoblinkProduto)[],
     gruposApiList?: MoblinkGrupoRaw[],
@@ -267,14 +240,11 @@ export const moblinkCategoriesService = {
       }
     >();
 
-    // 1. Processar grupos retornados da API oficial MobLink ERP (/api/v1/produtos/grupos)
     if (Array.isArray(gruposApiList) && gruposApiList.length > 0) {
       gruposApiList.forEach((g) => {
         const rawId = String(g.id || "").trim();
         const rawGroup = (g.nome_grupo || g.grupo || "").trim();
         const rawSubgroup = (g.nome_subgrupo || g.subgrupo || "").trim();
-
-        // 1. Agrupamento por ID Pai (Antes do Ponto)
         let parentCode = String(g.id_pai || g.id_grupo || "").trim();
         let subCode = String(g.id_subgrupo || "").trim();
 
@@ -293,12 +263,9 @@ export const moblinkCategoriesService = {
           : subCode
             ? `${parentCode}.${subCode}`
             : parentCode;
-
-        // Sanitização do nome da Categoria (nome_grupo)
         const normCatName = rawGroup
           ? normalizeCategoryName(rawGroup)
           : "Geral";
-        // Sanitização do nome do Subgrupo (nome_subgrupo)
         const normSubName = rawSubgroup
           ? normalizeSubcategoryName(rawSubgroup)
           : "";
@@ -310,16 +277,9 @@ export const moblinkCategoriesService = {
             name: normCatName,
             subMap: new Map(),
           });
-        } else {
-          const existing = groupsMap.get(parentCode)!;
-          if (existing.name === "Geral" && normCatName !== "Geral") {
-            existing.name = normCatName;
-          }
         }
 
         const groupData = groupsMap.get(parentCode)!;
-
-        // Popula o índice classificacaoIndex para resolução rápida
         const resolvedItem = {
           category: normCatName,
           subcategory: normSubName,
@@ -328,25 +288,19 @@ export const moblinkCategoriesService = {
         };
 
         if (fullSubId) classificacaoIndex.set(fullSubId, resolvedItem);
-        if (parentCode) {
+        if (parentCode)
           classificacaoIndex.set(parentCode, {
-            category: normCatName,
+            ...resolvedItem,
             subcategory: "",
-            nome_grupo: rawGroup,
-            nome_subgrupo: "",
           });
-        }
-        if (subCode && !classificacaoIndex.has(subCode)) {
+        if (subCode && !classificacaoIndex.has(subCode))
           classificacaoIndex.set(subCode, resolvedItem);
-        }
 
-        // Adiciona a subcategoria estruturada no array subcategories
         if (subCode && rawSubgroup) {
-          const cleanSubName = (normSubName || rawSubgroup).trim();
           groupData.subMap.set(fullSubId, {
             id: fullSubId,
             subCode: subCode,
-            name: cleanSubName,
+            name: (normSubName || rawSubgroup).trim(),
             parentId: parentCode,
             id_subgrupo: g.id_subgrupo || subCode,
             id_pai: parentCode,
@@ -355,24 +309,21 @@ export const moblinkCategoriesService = {
       });
     }
 
-    // 2. Se a API de grupos falhou ou retornou vazia, inicializar com fallback de segurança
     if (groupsMap.size === 0) {
       DEFAULT_CATEGORY_TREE.forEach((cat) => {
         const parentCode = cat.code || cat.id;
         const subMap = new Map<string, Subcategory>();
-        if (cat.subcategories) {
-          cat.subcategories.forEach((sub) => {
-            const subCode =
-              sub.subCode ||
-              (sub.id.includes(".") ? sub.id.split(".")[1] : sub.id);
-            subMap.set(sub.id, {
-              id: sub.id,
-              subCode: subCode,
-              name: sub.name.trim(),
-              parentId: parentCode,
-            });
+        cat.subcategories?.forEach((sub) => {
+          const subCode =
+            sub.subCode ||
+            (sub.id.includes(".") ? sub.id.split(".")[1] : sub.id);
+          subMap.set(sub.id, {
+            id: sub.id,
+            subCode,
+            name: sub.name.trim(),
+            parentId: parentCode,
           });
-        }
+        });
         groupsMap.set(parentCode, {
           id: parentCode,
           code: parentCode,
@@ -383,7 +334,6 @@ export const moblinkCategoriesService = {
       });
     }
 
-    // 3. Varrer lista de produtos para enriquecer a árvore se existirem classificações nos produtos
     if (Array.isArray(productsList) && productsList.length > 0) {
       productsList.forEach((p) => {
         const classCode = String(p.classificacao || "").trim();
@@ -401,33 +351,23 @@ export const moblinkCategoriesService = {
         ).trim();
 
         if (classCode.includes(".")) {
-          const parts = classCode.split(".");
-          const parentCode = parts[0].trim();
-          const subCode = parts[1].trim();
-          const normCatName = rawGroup
-            ? normalizeCategoryName(rawGroup)
-            : "Geral";
-          const normSubName = rawSubgroup
-            ? normalizeSubcategoryName(rawSubgroup)
-            : "";
-
+          const [parentCode, subCode] = classCode.split(".");
           if (parentCode) {
             if (!groupsMap.has(parentCode)) {
               groupsMap.set(parentCode, {
                 id: parentCode,
                 code: parentCode,
-                name: normCatName,
+                name: normalizeCategoryName(rawGroup),
                 subMap: new Map(),
               });
             }
-
             if (subCode && rawSubgroup) {
               const groupData = groupsMap.get(parentCode)!;
               if (!groupData.subMap.has(classCode)) {
                 groupData.subMap.set(classCode, {
                   id: classCode,
-                  subCode: subCode,
-                  name: (normSubName || rawSubgroup).trim(),
+                  subCode,
+                  name: normalizeSubcategoryName(rawSubgroup),
                   parentId: parentCode,
                 });
               }
@@ -437,43 +377,22 @@ export const moblinkCategoriesService = {
       });
     }
 
-    // 4. Montar o resultado final formatado conforme exigido no Firestore
     return Array.from(groupsMap.values()).map(
-      ({ id, code, name, description, subMap }) => {
-        const subcategories: Subcategory[] = Array.from(subMap.values()).sort(
-          (a, b) =>
-            (a.subCode || a.id).localeCompare(b.subCode || b.id, undefined, {
-              numeric: true,
-            }),
-        );
-
-        return {
-          id,
-          code,
-          name,
-          description: description || "",
-          subcategories,
-          updatedAt: new Date().toISOString(),
-        };
-      },
+      ({ id, code, name, description, subMap }) => ({
+        id,
+        code,
+        name,
+        description: description || "",
+        subcategories: Array.from(subMap.values()).sort((a, b) =>
+          (a.subCode || a.id).localeCompare(b.subCode || b.id, undefined, {
+            numeric: true,
+          }),
+        ),
+        updatedAt: new Date().toISOString(),
+      }),
     );
   },
 
-  /**
-   * Consome a API oficial de grupos, constrói a árvore e sincroniza na coleção 'categories' no Firestore
-   * Estrutura do documento em categories/{id}:
-   * {
-   *   "id": "002",
-   *   "code": "002",
-   *   "name": "Calçados",
-   *   "subcategories": [
-   *     { "id": "002.001", "subCode": "001", "name": "Masculino" },
-   *     { "id": "002.002", "subCode": "002", "name": "Feminino" },
-   *     { "id": "002.003", "subCode": "003", "name": "Infantil Masculino" }
-   *   ],
-   *   "updatedAt": "ISO_DATE"
-   * }
-   */
   async syncCategoriesToFirestore(
     productsList?: (Product | MoblinkProduto)[],
   ): Promise<Category[]> {
@@ -483,9 +402,8 @@ export const moblinkCategoriesService = {
 
     for (const cat of tree) {
       try {
-        const catRef = doc(db, "categories", cat.id);
         await setDoc(
-          catRef,
+          doc(db, "categories", cat.id),
           {
             id: cat.id,
             code: cat.code || cat.id,
@@ -508,7 +426,6 @@ export const moblinkCategoriesService = {
         );
       }
     }
-
     return tree;
   },
 };
