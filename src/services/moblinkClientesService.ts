@@ -12,9 +12,14 @@ import { UserProfile } from "../types";
 import { cleanUndefinedProperties } from "../utils/cleanObject";
 
 export const MOBLINK_CLIENTES_API_URL =
+  (import.meta as any).env?.VITE_MOBLINK_CLIENTES_API_URL ||
+  (import.meta as any).env?.MOBLINK_CLIENTES_API_URL ||
   "https://api.evidenciacalcados.com.br/api/v1/clientes";
+
 export const MOBLINK_CLIENTES_BEARER_TOKEN =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZFVzZXIiOiI3IiwiaWRMb2phIjoiMCIsImlhdCI6MTc4NTk1NjQwMiwiZXhwIjoxNzg2MDQyODAyfQ.YWNd_X5z0xOIBrusf4K0gf-zVzkP3723qQIxME50k98";
+  (import.meta as any).env?.VITE_MOBLINK_TOKEN ||
+  (import.meta as any).env?.MOBLINK_API_TOKEN ||
+  "";
 
 export interface MoblinkRawClient {
   id: string;

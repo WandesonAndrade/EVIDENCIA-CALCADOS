@@ -54,9 +54,12 @@ export interface Product {
   id: string;
   name: string;
   description: string;
+  imageUrl?: string;
   price: number;
+  promoPrice?: number | null;
   precoVista?: number;
   originalPrice?: number;
+  updatedAt?: string;
   onSale?: boolean;
   category: string;
   subcategory?: string;

@@ -1,6 +1,11 @@
 import { GradeProduto } from '../types';
 import { MOBLINK_BEARER_TOKEN } from './moblinkProductsService';
 
+export const MOBLINK_GRADES_API_URL =
+  (import.meta as any).env?.VITE_MOBLINK_GRADES_API_URL ||
+  (import.meta as any).env?.MOBLINK_GRADES_API_URL ||
+  "https://api.evidenciacalcados.com.br/api/v1/gradesprodutos";
+
 /**
  * Serviço responsável por consumir a rota GET /api/v1/gradesprodutos do MobLink ERP.
  */
@@ -13,7 +18,7 @@ export const getGradesProdutos = async (): Promise<GradeProduto[]> => {
   try {
     let response: Response;
     try {
-      response = await fetch('https://api.evidenciacalcados.com.br/api/v1/gradesprodutos', {
+      response = await fetch(MOBLINK_GRADES_API_URL, {
         method: 'GET',
         headers
       });
@@ -63,7 +68,7 @@ export const getGradeProdutoById = async (idGrade: string | number): Promise<Gra
   try {
     let response: Response;
     try {
-      response = await fetch(`https://api.evidenciacalcados.com.br/api/v1/gradesprodutos/${idGrade}`, {
+      response = await fetch(`${MOBLINK_GRADES_API_URL}/${idGrade}`, {
         method: 'GET',
         headers
       });

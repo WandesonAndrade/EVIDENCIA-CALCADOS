@@ -7,7 +7,7 @@ import {
 export const MOBLINK_OFFICIAL_API_URL =
   (import.meta as any).env?.VITE_MOBLINK_API_URL ||
   (import.meta as any).env?.MOBLINK_API_URL ||
-  "https://api.evidenciacalcados.com.br/api/v1/produtos?pdf=false";
+  "";
 
 export const MOBLINK_BEARER_TOKEN =
   (import.meta as any).env?.VITE_MOBLINK_TOKEN ||
@@ -145,10 +145,6 @@ export const cleanUndefinedFields = <T extends Record<string, any>>(
 };
 
 /**
- * Sanitiza rigorosamente um objeto de Produto antes de salvar no Firestore (setDoc/updateDoc).
- * Garante que originalPrice, price, stock, images e description nunca sejam undefined.
- */
-/**
  * Extrai o preço padrão de tabela (carnê / parcelado) do produto.
  * Prioridade: preco_venda (campo direto da API) > price > precos[0]
  */
@@ -235,12 +231,8 @@ export const extractPrecoVistaMoblink = (item: any): number => {
 };
 
 /**
- * Extrai e normaliza a categoria a partir do campo `classificacao` da API MobLink.
- *
- * O campo `classificacao` pode ser:
- * - Uma string legível: "CALCADOS", "ACESSORIO", "COSMETICO"
- * - Um código numérico: "002.004" (cruzar com tabela de grupos via /api/v1/produtos/grupos)
- * - Um objeto: { nome: "CALCADOS" }
+ * Extrai e normaliza a classificação numérica pura (chave mestra ex: "002.003"),
+ * traduzindo dinamicamente a Categoria e Subcategoria através da tabela centralizada de categorias.
  */
 export const extractClassificacaoCategoria = (
   item: any,
@@ -257,35 +249,32 @@ export const extractClassificacaoCategoria = (
       subcategory: "",
       nome_grupo: "Geral",
       nome_subgrupo: "",
-      classificacao: "Geral",
+      classificacao: "",
     };
   }
 
-  // 1. Extrair o valor bruto do campo classificacao
+  // 1. Extrair e limpar rigorosamente a chave mestra 'classificacao' (remove todos os espaços)
   let rawClassificacao = "";
-  if (
-    typeof item.classificacao === "string" &&
-    item.classificacao.trim() !== ""
-  ) {
-    rawClassificacao = item.classificacao.trim();
+  if (typeof item.classificacao === "string") {
+    rawClassificacao = item.classificacao.replace(/\s+/g, "").trim();
   } else if (typeof item.classificacao === "number") {
-    rawClassificacao = String(item.classificacao);
+    rawClassificacao = String(item.classificacao).trim();
   } else if (
     typeof item.classificacao === "object" &&
     item.classificacao?.nome
   ) {
-    rawClassificacao = String(item.classificacao.nome).trim();
-  } else {
-    // Sem fallback para nome_grupo; usa apenas a classificação pura ou 'Geral'
-    rawClassificacao = "Geral";
+    rawClassificacao = String(item.classificacao.nome)
+      .replace(/\s+/g, "")
+      .trim();
+  } else if (item.id_grupo) {
+    const parent = String(item.id_grupo).trim();
+    const sub = item.id_subgrupo ? String(item.id_subgrupo).trim() : "";
+    rawClassificacao = sub ? `${parent}.${sub}` : parent;
   }
 
-  // 2. Extrair subclassificacao
+  // 2. Extrair subclassificacao bruta de fallback
   let rawSubclassificacao = "";
-  if (
-    typeof item.subclassificacao === "string" &&
-    item.subclassificacao.trim() !== ""
-  ) {
+  if (typeof item.subclassificacao === "string") {
     rawSubclassificacao = item.subclassificacao.trim();
   } else if (
     typeof item.subclassificacao === "object" &&
@@ -301,7 +290,7 @@ export const extractClassificacaoCategoria = (
       "";
   }
 
-  // 3. Normalizar (tratando tanto nomes legíveis quanto códigos numéricos ex: '002.004')
+  // 3. Tradução oficial dinâmica via tabela central de categorias (categories / classificacaoIndex)
   const isNumericCode = /^\d+(\.\d+)?$/.test(rawClassificacao);
   let category = "Geral";
   let subcategory = normalizeSubcategoryName(rawSubclassificacao);
@@ -317,9 +306,8 @@ export const extractClassificacaoCategoria = (
       resolvedGrupo = resolved.nome_grupo || resolvedGrupo;
       resolvedSubgrupo = resolved.nome_subgrupo || resolvedSubgrupo;
     }
-  } else {
-    // Se for string, tentamos capitalizar normalmente e usar como categoria
-    category = rawClassificacao || "Geral";
+  } else if (rawClassificacao && rawClassificacao !== "Geral") {
+    category = rawClassificacao;
   }
 
   return {
@@ -332,98 +320,241 @@ export const extractClassificacaoCategoria = (
 };
 
 /**
- * Sanitiza rigorosamente um objeto de Produto antes de salvar no Firestore (setDoc/updateDoc).
- * Garante que originalPrice, price, precoVista, stock, images e description nunca sejam undefined.
+ * Mapeia um item da API oficial do MobLink ERP para a estrutura oficial limpa do Produto.
+ * Zero auto-preenchimento de dados fantasmas (sem 'Preto', 'Evidência Calçados', etc. automáticos).
+ */
+export const mapMoblinkToProduct = (item: MoblinkProduto | any): Product => {
+  const mobId = String(item.id || item.moblinkId || item.sku || "").trim();
+  const name = String(item.descricao || item.nome || item.name || "").trim();
+  const description = String(
+    item.description ||
+      item.descricao_completa ||
+      item.compl_descr ||
+      item.descr_compl ||
+      "",
+  ).trim();
+
+  // URL da foto sem imagens fantasmas de stock ou Unsplash
+  const rawImage =
+    item.imageUrl ||
+    item.foto_uri ||
+    (Array.isArray(item.images) ? item.images[0] : "");
+  const imageUrl = typeof rawImage === "string" ? rawImage.trim() : "";
+
+  // Chave mestra numérica 'classificacao' sem espaços
+  const rawClass = String(
+    item.classificacao ||
+      (item.id_grupo ? `${item.id_grupo}.${item.id_subgrupo || ""}` : ""),
+  );
+  const cleanClassificacao = rawClass.replace(/\s+/g, "").trim();
+
+  // Preço principal e preço promocional (números estritos)
+  const priceVal = extractPrecoTabelaMoblink(item);
+  const price =
+    typeof priceVal === "number" && !isNaN(priceVal) && priceVal >= 0
+      ? priceVal
+      : 0;
+
+  const rawPromo =
+    item.promoPrice ?? item.precoOriginal ?? extractPrecoVistaMoblink(item);
+  const promoPrice =
+    typeof rawPromo === "number" &&
+    !isNaN(rawPromo) &&
+    rawPromo > 0 &&
+    rawPromo < price
+      ? rawPromo
+      : null;
+
+  // Estoque único (não-negativo)
+  const stockVal = extractSaldoLojaMoblink(item);
+  const stock = Math.max(0, stockVal);
+
+  // Visibilidade na vitrine
+  const visible =
+    item.visible !== undefined
+      ? stock <= 0
+        ? false
+        : Boolean(item.visible)
+      : stock > 0;
+
+  const catInfo = extractClassificacaoCategoria({
+    classificacao: cleanClassificacao,
+  });
+
+  return {
+    id: mobId,
+    name,
+    description,
+    imageUrl,
+    classificacao: cleanClassificacao,
+    price,
+    promoPrice,
+    stock,
+    visible,
+    updatedAt: item.updatedAt || new Date().toISOString(),
+
+    // Aliases e propriedades derivadas para UI (sem inventar metadados nulos)
+    category: catInfo.category,
+    subcategory: catInfo.subcategory,
+    images: imageUrl ? [imageUrl] : [],
+    foto_uri: imageUrl,
+    sizes: Array.isArray(item.tamanhos)
+      ? item.tamanhos
+      : Array.isArray(item.sizes)
+        ? item.sizes
+        : [],
+    barcode: item.codigoBarras || item.barcode || undefined,
+    brand: item.marca || item.brand || undefined,
+    material: item.material || undefined,
+    color: item.cor || item.color || undefined,
+    cor: item.cor || item.color || undefined,
+    gender: item.genero || item.gender || undefined,
+    id_grade: item.id_grade,
+  } as Product;
+};
+
+/**
+ * Sanitiza um objeto de Produto para salvar estritamente o Contrato Limpo no Firestore.
+ * Contrato Oficial: { id, name, description, imageUrl, classificacao, price, promoPrice, stock, visible, updatedAt }
+ * Prevenção de Dados Fantasmas: Não preenche automaticamente cor, marca, material ou textos padronizados.
  */
 export const sanitizeProductForFirestore = (
   product: Partial<Product>,
 ): Record<string, any> => {
-  const price = extractPrecoTabelaMoblink(product);
-  const precoVista = extractPrecoVistaMoblink(product);
+  const id = String(
+    product.id || (product as any).moblinkId || (product as any).sku || "",
+  ).trim();
 
-  const rawOriginalPrice =
-    product.originalPrice ?? (product as any).precoOriginal;
-  const originalPrice =
-    typeof rawOriginalPrice === "number" &&
-    !isNaN(rawOriginalPrice) &&
-    rawOriginalPrice > 0
-      ? rawOriginalPrice
+  const name = String(
+    product.name || product.descricao || (product as any).nome || "",
+  ).trim();
+  const description = String(
+    product.description ||
+      product.descricao_completa ||
+      (product as any).compl_descr ||
+      "",
+  ).trim();
+
+  let imageUrl = "";
+  if (
+    product.imageUrl &&
+    typeof product.imageUrl === "string" &&
+    product.imageUrl.trim() !== ""
+  ) {
+    imageUrl = product.imageUrl.trim();
+  } else if (
+    Array.isArray(product.images) &&
+    product.images.length > 0 &&
+    product.images[0]
+  ) {
+    imageUrl = String(product.images[0]).trim();
+  } else if (product.foto_uri && typeof product.foto_uri === "string") {
+    imageUrl = product.foto_uri.trim();
+  }
+
+  // Chave mestra numérica 'classificacao'
+  const rawClass = String(
+    product.classificacao ||
+      ((product as any).id_grupo
+        ? `${(product as any).id_grupo}.${(product as any).id_subgrupo || ""}`
+        : ""),
+  );
+  const cleanClassificacao = rawClass.replace(/\s+/g, "").trim();
+
+  // Preços estritos
+  const priceVal = extractPrecoTabelaMoblink(product);
+  const price =
+    typeof priceVal === "number" && !isNaN(priceVal) && priceVal >= 0
+      ? priceVal
+      : 0;
+
+  const rawPromo =
+    (product as any).promoPrice ??
+    product.originalPrice ??
+    extractPrecoVistaMoblink(product);
+  const promoPrice =
+    typeof rawPromo === "number" &&
+    !isNaN(rawPromo) &&
+    rawPromo > 0 &&
+    rawPromo < price
+      ? rawPromo
       : null;
 
-  const stock =
+  // Estoque único
+  const stockVal =
     typeof product.stock === "number" && !isNaN(product.stock)
-      ? Math.max(0, product.stock)
+      ? product.stock
       : typeof product.saldo_loja === "number" && !isNaN(product.saldo_loja)
-        ? Math.max(0, product.saldo_loja)
+        ? product.saldo_loja
         : 0;
+  const stock = Math.max(0, stockVal);
 
-  const images =
-    Array.isArray(product.images) && product.images.length > 0
-      ? product.images.filter(
-          (img) => typeof img === "string" && img.trim() !== "",
-        )
-      : product.foto_uri
-        ? [product.foto_uri]
-        : [
-            "https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?q=80&w=600&auto=format&fit=crop",
-          ];
+  // Visibilidade
+  const visible =
+    product.visible !== undefined
+      ? stock <= 0
+        ? false
+        : Boolean(product.visible)
+      : stock > 0;
 
-  const description =
-    typeof product.description === "string" && product.description.trim() !== ""
-      ? product.description
-      : product.descricao_completa ||
-        product.descricao ||
-        product.name ||
-        "Produto Evidência Calçados";
+  const updatedAt = product.updatedAt || new Date().toISOString();
 
-  const name = product.name || product.descricao || "Produto Evidência";
+  const catInfo = extractClassificacaoCategoria({
+    classificacao: cleanClassificacao,
+  });
 
-  const catInfo = extractClassificacaoCategoria(product);
-  const category = catInfo.category;
-  const subcategory = catInfo.subcategory;
-  const classificacao = catInfo.classificacao;
-
-  const modelCode = product.modelCode || product.referenceCode || null;
-  const referenceCode = product.referenceCode || product.modelCode || null;
-
-  const baseSanitized = {
-    ...product,
+  // Contrato Oficial Limpo para o Firestore
+  const cleanPayload: Record<string, any> = {
+    id,
     name,
-    category,
-    subcategory,
-    // Preserva os campos de grupo ERP originais (ex: "CALCADOS", "INFANTIL MASCULINO")
-    // sem sobrescrever com a versão normalizada que perderia a estrutura hierárquica do ERP
-    nome_grupo: catInfo.nome_grupo || (product as any).nome_grupo || category,
-    nome_subgrupo: catInfo.nome_subgrupo || (product as any).nome_subgrupo || subcategory,
-    classificacao: classificacao || (product as any).classificacao || '',
-    price,
-    preco_venda: price,
-    precoVista,
-    preco_vista: precoVista,
-    originalPrice,
-    stock,
-    saldo_loja: stock,
-    images,
     description,
-    descricao_completa: product.descricao_completa || description,
-    sizes: Array.isArray(product.sizes) ? product.sizes : [],
-    crediarioProprio: product.crediarioProprio ?? true,
-    visible:
-      product.visible !== undefined
-        ? stock <= 0
-          ? false
-          : product.visible
-        : stock > 0,
-    stockControl: product.stockControl ?? true,
-    modelCode,
-    referenceCode,
-    color: product.color || product.cor || "Preto",
-    cor: product.cor || product.color || "Preto",
-    stockBySize: product.stockBySize || product.sizeStockMap || {},
-    sizeStockMap: product.sizeStockMap || product.stockBySize || {},
+    imageUrl,
+    classificacao: cleanClassificacao,
+    price,
+    promoPrice,
+    stock,
+    visible,
+    updatedAt,
+    // Aliases para exibição imediata em componentes legados
+    category: catInfo.category,
+    subcategory: catInfo.subcategory,
+    images: imageUrl ? [imageUrl] : [],
+    foto_uri: imageUrl,
+    preco_venda: price,
+    saldo_loja: stock,
   };
 
-  return cleanUndefinedFields(baseSanitized);
+  // Zero Auto-preenchimento de dados fantasmas (Insere apenas se explicitamente fornecido pelo usuário/API)
+  if (Array.isArray(product.sizes) && product.sizes.length > 0) {
+    cleanPayload.sizes = product.sizes;
+  }
+  if (product.id_grade) cleanPayload.id_grade = product.id_grade;
+  if (product.barcode) cleanPayload.barcode = product.barcode;
+  if (product.brand && product.brand.trim() !== "")
+    cleanPayload.brand = product.brand.trim();
+  if (product.material && product.material.trim() !== "")
+    cleanPayload.material = product.material.trim();
+  if (product.color || product.cor) {
+    const cleanColor = (product.color || product.cor || "").trim();
+    if (cleanColor) {
+      cleanPayload.color = cleanColor;
+      cleanPayload.cor = cleanColor;
+    }
+  }
+  if (product.gender && product.gender.trim() !== "")
+    cleanPayload.gender = product.gender.trim();
+  if (product.stockBySize || product.sizeStockMap) {
+    cleanPayload.stockBySize = product.stockBySize || product.sizeStockMap;
+  }
+
+  // Remoção permanente de campos redundantes e legados
+  delete cleanPayload.nome_grupo;
+  delete cleanPayload.nome_subgrupo;
+  delete cleanPayload.grupo;
+  delete cleanPayload.subgrupo;
+  delete cleanPayload.sku;
+
+  return cleanUndefinedFields(cleanPayload);
 };
 
 /**
@@ -555,7 +686,9 @@ export const getProdutosMoblink = async (
         const chunkResults = await Promise.all(
           chunk.map(async (page) => {
             try {
-              const pageUrl = `https://api.evidenciacalcados.com.br/api/v1/produtos?pdf=false&page=${page}`;
+              const baseApiUrl = MOBLINK_OFFICIAL_API_URL.replace(/[\?&]page=\d+/, "");
+              const separator = baseApiUrl.includes("?") ? "&" : "?";
+              const pageUrl = `${baseApiUrl}${separator}page=${page}`;
               let pageRes: Response;
               try {
                 pageRes = await fetch(pageUrl, {
@@ -697,62 +830,7 @@ export const getProdutosMoblink = async (
 /**
  * Produtos de contingência estruturados conforme os campos exigidos.
  */
-const getFallbackProdutos = (): MoblinkProduto[] => [
-  {
-    id: "MOB-101",
-    descricao: "Sapato Social Oxford Mazerati Couro Legítimo",
-    preco_venda: 389.9,
-    saldo_loja: 24,
-    foto_uri:
-      "https://images.unsplash.com/photo-1533867617858-e7b97e060509?q=80&w=600&auto=format&fit=crop",
-    id_grade: "4",
-  },
-  {
-    id: "MOB-102",
-    descricao: "Mocassim Italiano Soft Confort Nobuck",
-    preco_venda: 279.9,
-    saldo_loja: 0,
-    foto_uri:
-      "https://images.unsplash.com/photo-1549298916-b41d501d3772?q=80&w=600&auto=format&fit=crop",
-    id_grade: "1",
-  },
-  {
-    id: "MOB-103",
-    descricao: "Sapato Social Derby Verniz Black Tie",
-    preco_venda: 349.9,
-    saldo_loja: 12,
-    foto_uri:
-      "https://images.unsplash.com/photo-1614252235316-8c857d38b5f4?q=80&w=600&auto=format&fit=crop",
-    id_grade: "2",
-  },
-  {
-    id: "MOB-104",
-    descricao: "Bota Chelsea Urban Couro Rústico Cafe",
-    preco_venda: 429.9,
-    saldo_loja: 8,
-    foto_uri:
-      "https://images.unsplash.com/photo-1638247025967-b4e38f787b76?q=80&w=600&auto=format&fit=crop",
-    id_grade: "4",
-  },
-  {
-    id: "MOB-105",
-    descricao: "Cinto Social Masculino Couro Nobre Fivela Escovada",
-    preco_venda: 99.9,
-    saldo_loja: 45,
-    foto_uri:
-      "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?q=80&w=600&auto=format&fit=crop",
-    id_grade: null,
-  },
-  {
-    id: "MOB-106",
-    descricao: "Carteira Slim Couro Bovino Evidência",
-    preco_venda: 69.9,
-    saldo_loja: 0,
-    foto_uri:
-      "https://images.unsplash.com/photo-1627123424574-724758594e93?q=80&w=600&auto=format&fit=crop",
-    id_grade: null,
-  },
-];
+const getFallbackProdutos = (): MoblinkProduto[] => [];
 
 /**
  * Compara se houve alteração real em preço, estoque ou nome do produto em relação ao banco (Delta Check).
