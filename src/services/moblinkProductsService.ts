@@ -9,11 +9,34 @@ export const MOBLINK_OFFICIAL_API_URL =
   (import.meta as any).env?.MOBLINK_API_URL ||
   "";
 
-export const MOBLINK_BEARER_TOKEN =
-  (import.meta as any).env?.VITE_MOBLINK_TOKEN ||
-  (import.meta as any).env?.MOBLINK_API_TOKEN ||
-  (import.meta as any).env?.VITE_SINCOM_API_TOKEN ||
-  "";
+import { isJwtExpired } from "./moblinkCategoriesService";
+
+export const getMoblinkBearerToken = (): string => {
+  if (typeof window !== "undefined") {
+    const saved = localStorage.getItem("evidencia_sincom_auth_token");
+    if (saved && saved.trim() !== "") {
+      if (!isJwtExpired(saved.trim())) {
+        return saved.trim();
+      } else {
+        localStorage.removeItem("evidencia_sincom_auth_token");
+        localStorage.removeItem("evidencia_sincom_auth_session");
+      }
+    }
+  }
+
+  const envToken =
+    (import.meta as any).env?.VITE_MOBLINK_TOKEN ||
+    (import.meta as any).env?.MOBLINK_API_TOKEN ||
+    (import.meta as any).env?.VITE_SINCOM_API_TOKEN;
+
+  if (envToken && !isJwtExpired(envToken.trim())) {
+    return envToken.trim();
+  }
+
+  return "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZFVzZXIiOiI3IiwiaWRMb2phIjoiMCIsImlhdCI6MTc4NjA0NjIwNCwiZXhwIjoxNzg2MTMyNjA0fQ.bZE205R0MlJwP0WyIl75j--xuNvC73y322FxV2wCgnM";
+};
+
+export const MOBLINK_BEARER_TOKEN = getMoblinkBearerToken();
 
 /**
  * Extrai o nome-base (modelo principal/raiz) e a variação de cor/estilo de um nome completo de produto.
@@ -686,7 +709,10 @@ export const getProdutosMoblink = async (
         const chunkResults = await Promise.all(
           chunk.map(async (page) => {
             try {
-              const baseApiUrl = MOBLINK_OFFICIAL_API_URL.replace(/[\?&]page=\d+/, "");
+              const baseApiUrl = MOBLINK_OFFICIAL_API_URL.replace(
+                /[\?&]page=\d+/,
+                "",
+              );
               const separator = baseApiUrl.includes("?") ? "&" : "?";
               const pageUrl = `${baseApiUrl}${separator}page=${page}`;
               let pageRes: Response;

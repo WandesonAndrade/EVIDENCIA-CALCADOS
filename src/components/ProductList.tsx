@@ -13,6 +13,8 @@ import {
   Zap,
   Filter,
   Layers,
+  ArrowRight,
+  ArrowUpDown,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { scrollToSectionWithOffset } from "../lib/scrollUtils";
@@ -348,53 +350,103 @@ export const ProductList: React.FC = () => {
 
   const formatNumber = (num: number) => num.toString().padStart(2, "0");
 
-  // Função de filtro universal centrada exclusivamente em nome_grupo e nome_subgrupo
+  // Extrai o código numérico do grupo pai localizado antes do ponto na chave classificacao (ex: "002" de "002.003")
+  const getParentGroupCode = (classificacao?: string): string => {
+    if (!classificacao || typeof classificacao !== "string") return "";
+    const clean = classificacao.replace(/\s+/g, "").trim();
+    if (!clean) return "";
+    const parts = clean.split(".");
+    return parts[0] ? parts[0].trim() : "";
+  };
+
+  // Função de filtro oficial baseada na 'classificacao' (Código do Grupo Pai antes do ponto)
   const matchesFilter = useCallback((p: Product) => {
-    // 1. Validação do Grupo / Categoria (nome_grupo > category)
-    if (selectedCategory !== "TODOS" && selectedCategory) {
-      const targetCat = selectedCategory.toUpperCase().trim();
+    // 1. Validação do Grupo / Categoria por 'classificacao' (Número antes do ponto)
+    if (selectedCategory && selectedCategory !== "TODOS") {
+      const target = selectedCategory.trim();
+      const targetUpper = target.toUpperCase();
 
-      const grupoRaw = (p.nome_grupo || p.category || "").toUpperCase().trim();
-      const grupoNorm = normalizeCategoryName(p.nome_grupo || p.category || "").toUpperCase().trim();
-      const catNorm = normalizeCategoryName(p.category || "").toUpperCase().trim();
+      // Resolver o código numérico do grupo (ID pai antes do ponto)
+      let targetCode = "";
+      const matchedCat = (dbCategories || []).find(
+        (c) =>
+          c.id === target ||
+          (c.code && c.code === target) ||
+          c.name.toUpperCase().trim() === targetUpper ||
+          normalizeCategoryName(c.name).toUpperCase().trim() === normalizeCategoryName(targetUpper)
+      );
 
-      const catMatch =
-        grupoRaw === targetCat ||
-        grupoNorm === targetCat ||
-        catNorm === targetCat ||
-        (grupoNorm && (grupoNorm.includes(targetCat) || targetCat.includes(grupoNorm))) ||
-        (grupoRaw && (grupoRaw.includes(targetCat) || targetCat.includes(grupoRaw))) ||
-        (targetCat.includes("CALÇADO") && (grupoNorm === "CALÇADOS" || catNorm === "CALÇADOS" || grupoRaw.includes("CALCAD"))) ||
-        (targetCat.includes("ACESSÓRIO") && (grupoNorm === "ACESSÓRIOS" || catNorm === "ACESSÓRIOS" || grupoRaw.includes("ACESSOR"))) ||
-        (targetCat.includes("COSMÉTICO") && (grupoNorm === "COSMÉTICOS" || catNorm === "COSMÉTICOS" || grupoRaw.includes("COSMET"))) ||
-        (targetCat.includes("PERFUME") && (grupoNorm === "PERFUMES" || catNorm === "PERFUMES" || grupoRaw.includes("PERFUM"))) ||
-        (targetCat.includes("ESCOLAR") && (grupoNorm === "ESCOLAR" || catNorm === "ESCOLAR" || grupoRaw.includes("ESCOLAR")));
+      if (matchedCat) {
+        targetCode = matchedCat.code || matchedCat.id;
+      } else if (/^\d+$/.test(target)) {
+        targetCode = target;
+      }
+
+      // Extrair o código antes do ponto do produto (ex: "002" de "002.003")
+      const pParentCode = getParentGroupCode(p.classificacao);
+
+      let catMatch = false;
+
+      // Regra 1 (Prioritária): Comparar código numérico antes do ponto
+      if (targetCode && pParentCode) {
+        catMatch = pParentCode === targetCode;
+      }
+
+      // Fallback: Se o produto não possui classificacao numérica ou não bateu por código, comparar nome da categoria
+      if (!catMatch) {
+        const grupoRaw = (p.nome_grupo || p.category || "").toUpperCase().trim();
+        const grupoNorm = normalizeCategoryName(p.nome_grupo || p.category || "").toUpperCase().trim();
+        const catNorm = normalizeCategoryName(p.category || "").toUpperCase().trim();
+
+        catMatch =
+          grupoRaw === targetUpper ||
+          grupoNorm === targetUpper ||
+          catNorm === targetUpper ||
+          (grupoNorm && (grupoNorm.includes(targetUpper) || targetUpper.includes(grupoNorm))) ||
+          (grupoRaw && (grupoRaw.includes(targetUpper) || targetUpper.includes(grupoRaw)));
+      }
 
       if (!catMatch) return false;
     }
 
-    // 2. Validação do Subgrupo / Subcategoria (nome_subgrupo > subcategory)
+    // 2. Validação do Subgrupo / Subcategoria
     if (selectedSubcategory && selectedSubcategory !== "TODAS" && selectedSubcategory !== "TODOS") {
-      const targetSub = selectedSubcategory.toUpperCase().trim();
+      const targetSub = selectedSubcategory.trim();
+      const targetSubUpper = targetSub.toUpperCase();
 
-      const subgrupoRaw = (p.nome_subgrupo || p.subcategory || "").toUpperCase().trim();
-      const subgrupoNorm = normalizeSubcategoryName(p.nome_subgrupo || p.subcategory || "").toUpperCase().trim();
-      const subNorm = normalizeSubcategoryName(p.subcategory || "").toUpperCase().trim();
+      // Código da subcategoria (depois do ponto)
+      let pSubCode = "";
+      if (p.classificacao && p.classificacao.includes(".")) {
+        const parts = p.classificacao.replace(/\s+/g, "").split(".");
+        if (parts.length > 1) pSubCode = parts[1].trim();
+      }
 
-      const subMatch =
-        subgrupoRaw === targetSub ||
-        subgrupoNorm === targetSub ||
-        subNorm === targetSub ||
-        (subgrupoNorm && (subgrupoNorm.includes(targetSub) || targetSub.includes(subgrupoNorm))) ||
-        (subgrupoRaw && (subgrupoRaw.includes(targetSub) || targetSub.includes(subgrupoRaw))) ||
-        (targetSub.includes("FEMININ") && (subgrupoNorm.includes("FEMININ") || subgrupoRaw.includes("FEMININ") || subNorm.includes("FEMININ"))) ||
-        (targetSub.includes("MASCULIN") && (subgrupoNorm.includes("MASCULIN") || subgrupoRaw.includes("MASCULIN") || subNorm.includes("MASCULIN")));
+      let subMatch = false;
+
+      // Comparação por subCode/ID de subcategoria (ex: "002.003" ou "003")
+      if (pSubCode && (/^\d+$/.test(targetSub) || targetSub.includes("."))) {
+        subMatch = p.classificacao === targetSub || pSubCode === targetSub || targetSub.endsWith("." + pSubCode);
+      }
+
+      // Comparação por nome da subcategoria
+      if (!subMatch) {
+        const subgrupoRaw = (p.nome_subgrupo || p.subcategory || "").toUpperCase().trim();
+        const subgrupoNorm = normalizeSubcategoryName(p.nome_subgrupo || p.subcategory || "").toUpperCase().trim();
+        const subNorm = normalizeSubcategoryName(p.subcategory || "").toUpperCase().trim();
+
+        subMatch =
+          subgrupoRaw === targetSubUpper ||
+          subgrupoNorm === targetSubUpper ||
+          subNorm === targetSubUpper ||
+          (subgrupoNorm && (subgrupoNorm.includes(targetSubUpper) || targetSubUpper.includes(subgrupoNorm))) ||
+          (subgrupoRaw && (subgrupoRaw.includes(targetSubUpper) || targetSubUpper.includes(subgrupoRaw)));
+      }
 
       if (!subMatch) return false;
     }
 
     return true;
-  }, [selectedCategory, selectedSubcategory]);
+  }, [selectedCategory, selectedSubcategory, dbCategories]);
 
   // Filtra os produtos pela busca do usuário e visibilidade/estoque
   const baseFilteredProducts = products.filter((prod) => {
@@ -413,6 +465,24 @@ export const ProductList: React.FC = () => {
   const matchingCatalog = useMemo(() => {
     return baseFilteredProducts.filter(matchesFilter);
   }, [baseFilteredProducts, matchesFilter]);
+
+  const [sortBy, setSortBy] = useState<"relevant" | "price-asc" | "price-desc" | "launches">("relevant");
+
+  const sortedCatalog = useMemo(() => {
+    const items = [...matchingCatalog];
+    if (sortBy === "price-asc") {
+      return items.sort((a, b) => a.price - b.price);
+    }
+    if (sortBy === "price-desc") {
+      return items.sort((a, b) => b.price - a.price);
+    }
+    if (sortBy === "launches") {
+      return items.sort((a, b) => (b.newArrival ? 1 : 0) - (a.newArrival ? 1 : 0));
+    }
+    return items;
+  }, [matchingCatalog, sortBy]);
+
+
 
   const offersProducts = matchingCatalog.filter((p) => p.onSale);
 
@@ -437,52 +507,37 @@ export const ProductList: React.FC = () => {
 
   // Nível 1: Extração de Grupos para Categorias (centrado em nome_grupo)
   const categoriesList = useMemo(() => {
-    const uniqueMap = new Map<string, string>(); // UPPER -> Display Traduzido
-    uniqueMap.set("TODOS", "TODOS");
-
-    (dbCategories || []).filter((c) => c && c.name && c.active !== false).forEach((c) => {
-      const normalized = normalizeCategoryName(c.name);
-      if (normalized && normalized !== "Geral" && !/^\d+(\.\d+)?$/.test(normalized)) {
-        uniqueMap.set(normalized.toUpperCase(), normalized);
+    const uniqueMap = new Map<string, string>();
+    (dbCategories || []).forEach((cat) => {
+      if (cat && cat.name) {
+        const norm = normalizeCategoryName(cat.name);
+        if (norm) uniqueMap.set(norm.toUpperCase(), norm);
       }
     });
+    return Array.from(uniqueMap.values());
+  }, [dbCategories]);
 
-    (products || []).forEach((p) => {
-      const cat = (p.nome_grupo || p.category || "").trim();
-      if (cat && !/^\d+(\.\d+)?$/.test(cat)) {
-        const normalized = normalizeCategoryName(cat);
-        if (normalized && normalized !== "Geral" && !/^\d+(\.\d+)?$/.test(normalized)) {
-          if (!uniqueMap.has(normalized.toUpperCase())) {
-            uniqueMap.set(normalized.toUpperCase(), normalized);
-          }
-        }
-      }
-    });
-
-    return Array.from(uniqueMap.entries()).map(([key, label]) => ({
-      id: key,
-      label: label,
-    }));
-  }, [dbCategories, products]);
-
-  // Pílulas principais do Nível 1 (primeiras 5 categorias + "TODOS")
-  const primaryFootwearPills = useMemo(() => {
+  const primaryCategories = useMemo(() => {
     return categoriesList.slice(0, 6);
   }, [categoriesList]);
 
-  // Departamentos secundários do Nível 1 para o dropdown
-  const secondaryDepartments = useMemo(() => {
+  const extraCategories = useMemo(() => {
     return categoriesList.slice(6);
   }, [categoriesList]);
 
-  // Nível 2: Extração e Tratamento de Subgrupos (nome_subgrupo ERP) para a Categoria/Grupo selecionado
+  // Nível 2: Extração e Tratamento de Subgrupos para a Categoria/Grupo selecionado
   const availableSubcategories = useMemo(() => {
-    const subMap = new Map<string, string>(); // UPPER -> Display Traduzido
+    const subMap = new Map<string, string>();
 
     // Subcategorias associadas no dbCategories para a categoria ativa
     if (selectedCategory !== "TODOS") {
+      const target = selectedCategory.trim().toUpperCase();
       const foundCat = (dbCategories || []).find(
-        (c) => normalizeCategoryName(c.name).toUpperCase().trim() === selectedCategory
+        (c) =>
+          c.id === target ||
+          c.code === target ||
+          c.name.toUpperCase().trim() === target ||
+          normalizeCategoryName(c.name).toUpperCase().trim() === normalizeCategoryName(target)
       );
       if (foundCat && Array.isArray(foundCat.subcategories)) {
         foundCat.subcategories.forEach((sub) => {
@@ -502,14 +557,28 @@ export const ProductList: React.FC = () => {
       if (selectedCategory === "TODOS") {
         isCategoryMatch = true;
       } else {
-        const targetCat = selectedCategory.toUpperCase().trim();
-        const pGrupoNorm = normalizeCategoryName(p.nome_grupo || p.category || "").toUpperCase().trim();
-        const pGrupoRaw = (p.nome_grupo || p.category || "").toUpperCase().trim();
-        isCategoryMatch =
-          pGrupoNorm === targetCat ||
-          pGrupoRaw === targetCat ||
-          pGrupoNorm.includes(targetCat) ||
-          targetCat.includes(pGrupoNorm);
+        const target = selectedCategory.trim().toUpperCase();
+        let targetCode = "";
+        const matchedCat = (dbCategories || []).find(
+          (c) =>
+            c.id === target ||
+            c.code === target ||
+            c.name.toUpperCase().trim() === target ||
+            normalizeCategoryName(c.name).toUpperCase().trim() === normalizeCategoryName(target)
+        );
+        if (matchedCat) {
+          targetCode = matchedCat.code || matchedCat.id;
+        } else if (/^\d+$/.test(target)) {
+          targetCode = target;
+        }
+        const pParentCode = getParentGroupCode(p.classificacao);
+        if (targetCode && pParentCode) {
+          isCategoryMatch = pParentCode === targetCode;
+        } else {
+          const pGrupoNorm = normalizeCategoryName(p.nome_grupo || p.category || "").toUpperCase().trim();
+          const pGrupoRaw = (p.nome_grupo || p.category || "").toUpperCase().trim();
+          isCategoryMatch = pGrupoNorm === target || pGrupoRaw === target;
+        }
       }
 
       if (isCategoryMatch) {
@@ -566,12 +635,7 @@ export const ProductList: React.FC = () => {
     return list;
   }, [homeSections]);
 
-  const isSecondaryActive = secondaryDepartments.some(
-    (d) => d.id === selectedCategory
-  );
-  const activeSecondaryLabel = secondaryDepartments.find(
-    (d) => d.id === selectedCategory
-  )?.label;
+
 
   return (
     <section
@@ -623,6 +687,37 @@ export const ProductList: React.FC = () => {
               <Sparkles className="h-3.5 w-3.5 text-amber-500 shrink-0" />
               {totalFilteredCount} {totalFilteredCount === 1 ? 'produto encontrado' : 'produtos encontrados'}
             </span>
+          </div>
+        </div>
+
+        {/* CONTROLES DA VITRINE: ORDENAÇÃO E CONTADOR */}
+        <div className="flex items-center justify-between flex-wrap gap-3 pt-2 border-t border-slate-100 dark:border-slate-800/80">
+          <div className="flex items-center space-x-2">
+            <span className="text-xs font-semibold text-slate-400">
+              Mostrando <span className="font-extrabold text-slate-900 dark:text-slate-100">{totalFilteredCount}</span> {totalFilteredCount === 1 ? 'produto' : 'produtos'} {selectedCategory !== 'TODOS' ? `em ${normalizeCategoryName(selectedCategory)}` : 'em Todos os Departamentos'}
+            </span>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <label htmlFor="sort-select" className="text-xs font-bold text-slate-400 flex items-center gap-1.5 shrink-0">
+              <ArrowUpDown className="h-3.5 w-3.5 text-amber-500" />
+              <span>Ordenar por:</span>
+            </label>
+            <select
+              id="sort-select"
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as any)}
+              className={`text-xs font-bold px-3 py-1.5 rounded-xl border transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-400/50 ${
+                isDark
+                  ? "bg-slate-950 border-slate-800 text-slate-200 hover:border-amber-400/40"
+                  : "bg-white border-slate-200 text-slate-800 hover:border-slate-300"
+              }`}
+            >
+              <option value="relevant">Mais relevantes</option>
+              <option value="price-asc">Menor preço</option>
+              <option value="price-desc">Maior preço</option>
+              <option value="launches">Lançamentos</option>
+            </select>
           </div>
         </div>
 
@@ -718,30 +813,45 @@ export const ProductList: React.FC = () => {
 
       {/* Skeleton Loading State */}
       {isLoadingProducts ? (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-6 py-6">
-          {[1, 2, 3, 4].map((n) => (
-            <div
-              key={n}
-              className={`border rounded-2xl p-4 animate-pulse space-y-4 ${
-                isDark
-                  ? "bg-slate-900/40 border-slate-800"
-                  : "bg-white/60 border-slate-200"
-              }`}
-            >
+        <div className="space-y-8 py-4">
+          {/* Skeleton de Pílulas de Subcategoria */}
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-2">
+            {[1, 2, 3, 4, 5, 6].map((n) => (
               <div
-                className={`aspect-square w-full rounded-xl ${isDark ? "bg-slate-800/60" : "bg-slate-200/60"}`}
+                key={n}
+                className={`h-9 w-28 rounded-2xl animate-pulse shrink-0 ${
+                  isDark ? "bg-slate-900/60 border border-slate-800" : "bg-slate-200/60 border border-slate-200"
+                }`}
               />
+            ))}
+          </div>
+
+          {/* Skeleton de Cards de Produtos (2 cols mobile, 3 tablet, 4 desktop) */}
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+            {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
               <div
-                className={`h-4 rounded-md w-2/3 ${isDark ? "bg-slate-800/60" : "bg-slate-200/60"}`}
-              />
-              <div
-                className={`h-4 rounded-md w-1/3 ${isDark ? "bg-slate-800/60" : "bg-slate-200/60"}`}
-              />
-              <div
-                className={`h-10 rounded-xl w-full ${isDark ? "bg-slate-800/60" : "bg-slate-200/60"}`}
-              />
-            </div>
-          ))}
+                key={n}
+                className={`border rounded-2xl p-4 animate-pulse space-y-4 ${
+                  isDark
+                    ? "bg-slate-900/40 border-slate-800/80"
+                    : "bg-white/70 border-slate-200/80"
+                }`}
+              >
+                <div
+                  className={`aspect-square w-full rounded-xl ${isDark ? "bg-slate-800/60" : "bg-slate-200/60"}`}
+                />
+                <div
+                  className={`h-4 rounded-md w-3/4 ${isDark ? "bg-slate-800/60" : "bg-slate-200/60"}`}
+                />
+                <div
+                  className={`h-5 rounded-md w-1/2 ${isDark ? "bg-slate-800/60" : "bg-slate-200/60"}`}
+                />
+                <div
+                  className={`h-10 rounded-xl w-full ${isDark ? "bg-slate-800/60" : "bg-slate-200/60"}`}
+                />
+              </div>
+            ))}
+          </div>
         </div>
       ) : totalFilteredCount === 0 ? (
         /* Empty State */
@@ -769,6 +879,35 @@ export const ProductList: React.FC = () => {
             Limpar Filtros e Ver Todos os Calçados
           </button>
         </motion.div>
+      ) : selectedCategory !== "TODOS" || selectedSubcategory !== "TODAS" || searchQuery ? (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between border-b pb-4 border-slate-200 dark:border-slate-800">
+            <div>
+              <h2 className="text-xl font-black tracking-tight text-slate-900 dark:text-slate-100">
+                {selectedCategory !== "TODOS" ? normalizeCategoryName(selectedCategory) : "Resultado da Busca"}
+                {selectedSubcategory !== "TODAS" && (
+                  <span className="text-amber-500 text-sm ml-2 font-bold">• {selectedSubcategory}</span>
+                )}
+              </h2>
+              <p className="text-xs text-slate-400">
+                {sortedCatalog.length} {sortedCatalog.length === 1 ? "produto encontrado" : "produtos encontrados"}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6 py-2">
+            {sortedCatalog.map((prod) => (
+              <ProductCard
+                key={prod.id}
+                product={prod}
+                theme={theme}
+                isFavorite={favorites.includes(prod.id)}
+                onToggleFavorite={toggleFavorite}
+                onViewDetails={handleVerDetalhes}
+              />
+            ))}
+          </div>
+        </div>
       ) : (
         <div className="space-y-16">
           {activeHomeSections.map((sec) => {
@@ -1005,138 +1144,23 @@ export const ProductList: React.FC = () => {
               );
             }
 
-            // 3. SECTION: CALÇADOS PREMIUM
-            if (sec.id === "shoes" && shoesProducts.length > 0) {
-              const visibleShoesProducts = shoesProducts.slice(0, visibleShoesCount);
+            // 3. RENDERIZADOR DINÂMICO DE SEÇÕES DE CATEGORIA (Calçados, Acessórios, Cosméticos, Perfumes, Escolar, etc.)
+            const catDoc = (dbCategories || []).find(
+              (c) =>
+                c.id === sec.id ||
+                (c.code && c.code === sec.id) ||
+                c.name.toUpperCase().trim() === (sec.name || "").toUpperCase().trim() ||
+                normalizeCategoryName(c.name).toUpperCase().trim() === normalizeCategoryName(sec.name || "").toUpperCase().trim()
+            );
 
-              return (
-                <div
-                  key={sec.id}
-                  id="shoes-category-section"
-                  className="space-y-6"
-                >
-                  <div
-                    className={`flex justify-between items-center border-b pb-4 ${
-                      isDark ? "border-slate-800/80" : "border-slate-200/80"
-                    }`}
-                  >
-                    <div>
-                      <h2
-                        className={`text-xl font-black tracking-tight ${isDark ? "text-slate-100" : "text-slate-900"}`}
-                      >
-                        {sec.name || "Calçados Premium"}
-                      </h2>
-                      <p className="text-xs text-slate-400">
-                        {sec.description ||
-                          "Conforto, durabilidade e estilo para todas as ocasiões"}
-                      </p>
-                    </div>
-                    <span className="text-xs font-mono font-bold text-slate-400">
-                      ({shoesProducts.length} itens)
-                    </span>
-                  </div>
+            const catCode = catDoc?.code || catDoc?.id || "";
 
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-6 py-2">
-                    {visibleShoesProducts.map((prod) => (
-                      <ProductCard
-                        key={prod.id}
-                        product={prod}
-                        theme={theme}
-                        isFavorite={favorites.includes(prod.id)}
-                        onToggleFavorite={toggleFavorite}
-                        onViewDetails={handleVerDetalhes}
-                      />
-                    ))}
-                  </div>
+            const categoryMatchedProducts = matchingCatalog.filter((p) => {
+              const pCode = getParentGroupCode(p.classificacao);
+              if (catCode && pCode) {
+                return pCode === catCode;
+              }
 
-                  {shoesProducts.length > visibleShoesCount && (
-                    <div className="flex flex-col items-center justify-center pt-4 pb-2 space-y-2">
-                      <p className="text-xs font-semibold text-slate-400">
-                        Exibindo {visibleShoesProducts.length} de {shoesProducts.length} calçados
-                      </p>
-                      <button
-                        onClick={() => setVisibleShoesCount((prev) => prev + ITEMS_PER_PAGE)}
-                        className={`px-8 py-3 rounded-2xl text-xs font-bold transition-all shadow-md flex items-center space-x-2 cursor-pointer ${
-                          isDark
-                            ? "bg-amber-400 text-slate-950 hover:bg-amber-300 shadow-amber-400/10 font-extrabold"
-                            : "bg-slate-900 text-white hover:bg-slate-800 shadow-slate-900/20"
-                        }`}
-                      >
-                        <span>Carregar Mais Calçados ({shoesProducts.length - visibleShoesCount} restantes)</span>
-                      </button>
-                    </div>
-                  )}
-                </div>
-              );
-            }
-
-            // 4. SECTION: ACESSÓRIOS DE COURO
-            if (sec.id === "accessories" && accessoriesProducts.length > 0) {
-              const visibleAccProducts = accessoriesProducts.slice(0, visibleAccCount);
-
-              return (
-                <div
-                  key={sec.id}
-                  id="accessories-category-section"
-                  className="space-y-6"
-                >
-                  <div
-                    className={`flex justify-between items-center border-b pb-4 ${
-                      isDark ? "border-slate-800/80" : "border-slate-200/80"
-                    }`}
-                  >
-                    <div>
-                      <h2
-                        className={`text-xl font-black tracking-tight ${isDark ? "text-slate-100" : "text-slate-900"}`}
-                      >
-                        {sec.name || "Acessórios"}
-                      </h2>
-                      <p className="text-xs text-slate-400">
-                        {sec.description ||
-                          "Cintos, carteiras e bolsas em couro nobre"}
-                      </p>
-                    </div>
-                    <span className="text-xs font-mono font-bold text-slate-400">
-                      ({accessoriesProducts.length} itens)
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-6 py-2">
-                    {visibleAccProducts.map((prod) => (
-                      <ProductCard
-                        key={prod.id}
-                        product={prod}
-                        theme={theme}
-                        isFavorite={favorites.includes(prod.id)}
-                        onToggleFavorite={toggleFavorite}
-                        onViewDetails={handleVerDetalhes}
-                      />
-                    ))}
-                  </div>
-
-                  {accessoriesProducts.length > visibleAccCount && (
-                    <div className="flex flex-col items-center justify-center pt-4 pb-2 space-y-2">
-                      <p className="text-xs font-semibold text-slate-400">
-                        Exibindo {visibleAccProducts.length} de {accessoriesProducts.length} acessórios
-                      </p>
-                      <button
-                        onClick={() => setVisibleAccCount((prev) => prev + ITEMS_PER_PAGE)}
-                        className={`px-8 py-3 rounded-2xl text-xs font-bold transition-all shadow-md flex items-center space-x-2 cursor-pointer ${
-                          isDark
-                            ? "bg-amber-400 text-slate-950 hover:bg-amber-300 shadow-amber-400/10 font-extrabold"
-                            : "bg-slate-900 text-white hover:bg-slate-800 shadow-slate-900/20"
-                        }`}
-                      >
-                        <span>Carregar Mais Acessórios ({accessoriesProducts.length - visibleAccCount} restantes)</span>
-                      </button>
-                    </div>
-                  )}
-                </div>
-              );
-            }
-
-            // 5. RENDERIZADOR GENÉRICO PARA SEÇÕES PERSONALIZADAS DO ADMIN (CATEGORIAS ATUAIS)
-            const customMatchedProducts = matchingCatalog.filter((p) => {
               const pCatNorm = normalizeCategoryName(p.nome_grupo || p.category || "").toUpperCase();
               const pGrupoRaw = (p.nome_grupo || p.category || "").toUpperCase();
               const secNameNorm = normalizeCategoryName(sec.name || "").toUpperCase();
@@ -1150,35 +1174,81 @@ export const ProductList: React.FC = () => {
               );
             });
 
-            if (customMatchedProducts.length > 0) {
+            if (categoryMatchedProducts.length > 0) {
+              const subcategoriesList = Array.isArray(catDoc?.subcategories) ? catDoc.subcategories : [];
+
               return (
                 <div key={sec.id} className="space-y-6">
+                  {/* Cabeçalho da Seção */}
                   <div
-                    className={`flex justify-between items-center border-b pb-4 ${
+                    className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4 ${
                       isDark ? "border-slate-800/80" : "border-slate-200/80"
                     }`}
                   >
-                    <div>
-                      <h2
-                        className={`text-xl font-black tracking-tight ${
-                          isDark ? "text-slate-100" : "text-slate-900"
+                    <div className="flex items-center space-x-3">
+                      <div className="p-2 rounded-xl bg-amber-400/10 border border-amber-400/20 text-amber-500">
+                        <Layers className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h2
+                          className={`text-xl font-black tracking-tight ${
+                            isDark ? "text-slate-100" : "text-slate-900"
+                          }`}
+                        >
+                          {catDoc?.name || sec.name}
+                        </h2>
+                        <p className="text-xs text-slate-400">
+                          {sec.description || catDoc?.description || `Coleção exclusiva de ${catDoc?.name || sec.name}`}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center space-x-3 sm:space-x-4">
+                      <span className="text-xs font-mono font-bold text-slate-400">
+                        ({categoryMatchedProducts.length} itens)
+                      </span>
+                      <button
+                        onClick={() => handleSelectCategory(catDoc?.name || sec.name)}
+                        className={`text-xs font-extrabold transition-all flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full border cursor-pointer ${
+                          isDark
+                            ? "bg-slate-900/80 text-amber-400 border-amber-400/30 hover:bg-amber-400/10"
+                            : "bg-slate-100 text-slate-800 border-slate-300 hover:bg-slate-200"
                         }`}
                       >
-                        {sec.name}
-                      </h2>
-                      {sec.description && (
-                        <p className="text-xs text-slate-400">
-                          {sec.description}
-                        </p>
-                      )}
+                        <span>Ver Todos</span>
+                        <ArrowRight className="h-3.5 w-3.5" />
+                      </button>
                     </div>
-                    <span className="text-xs font-mono font-bold text-slate-400">
-                      ({customMatchedProducts.length} itens)
-                    </span>
                   </div>
 
+                  {/* Pílulas de Subcategorias da Categoria */}
+                  {subcategoriesList.length > 0 && (
+                    <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
+                      <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 shrink-0">
+                        Subcategorias:
+                      </span>
+                      {subcategoriesList.map((sub) => (
+                        <button
+                          key={sub.id || sub.subCode || sub.name}
+                          onClick={() => {
+                            handleSelectCategory(catDoc?.name || sec.name);
+                            setSelectedSubcategory(sub.name);
+                          }}
+                          className={`text-[11px] font-bold px-3 py-1 rounded-full border transition-all shrink-0 cursor-pointer ${
+                            isDark
+                              ? "bg-slate-900/80 border-slate-800 text-slate-300 hover:border-amber-400/50 hover:text-amber-400"
+                              : "bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200"
+                          }`}
+                        >
+                          {sub.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Grade de Produtos */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-6 py-2">
-                    {customMatchedProducts.slice(0, 8).map((prod) => (
+                    {categoryMatchedProducts.slice(0, 8).map((prod) => (
                       <ProductCard
                         key={prod.id}
                         product={prod}

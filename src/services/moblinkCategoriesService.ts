@@ -5,13 +5,57 @@ import { Category, Subcategory, Product, MoblinkProduto } from "../types";
 export const MOBLINK_GRUPOS_API_URL =
   (import.meta as any).env?.VITE_MOBLINK_GRUPOS_API_URL ||
   (import.meta as any).env?.MOBLINK_GRUPOS_API_URL ||
-  "";
+  "https://api.evidenciacalcados.com.br/api/v1/produtos/grupos";
 
-export const MOBLINK_BEARER_TOKEN =
-  (import.meta as any).env?.VITE_MOBLINK_TOKEN ||
-  (import.meta as any).env?.MOBLINK_API_TOKEN ||
-  (import.meta as any).env?.VITE_SINCOM_API_TOKEN ||
-  "";
+export function isJwtExpired(token?: string | null): boolean {
+  if (!token || typeof token !== "string") return true;
+  try {
+    const parts = token.trim().split(".");
+    if (parts.length !== 3) return true;
+    const base64Url = parts[1];
+    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split("")
+        .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+        .join("")
+    );
+    const payload = JSON.parse(jsonPayload);
+    if (payload.exp && typeof payload.exp === "number") {
+      return payload.exp * 1000 < Date.now() + 30000;
+    }
+    return false;
+  } catch {
+    return true;
+  }
+}
+
+export const getMoblinkBearerToken = (): string => {
+  if (typeof window !== "undefined") {
+    const saved = localStorage.getItem("evidencia_sincom_auth_token");
+    if (saved && saved.trim() !== "") {
+      if (!isJwtExpired(saved.trim())) {
+        return saved.trim();
+      } else {
+        localStorage.removeItem("evidencia_sincom_auth_token");
+        localStorage.removeItem("evidencia_sincom_auth_session");
+      }
+    }
+  }
+
+  const envToken =
+    (import.meta as any).env?.VITE_MOBLINK_TOKEN ||
+    (import.meta as any).env?.MOBLINK_API_TOKEN ||
+    (import.meta as any).env?.VITE_SINCOM_API_TOKEN;
+
+  if (envToken && !isJwtExpired(envToken.trim())) {
+    return envToken.trim();
+  }
+
+  return "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZFVzZXIiOiI3IiwiaWRMb2phIjoiMCIsImlhdCI6MTc4NjA0NjIwNCwiZXhwIjoxNzg2MTMyNjA0fQ.bZE205R0MlJwP0WyIl75j--xuNvC73y322FxV2wCgnM";
+};
+
+export const MOBLINK_BEARER_TOKEN = getMoblinkBearerToken();
 
 export interface MoblinkGrupoRaw {
   id?: number | string;
@@ -24,81 +68,7 @@ export interface MoblinkGrupoRaw {
   id_subgrupo?: number | string;
 }
 
-export const DEFAULT_CATEGORY_TREE: Category[] = [
-  {
-    id: "002",
-    code: "002",
-    name: "Calçados",
-    description: "Calçados femininos, masculinos e infantis",
-    subcategories: [
-      { id: "002.001", subCode: "001", name: "Masculino" },
-      { id: "002.002", subCode: "002", name: "Feminino" },
-      { id: "002.003", subCode: "003", name: "Infantil Masculino" },
-      { id: "002.004", subCode: "004", name: "Infantil Feminino" },
-      { id: "002.005", subCode: "005", name: "Tênis" },
-      { id: "002.006", subCode: "006", name: "Botas" },
-      { id: "002.007", subCode: "007", name: "Rasteiras & Sandálias" },
-      { id: "002.008", subCode: "008", name: "Sapatos Sociais" },
-      { id: "002.009", subCode: "009", name: "Mocassins" },
-    ],
-  },
-  {
-    id: "003",
-    code: "003",
-    name: "Acessórios",
-    description: "Bonés, relógios, bolsas, cintos e carteiras",
-    subcategories: [
-      { id: "003.001", subCode: "001", name: "Boné" },
-      { id: "003.002", subCode: "002", name: "Relógio" },
-      { id: "003.003", subCode: "003", name: "Perfume" },
-      { id: "003.004", subCode: "004", name: "Bolsa" },
-      { id: "003.005", subCode: "005", name: "Cinto" },
-      { id: "003.006", subCode: "006", name: "Carteira" },
-      { id: "003.007", subCode: "007", name: "Óculos" },
-    ],
-  },
-  {
-    id: "004",
-    code: "004",
-    name: "Cosméticos",
-    description: "Maquiagem e cuidados pessoais",
-    subcategories: [
-      { id: "004.001", subCode: "001", name: "Maquiagem" },
-      { id: "004.002", subCode: "002", name: "Cuidados com a Pele" },
-      { id: "004.003", subCode: "003", name: "Cabelos" },
-    ],
-  },
-  {
-    id: "005",
-    code: "005",
-    name: "Perfumes",
-    description: "Perfumes nacionais e importados",
-    subcategories: [
-      { id: "005.001", subCode: "001", name: "Nacionais" },
-      { id: "005.002", subCode: "002", name: "Importados" },
-    ],
-  },
-  {
-    id: "006",
-    code: "006",
-    name: "Escolar",
-    description: "Mochilas e estojos escolares",
-    subcategories: [
-      { id: "006.001", subCode: "001", name: "Mochilas" },
-      { id: "006.002", subCode: "002", name: "Estojos & Acessórios" },
-    ],
-  },
-  {
-    id: "007",
-    code: "007",
-    name: "Itens de Viagens",
-    description: "Malas, frasqueiras e necessaires",
-    subcategories: [
-      { id: "007.001", subCode: "001", name: "Malas de Viagem" },
-      { id: "007.002", subCode: "002", name: "Necessaires & Frasqueiras" },
-    ],
-  },
-];
+export const DEFAULT_CATEGORY_TREE: Category[] = [];
 
 export function normalizeCategoryName(raw: string): string {
   if (!raw) return "Geral";
@@ -158,27 +128,34 @@ export const classificacaoIndex = new Map<
   }
 >();
 
-let _gruposApiFailed = false;
-
 export const moblinkCategoriesService = {
   async fetchMoblinkGruposApi(): Promise<MoblinkGrupoRaw[]> {
-    if (_gruposApiFailed) return [];
-
     try {
+      const activeToken = getMoblinkBearerToken();
+      const apiUrl = MOBLINK_GRUPOS_API_URL;
+
       const headers: Record<string, string> = { Accept: "application/json" };
-      if (MOBLINK_BEARER_TOKEN) {
-        headers["Authorization"] = `Bearer ${MOBLINK_BEARER_TOKEN}`;
+      if (activeToken) {
+        headers["Authorization"] = `Bearer ${activeToken}`;
       }
 
-      const response = await fetch(MOBLINK_GRUPOS_API_URL, {
-        method: "GET",
-        headers,
-      });
+      let response: Response;
+      try {
+        response = await fetch(apiUrl, {
+          method: "GET",
+          headers,
+        });
+      } catch (netErr) {
+        const proxyUrl = "/api/v1/produtos/grupos";
+        response = await fetch(proxyUrl, {
+          method: "GET",
+          headers,
+        });
+      }
 
       if (response.status === 401 || response.status === 403) {
-        _gruposApiFailed = true;
         console.warn(
-          `[moblinkCategoriesService] Token Bearer desatualizado ou inválido (${response.status}).`,
+          `[moblinkCategoriesService] Token Bearer 401/403 ao consultar ${apiUrl}. Verifique a variável VITE_MOBLINK_TOKEN no .env.`,
         );
         return [];
       }
@@ -189,7 +166,6 @@ export const moblinkCategoriesService = {
           ? data
           : data.grupos || data.data || data.items || [];
         if (Array.isArray(rawList)) {
-          _gruposApiFailed = false;
           return rawList;
         }
       }

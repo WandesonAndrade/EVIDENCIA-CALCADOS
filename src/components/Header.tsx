@@ -26,7 +26,8 @@ export const Header: React.FC = () => {
     setSelectedSubcategory,
     favorites = [],
     theme,
-    toggleTheme
+    toggleTheme,
+    categories = [],
   } = useApp();
 
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -77,7 +78,7 @@ export const Header: React.FC = () => {
   };
 
   const getDeptPillClass = (categoryUpper: string) => {
-    const isActive = currentView === 'home' && selectedCategory === categoryUpper;
+    const isActive = currentView === 'home' && (selectedCategory.toUpperCase() === categoryUpper || selectedCategory === categoryUpper);
     return `relative text-xs sm:text-sm font-black tracking-widest uppercase transition-all cursor-pointer px-4 py-1.5 rounded-full flex items-center space-x-1.5 ${
       isActive
         ? isDark
@@ -88,6 +89,20 @@ export const Header: React.FC = () => {
           : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
     }`;
   };
+
+  // Categorias dinâmicas vindas do Firestore (categories)
+  const navCategories = React.useMemo(() => {
+    if (!categories || categories.length === 0) return [];
+    
+    const seenNames = new Set<string>();
+    return categories.filter((cat) => {
+      if (!cat || !cat.name) return false;
+      const norm = cat.name.trim().toUpperCase();
+      if (seenNames.has(norm)) return false;
+      seenNames.add(norm);
+      return true;
+    });
+  }, [categories]);
 
   return (
     <header 
@@ -181,8 +196,6 @@ export const Header: React.FC = () => {
               )}
             </motion.button>
 
-
-
             {/* Perfil do Usuário com Dropdown */}
             {activeUser ? (
               <div className="relative">
@@ -198,14 +211,14 @@ export const Header: React.FC = () => {
                     <img 
                       src={activeUser.photoURL} 
                       alt={activeUser.name || 'Usuário'} 
-                      className="w-7 h-7 rounded-full object-cover border border-slate-700"
+                      className="w-7 h-7 rounded-full object-cover"
                       referrerPolicy="no-referrer"
                     />
                   ) : (
-                    <div className={`w-7 h-7 rounded-full flex items-center justify-center border text-xs font-bold ${
-                      isDark ? 'bg-amber-400 text-slate-950 border-amber-400' : 'bg-slate-900 text-white border-slate-800'
+                    <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
+                      isDark ? 'bg-slate-800 text-amber-400' : 'bg-slate-200 text-slate-700'
                     }`}>
-                      <User className="h-3.5 w-3.5" />
+                      {(activeUser.name || activeUser.email || 'U').charAt(0).toUpperCase()}
                     </div>
                   )}
                   <ChevronDown className="h-3.5 w-3.5 text-slate-400 pr-0.5" />
@@ -358,28 +371,33 @@ export const Header: React.FC = () => {
           </div>
         </div>
 
-        {/* LINHA INFERIOR (TIER 2): Barra de Navegação — Categorias Principais (Departamentos) */}
+        {/* LINHA INFERIOR (TIER 2): Barra de Navegação — Categorias Dinâmicas do Firestore */}
         <div className={`border-t py-2 flex items-center overflow-x-auto no-scrollbar ${
           isDark ? 'border-slate-800/60' : 'border-slate-200/60'
         }`}>
           <nav id="macro-departments-nav" className="flex items-center space-x-2 sm:space-x-3 py-0.5 whitespace-nowrap">
-            {[
-              { id: 'TODOS', label: 'Todos os Departamentos' },
-              { id: 'CALÇADOS', label: 'Calçados' },
-              { id: 'ACESSÓRIOS', label: 'Acessórios' },
-              { id: 'COSMÉTICOS', label: 'Cosméticos' },
-              { id: 'PERFUMES', label: 'Perfumes' },
-              { id: 'ESCOLAR', label: 'Escolar' },
-              { id: 'ITENS DE VIAGENS', label: 'Itens de Viagens' },
-            ].map(dept => (
-              <button 
-                key={dept.id}
-                onClick={() => handleDeptFilter(dept.id)}
-                className={getDeptPillClass(dept.id)}
-              >
-                {dept.label}
-              </button>
-            ))}
+            {/* Pílula fixa inicial: Todos os Departamentos */}
+            <button 
+              key="TODOS"
+              onClick={() => handleDeptFilter('TODOS')}
+              className={getDeptPillClass('TODOS')}
+            >
+              Todos os Departamentos
+            </button>
+
+            {/* Categorias Oficiais Dinâmicas do Firestore (categories) */}
+            {navCategories.map((cat) => {
+              const catKey = cat.name.toUpperCase();
+              return (
+                <button 
+                  key={cat.id || catKey}
+                  onClick={() => handleDeptFilter(cat.name)}
+                  className={getDeptPillClass(catKey)}
+                >
+                  {cat.name}
+                </button>
+              );
+            })}
           </nav>
         </div>
 
