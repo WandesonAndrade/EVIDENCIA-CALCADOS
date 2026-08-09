@@ -1,118 +1,192 @@
-import React from 'react';
-import { Phone, MapPin, Mail, MessageSquare } from 'lucide-react';
+import React, { useState } from 'react';
+import { Send, Instagram, Facebook, Youtube } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { BrandLogo } from './BrandLogo';
 
 export const Footer: React.FC = () => {
-  const { setCurrentView, contactConfig } = useApp();
+  const { setCurrentView } = useApp();
+  const [newsletterEmail, setNewsletterEmail] = useState('');
+  const [newsletterSubscribed, setNewsletterSubscribed] = useState(false);
 
-  const savedPhone = contactConfig?.whatsapp || localStorage.getItem('evidencia_settings_whatsapp') || '5599984684867';
-  const savedEmail = contactConfig?.email || 'contato@evidencia.com.br';
-  const savedAddress = contactConfig?.address || 'Rua Afonso Pena, 295 - Centro, Caxias - MA';
-
-  const handleWhatsAppGeneralClick = () => {
-    const text = encodeURIComponent("Olá! Estou navegando no catálogo da Evidência Calçados e gostaria de tirar algumas dúvidas.");
-    window.open(`https://wa.me/${savedPhone.replace(/\D/g, '')}?text=${text}`, '_blank');
-  };
-
-  const formatPhone = (phoneStr: string) => {
-    const clean = phoneStr.replace(/\D/g, '');
-    if (clean.length === 13) {
-      return `(${clean.slice(2, 4)}) ${clean.slice(4, 9)}-${clean.slice(9)}`;
-    } else if (clean.length === 11) {
-      return `(${clean.slice(0, 2)}) ${clean.slice(2, 7)}-${clean.slice(7)}`;
+  const handleNewsletterSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newsletterEmail.trim()) {
+      setNewsletterSubscribed(true);
+      setNewsletterEmail('');
+      setTimeout(() => setNewsletterSubscribed(false), 4000);
     }
-    return phoneStr;
   };
 
   return (
-    <footer id="store-footer" className="bg-slate-950 text-white mt-16 border-t border-slate-900">
-      <div className="max-w-7xl mx-auto px-4 py-14 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8 sm:gap-10">
+    <footer id="store-footer" className="bg-[#fbf9f9] dark:bg-slate-950 text-neutral-800 dark:text-slate-200 border-t border-neutral-200 dark:border-slate-800 mt-20 text-xs">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
+        
+        {/* Grid Principal de 5 Colunas */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-8 lg:gap-6 pb-12 border-b border-neutral-200 dark:border-slate-800">
           
-          {/* Column 1: Institutional info & Vector Brand Logo */}
-          <div className="space-y-4">
+          {/* Coluna 1: Logo Oficial + App Store Badges + Redes Sociais */}
+          <div className="space-y-4 lg:col-span-1">
             <BrandLogo size="md" />
 
-            <p className="text-xs text-slate-400 font-normal leading-relaxed">
-              Qualidade, estilo e sofisticação para os seus pés. Conheça nossas coleções exclusivas e aproveite o parcelamento facilidades no Crediário Próprio Evidência.
-            </p>
+            {/* Badges de App Store / Google Play */}
+            <div className="flex items-center space-x-2 pt-1">
+              <div className="bg-black text-white text-[9px] font-bold px-2.5 py-1.5 rounded-md flex items-center space-x-1 cursor-pointer">
+                <span>Google Play</span>
+              </div>
+              <div className="bg-black text-white text-[9px] font-bold px-2.5 py-1.5 rounded-md flex items-center space-x-1 cursor-pointer">
+                <span>App Store</span>
+              </div>
+            </div>
+
+            {/* Ícones de Redes Sociais */}
+            <div className="flex items-center space-x-3 pt-2 text-neutral-600 dark:text-slate-400">
+              <Instagram className="h-4 w-4 hover:text-black dark:hover:text-white transition-colors cursor-pointer" />
+              <Facebook className="h-4 w-4 hover:text-black dark:hover:text-white transition-colors cursor-pointer" />
+              <Youtube className="h-4 w-4 hover:text-black dark:hover:text-white transition-colors cursor-pointer" />
+            </div>
           </div>
 
-          {/* Column 2: Institutional */}
+          {/* Coluna 2: Institucional */}
           <div className="space-y-3">
-            <h4 className="text-xs font-black tracking-widest text-amber-400 uppercase">INSTITUCIONAL</h4>
-            <ul className="space-y-2.5 text-xs text-slate-300 font-medium">
+            <h4 className="font-extrabold text-neutral-900 dark:text-white tracking-tight text-xs uppercase">Institucional</h4>
+            <ul className="space-y-2 font-medium text-neutral-600 dark:text-slate-400">
               <li>
-                <button 
-                  onClick={() => setCurrentView('about')} 
-                  className="hover:text-amber-400 transition-colors cursor-pointer text-left"
-                >
+                <button onClick={() => setCurrentView('about')} className="hover:text-black dark:hover:text-white transition-colors cursor-pointer text-left">
                   Sobre nós
                 </button>
               </li>
-              <li><a href="#" className="hover:text-amber-400 transition-colors">Privacidade</a></li>
-              <li><a href="#" className="hover:text-amber-400 transition-colors">Termos de Uso</a></li>
-            </ul>
-          </div>
-
-          {/* Column 3: Support */}
-          <div className="space-y-3">
-            <h4 className="text-xs font-black tracking-widest text-amber-400 uppercase">SUPORTE</h4>
-            <ul className="space-y-2.5 text-xs text-slate-300 font-medium">
               <li>
-                <button 
-                  onClick={() => setCurrentView('support')} 
-                  className="hover:text-amber-400 transition-colors cursor-pointer text-left"
-                >
-                  Central de Suporte
+                <button onClick={() => setCurrentView('about')} className="hover:text-black dark:hover:text-white transition-colors cursor-pointer text-left">
+                  Nossas lojas
                 </button>
               </li>
               <li>
-                <button 
-                  onClick={() => setCurrentView('support')} 
-                  className="hover:text-amber-400 transition-colors cursor-pointer text-left"
-                >
-                  Trocas e Devoluções
+                <button onClick={() => setCurrentView('support')} className="hover:text-black dark:hover:text-white transition-colors cursor-pointer text-left">
+                  Trabalhe conosco
                 </button>
               </li>
               <li>
-                <button 
-                  onClick={() => setCurrentView('support')} 
-                  className="hover:text-amber-400 transition-colors cursor-pointer text-left"
-                >
-                  Crediário Próprio
+                <button onClick={() => setCurrentView('support')} className="hover:text-black dark:hover:text-white transition-colors cursor-pointer text-left">
+                  Política de privacidade
+                </button>
+              </li>
+              <li>
+                <button onClick={() => setCurrentView('support')} className="hover:text-black dark:hover:text-white transition-colors cursor-pointer text-left">
+                  Trocas e devoluções
                 </button>
               </li>
             </ul>
           </div>
 
-          {/* Column 4: Contact */}
+          {/* Coluna 3: Ajuda */}
           <div className="space-y-3">
-            <h4 className="text-xs font-black tracking-widest text-amber-400 uppercase">CONTATO</h4>
-            <ul className="space-y-2.5 text-xs text-slate-300 font-medium">
-              <li className="flex items-center space-x-2">
-                <Phone className="h-4 w-4 text-amber-400" />
-                <span>{formatPhone(savedPhone)}</span>
+            <h4 className="font-extrabold text-neutral-900 dark:text-white tracking-tight text-xs uppercase">Ajuda</h4>
+            <ul className="space-y-2 font-medium text-neutral-600 dark:text-slate-400">
+              <li>
+                <button onClick={() => setCurrentView('support')} className="hover:text-black dark:hover:text-white transition-colors cursor-pointer text-left">
+                  Central de atendimento
+                </button>
               </li>
-              <li className="flex items-start space-x-2">
-                <MapPin className="h-4 w-4 text-amber-400 mt-0.5 shrink-0" />
-                <span>{savedAddress}</span>
+              <li>
+                <button onClick={() => setCurrentView('support')} className="hover:text-black dark:hover:text-white transition-colors cursor-pointer text-left">
+                  Como comprar
+                </button>
               </li>
-              <li className="flex items-center space-x-2">
-                <Mail className="h-4 w-4 text-amber-400" />
-                <span>{savedEmail}</span>
+              <li>
+                <button onClick={() => setCurrentView('support')} className="hover:text-black dark:hover:text-white transition-colors cursor-pointer text-left">
+                  Formas de pagamento
+                </button>
+              </li>
+              <li>
+                <button onClick={() => setCurrentView('support')} className="hover:text-black dark:hover:text-white transition-colors cursor-pointer text-left">
+                  Entrega e prazos
+                </button>
+              </li>
+              <li>
+                <button onClick={() => setCurrentView('support')} className="hover:text-black dark:hover:text-white transition-colors cursor-pointer text-left">
+                  Perguntas frequentes
+                </button>
               </li>
             </ul>
+          </div>
+
+          {/* Coluna 4: Minha conta */}
+          <div className="space-y-3">
+            <h4 className="font-extrabold text-neutral-900 dark:text-white tracking-tight text-xs uppercase">Minha conta</h4>
+            <ul className="space-y-2 font-medium text-neutral-600 dark:text-slate-400">
+              <li>
+                <button onClick={() => setCurrentView('orders')} className="hover:text-black dark:hover:text-white transition-colors cursor-pointer text-left">
+                  Meus pedidos
+                </button>
+              </li>
+              <li>
+                <button onClick={() => setCurrentView('orders')} className="hover:text-black dark:hover:text-white transition-colors cursor-pointer text-left">
+                  Meus dados
+                </button>
+              </li>
+              <li>
+                <button onClick={() => setCurrentView('favorites')} className="hover:text-black dark:hover:text-white transition-colors cursor-pointer text-left">
+                  Lista de desejos
+                </button>
+              </li>
+              <li>
+                <button onClick={() => setCurrentView('meu-crediario')} className="hover:text-black dark:hover:text-white transition-colors cursor-pointer text-left">
+                  Vale-presente / Crediário
+                </button>
+              </li>
+            </ul>
+          </div>
+
+          {/* Coluna 5: Newsletter */}
+          <div className="space-y-3">
+            <h4 className="font-extrabold text-neutral-900 dark:text-white tracking-tight text-xs uppercase">Newsletter</h4>
+            <p className="text-neutral-600 dark:text-slate-400 font-medium leading-relaxed">
+              Receba novidades e ofertas exclusivas em seu e-mail.
+            </p>
+            
+            <form onSubmit={handleNewsletterSubmit} className="relative pt-1">
+              <input
+                type="email"
+                required
+                value={newsletterEmail}
+                onChange={(e) => setNewsletterEmail(e.target.value)}
+                placeholder="Seu melhor e-mail"
+                className="w-full pl-3.5 pr-10 py-2.5 text-xs bg-white dark:bg-slate-900 border border-neutral-300 dark:border-slate-800 rounded-md focus:outline-none focus:border-black dark:focus:border-white transition-colors"
+              />
+              <button
+                type="submit"
+                className="absolute right-2 top-3 text-neutral-500 hover:text-black dark:hover:text-white cursor-pointer"
+                title="Inscrever-se"
+              >
+                <Send className="h-4 w-4" />
+              </button>
+            </form>
+
+            {newsletterSubscribed && (
+              <span className="block text-[11px] font-bold text-emerald-600 dark:text-emerald-400 pt-1">
+                ✓ Inscrição realizada com sucesso!
+              </span>
+            )}
           </div>
 
         </div>
 
-        <div className="mt-12 pt-8 border-t border-slate-900 text-center text-xs text-slate-500 font-medium">
-          © 2026 Evidência Calçados. Todos os direitos reservados.
+        {/* Linha Inferior de Copyright */}
+        <div className="pt-8 flex flex-col sm:flex-row items-center justify-between text-neutral-500 dark:text-slate-400 font-medium text-[11px] gap-4">
+          <p>© 2025 Evidência Calçados. Todos os direitos reservados.</p>
+          
+          <div className="flex items-center space-x-4">
+            <button onClick={() => setCurrentView('support')} className="hover:underline cursor-pointer">
+              Termos de uso
+            </button>
+            <span>|</span>
+            <button onClick={() => setCurrentView('support')} className="hover:underline cursor-pointer">
+              Política de privacidade
+            </button>
+          </div>
         </div>
+
       </div>
-
     </footer>
   );
 };

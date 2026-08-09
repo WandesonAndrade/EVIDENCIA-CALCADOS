@@ -1,61 +1,11 @@
 import { db } from "../lib/firebase";
 import { doc, setDoc } from "firebase/firestore";
 import { Category, Subcategory, Product, MoblinkProduto } from "../types";
+import { evidenciaAuthService } from "../lib/evidenciaAuth";
 
 export const MOBLINK_GRUPOS_API_URL =
   (import.meta as any).env?.VITE_MOBLINK_GRUPOS_API_URL ||
-  (import.meta as any).env?.MOBLINK_GRUPOS_API_URL ||
   "https://api.evidenciacalcados.com.br/api/v1/produtos/grupos";
-
-export function isJwtExpired(token?: string | null): boolean {
-  if (!token || typeof token !== "string") return true;
-  try {
-    const parts = token.trim().split(".");
-    if (parts.length !== 3) return true;
-    const base64Url = parts[1];
-    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
-    const jsonPayload = decodeURIComponent(
-      atob(base64)
-        .split("")
-        .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
-        .join("")
-    );
-    const payload = JSON.parse(jsonPayload);
-    if (payload.exp && typeof payload.exp === "number") {
-      return payload.exp * 1000 < Date.now() + 30000;
-    }
-    return false;
-  } catch {
-    return true;
-  }
-}
-
-export const getMoblinkBearerToken = (): string => {
-  if (typeof window !== "undefined") {
-    const saved = localStorage.getItem("evidencia_sincom_auth_token");
-    if (saved && saved.trim() !== "") {
-      if (!isJwtExpired(saved.trim())) {
-        return saved.trim();
-      } else {
-        localStorage.removeItem("evidencia_sincom_auth_token");
-        localStorage.removeItem("evidencia_sincom_auth_session");
-      }
-    }
-  }
-
-  const envToken =
-    (import.meta as any).env?.VITE_MOBLINK_TOKEN ||
-    (import.meta as any).env?.MOBLINK_API_TOKEN ||
-    (import.meta as any).env?.VITE_SINCOM_API_TOKEN;
-
-  if (envToken && !isJwtExpired(envToken.trim())) {
-    return envToken.trim();
-  }
-
-  return "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZFVzZXIiOiI3IiwiaWRMb2phIjoiMCIsImlhdCI6MTc4NjA0NjIwNCwiZXhwIjoxNzg2MTMyNjA0fQ.bZE205R0MlJwP0WyIl75j--xuNvC73y322FxV2wCgnM";
-};
-
-export const MOBLINK_BEARER_TOKEN = getMoblinkBearerToken();
 
 export interface MoblinkGrupoRaw {
   id?: number | string;
@@ -131,32 +81,19 @@ export const classificacaoIndex = new Map<
 export const moblinkCategoriesService = {
   async fetchMoblinkGruposApi(): Promise<MoblinkGrupoRaw[]> {
     try {
-      const activeToken = getMoblinkBearerToken();
-      const apiUrl = MOBLINK_GRUPOS_API_URL;
-
-      const headers: Record<string, string> = { Accept: "application/json" };
-      if (activeToken) {
-        headers["Authorization"] = `Bearer ${activeToken}`;
-      }
-
-      let response: Response;
-      try {
-        response = await fetch(apiUrl, {
+      const response = await evidenciaAuthService.fetchWithAuth(
+        MOBLINK_GRUPOS_API_URL,
+        {
           method: "GET",
-          headers,
-        });
-      } catch (netErr) {
-        const proxyUrl = "/api/v1/produtos/grupos";
-        response = await fetch(proxyUrl, {
-          method: "GET",
-          headers,
-        });
-      }
+          headers: { Accept: "application/json" },
+        },
+      );
 
-      if (response.status === 401 || response.status === 403) {
-        console.warn(
-          `[moblinkCategoriesService] Token Bearer 401/403 ao consultar ${apiUrl}. Verifique a variável VITE_MOBLINK_TOKEN no .env.`,
-        );
+      if (
+        response.status === 401 ||
+        response.status === 403 ||
+        response.status === 404
+      ) {
         return [];
       }
 
@@ -165,12 +102,13 @@ export const moblinkCategoriesService = {
         const rawList = Array.isArray(data)
           ? data
           : data.grupos || data.data || data.items || [];
-        if (Array.isArray(rawList)) {
-          return rawList;
-        }
+        if (Array.isArray(rawList)) return rawList;
       }
     } catch (err) {
-      console.warn("📌 Erro ao consultar API de grupos MobLink:", err);
+      console.warn(
+        "[moblinkCategoriesService] Erro ao consultar API de grupos:",
+        err,
+      );
     }
     return [];
   },

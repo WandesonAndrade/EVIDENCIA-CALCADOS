@@ -5,6 +5,25 @@ export interface GradeProduto {
   descr_coluna: string;
 }
 
+export interface ProdutoGradeVariacao {
+  id?: string;
+  tamanho: string;
+  cor: string;
+  saldo_loja: number;
+  cod_barras?: string;
+  pos_grade?: string;
+}
+
+export interface ProdutoGradesResult {
+  id_produto: string;
+  hasGrade: boolean;
+  descr_linha?: string;
+  descr_coluna?: string;
+  tamanhos: string[];
+  cores: string[];
+  variacoes: ProdutoGradeVariacao[];
+}
+
 export interface MoblinkPrecoTabela {
   nome_tab_preco?: string;  // Ex: "A VISTA", "CREDIARIO", "CARTAO"
   tabela?: string;
@@ -18,8 +37,12 @@ export interface MoblinkPrecoTabela {
 
 export interface MoblinkProduto {
   id: number | string;
+  moblinkId?: string;
   descricao: string;
+  descr_compl?: string;
   nome?: string;
+  name?: string;
+  sku?: string;
   compl_descr?: string;
   descricao_completa?: string;
   /** Código de classificação da categoria no ERP (ex: "002.004") */
@@ -30,6 +53,8 @@ export interface MoblinkProduto {
   preco_venda_fracao?: number;
   preco_vista?: number;
   precoVista?: number;
+  preco_cartao?: number;
+  precoCartao?: number;
   precos?: MoblinkPrecoTabela[];
   saldo_loja?: number;
   saldos_lojas?: any[];
@@ -37,17 +62,23 @@ export interface MoblinkProduto {
   id_grade?: number | string;
   tamanhos?: (number | string)[];
   categoria?: string;
+  category?: string;
   subcategoria?: string;
+  subcategory?: string;
   nome_grupo?: string;
   nome_subgrupo?: string;
   id_grupo?: string | number;
   id_subgrupo?: string | number;
   id_pai?: string | number;
   barcode?: string;
+  referencia?: string;
+  referenceCode?: string;
   marca?: string;
+  brand?: string;
   material?: string;
   cor?: string;
   genero?: string;
+  gender?: string;
 }
 
 export interface Product {
@@ -58,6 +89,8 @@ export interface Product {
   price: number;
   promoPrice?: number | null;
   precoVista?: number;
+  precoCartao?: number;
+  preco_cartao?: number;
   originalPrice?: number;
   updatedAt?: string;
   onSale?: boolean;
@@ -81,6 +114,7 @@ export interface Product {
   material?: string;
   color?: string;
   modelOrSku?: string;
+  referencia?: string;
   warrantyOrVolume?: string;
   customAttributes?: { label: string; value: string }[];
   // Moblink ERP specific properties
@@ -114,15 +148,16 @@ export interface Product {
   cor?: string;
 }
 
-export interface SincomAuthSession {
+export interface EvidenciaAuthSession {
   token: string;
-  tokenType?: string;
   expiresAt?: string;
   authenticatedAt?: string;
-  user?: string;
   status: 'authenticated' | 'unauthenticated' | 'error';
   message?: string;
 }
+
+/** @deprecated Use EvidenciaAuthSession */
+export type SincomAuthSession = EvidenciaAuthSession;
 
 export interface MoblinkConfig {
   id: string;
@@ -155,14 +190,19 @@ export interface MoblinkSyncLogItem {
   message?: string;
 }
 
+export type ViewMode = 'home' | 'cart' | 'admin' | 'admin-login' | 'login' | 'orders' | 'product-detail' | 'portfolio-case' | 'category-page' | 'about' | 'support' | 'favorites' | 'meu-crediario';
+
 export interface MoblinkSyncLog {
   id: string;
   timestamp: string;
   type: 'webhook' | 'manual_api' | 'manual_import' | 'cron';
+  source?: string;
   status: 'success' | 'warning' | 'error';
   message: string;
-  itemsProcessed: number;
-  itemsUpdated: number;
+  itemsProcessed?: number;
+  itemsUpdated?: number;
+  itemCount?: number;
+  items?: any[];
   details?: MoblinkSyncLogItem[];
 }
 
@@ -220,6 +260,8 @@ export interface Subcategory {
   id_subgrupo?: string | number;
   id_pai?: string | number;
   description?: string;
+  visible?: boolean;
+  active?: boolean;
 }
 
 export interface Category {
@@ -231,6 +273,8 @@ export interface Category {
   id_grupo?: string | number;
   createdAt?: string;
   updatedAt?: string;
+  active?: boolean;
+  visible?: boolean;
 }
 
 export type CrediarioStatus = 'NaoSolicitado' | 'EmAnalise' | 'Aprovado' | 'Rejeitado';

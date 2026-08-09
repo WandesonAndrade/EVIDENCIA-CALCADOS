@@ -1,13 +1,17 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Manrope:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap');
 @import "tailwindcss";
 
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-heading: "Manrope", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
-  --color-primary: #00236f;
-  --color-secondary: #0060ac;
+  --color-corp-blue: #005696;
+  --color-primary: #005696;
+  --color-secondary: #003e6d;
   --color-accent-blue: #60a5fa;
   --color-highlight-red: #ba1a1a;
+  --color-sand-bg: #eae6df;
+  --color-card-bg: #f7f5f3;
 }
 
 /* Custom scrollbar to keep layout clean */
@@ -25,3 +29,13 @@
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
+
+/* Hide scrollbar utility */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+

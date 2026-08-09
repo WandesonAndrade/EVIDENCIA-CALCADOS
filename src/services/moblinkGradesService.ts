@@ -1,31 +1,25 @@
 import { GradeProduto } from '../types';
-import { MOBLINK_BEARER_TOKEN } from './moblinkProductsService';
+import { evidenciaAuthService } from '../lib/evidenciaAuth';
 
 export const MOBLINK_GRADES_API_URL =
   (import.meta as any).env?.VITE_MOBLINK_GRADES_API_URL ||
-  (import.meta as any).env?.MOBLINK_GRADES_API_URL ||
   "https://api.evidenciacalcados.com.br/api/v1/gradesprodutos";
 
 /**
  * Serviço responsável por consumir a rota GET /api/v1/gradesprodutos do MobLink ERP.
  */
 export const getGradesProdutos = async (): Promise<GradeProduto[]> => {
-  const headers = {
-    'Accept': 'application/json',
-    'Authorization': `Bearer ${MOBLINK_BEARER_TOKEN}`
-  };
-
   try {
     let response: Response;
     try {
-      response = await fetch(MOBLINK_GRADES_API_URL, {
+      response = await evidenciaAuthService.fetchWithAuth(MOBLINK_GRADES_API_URL, {
         method: 'GET',
-        headers
+        headers: { 'Accept': 'application/json' }
       });
     } catch (e) {
-      response = await fetch('/api/v1/gradesprodutos', {
+      response = await evidenciaAuthService.fetchWithAuth('/api/v1/gradesprodutos', {
         method: 'GET',
-        headers
+        headers: { 'Accept': 'application/json' }
       });
     }
 
@@ -60,22 +54,17 @@ export const getGradesProdutos = async (): Promise<GradeProduto[]> => {
  * Consulta uma Grade de Produto específica por ID via GET /api/v1/gradesprodutos/{id}
  */
 export const getGradeProdutoById = async (idGrade: string | number): Promise<GradeProduto> => {
-  const headers = {
-    'Accept': 'application/json',
-    'Authorization': `Bearer ${MOBLINK_BEARER_TOKEN}`
-  };
-
   try {
     let response: Response;
     try {
-      response = await fetch(`${MOBLINK_GRADES_API_URL}/${idGrade}`, {
+      response = await evidenciaAuthService.fetchWithAuth(`${MOBLINK_GRADES_API_URL}/${idGrade}`, {
         method: 'GET',
-        headers
+        headers: { 'Accept': 'application/json' }
       });
     } catch (e) {
-      response = await fetch(`/api/v1/gradesprodutos/${idGrade}`, {
+      response = await evidenciaAuthService.fetchWithAuth(`/api/v1/gradesprodutos/${idGrade}`, {
         method: 'GET',
-        headers
+        headers: { 'Accept': 'application/json' }
       });
     }
 
@@ -131,3 +120,163 @@ const getFallbackGrades = (): GradeProduto[] => [
     descr_coluna: 'Acabamento Fivela',
   },
 ];
+
+/**
+ * Consulta as variações de grade de um produto específico via GET /api/v1/produtos/{idprod}/grades
+ * Filtra estritamente e elimina todas as variações/cores/tamanhos com saldo <= 0.
+ */
+export const getProdutoGradesFromApi = async (
+  productId: string | number
+): Promise<import('../types').ProdutoGradesResult> => {
+  const emptyResult: import('../types').ProdutoGradesResult = {
+    id_produto: String(productId || ''),
+    hasGrade: false,
+    descr_linha: 'TAMANHO',
+    descr_coluna: 'COR',
+    tamanhos: [],
+    cores: [],
+    variacoes: [],
+  };
+
+  if (!productId) return emptyResult;
+
+  const url = `https://api.evidenciacalcados.com.br/api/v1/produtos/${productId}/grades`;
+
+  try {
+    let response: Response;
+    try {
+      response = await evidenciaAuthService.fetchWithAuth(url, {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+      });
+    } catch {
+      response = await evidenciaAuthService.fetchWithAuth(`/api/v1/produtos/${productId}/grades`, {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+      });
+    }
+
+    if (!response.ok) {
+      return emptyResult;
+    }
+
+    const data = await response.json();
+    return parseAndFilterProdutoGrades(productId, data);
+  } catch (error) {
+    console.warn(`[moblinkGradesService] Erro ao buscar grade do produto #${productId}:`, error);
+    return emptyResult;
+  }
+};
+
+/**
+ * Processa os dados brutos da API de grade do produto e filtra estritamente saldos <= 0.
+ * Apenas combinações com saldo > 0 são contabilizadas e retornadas.
+ */
+export function parseAndFilterProdutoGrades(
+  productId: string | number,
+  rawData: any
+): import('../types').ProdutoGradesResult {
+  const result: import('../types').ProdutoGradesResult = {
+    id_produto: String(productId || ''),
+    hasGrade: false,
+    descr_linha: 'TAMANHO',
+    descr_coluna: 'COR',
+    tamanhos: [],
+    cores: [],
+    variacoes: [],
+  };
+
+  if (!rawData) return result;
+
+  const data = rawData.data || rawData.grade || rawData;
+
+  if (data.descr_linha) result.descr_linha = data.descr_linha;
+  if (data.descr_coluna) result.descr_coluna = data.descr_coluna;
+
+  const variacoes: import('../types').ProdutoGradeVariacao[] = [];
+
+  // Formato A: Estrutura Matriz "linhas" x "colunas"
+  const linhas = Array.isArray(data.linhas) ? data.linhas : Array.isArray(data.rows) ? data.rows : [];
+  if (linhas.length > 0) {
+    linhas.forEach((linhaItem: any) => {
+      const tamanhoName = String(linhaItem.descricao || linhaItem.nome || linhaItem.tamanho || linhaItem.pos_grade || '').trim();
+      const colunas = Array.isArray(linhaItem.colunas) ? linhaItem.colunas : Array.isArray(linhaItem.cols) ? linhaItem.cols : [];
+
+      colunas.forEach((colunaItem: any) => {
+        const corName = String(colunaItem.descricao || colunaItem.nome || colunaItem.cor || colunaItem.pos_grade || '').trim();
+        const saldoVal = Number(
+          colunaItem.saldo_loja ??
+          colunaItem.saldo ??
+          colunaItem.estoque ??
+          colunaItem.quant ??
+          colunaItem.quantidade ??
+          0
+        );
+
+        // REGRA DE NEGÓCIO MANDATÓRIA: Não contabiliza saldo <= 0
+        if (saldoVal > 0 && (tamanhoName || corName)) {
+          variacoes.push({
+            id: `${tamanhoName}-${corName}`,
+            tamanho: tamanhoName,
+            cor: corName,
+            saldo_loja: saldoVal,
+            pos_grade: colunaItem.pos_grade || linhaItem.pos_grade,
+            cod_barras: colunaItem.cod_barras || colunaItem.barcode,
+          });
+        }
+      });
+    });
+  }
+
+  // Formato B: Lista direta de variações (array de objetos { tamanho, cor, saldo_loja })
+  const directList = Array.isArray(data)
+    ? data
+    : Array.isArray(data.variacoes)
+    ? data.variacoes
+    : Array.isArray(data.itens)
+    ? data.itens
+    : [];
+
+  if (directList.length > 0) {
+    directList.forEach((item: any) => {
+      const tamanhoName = String(item.tamanho || item.tamanho_nome || item.size || item.linha || '').trim();
+      const corName = String(item.cor || item.cor_nome || item.color || item.coluna || '').trim();
+      const saldoVal = Number(
+        item.saldo_loja ??
+        item.saldo ??
+        item.estoque ??
+        item.quant ??
+        item.quantidade ??
+        0
+      );
+
+      // REGRA DE NEGÓCIO MANDATÓRIA: Não contabiliza saldo <= 0
+      if (saldoVal > 0 && (tamanhoName || corName)) {
+        variacoes.push({
+          id: item.id ? String(item.id) : `${tamanhoName}-${corName}`,
+          tamanho: tamanhoName,
+          cor: corName,
+          saldo_loja: saldoVal,
+          pos_grade: item.pos_grade || item.codigo_grade,
+          cod_barras: item.cod_barras || item.barcode || item.codigo,
+        });
+      }
+    });
+  }
+
+  // Extrai listas únicas de tamanhos e cores que possuem saldo > 0
+  const uniqueTamanhos = Array.from(
+    new Set(variacoes.map(v => v.tamanho).filter(Boolean))
+  ).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+
+  const uniqueCores = Array.from(
+    new Set(variacoes.map(v => v.cor).filter(Boolean))
+  );
+
+  result.variacoes = variacoes;
+  result.tamanhos = uniqueTamanhos;
+  result.cores = uniqueCores;
+  result.hasGrade = variacoes.length > 0;
+
+  return result;
+}

@@ -1,42 +1,15 @@
-import { MoblinkProduto, Product } from "../types";
+import { MoblinkProduto, Product } from '../types';
 import {
   moblinkCategoriesService,
+  normalizeCategoryName,
   normalizeSubcategoryName,
-} from "./moblinkCategoriesService";
+} from './moblinkCategoriesService';
+import { evidenciaAuthService } from '../lib/evidenciaAuth';
 
 export const MOBLINK_OFFICIAL_API_URL =
   (import.meta as any).env?.VITE_MOBLINK_API_URL ||
-  (import.meta as any).env?.MOBLINK_API_URL ||
-  "";
+  'https://api.evidenciacalcados.com.br/api/v1/produtos?pdf=false';
 
-import { isJwtExpired } from "./moblinkCategoriesService";
-
-export const getMoblinkBearerToken = (): string => {
-  if (typeof window !== "undefined") {
-    const saved = localStorage.getItem("evidencia_sincom_auth_token");
-    if (saved && saved.trim() !== "") {
-      if (!isJwtExpired(saved.trim())) {
-        return saved.trim();
-      } else {
-        localStorage.removeItem("evidencia_sincom_auth_token");
-        localStorage.removeItem("evidencia_sincom_auth_session");
-      }
-    }
-  }
-
-  const envToken =
-    (import.meta as any).env?.VITE_MOBLINK_TOKEN ||
-    (import.meta as any).env?.MOBLINK_API_TOKEN ||
-    (import.meta as any).env?.VITE_SINCOM_API_TOKEN;
-
-  if (envToken && !isJwtExpired(envToken.trim())) {
-    return envToken.trim();
-  }
-
-  return "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZFVzZXIiOiI3IiwiaWRMb2phIjoiMCIsImlhdCI6MTc4NjA0NjIwNCwiZXhwIjoxNzg2MTMyNjA0fQ.bZE205R0MlJwP0WyIl75j--xuNvC73y322FxV2wCgnM";
-};
-
-export const MOBLINK_BEARER_TOKEN = getMoblinkBearerToken();
 
 /**
  * Extrai o nome-base (modelo principal/raiz) e a variação de cor/estilo de um nome completo de produto.
@@ -254,6 +227,70 @@ export const extractPrecoVistaMoblink = (item: any): number => {
 };
 
 /**
+ * Extrai o preço de cartão buscando na lista `precos` pelo campo `nome_tab_preco === 'CARTAO'`.
+ * Fallback: tabela que contenha 'CARTAO', 'CARTÃO', 'CREDITO' ou 'CRÉDITO', depois preço de tabela.
+ */
+export const extractPrecoCartaoMoblink = (item: any): number => {
+  if (!item || typeof item !== "object") return 0;
+
+  if (Array.isArray(item.precos) && item.precos.length > 0) {
+    // Busca exata por nome_tab_preco: campo oficial da API MobLink para Cartão
+    const cartaoObj = item.precos.find((p: any) => {
+      if (typeof p !== "object" || p === null) return false;
+      const nomTab = String(
+        p.nome_tab_preco || p.tabela || p.tipo || p.nome || p.description || "",
+      ).toUpperCase();
+      return (
+        nomTab === "CARTAO" ||
+        nomTab.includes("CARTAO") ||
+        nomTab.includes("CARTÃO") ||
+        nomTab.includes("CREDITO") ||
+        nomTab.includes("CRÉDITO")
+      );
+    });
+
+    if (cartaoObj) {
+      const val =
+        cartaoObj.preco ??
+        cartaoObj.preco_venda ??
+        cartaoObj.valor ??
+        cartaoObj.price;
+      if (typeof val === "number" && !isNaN(val) && val > 0) return val;
+      if (typeof val === "string") {
+        const parsed = Number(val.replace(",", ".")) || 0;
+        if (parsed > 0) return parsed;
+      }
+    }
+  }
+
+  // Fallback: preco_cartao ou precoCartao diretamente no objeto
+  const directCartao = item.preco_cartao ?? item.precoCartao;
+  if (typeof directCartao === "number" && !isNaN(directCartao) && directCartao > 0)
+    return directCartao;
+
+  // Fallback final: preço de tabela (preco_venda)
+  return extractPrecoTabelaMoblink(item);
+};
+
+/**
+ * Extrai o código de referência do produto vindo do ERP MobLink (ex: "1250", "292.003-01", "BI2027.625").
+ */
+export const extractReferenciaMoblink = (item: any): string => {
+  if (!item || typeof item !== "object") return "";
+
+  const ref =
+    item.referencia ||
+    item.reference ||
+    item.referenciaCode ||
+    item.referenceCode ||
+    item.modelCode ||
+    item.cod_integ ||
+    "";
+
+  return typeof ref === "string" ? ref.trim() : typeof ref === "number" ? String(ref).trim() : "";
+};
+
+/**
  * Extrai e normaliza a classificação numérica pura (chave mestra ex: "002.003"),
  * traduzindo dinamicamente a Categoria e Subcategoria através da tabela centralizada de categorias.
  */
@@ -331,6 +368,20 @@ export const extractClassificacaoCategoria = (
     }
   } else if (rawClassificacao && rawClassificacao !== "Geral") {
     category = rawClassificacao;
+  }
+
+  if (category === "Geral") {
+    const rawGroup = String(
+      item.nome_grupo ||
+        item.grupo ||
+        item.categoria ||
+        item.category ||
+        "",
+    ).trim();
+    if (rawGroup && rawGroup !== "Geral") {
+      category = normalizeCategoryName(rawGroup);
+      if (!resolvedGrupo) resolvedGrupo = rawGroup;
+    }
   }
 
   return {
@@ -491,10 +542,13 @@ export const sanitizeProductForFirestore = (
       ? priceVal
       : 0;
 
+  const precoVistaVal = extractPrecoVistaMoblink(product);
+  const precoCartaoVal = extractPrecoCartaoMoblink(product);
+
   const rawPromo =
     (product as any).promoPrice ??
     product.originalPrice ??
-    extractPrecoVistaMoblink(product);
+    precoVistaVal;
   const promoPrice =
     typeof rawPromo === "number" &&
     !isNaN(rawPromo) &&
@@ -544,8 +598,19 @@ export const sanitizeProductForFirestore = (
     images: imageUrl ? [imageUrl] : [],
     foto_uri: imageUrl,
     preco_venda: price,
+    precoVista: precoVistaVal,
+    preco_vista: precoVistaVal,
+    precoCartao: precoCartaoVal,
+    preco_cartao: precoCartaoVal,
     saldo_loja: stock,
   };
+
+  const refVal = extractReferenciaMoblink(product);
+  if (refVal) {
+    cleanPayload.referencia = refVal;
+    cleanPayload.referenceCode = refVal;
+    cleanPayload.modelCode = product.modelCode || refVal;
+  }
 
   // Zero Auto-preenchimento de dados fantasmas (Insere apenas se explicitamente fornecido pelo usuário/API)
   if (Array.isArray(product.sizes) && product.sizes.length > 0) {
@@ -625,33 +690,43 @@ export const getProdutosMoblink = async (
   let lastPage = 1;
 
   try {
-    const fetchHeaders = {
-      Accept: "application/json",
-      Authorization: `Bearer ${MOBLINK_BEARER_TOKEN}`,
-    };
-
     if (onProgress) {
-      onProgress(0, 1, "Iniciando sincronização com ERP (página 1/1)...");
+      onProgress(0, 1, 'Iniciando sincronização com ERP (página 1/1)...');
     }
 
     // 1. Carrega a página 1 para detectar o número total de páginas (lastPage)
     let response: Response;
     try {
-      response = await fetch(MOBLINK_OFFICIAL_API_URL, {
-        method: "GET",
-        headers: fetchHeaders,
+      response = await evidenciaAuthService.fetchWithAuth(MOBLINK_OFFICIAL_API_URL, {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
       });
+      if (!response.ok) {
+        const fallbackUrl = '/api/v1/produtos?pdf=false';
+        console.warn(`[moblinkProductsService] Requisição direta retornou ${response.status}. Tentando proxy local: ${fallbackUrl}`);
+        response = await evidenciaAuthService.fetchWithAuth(fallbackUrl, {
+          method: 'GET',
+          headers: { Accept: 'application/json' },
+        });
+      }
     } catch (networkErr) {
-      const fallbackUrl = "/api/v1/produtos?pdf=false";
-      response = await fetch(fallbackUrl, {
-        method: "GET",
-        headers: fetchHeaders,
+      const fallbackUrl = '/api/v1/produtos?pdf=false';
+      response = await evidenciaAuthService.fetchWithAuth(fallbackUrl, {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
       });
     }
 
     if (!response.ok) {
       throw new Error(
         `Erro HTTP ${response.status} na API do MobLink (página 1)`,
+      );
+    }
+
+    const contentType = response.headers.get("content-type");
+    if (contentType && !contentType.includes("application/json")) {
+      throw new Error(
+        `Resposta da API de produtos não é JSON válido (Content-Type: ${contentType})`,
       );
     }
 
@@ -717,15 +792,15 @@ export const getProdutosMoblink = async (
               const pageUrl = `${baseApiUrl}${separator}page=${page}`;
               let pageRes: Response;
               try {
-                pageRes = await fetch(pageUrl, {
-                  method: "GET",
-                  headers: fetchHeaders,
+                pageRes = await evidenciaAuthService.fetchWithAuth(pageUrl, {
+                  method: 'GET',
+                  headers: { Accept: 'application/json' },
                 });
               } catch (err) {
                 const fallbackPageUrl = `/api/v1/produtos?pdf=false&page=${page}`;
-                pageRes = await fetch(fallbackPageUrl, {
-                  method: "GET",
-                  headers: fetchHeaders,
+                pageRes = await evidenciaAuthService.fetchWithAuth(fallbackPageUrl, {
+                  method: 'GET',
+                  headers: { Accept: 'application/json' },
                 });
               }
 
@@ -763,93 +838,174 @@ export const getProdutosMoblink = async (
       return getFallbackProdutos();
     }
 
-    return allItemsRaw.map((item: any, index: number): MoblinkProduto => {
-      const id = String(
-        item.id || item.moblinkId || item.codigo || `MOB-${101 + index}`,
-      );
-      const descricao =
-        item.descricao ||
-        item.nome ||
-        item.descricaoMoblink ||
-        item.name ||
-        `Produto MobLink ${id}`;
-
-      const preco_venda = extractPrecoVistaMoblink(item);
-      const saldo_loja = extractSaldoLojaMoblink(item);
-
-      const defaultCover =
-        index % 2 === 0
-          ? "https://images.unsplash.com/photo-1533867617858-e7b97e060509?q=80&w=600&auto=format&fit=crop"
-          : "https://images.unsplash.com/photo-1549298916-b41d501d3772?q=80&w=600&auto=format&fit=crop";
-
-      const foto_uri =
-        item.foto_uri ||
-        item.imagem ||
-        item.image ||
-        item.foto ||
-        (Array.isArray(item.images) && item.images.length > 0
-          ? item.images[0]
-          : defaultCover);
-
-      let id_grade = item.id_grade ?? item.gradeId ?? item.grade_id;
-      if (
-        id_grade === undefined ||
-        id_grade === "" ||
-        id_grade === "0" ||
-        id_grade === 0
-      ) {
-        id_grade = null;
-      }
-
-      const catInfo = extractClassificacaoCategoria(item);
-
-      // Extrair preço de tabela (carnê) e preço à vista separadamente
-      const precoTabela = extractPrecoTabelaMoblink(item);
-      const precoVista = extractPrecoVistaMoblink(item);
-
-      // Extrair preço promocional (se existir)
-      const precoPromo =
-        typeof item.preco_promocao === "number" && item.preco_promocao > 0
-          ? item.preco_promocao
-          : undefined;
-
-      return {
-        id,
-        descricao,
-        nome: item.nome || item.name || descricao,
-        /** Preço de tabela (carnê / parcelado) */
-        preco_venda: precoTabela,
-        /** Preço à vista (PIX / dinheiro) */
-        preco_vista: precoVista,
-        precoVista: precoVista,
-        /** Preço promocional opcional */
-        preco_promocao: precoPromo,
-        saldo_loja,
-        foto_uri,
-        id_grade,
-        precos: item.precos,
-        saldos_lojas: item.saldos_lojas,
-        compl_descr: item.compl_descr || item.descr_compl,
-        tamanhos: item.tamanhos,
-        /** Código de classificação original do ERP */
-        classificacao: catInfo.classificacao,
-        categoria: catInfo.category,
-        subcategoria: catInfo.subcategory,
-        nome_grupo: catInfo.nome_grupo,
-        nome_subgrupo: catInfo.nome_subgrupo,
-        barcode: item.codigoBarras || item.barcode || item.codigo,
-        marca: item.marca,
-        material: item.material,
-        cor: item.cor,
-        genero: item.genero,
-      };
-    });
+    return mapMoblinkProdutoToClean(allItemsRaw);
   } catch (error) {
     console.warn(
       "[moblinkProductsService] Erro ao consumir API oficial do MobLink ERP com Token Bearer:",
       error,
     );
     return getFallbackProdutos();
+  }
+};
+
+/**
+ * Converte e limpa uma lista de itens da API do MobLink ERP para a estrutura MoblinkProduto.
+ */
+export const mapMoblinkProdutoToClean = (items: any[]): MoblinkProduto[] => {
+  if (!Array.isArray(items) || items.length === 0) return [];
+
+  return items.map((item: any, index: number): MoblinkProduto => {
+    const id = String(
+      item.id || item.moblinkId || item.codigo || `MOB-${101 + index}`,
+    );
+    const descricao =
+      item.descricao ||
+      item.nome ||
+      item.descricaoMoblink ||
+      item.name ||
+      `Produto MobLink ${id}`;
+
+    const preco_venda = extractPrecoVistaMoblink(item);
+    const saldo_loja = extractSaldoLojaMoblink(item);
+
+    const defaultCover =
+      index % 2 === 0
+        ? "https://images.unsplash.com/photo-1533867617858-e7b97e060509?q=80&w=600&auto=format&fit=crop"
+        : "https://images.unsplash.com/photo-1549298916-b41d501d3772?q=80&w=600&auto=format&fit=crop";
+
+    const foto_uri =
+      item.foto_uri ||
+      item.imagem ||
+      item.image ||
+      item.foto ||
+      (Array.isArray(item.images) && item.images.length > 0
+        ? item.images[0]
+        : defaultCover);
+
+    let id_grade = item.id_grade ?? item.gradeId ?? item.grade_id;
+    if (
+      id_grade === undefined ||
+      id_grade === "" ||
+      id_grade === "0" ||
+      id_grade === 0
+    ) {
+      id_grade = null;
+    }
+
+    const catInfo = extractClassificacaoCategoria(item);
+    const referencia = extractReferenciaMoblink(item);
+
+    // Extrair preço de tabela (carnê), preço à vista e preço de cartão separadamente
+    const precoTabela = extractPrecoTabelaMoblink(item);
+    const precoVista = extractPrecoVistaMoblink(item);
+    const precoCartao = extractPrecoCartaoMoblink(item);
+
+    // Extrair preço promocional (se existir)
+    const precoPromo =
+      typeof item.preco_promocao === "number" && item.preco_promocao > 0
+        ? item.preco_promocao
+        : undefined;
+
+    return {
+      id,
+      descricao,
+      nome: item.nome || item.name || descricao,
+      referencia: referencia || undefined,
+      referenceCode: referencia || undefined,
+      /** Preço de tabela (carnê / parcelado) */
+      preco_venda: precoTabela,
+      /** Preço à vista (PIX / dinheiro) */
+      preco_vista: precoVista,
+      precoVista: precoVista,
+      /** Preço de cartão */
+      preco_cartao: precoCartao,
+      precoCartao: precoCartao,
+      /** Preço promocional opcional */
+      preco_promocao: precoPromo,
+      saldo_loja,
+      foto_uri,
+      id_grade,
+      precos: item.precos,
+      saldos_lojas: item.saldos_lojas,
+      compl_descr: item.compl_descr || item.descr_compl,
+      tamanhos: item.tamanhos,
+      /** Código de classificação original do ERP */
+      classificacao: catInfo.classificacao,
+      categoria: catInfo.category,
+      subcategoria: catInfo.subcategory,
+      nome_grupo: catInfo.nome_grupo,
+      nome_subgrupo: catInfo.nome_subgrupo,
+      barcode: item.codigoBarras || item.barcode || item.codigo,
+      marca: item.marca,
+      material: item.material,
+      cor: item.cor,
+      genero: item.genero,
+    };
+  });
+};
+
+/**
+ * Busca um único produto diretamente da API do MobLink ERP pelo seu ID (`GET /api/v1/produtos/{id}`).
+ * Permite re-sincronizar individualmente preço, estoque, preços de cartão/à vista/carnê e classificação em tempo real.
+ */
+export const getSingleProdutoMoblinkFromApi = async (
+  productId: string | number,
+): Promise<MoblinkProduto | null> => {
+  if (!productId) return null;
+  const cleanId = String(productId).trim();
+
+  try {
+    const directUrl = `https://api.evidenciacalcados.com.br/api/v1/produtos/${cleanId}`;
+    let response: Response;
+
+    try {
+      response = await evidenciaAuthService.fetchWithAuth(directUrl, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+      });
+      if (!response.ok) {
+        const fallbackUrl = `/api/v1/produtos/${cleanId}`;
+        response = await evidenciaAuthService.fetchWithAuth(fallbackUrl, {
+          method: "GET",
+          headers: { Accept: "application/json" },
+        });
+      }
+    } catch {
+      const fallbackUrl = `/api/v1/produtos/${cleanId}`;
+      response = await evidenciaAuthService.fetchWithAuth(fallbackUrl, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+      });
+    }
+
+    if (!response.ok) {
+      console.warn(
+        `[moblinkProductsService] Erro HTTP ${response.status} ao buscar produto individual ${cleanId}`,
+      );
+      return null;
+    }
+
+    const contentType = response.headers.get("content-type");
+    if (contentType && !contentType.includes("application/json")) {
+      console.warn(
+        `[moblinkProductsService] Resposta para o produto ${cleanId} não é JSON (Content-Type: ${contentType})`,
+      );
+      return null;
+    }
+
+    const data = await response.json();
+    const itemRaw = Array.isArray(data) ? data[0] : data.data || data.produto || data;
+
+    if (!itemRaw || typeof itemRaw !== "object") return null;
+
+    const list = mapMoblinkProdutoToClean([itemRaw]);
+    return list.length > 0 ? list[0] : null;
+  } catch (error) {
+    console.error(
+      `[moblinkProductsService] Falha ao consultar produto individual ${cleanId} no ERP:`,
+      error,
+    );
+    return null;
   }
 };
 
@@ -866,7 +1022,8 @@ export const hasProductChanged = (
   existing?: Partial<Product>,
   fresh?: Partial<Product> | MoblinkProduto,
 ): boolean => {
-  if (!existing || !fresh) return true;
+  if (!existing) return true; // Se não existe no banco, precisa gravar
+  if (!fresh) return false;
 
   // 1. Preço de Tabela (Carnê / Prazo)
   const freshPrice =
@@ -876,7 +1033,7 @@ export const hasProductChanged = (
   const existingPrice = existing.price ?? existing.preco_venda ?? 0;
   if (Math.abs(freshPrice - existingPrice) > 0.01) return true;
 
-  // 2. Preço à Vista (PIX)
+  // 2. Preço à Vista (PIX / Dinheiro)
   const freshVista =
     (fresh as any).precoVista ??
     (fresh as any).preco_vista ??
@@ -884,7 +1041,20 @@ export const hasProductChanged = (
   const existingVista = existing.precoVista ?? existing.preco_vista ?? 0;
   if (Math.abs(freshVista - existingVista) > 0.01) return true;
 
-  // 3. Estoque
+  // 2b. Preço de Cartão
+  const freshCartao =
+    (fresh as any).precoCartao ??
+    (fresh as any).preco_cartao ??
+    extractPrecoCartaoMoblink(fresh);
+  const existingCartao = existing.precoCartao ?? existing.preco_cartao ?? 0;
+  if (Math.abs(freshCartao - existingCartao) > 0.01) return true;
+
+  // 3. Preço Promocional
+  const freshPromo = (fresh as any).promoPrice ?? (fresh as any).preco_promocao ?? 0;
+  const existingPromo = existing.promoPrice ?? existing.preco_promocao ?? 0;
+  if (Math.abs(freshPromo - existingPromo) > 0.01) return true;
+
+  // 4. Estoque / Saldo da loja
   const freshStock =
     (fresh as any).stock ??
     (fresh as any).saldo_loja ??
@@ -892,27 +1062,39 @@ export const hasProductChanged = (
   const existingStock = existing.stock ?? existing.saldo_loja ?? 0;
   if (freshStock !== existingStock) return true;
 
-  // 4. Nome / Descrição
-  const freshName =
-    (fresh as any).name ?? (fresh as any).nome ?? (fresh as any).descricao;
-  if (freshName && existing.name !== freshName) return true;
+  // 5. Nome / Descrição
+  const freshName = String(
+    (fresh as any).name ?? (fresh as any).nome ?? (fresh as any).descricao ?? "",
+  ).trim();
+  const existingName = String(existing.name ?? existing.descricao ?? "").trim();
+  if (freshName && existingName && freshName !== existingName) return true;
 
-  // 5. Classificação ERP
+  // 6. Categoria e Subcategoria
+  const freshCat = String((fresh as any).category ?? (fresh as any).categoria ?? "").trim();
+  const existingCat = String(existing.category ?? "").trim();
+  if (freshCat && existingCat && freshCat !== existingCat) return true;
+
+  const freshSubCat = String((fresh as any).subcategory ?? (fresh as any).subcategoria ?? "").trim();
+  const existingSubCat = String(existing.subcategory ?? "").trim();
+  if (freshSubCat && existingSubCat && freshSubCat !== existingSubCat) return true;
+
+  // 7. Classificação ERP
   const freshClass = String((fresh as any).classificacao || "").trim();
   const existingClass = String((existing as any).classificacao || "").trim();
   if (freshClass && existingClass && freshClass !== existingClass) return true;
 
-  // 6. Complemento de descrição
-  const freshCompl = String(
-    (fresh as any).compl_descr || (fresh as any).descr_compl || "",
-  ).trim();
-  const existingCompl = String(
-    (existing as any).compl_descr ||
-      (existing as any).description_completa ||
-      "",
-  ).trim();
-  // Se antes não tinha descrição e agora tem, ou se mudou
-  if (freshCompl && existingCompl && freshCompl !== existingCompl) return true;
+  // 8. Cor / Marca / Modelo / Referência
+  const freshColor = String((fresh as any).color ?? (fresh as any).cor ?? "").trim();
+  const existingColor = String(existing.color ?? existing.cor ?? "").trim();
+  if (freshColor && existingColor && freshColor !== existingColor) return true;
+
+  const freshModel = String((fresh as any).modelCode ?? (fresh as any).referenceCode ?? "").trim();
+  const existingModel = String(existing.modelCode ?? existing.referenceCode ?? "").trim();
+  if (freshModel && existingModel && freshModel !== existingModel) return true;
+
+  // 9. Visibilidade / Destaque
+  if ((fresh as any).visible !== undefined && (fresh as any).visible !== existing.visible) return true;
+  if ((fresh as any).newArrival !== undefined && (fresh as any).newArrival !== existing.newArrival) return true;
 
   return false;
 };
@@ -933,6 +1115,9 @@ export const filterProductsRequiringSync = (
 
   return freshMoblinkList.filter((freshItem) => {
     const freshId = String(freshItem.id);
+    const stock = extractSaldoLojaMoblink(freshItem);
+    // Ignora e não envia para o Firebase produtos com 0 ou saldo negativo
+    if (stock <= 0) return false;
     const existing = existingMap.get(freshId);
     return hasProductChanged(existing, freshItem);
   });

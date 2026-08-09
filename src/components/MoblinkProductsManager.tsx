@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
-import { Product } from '../types';
+import { Product, ProdutoGradesResult } from '../types';
 import { 
   getProdutosMoblink, 
+  getSingleProdutoMoblinkFromApi,
   extractPrecoTabelaMoblink,
-  extractPrecoVistaMoblink, 
+  extractPrecoVistaMoblink,
+  extractPrecoCartaoMoblink,
   extractSaldoLojaMoblink, 
   sanitizeProductForFirestore,
   extractBaseNameAndVariant,
@@ -13,6 +15,7 @@ import {
   loadMoblinkCache
 } from '../services/moblinkProductsService';
 import { moblinkCategoriesService, normalizeCategoryName, normalizeSubcategoryName } from '../services/moblinkCategoriesService';
+import { getProdutoGradesFromApi } from '../services/moblinkGradesService';
 import { db } from '../lib/firebase';
 import { doc, setDoc } from 'firebase/firestore';
 import { 
@@ -102,9 +105,12 @@ interface MoblinkRawProduct {
   codigoBarras?: string;
   barcode?: string;
   marca?: string;
+  brand?: string;
   material?: string;
   cor?: string;
   genero?: string;
+  gender?: string;
+  subcategory?: string;
   foto_uri?: string;
   foto_url?: string;
   foto?: string;
@@ -112,6 +118,7 @@ interface MoblinkRawProduct {
   image?: string;
   isManual?: boolean;
   modelCode?: string;
+  referencia?: string;
   referenceCode?: string;
   newArrival?: boolean;
   color?: string;
@@ -203,6 +210,38 @@ export const MoblinkProductsManager: React.FC = () => {
   const [editSizes, setEditSizes] = useState('');
   const [editColor, setEditColor] = useState('');
   const [editStockBySize, setEditStockBySize] = useState<Record<string, number>>({});
+
+  // Estado para armazenar dados de Grade do Produto buscados do ERP
+  const [selectedProductGrade, setSelectedProductGrade] = useState<ProdutoGradesResult | null>(null);
+  const [isLoadingProductGrade, setIsLoadingProductGrade] = useState(false);
+
+  // Consulta automática de Grade de Produto (MobLink ERP) com filtro de saldo > 0 ao abrir o modal
+  useEffect(() => {
+    let isMounted = true;
+    if (selectedProduct) {
+      const mobId = String(selectedProduct.id || (selectedProduct as any).moblinkId || '');
+      if (mobId) {
+        setIsLoadingProductGrade(true);
+        getProdutoGradesFromApi(mobId)
+          .then(res => {
+            if (isMounted) {
+              setSelectedProductGrade(res);
+              setIsLoadingProductGrade(false);
+            }
+          })
+          .catch(() => {
+            if (isMounted) {
+              setSelectedProductGrade(null);
+              setIsLoadingProductGrade(false);
+            }
+          });
+      }
+    } else {
+      setSelectedProductGrade(null);
+      setIsLoadingProductGrade(false);
+    }
+    return () => { isMounted = false; };
+  }, [selectedProduct]);
 
   // Estado para controle de Sanfona / Expansão Hierárquica por Modelo
   const [expandedModels, setExpandedModels] = useState<Record<string, boolean>>({});
@@ -336,6 +375,9 @@ export const MoblinkProductsManager: React.FC = () => {
         const changedItems = items.filter(item => {
           const mobId = String(item.id || item.moblinkId || '');
           if (!mobId) return false;
+          const estoque = extractSaldoLojaMoblink(item);
+          // Produtos com 0 ou menos de saldo não são gravados no Firebase
+          if (estoque <= 0) return false;
           const existingDb = getExistingDbProduct(mobId);
           return hasProductChanged(existingDb, item);
         });
@@ -399,12 +441,14 @@ export const MoblinkProductsManager: React.FC = () => {
                 cor: existingDb?.cor || item.cor || undefined,
               };
 
-              const sanitizedPayload = sanitizeProductForFirestore(updatedProductPayload);
-              await setDoc(doc(db, 'products', mobId), sanitizedPayload, { merge: true });
+              if (estoqueAtual > 0 && hasProductChanged(existingDb, updatedProductPayload)) {
+                const sanitizedPayload = sanitizeProductForFirestore(updatedProductPayload);
+                await setDoc(doc(db, 'products', mobId), sanitizedPayload, { merge: true });
+              }
               
               if (existingDb) {
                 await updateProduct(mobId, updatedProductPayload);
-              } else {
+              } else if (estoqueAtual > 0) {
                 await addProduct(updatedProductPayload);
               }
               successCount++;
@@ -464,7 +508,7 @@ export const MoblinkProductsManager: React.FC = () => {
     // Initialize Edit Form Input States
     const initialName = existing?.name || item.nome || item.name || item.descricao || '';
     const initialSku = existing?.sku || item.sku || item.codigo || mobId;
-    const initialModelCode = existing?.modelCode || existing?.referenceCode || item.modelCode || item.referenceCode || '';
+    const initialModelCode = existing?.modelCode || existing?.referenceCode || (existing as any)?.referencia || item.modelCode || item.referenceCode || item.referencia || '';
     // Preço de tabela (carnê) como preço principal a ser editado
     const initialPrice = existing?.price ?? extractPrecoTabelaMoblink(item) ?? item.preco_venda ?? item.price ?? 0;
     // Preço à vista como originalPrice (referência de desconto)
@@ -548,6 +592,52 @@ export const MoblinkProductsManager: React.FC = () => {
     setEditColor('');
     setEditStockBySize({});
     setFeedback(null);
+  };
+
+  const [isSingleRefreshing, setIsSingleRefreshing] = useState(false);
+
+  // Re-sincronizar um único produto diretamente da API do ERP
+  const handleRefreshSingleProduct = async () => {
+    if (!selectedProduct) return;
+    const targetId = String(selectedProduct.id || selectedProduct.moblinkId);
+    setIsSingleRefreshing(true);
+    try {
+      // 1. Busca dados atualizados do produto no ERP
+      const updated = await getSingleProdutoMoblinkFromApi(targetId);
+      if (updated) {
+        setSelectedProduct(updated);
+
+        // 2. Recarrega as informações de grade em tempo real
+        const updatedGrades = await getProdutoGradesFromApi(targetId);
+        setSelectedProductGrade(updatedGrades);
+
+        // 3. Atualiza os campos do formulário de edição
+        const sanitized = sanitizeProductForFirestore(updated as any);
+        setEditName(sanitized.name);
+        setEditPrice(sanitized.price);
+        setEditCategory(sanitized.category);
+
+        // 4. Salva a atualização no Firestore
+        await setDoc(doc(db, 'products', String(sanitized.id)), sanitized, { merge: true });
+
+        setFeedback({
+          success: true,
+          message: `Produto ID ${targetId} ("${updated.nome || updated.name}") re-sincronizado com sucesso a partir do MobLink ERP!`,
+        });
+      } else {
+        setFeedback({
+          success: false,
+          message: `Não foi possível consultar atualizações para o produto ID ${targetId} no ERP.`,
+        });
+      }
+    } catch (err: any) {
+      setFeedback({
+        success: false,
+        message: `Erro ao atualizar produto ID ${targetId}: ${err.message || 'Falha de comunicação'}`,
+      });
+    } finally {
+      setIsSingleRefreshing(false);
+    }
   };
 
   // Alteração de Estoque por Tamanho Individual com Limite Máximo do Estoque Atual
@@ -684,44 +774,25 @@ export const MoblinkProductsManager: React.FC = () => {
     }
   };
 
-  // Save full product details (name, sku, price, stock, category, sizes, media & description)
+  // Save full product details (name, images, rich description & visibility)
   const handleSaveProductEnrichment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedProduct) return;
 
     const mobId = String(selectedProduct.id || selectedProduct.moblinkId || 'MOB-000');
     const productName = editName.trim() || selectedProduct.nome || selectedProduct.name || `Produto ${mobId}`;
-    const productSku = editSku.trim() || mobId;
-    const productPrice = Math.max(0, Number(editPrice) || 0);
-    const productOriginalPrice = Number(editOriginalPrice) > 0 ? Number(editOriginalPrice) : undefined;
-    const productStock = Math.max(0, Number(editStock) || 0);
-    // Categoria vem exclusivamente da API MobLink (classificacao/nome_grupo) — não é editável manualmente
-    const categoryName = selectedProduct.nome_grupo || selectedProduct.categoria || selectedProduct.category || 'Geral';
-    const parsedSizes = editSizes.split(',').map(s => s.trim()).filter(s => s !== '');
-    const isSingleSizeProduct = parsedSizes.length === 0 || (parsedSizes.length === 1 && ['UNICA', 'ÚNICA', 'UN', 'U', 'TAMANHO ÚNICO', 'UNICO', 'ÚNICO'].includes(parsedSizes[0].toUpperCase()));
+    const productSku = selectedProduct.sku || (selectedProduct as any).codigo || mobId;
+    const productPrice = extractPrecoTabelaMoblink(selectedProduct);
+    const productVista = extractPrecoVistaMoblink(selectedProduct);
+    const productCartao = extractPrecoCartaoMoblink(selectedProduct);
+    const productStock = extractSaldoLojaMoblink(selectedProduct);
+    const categoryName = normalizeCategoryName(selectedProduct.nome_grupo || selectedProduct.categoria || selectedProduct.category || 'Geral');
 
     const defaultCover = 'https://images.unsplash.com/photo-1614252235316-8c857d38b5f4?auto=format&fit=crop&q=80&w=800';
     const finalImages = images.length > 0 ? images : [defaultCover];
 
-    const cleanStockBySize: Record<string, number> = {};
-
-    if (isSingleSizeProduct) {
-      const singleKey = parsedSizes[0] || 'UN';
-      cleanStockBySize[singleKey] = productStock;
-    } else {
-      parsedSizes.forEach(size => {
-        cleanStockBySize[size] = Math.max(0, Number(editStockBySize[size]) || 0);
-      });
-
-      const totalSizeStockSum = Object.values(cleanStockBySize).reduce((sum, val) => sum + val, 0);
-      if (totalSizeStockSum > productStock) {
-        setFeedback({
-          success: false,
-          message: `⚠️ Erro: A soma das variações (${totalSizeStockSum} un) não pode ser maior que o Estoque Atual (${productStock} un). Reduza a quantidade para salvar.`
-        });
-        return;
-      }
-    }
+    const refCode = selectedProduct.referencia || selectedProduct.referenceCode || selectedProduct.modelCode || undefined;
+    const activeSizes = selectedProductGrade?.tamanhos || (selectedProduct.tamanhos as any) || [];
 
     const updatedProductPayload: Product = {
       id: mobId,
@@ -732,16 +803,15 @@ export const MoblinkProductsManager: React.FC = () => {
       description: richDescription || selectedProduct.compl_descr || selectedProduct.descricaoMoblink || selectedProduct.descricao || 'Produto com garantia de qualidade Evidência Calçados.',
       descricao_completa: richDescription || selectedProduct.compl_descr || selectedProduct.descricaoMoblink || selectedProduct.descricao || 'Produto com garantia de qualidade Evidência Calçados.',
       compl_descr: selectedProduct.compl_descr || selectedProduct.descr_compl,
-      /** Preço de tabela (carnê) */
+      /** Preços sincronizados com o ERP */
       price: productPrice,
       preco_venda: productPrice,
-      /** Preço à vista calculado do ERP (para exibição na vitrine) */
-      precoVista: extractPrecoVistaMoblink(selectedProduct),
-      preco_vista: extractPrecoVistaMoblink(selectedProduct),
+      precoVista: productVista,
+      preco_vista: productVista,
+      precoCartao: productCartao,
+      preco_cartao: productCartao,
       preco_promocao: selectedProduct.preco_promocao,
       preco_venda_fracao: productPrice,
-      originalPrice: productOriginalPrice,
-      onSale: Boolean(productOriginalPrice && productOriginalPrice > productPrice),
       category: categoryName,
       /** Classificação ERP — preservar sempre da API */
       classificacao: selectedProduct.classificacao,
@@ -749,37 +819,38 @@ export const MoblinkProductsManager: React.FC = () => {
       nome_grupo: selectedProduct.nome_grupo,
       nome_subgrupo: selectedProduct.nome_subgrupo,
       images: finalImages,
-      sizes: parsedSizes.length > 0 ? parsedSizes : [37, 38, 39, 40, 41, 42, 43],
+      sizes: activeSizes,
       crediarioProprio: true,
       visible: productStock <= 0 ? false : editVisible,
       newArrival: editNewArrival,
       stockControl: true,
       stock: productStock,
       saldo_loja: productStock,
-      stockBySize: cleanStockBySize,
-      sizeStockMap: cleanStockBySize,
       saldos_lojas: selectedProduct.saldos_lojas,
       barcode: selectedProduct.codigoBarras || selectedProduct.barcode || undefined,
       brand: selectedProduct.marca || selectedProduct.brand || undefined,
       material: selectedProduct.material || undefined,
-      color: editColor.trim() || selectedProduct.cor || undefined,
-      cor: editColor.trim() || selectedProduct.cor || undefined,
+      color: selectedProduct.cor || selectedProduct.color || undefined,
+      cor: selectedProduct.cor || selectedProduct.color || undefined,
       gender: selectedProduct.genero || selectedProduct.gender || undefined,
       lastMoblinkSync: new Date().toISOString(),
       moblinkSyncStatus: 'synced',
-      modelCode: editModelCode.trim() || undefined,
-      referenceCode: editModelCode.trim() || undefined,
+      referencia: refCode,
+      modelCode: refCode,
+      referenceCode: refCode,
     };
 
     try {
-      // Save in Firestore directly with ID = mobId (Mesclagem Não-Destrutiva Persistente Sanitizada)
-      const sanitizedPayload = sanitizeProductForFirestore(updatedProductPayload);
-      await setDoc(doc(db, 'products', mobId), sanitizedPayload, { merge: true });
-
       const existingInApp = products.find(p => p.id === mobId);
+      // Grava no Firestore apenas se tiver estoque > 0 e se houver alteração real
+      if (productStock > 0 && hasProductChanged(existingInApp, updatedProductPayload)) {
+        const sanitizedPayload = sanitizeProductForFirestore(updatedProductPayload);
+        await setDoc(doc(db, 'products', mobId), sanitizedPayload, { merge: true });
+      }
+
       if (existingInApp) {
         await updateProduct(mobId, updatedProductPayload);
-      } else {
+      } else if (productStock > 0) {
         await addProduct(updatedProductPayload);
       }
 
@@ -791,17 +862,18 @@ export const MoblinkProductsManager: React.FC = () => {
             nome: productName,
             name: productName,
             sku: productSku,
-            color: editColor.trim() || 'Preto',
-            cor: editColor.trim() || 'Preto',
-            modelCode: editModelCode.trim() || undefined,
-            referenceCode: editModelCode.trim() || undefined,
+            color: selectedProduct.cor || selectedProduct.color || undefined,
+            cor: selectedProduct.cor || selectedProduct.color || undefined,
+            referencia: refCode,
+            modelCode: refCode,
+            referenceCode: refCode,
             preco_venda: productPrice,
             price: productPrice,
             saldo_loja: productStock,
             estoque: productStock,
             categoria: categoryName,
             category: categoryName,
-            tamanhos: parsedSizes,
+            tamanhos: activeSizes,
             newArrival: editNewArrival
           };
         }
@@ -883,12 +955,14 @@ export const MoblinkProductsManager: React.FC = () => {
           referenceCode: codeToApply,
         };
 
-        const sanitizedPayload = sanitizeProductForFirestore(updatedProductPayload);
-        await setDoc(doc(db, 'products', mobId), sanitizedPayload, { merge: true });
+        if (productStock > 0 && hasProductChanged(existingDb, updatedProductPayload)) {
+          const sanitizedPayload = sanitizeProductForFirestore(updatedProductPayload);
+          await setDoc(doc(db, 'products', mobId), sanitizedPayload, { merge: true });
+        }
 
         if (existingDb) {
           await updateProduct(mobId, updatedProductPayload);
-        } else {
+        } else if (productStock > 0) {
           await addProduct(updatedProductPayload);
         }
 
@@ -976,12 +1050,14 @@ export const MoblinkProductsManager: React.FC = () => {
           cor: existingDb?.cor || rawItem?.cor || 'Preto',
         };
 
-        const sanitizedPayload = sanitizeProductForFirestore(updatedProductPayload);
-        await setDoc(doc(db, 'products', mobId), sanitizedPayload, { merge: true });
+        if (productStock > 0 && hasProductChanged(existingDb, updatedProductPayload)) {
+          const sanitizedPayload = sanitizeProductForFirestore(updatedProductPayload);
+          await setDoc(doc(db, 'products', mobId), sanitizedPayload, { merge: true });
+        }
 
         if (existingDb) {
           await updateProduct(mobId, updatedProductPayload);
-        } else {
+        } else if (productStock > 0) {
           await addProduct(updatedProductPayload);
         }
 
@@ -2039,10 +2115,15 @@ export const MoblinkProductsManager: React.FC = () => {
             {/* MODAL HEADER */}
             <div className="flex items-start justify-between border-b pb-4 dark:border-slate-800">
               <div className="space-y-1">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className="px-2.5 py-0.5 rounded-md bg-amber-500 text-slate-950 text-xs font-black font-mono">
                     ID Ref: {selectedProduct.id || selectedProduct.moblinkId}
                   </span>
+                  {(selectedProduct.referencia || selectedProduct.referenceCode) && (
+                    <span className="px-2.5 py-0.5 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 text-xs font-black font-mono">
+                      Ref ERP: {selectedProduct.referencia || selectedProduct.referenceCode}
+                    </span>
+                  )}
                   <span className="text-[10px] uppercase font-bold text-slate-400">Dados do MobLink ERP</span>
                 </div>
                 <h3 className="text-lg font-black text-slate-800 dark:text-slate-100">
@@ -2050,18 +2131,31 @@ export const MoblinkProductsManager: React.FC = () => {
                 </h3>
               </div>
 
-              <button
-                type="button"
-                onClick={handleCloseEnrichmentForm}
-                className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 transition-colors cursor-pointer"
-              >
-                <X className="h-5 w-5" />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleRefreshSingleProduct}
+                  disabled={isSingleRefreshing}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-slate-950 text-xs font-black transition-all cursor-pointer shadow-xs disabled:opacity-50"
+                  title="Buscar dados mais recentes de preço, estoque e grade deste produto diretamente no MobLink ERP"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${isSingleRefreshing ? 'animate-spin' : ''}`} />
+                  <span>{isSingleRefreshing ? 'Atualizando...' : 'Atualizar este Produto no ERP'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleCloseEnrichmentForm}
+                  className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 transition-colors cursor-pointer"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
             </div>
 
             {/* READ-ONLY ERP DATA SUMMARY — dados diretos da API MobLink, somente leitura */}
             <div className="space-y-3">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-slate-50 dark:bg-slate-800/60 p-3.5 rounded-xl border border-slate-200/80 dark:border-slate-700 text-xs">
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 bg-slate-50 dark:bg-slate-800/60 p-3.5 rounded-xl border border-slate-200/80 dark:border-slate-700 text-xs">
                 {/* Preço de Tabela (carnê/parcelado) */}
                 <div className="space-y-0.5">
                   <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">Preço Tabela (Carnê)</span>
@@ -2079,6 +2173,14 @@ export const MoblinkProductsManager: React.FC = () => {
                   {selectedProduct.preco_promocao && Number(selectedProduct.preco_promocao) > 0 && (
                     <span className="text-[9px] text-amber-500 font-bold block">Promo: R$ {Number(selectedProduct.preco_promocao).toFixed(2).replace('.', ',')}</span>
                   )}
+                </div>
+
+                {/* Preço de Cartão */}
+                <div className="space-y-0.5">
+                  <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">Preço Cartão</span>
+                  <span className="font-black text-sm text-blue-600 dark:text-blue-400 font-mono">
+                    R$ {extractPrecoCartaoMoblink(selectedProduct).toFixed(2).replace('.', ',')}
+                  </span>
                 </div>
 
                 {/* Estoque ERP */}
@@ -2117,34 +2219,119 @@ export const MoblinkProductsManager: React.FC = () => {
                 </div>
               </div>
 
-              {/* Complemento de descrição vindo do ERP */}
-              {(selectedProduct.compl_descr || selectedProduct.descr_compl) && (
-                <div className="flex gap-2 items-start bg-blue-50 dark:bg-blue-950/30 border border-blue-200/60 dark:border-blue-800/40 rounded-xl px-3.5 py-2.5">
-                  <FileText className="h-3.5 w-3.5 text-blue-500 shrink-0 mt-0.5" />
-                  <div>
-                    <span className="text-[10px] text-blue-500 font-bold uppercase block mb-0.5">Complemento (ERP)</span>
-                    <p className="text-[11px] text-slate-700 dark:text-slate-300 leading-relaxed">
-                      {selectedProduct.compl_descr || selectedProduct.descr_compl}
-                    </p>
+              {/* BLOCO DA GRADE DO PRODUTO (MOBLINK ERP) — Cores, Tamanhos e Saldo com Saldo > 0 */}
+              <div className="bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Layers className="h-4 w-4 text-amber-500 shrink-0" />
+                    <h4 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-100">
+                      Grade de Produto no ERP (Cores &amp; Tamanhos com Saldo)
+                    </h4>
                   </div>
+                  {selectedProduct.id_grade && (
+                    <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                      ID Grade: {selectedProduct.id_grade}
+                    </span>
+                  )}
                 </div>
-              )}
+
+                {isLoadingProductGrade ? (
+                  <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 animate-pulse">
+                    <RefreshCw className="h-4 w-4 animate-spin text-amber-500" />
+                    <span>Consultando variações e saldos da grade no ERP MobLink...</span>
+                  </div>
+                ) : selectedProductGrade && selectedProductGrade.hasGrade && selectedProductGrade.variacoes.length > 0 ? (
+                  <div className="space-y-3">
+                    {/* BADGES RESUMO DE TAMANHOS E CORES COM SALDO > 0 */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                      {/* TAMANHOS / NUMERAÇÕES COM SALDO */}
+                      <div className="bg-white dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 space-y-1.5">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                          Numerações Disponíveis (Saldo &gt; 0)
+                        </span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {selectedProductGrade.tamanhos.map(sz => (
+                            <span key={sz} className="px-2 py-0.5 rounded-md text-[11px] font-black bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20 font-mono">
+                              {sz}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* CORES / ACABAMENTOS COM SALDO */}
+                      <div className="bg-white dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 space-y-1.5">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                          Cores Disponíveis (Saldo &gt; 0)
+                        </span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {selectedProductGrade.cores.map(cr => (
+                            <span key={cr} className="px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20">
+                              {cr}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* TABELA DETALHADA DE VARIAÇÕES (COR x TAMANHO x SALDO) */}
+                    <div className="overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-slate-100 dark:bg-slate-900/90 text-slate-600 dark:text-slate-400 font-bold uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-700">
+                          <tr>
+                            <th className="py-2 px-3">Tamanho</th>
+                            <th className="py-2 px-3">Cor / Acabamento</th>
+                            <th className="py-2 px-3 text-center">Saldo em Loja</th>
+                            <th className="py-2 px-3 text-right">Cód. Barras / Posição</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900/50">
+                          {selectedProductGrade.variacoes.map((v, i) => (
+                            <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                              <td className="py-2 px-3 font-mono font-black text-slate-800 dark:text-slate-100">
+                                {v.tamanho || '-'}
+                              </td>
+                              <td className="py-2 px-3 font-bold text-slate-700 dark:text-slate-300">
+                                {v.cor || '-'}
+                              </td>
+                              <td className="py-2 px-3 text-center">
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-black bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-mono">
+                                  {v.saldo_loja} un
+                                </span>
+                              </td>
+                              <td className="py-2 px-3 text-right font-mono text-[10px] text-slate-400">
+                                {v.cod_barras || v.pos_grade || '-'}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-3 rounded-lg bg-amber-500/5 border border-amber-500/20 text-xs text-slate-600 dark:text-slate-400 flex items-center justify-between">
+                    <span>Produto possui saldo de estoque único ({extractSaldoLojaMoblink(selectedProduct)} un) sem desmembramento de grade cadastrado no ERP.</span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                      Estoque Global
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
 
             <form onSubmit={handleSaveProductEnrichment} className="space-y-6">
               
-              {/* SECTION 1: MAIN PRODUCT DETAILS */}
+              {/* SECTION 1: NOME DO PRODUTO & VISIBILIDADE */}
               <div className="space-y-4 border-b pb-5 dark:border-slate-800">
                 <h4 className="font-bold text-xs uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-2">
                   <Edit3 className="h-4 w-4 text-amber-500" />
-                  1. Informações Cadastrais &amp; Estoque da Loja
+                  1. Apresentação &amp; Visibilidade na Vitrine
                 </h4>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-4">
                   {/* NOME DO PRODUTO */}
-                  <div className="sm:col-span-2 space-y-1">
+                  <div className="space-y-1">
                     <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 block">
-                      Nome do Produto
+                      Nome Comercial do Produto (Exibido na Loja Virtual)
                     </label>
                     <input
                       type="text"
@@ -2155,287 +2342,33 @@ export const MoblinkProductsManager: React.FC = () => {
                     />
                   </div>
 
-                  {/* SKU / CÓDIGO */}
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 block">
-                      SKU / Código do Produto
-                    </label>
-                    <input
-                      type="text"
-                      value={editSku}
-                      onChange={(e) => setEditSku(e.target.value)}
-                      placeholder="Ex: SAP-OXF-41 ou BOLSA-COURO-01"
-                      className="w-full p-2.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-xs font-mono font-semibold focus:outline-none focus:border-amber-500"
-                    />
-                  </div>
-
-                  {/* CÓDIGO DO MODELO / REFERÊNCIA BASE (MODELO PAI) */}
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 block flex items-center justify-between">
-                      <span>Código do Modelo / Referência Base</span>
-                      <span className="text-[9px] text-amber-500 font-mono font-bold">Código Pai</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={editModelCode}
-                      onChange={(e) => setEditModelCode(e.target.value)}
-                      placeholder="Ex: REF-453M (Código compartilhado por todas as cores)"
-                      className="w-full p-2.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-amber-400 font-mono text-xs font-bold focus:outline-none focus:border-amber-500"
-                    />
-                  </div>
-
-
-                  {/* CATEGORIA — somente leitura, fonte: API MobLink (classificacao) */}
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 flex items-center justify-between">
-                      <span>Categoria (ERP MobLink)</span>
-                      <span className="text-[9px] text-emerald-500 font-extrabold flex items-center gap-1">
-                        <ShieldCheck className="h-3 w-3" />
-                        Definida pela API
+                  {/* TOGGLE VISIBILIDADE & MARCAR COMO LANÇAMENTO */}
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 pt-1">
+                    <label className="inline-flex items-center gap-2.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editVisible}
+                        onChange={(e) => setEditVisible(e.target.checked)}
+                        className="w-4 h-4 rounded text-amber-500 border-slate-300 focus:ring-amber-500 cursor-pointer"
+                      />
+                      <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                        Exibir produto visível nas vitrines da loja virtual
                       </span>
                     </label>
 
-                    <div className="w-full p-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-800/50">
-                      {/* Layout: esquerda = nome traduzido, direita = código bruto badge */}
-                      <div className="flex items-center justify-between gap-3">
-                        {/* ESQUERDA: Categoria › Subcategoria traduzidas */}
-                        <div className="flex items-center gap-2 min-w-0">
-                          <div className="p-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 shrink-0">
-                            <Tag className="h-3.5 w-3.5 text-amber-500" />
-                          </div>
-                          <div className="min-w-0">
-                            <span className="text-xs font-extrabold text-slate-800 dark:text-slate-100 block truncate">
-                              {normalizeCategoryName(
-                                (selectedProduct?.categoria || selectedProduct?.category || selectedProduct?.nome_grupo || 'Geral') as string
-                              )}
-                            </span>
-                            {(selectedProduct?.subcategoria || selectedProduct?.subcategory || selectedProduct?.nome_subgrupo) && (
-                              <span className="text-[11px] text-slate-400 dark:text-slate-500 font-medium block truncate">
-                                {'› '}{normalizeSubcategoryName(
-                                  (selectedProduct?.subcategoria || selectedProduct?.subcategory || selectedProduct?.nome_subgrupo || '') as string
-                                )}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* DIREITA: Código bruto do ERP */}
-                        {selectedProduct?.classificacao && (
-                          <span className="font-mono text-[11px] font-black text-amber-600 dark:text-amber-400 bg-amber-500/10 border border-amber-500/25 px-2.5 py-1 rounded-xl shrink-0">
-                            {String(selectedProduct.classificacao)}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    <p className="text-[10px] text-slate-400 dark:text-slate-500">
-                      A categoria é definida automaticamente pelo campo <code className="font-mono bg-slate-100 dark:bg-slate-800 px-1 rounded">classificacao</code> da API do ERP e não pode ser editada manualmente.
-                    </p>
-                  </div>
-
-
-                  {/* PREÇO DE TABELA / CARNÊ */}
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 block flex items-center justify-between">
-                      <span>Preço de Tabela / Carnê (R$)</span>
-                      <span className="text-[9px] text-amber-500 font-mono font-bold">Parcelado ERP</span>
+                    <label className="inline-flex items-center gap-2.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editNewArrival}
+                        onChange={(e) => setEditNewArrival(e.target.checked)}
+                        className="w-4 h-4 rounded text-purple-600 border-slate-300 focus:ring-purple-500 cursor-pointer"
+                      />
+                      <span className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                        <Sparkles className="h-3.5 w-3.5 text-purple-500" />
+                        <span>Marcar como Lançamento / Novidade</span>
+                      </span>
                     </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={editPrice}
-                      onChange={(e) => setEditPrice(e.target.value)}
-                      placeholder="Ex: 339,90"
-                      className="w-full p-2.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-amber-400 text-xs font-mono font-bold focus:outline-none focus:border-amber-500"
-                    />
-                    {extractPrecoVistaMoblink(selectedProduct) > 0 && (
-                      <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
-                        ↳ À Vista (ERP): <strong>R$ {extractPrecoVistaMoblink(selectedProduct).toFixed(2).replace('.', ',')}</strong>
-                      </p>
-                    )}
                   </div>
-
-
-                  {/* PREÇO ORIGINAL DE TABELA / PROMOÇÃO */}
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 block flex items-center justify-between">
-                      <span>Preço Original (Opcional — Riscar)</span>
-                      <span className="text-[9px] text-slate-400 font-bold">Ex: "De R$389 por R$299"</span>
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={editOriginalPrice}
-                      onChange={(e) => setEditOriginalPrice(e.target.value)}
-                      placeholder="Ex: 389,90 (deixa preço de corte 'De R$ 389 por R$ 299')"
-                      className="w-full p-2.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-xs font-mono font-semibold focus:outline-none focus:border-amber-500"
-                    />
-                  </div>
-
-                  {/* ESTOQUE EM LOJA */}
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 block">
-                      Estoque Atual (Unidades)
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={editStock}
-                      onChange={(e) => setEditStock(e.target.value)}
-                      placeholder="Ex: 15"
-                      className="w-full p-2.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-emerald-400 text-xs font-mono font-bold focus:outline-none focus:border-amber-500"
-                    />
-                  </div>
-
-                  {/* GRADE DE TAMANHOS / VARIAÇÕES */}
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 block">
-                      Grade de Tamanhos / Variações (Separados por Vírgula)
-                    </label>
-                    <input
-                      type="text"
-                      value={editSizes}
-                      onChange={(e) => handleEditSizesChange(e.target.value)}
-                      placeholder="Ex: 37, 38, 39 ou P, M, G ou UNICA"
-                      className="w-full p-2.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-xs font-mono font-semibold focus:outline-none focus:border-amber-500"
-                    />
-                  </div>
-
-                  {/* COR / ACABAMENTO / DETALHE */}
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 flex items-center justify-between">
-                      <span>Cor / Acabamento / Detalhe</span>
-                      <span className="text-[9px] text-amber-500 font-bold">Exibida na Loja Virtual</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={editColor}
-                      onChange={(e) => setEditColor(e.target.value)}
-                      placeholder="Ex: PRETO, OFF WHITE, CAFÉ, DOURADO, VERNIZ NUDE"
-                      className="w-full p-2.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-amber-400 text-xs font-bold focus:outline-none focus:border-amber-500"
-                    />
-                  </div>
-
-                  {/* MATRIZ DE ESTOQUE ADAPTATIVA POR NUMERAÇÃO / TAMANHO / PEÇA ÚNICA */}
-                  <div className="sm:col-span-2 space-y-2 bg-slate-50 dark:bg-slate-900/60 p-3.5 rounded-xl border border-slate-200 dark:border-slate-800">
-                    {(() => {
-                      const activeSizes = editSizes.split(',').map(s => s.trim()).filter(Boolean);
-                      const isSingleSize = activeSizes.length === 0 || (activeSizes.length === 1 && ['UNICA', 'ÚNICA', 'UN', 'U', 'TAMANHO ÚNICO', 'UNICO', 'ÚNICO'].includes(activeSizes[0].toUpperCase()));
-
-                      if (isSingleSize) {
-                        const singleLabel = activeSizes[0] || 'UN';
-                        return (
-                          <div className="space-y-1 py-1">
-                            <div className="flex items-center justify-between">
-                              <label className="text-[11px] font-black text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                                <Grid className="h-4 w-4 text-emerald-500" />
-                                <span>Controle de Estoque — Peça / Tamanho Único ({singleLabel})</span>
-                              </label>
-                              <span className="text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
-                                ✓ Tamanho Único — Total: {editStock || 0} un
-                              </span>
-                            </div>
-                            <p className="text-[10px] text-slate-500 dark:text-slate-400 pt-1">
-                              Este produto está configurado como peça/tamanho único (<strong>{singleLabel}</strong>). O estoque total de <strong>{editStock || 0} unidade(s)</strong> é atribuído diretamente ao produto, sem divisão por numeração.
-                            </p>
-                          </div>
-                        );
-                      }
-
-                      const isNumericGrade = activeSizes.every(s => !isNaN(Number(s)));
-                      const totalSizeSum = activeSizes.reduce((sum, size) => sum + (Number(editStockBySize[size]) || 0), 0);
-                      const maxStockLimit = Number(editStock) || 0;
-                      const isOver = totalSizeSum > maxStockLimit;
-                      const isExact = totalSizeSum === maxStockLimit;
-                      const matrixTitle = isNumericGrade 
-                        ? 'Estoque por Numeração (Grade Individual)' 
-                        : 'Estoque por Tamanho / Variação';
-
-                      return (
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between">
-                            <label className="text-[11px] font-black text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                              <Grid className="h-4 w-4 text-amber-500" />
-                              <span>{matrixTitle}</span>
-                            </label>
-                            <span className={`text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-md border ${
-                              isOver
-                                ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30'
-                                : isExact
-                                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
-                                : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
-                            }`}>
-                              {isOver
-                                ? `⚠️ Soma: ${totalSizeSum} / ${maxStockLimit} un (Excede em ${totalSizeSum - maxStockLimit} un)`
-                                : isExact
-                                ? `✓ Soma: ${totalSizeSum} / ${maxStockLimit} un (Total 100% Alocado)`
-                                : `Soma: ${totalSizeSum} / ${maxStockLimit} un (Restam ${maxStockLimit - totalSizeSum} un)`}
-                            </span>
-                          </div>
-
-                          <p className="text-[10px] text-slate-400">
-                            Defina a quantidade disponível para cada {isNumericGrade ? 'numeração' : 'tamanho/variação'}. O estoque total é atualizado automaticamente.
-                          </p>
-
-                          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2 pt-1">
-                            {activeSizes.map((size) => {
-                              const sizeQty = editStockBySize[size] !== undefined ? editStockBySize[size] : 0;
-                              const sizeLabel = isNumericGrade ? `Tam ${size}` : size;
-
-                              return (
-                                <div key={size} className="bg-white dark:bg-slate-800 p-2 rounded-lg border border-slate-200 dark:border-slate-700 space-y-1 text-center">
-                                  <span className="text-[10px] font-mono font-black text-slate-500 dark:text-slate-400 block uppercase">
-                                    {sizeLabel}
-                                  </span>
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    value={sizeQty}
-                                    onChange={(e) => {
-                                      const raw = e.target.value;
-                                      const parsed = raw === '' ? 0 : parseInt(raw, 10);
-                                      handleSizeStockChange(size, isNaN(parsed) ? 0 : parsed);
-                                    }}
-                                    className="w-full text-center p-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded text-xs font-mono font-bold text-slate-900 dark:text-amber-400 focus:outline-none focus:border-amber-500"
-                                  />
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      );
-                    })()}
-                  </div>
-                </div>
-
-                {/* TOGGLE VISIBILIDADE & MARCAR COMO LANÇAMENTO */}
-                <div className="pt-2 flex flex-col sm:flex-row items-start sm:items-center gap-4">
-                  <label className="inline-flex items-center gap-2.5 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={editVisible}
-                      onChange={(e) => setEditVisible(e.target.checked)}
-                      className="w-4 h-4 rounded text-amber-500 border-slate-300 focus:ring-amber-500"
-                    />
-                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                      Exibir produto visível nas vitrines da loja virtual
-                    </span>
-                  </label>
-
-                  <label className="inline-flex items-center gap-2.5 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={editNewArrival}
-                      onChange={(e) => setEditNewArrival(e.target.checked)}
-                      className="w-4 h-4 rounded text-purple-600 border-slate-300 focus:ring-purple-500 cursor-pointer"
-                    />
-                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                      <Sparkles className="h-3.5 w-3.5 text-purple-500" />
-                      <span>Marcar como Lançamento / Novidade</span>
-                    </span>
-                  </label>
                 </div>
               </div>
 

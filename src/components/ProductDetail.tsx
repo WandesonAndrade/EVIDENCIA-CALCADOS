@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { ShoppingCart, MessageSquare, ArrowLeft, Shield, Sparkles, Heart, Share2, Check, User, Layers, CheckCircle2, AlertCircle, CreditCard, Zap } from 'lucide-react';
-import { getGradeProdutoById } from '../services/moblinkGradesService';
-import { GradeProduto, Product } from '../types';
+import { ShoppingCart, MessageSquare, ArrowLeft, Shield, Sparkles, Heart, Share2, Check, User, Layers, CheckCircle2, AlertCircle, CreditCard, Zap, RefreshCw } from 'lucide-react';
+import { getGradeProdutoById, getProdutoGradesFromApi } from '../services/moblinkGradesService';
+import { getSingleProdutoMoblinkFromApi, sanitizeProductForFirestore } from '../services/moblinkProductsService';
+import { db } from '../lib/firebase';
+import { doc, setDoc } from 'firebase/firestore';
+import { GradeProduto, Product, ProdutoGradesResult } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { CompleteProfileModal } from './CompleteProfileModal';
 import { CheckoutConfirmationModal } from './CheckoutConfirmationModal';
@@ -11,6 +14,7 @@ import { isProfileIncomplete } from '../App';
 export const ProductDetail: React.FC = () => {
   const { 
     selectedProduct, 
+    setSelectedProduct,
     setCurrentView, 
     addToCart, 
     currentUser, 
@@ -23,14 +27,45 @@ export const ProductDetail: React.FC = () => {
   const [selectedLinhaOption, setSelectedLinhaOption] = useState<string | number | null>(null);
   const [selectedColunaOption, setSelectedColunaOption] = useState<string | null>(null);
   const [fetchedGrade, setFetchedGrade] = useState<GradeProduto | null>(null);
+  const [productGradeData, setProductGradeData] = useState<ProdutoGradesResult | null>(null);
   const [loadingGrade, setLoadingGrade] = useState(false);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [message, setMessage] = useState('');
   const [copied, setCopied] = useState(false);
+  const [isSingleRefreshing, setIsSingleRefreshing] = useState(false);
 
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isConfirmationModalOpen, setIsConfirmationModalOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // Re-sincronizar dados deste produto individual diretamente do MobLink ERP
+  const handleRefreshSingleProduct = async () => {
+    if (!selectedProduct || !selectedProduct.id) return;
+    const targetId = String(selectedProduct.id);
+    setIsSingleRefreshing(true);
+    try {
+      const updated = await getSingleProdutoMoblinkFromApi(targetId);
+      if (updated) {
+        const sanitized = sanitizeProductForFirestore(updated as any) as Product;
+        await setDoc(doc(db, 'products', String(sanitized.id)), sanitized, { merge: true });
+        setSelectedProduct(sanitized);
+
+        // Recarrega as grades do produto em tempo real
+        const updatedGrades = await getProdutoGradesFromApi(targetId);
+        setProductGradeData(updatedGrades);
+
+        setMessage('✅ Dados de preço, estoque e variações atualizados diretamente do MobLink ERP!');
+        setTimeout(() => setMessage(''), 4000);
+      } else {
+        setMessage('⚠️ Não foi possível obter dados atualizados deste produto no ERP.');
+        setTimeout(() => setMessage(''), 4000);
+      }
+    } catch (err) {
+      console.error('Erro ao atualizar produto do ERP:', err);
+    } finally {
+      setIsSingleRefreshing(false);
+    }
+  };
 
   const isDark = theme === 'dark';
 
@@ -77,38 +112,46 @@ export const ProductDetail: React.FC = () => {
     setSelectedLinhaOption(null);
     setSelectedColunaOption(null);
     setMessage('');
+    setLoadingGrade(true);
+
+    // Consulta a API de grades específicas do produto GET /api/v1/produtos/{idprod}/grades
+    getProdutoGradesFromApi(p.id).then(gradeResult => {
+      if (isMounted) {
+        setProductGradeData(gradeResult);
+        setLoadingGrade(false);
+      }
+    }).catch(err => {
+      console.warn('Erro ao carregar grade do produto:', err);
+      if (isMounted) setLoadingGrade(false);
+    });
 
     if (hasGrade && idGrade) {
-      setLoadingGrade(true);
       getGradeProdutoById(idGrade).then(grade => {
-        if (isMounted) {
-          setFetchedGrade(grade);
-          setLoadingGrade(false);
-        }
-      }).catch(err => {
-        console.warn('Erro ao carregar grade por id:', err);
-        if (isMounted) setLoadingGrade(false);
-      });
-    } else {
-      setFetchedGrade(null);
+        if (isMounted) setFetchedGrade(grade);
+      }).catch(() => {});
     }
 
     return () => { isMounted = false; };
   }, [p.id, idGrade, hasGrade]);
 
-  // Opções para Linha (Tamanho / Numeração)
-  const linhaOptions = (p.sizes && p.sizes.length > 0)
-    ? p.sizes
-    : [37, 38, 39, 40, 41, 42, 43, 44];
+  // Variações reais com saldo_loja > 0
+  const validVariacoes = productGradeData?.variacoes || [];
 
-  // Opções para Coluna (Cor / Acabamento)
-  const colunaOptions = [
-    p.color,
-    p.material,
-    'Preto Nobre',
-    'Café Havana',
-    'Whisky'
-  ].filter((val, index, self): val is string => Boolean(val && self.indexOf(val) === index));
+  // Opções para Linha (Tamanho / Numeração) com saldo > 0 (Elimina nulos/zerados)
+  const linhaOptions = (productGradeData?.tamanhos && productGradeData.tamanhos.length > 0)
+    ? productGradeData.tamanhos
+    : (p.sizes && p.sizes.length > 0)
+    ? p.sizes.map(String)
+    : [];
+
+  // Opções para Coluna (Cor / Acabamento) com saldo > 0 para o tamanho selecionado (ou todas do produto)
+  const availableCoresForSelectedSize = selectedLinhaOption && validVariacoes.length > 0
+    ? Array.from(new Set(validVariacoes.filter(v => v.tamanho === String(selectedLinhaOption)).map(v => v.cor)))
+    : (productGradeData?.cores && productGradeData.cores.length > 0)
+    ? productGradeData.cores
+    : [p.color, p.material].filter((val, index, self): val is string => Boolean(val && self.indexOf(val) === index));
+
+  const colunaOptions = availableCoresForSelectedSize;
 
   const handleAddToCart = () => {
     if (hasGrade) {
@@ -371,17 +414,18 @@ export const ProductDetail: React.FC = () => {
               {p.name}
             </h1>
 
-            {/* Exibição Dupla de Preços (Preço à Vista no PIX vs Preço de Tabela) */}
+            {/* Exibição Tripla de Preços (PIX / Dinheiro, Cartão de Crédito e Carnê) */}
             <div className={`p-4 rounded-2xl border space-y-2.5 transition-all ${
               isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-slate-50 border-slate-200'
             }`}>
+              {/* PREÇO À VISTA (PIX / DINHEIRO) */}
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <div>
                   <span className={`text-[10px] font-black uppercase tracking-wider block ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>
                     ⚡ Preço à Vista (PIX / Dinheiro)
                   </span>
                   <p className={`text-3xl font-black ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
-                    R$ {(p.precoVista || Math.round(p.price * 0.9 * 100) / 100).toFixed(2).replace('.', ',')}
+                    R$ {(p.precoVista || p.preco_vista || Math.round(p.price * 0.9 * 100) / 100).toFixed(2).replace('.', ',')}
                   </p>
                 </div>
                 <span className="px-3 py-1 rounded-full text-xs font-black uppercase bg-emerald-500 text-white shadow-md">
@@ -389,11 +433,29 @@ export const ProductDetail: React.FC = () => {
                 </span>
               </div>
 
+              {/* PREÇO NO CARTÃO DE CRÉDITO */}
+              {(p.precoCartao || p.preco_cartao) && (
+                <div className={`pt-2.5 border-t flex items-center justify-between text-xs flex-wrap gap-2 ${
+                  isDark ? 'border-slate-800' : 'border-slate-200'
+                }`}>
+                  <div className="flex items-center gap-1.5">
+                    <CreditCard className="h-4 w-4 text-blue-500" />
+                    <span className={isDark ? 'text-slate-300' : 'text-slate-700'}>
+                      Preço no Cartão de Crédito: <strong className="font-black text-blue-600 dark:text-blue-400">R$ {(p.precoCartao || p.preco_cartao).toFixed(2).replace('.', ',')}</strong>
+                    </span>
+                  </div>
+                  <span className={`text-[11px] font-bold ${isDark ? 'text-blue-400' : 'text-blue-700'}`}>
+                    até 6x de R$ {((p.precoCartao || p.preco_cartao) / 6).toFixed(2).replace('.', ',')}
+                  </span>
+                </div>
+              )}
+
+              {/* PREÇO DE TABELA / CARNÊ */}
               <div className={`pt-2.5 border-t flex items-center justify-between text-xs flex-wrap gap-2 ${
                 isDark ? 'border-slate-800' : 'border-slate-200'
               }`}>
                 <span className={isDark ? 'text-slate-300' : 'text-slate-700'}>
-                  Preço de Tabela (Carnê / Cartão): <strong className="font-black">R$ {p.price.toFixed(2).replace('.', ',')}</strong>
+                  Preço de Tabela (Carnê Evidência): <strong className="font-black">R$ {p.price.toFixed(2).replace('.', ',')}</strong>
                 </span>
                 <span className={`text-[11px] font-bold ${isDark ? 'text-amber-400' : 'text-amber-700'}`}>
                   até 6x de R$ {(p.price / 6).toFixed(2).replace('.', ',')} s/ juros
@@ -421,6 +483,24 @@ export const ProductDetail: React.FC = () => {
                   <span>MobLink ERP</span>
                 </span>
               )}
+
+              {(p.referencia || p.referenceCode) && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20" title="Código de Referência do Produto no ERP">
+                  <span>Ref: {p.referencia || p.referenceCode}</span>
+                </span>
+              )}
+
+              {/* Botão de Atualização Individual do ERP */}
+              <button
+                type="button"
+                onClick={handleRefreshSingleProduct}
+                disabled={isSingleRefreshing}
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-slate-950 transition-all cursor-pointer shadow-xs disabled:opacity-50 ml-auto sm:ml-0"
+                title="Buscar preços, estoques e variações mais recentes deste produto diretamente no MobLink ERP"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${isSingleRefreshing ? 'animate-spin' : ''}`} />
+                <span>{isSingleRefreshing ? 'Atualizando...' : 'Atualizar do ERP'}</span>
+              </button>
 
               {/* INDICAÇÃO DE TAMANHO ÚNICO */}
               {((p.sizes && p.sizes.length === 1 && ['UNICA', 'ÚNICA', 'UN', 'U', 'TAMANHO ÚNICO', 'UNICO', 'ÚNICO'].includes(String(p.sizes[0]).toUpperCase())) || (p.sizes && p.sizes.length === 0)) && (

@@ -1,13 +1,13 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
-import { Product, CartItem, Order, PaymentStatus, UserProfile, UserRole, CrediarioStatus, Category, MoblinkConfig, MoblinkSyncLog, MoblinkSyncLogItem, SincomAuthSession, HeroBanner, HomeSectionConfig, AboutConfig, ContactConfig, StoreConfig } from '../types';
+import { Product, CartItem, Order, PaymentStatus, UserProfile, UserRole, CrediarioStatus, Category, MoblinkConfig, MoblinkSyncLog, MoblinkSyncLogItem, EvidenciaAuthSession, HeroBanner, HomeSectionConfig, AboutConfig, ContactConfig, StoreConfig, ViewMode } from '../types';
 import { db, auth, seedDatabaseIfNeeded, SEED_PRODUCTS } from '../lib/firebase';
 import { collection, onSnapshot, doc, setDoc, getDoc, query, where, deleteDoc } from 'firebase/firestore';
 import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
-import { sincomAuthService } from '../lib/sincomAuth';
+import { evidenciaAuthService } from '../lib/evidenciaAuth';
 import { firebaseAuthService } from '../services/firebaseAuthService';
 import { userDataService } from '../services/userDataService';
 import { orderService } from '../services/orderService';
-import { getProdutosMoblink, extractPrecoVistaMoblink, extractSaldoLojaMoblink, sanitizeProductForFirestore, cleanUndefinedFields, filterProductsRequiringSync, extractClassificacaoCategoria } from '../services/moblinkProductsService';
+import { getProdutosMoblink, extractPrecoVistaMoblink, extractSaldoLojaMoblink, sanitizeProductForFirestore, cleanUndefinedFields, filterProductsRequiringSync, hasProductChanged, extractClassificacaoCategoria } from '../services/moblinkProductsService';
 import { moblinkCategoriesService } from '../services/moblinkCategoriesService';
 import { cleanUndefinedProperties } from '../utils/cleanObject';
 
@@ -33,7 +33,7 @@ interface AppContextProps {
   registerUser: (name: string, email: string, role: UserRole) => Promise<UserProfile>;
   loginUser: (email: string) => Promise<UserProfile | null>;
   loginAdmin: (email: string, password?: string) => Promise<UserProfile>;
-  registerTeamMember: (name: string, email: string, role: UserRole, tempPassword: string) => Promise<UserProfile>;
+  registerTeamMember: (name: string, email: string, role: UserRole, tempPassword?: string) => Promise<UserProfile>;
   changeAdminPassword: (newPassword: string, activeProfile: UserProfile) => Promise<UserProfile>;
   logoutAdmin: () => void;
   loginWithGoogle: () => Promise<UserProfile | null>;
@@ -43,7 +43,7 @@ interface AppContextProps {
 
   orders: Order[];
   isLoadingOrders: boolean;
-  createOrder: (customerName: string, customerEmail: string, options?: { paymentMethod?: 'Pix' | 'Cartão de Crédito' | 'Crediário da Loja'; deliveryType?: 'Entrega em Caxias-MA' | 'Entrega para Outras Cidades' | 'Retirada na Loja'; installments?: number; customerPhone?: string; deliveryAddress?: string }) => Promise<Order>;
+  createOrder: (customerName: string, customerEmail: string, options?: { paymentMethod?: 'Pix' | 'Cartão de Crédito' | 'Crediário da Loja'; deliveryType?: 'Entrega em Caxias-MA' | 'Entrega para Outras Cidades' | 'Retirada na Loja'; installments?: number; customerPhone?: string; deliveryAddress?: string; sellerName?: string; sellerEmail?: string; overrideItems?: any[] }) => Promise<Order>;
   solicitarCrediario: (dados: Partial<UserProfile>) => Promise<void>;
   atualizarStatusCrediario: (uid: string, novoStatus: CrediarioStatus, motivo?: string) => Promise<void>;
   updateUserCashback: (uid: string, cashbackBalance: number, cashbackValidUntil: string) => Promise<void>;
@@ -64,8 +64,9 @@ interface AppContextProps {
   setSelectedMenuTab: (tab: string) => void;
   favorites: string[];
   toggleFavorite: (productId: string) => void;
-  currentView: 'home' | 'cart' | 'admin' | 'admin-login' | 'login' | 'orders' | 'product-detail' | 'portfolio-case' | 'category-page' | 'about' | 'support' | 'favorites';
-  setCurrentView: (view: 'home' | 'cart' | 'admin' | 'admin-login' | 'login' | 'orders' | 'product-detail' | 'portfolio-case' | 'category-page' | 'about' | 'support' | 'favorites') => void;
+  currentView: ViewMode;
+  setCurrentView: (view: ViewMode) => void;
+  addToast?: (title: string, message?: string, type?: 'info' | 'success' | 'error' | 'warning') => void;
   selectedProduct: Product | null;
   setSelectedProduct: (product: Product | null) => void;
   theme: 'light' | 'dark';
@@ -73,8 +74,8 @@ interface AppContextProps {
   // Moblink ERP Integration & Authentication
   moblinkConfig: MoblinkConfig;
   moblinkLogs: MoblinkSyncLog[];
-  authSession: SincomAuthSession | null;
-  loginSincomAuth: (config?: { apiUrl?: string; apiUser?: string; apiPassword?: string }) => Promise<SincomAuthSession>;
+  authSession: EvidenciaAuthSession | null;
+  loginSincomAuth: () => Promise<EvidenciaAuthSession>;
   logoutSincomAuth: () => void;
   updateMoblinkConfig: (newConfig: Partial<MoblinkConfig>) => Promise<void>;
   testMoblinkConnection: () => Promise<{ success: boolean; message: string }>;
@@ -285,7 +286,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setSelectedSubcategory('TODAS');
   }, []);
   const [selectedMenuTab, setSelectedMenuTab] = useState('lançamentos');
-  const [currentView, setCurrentView] = useState<'home' | 'cart' | 'admin' | 'admin-login' | 'login' | 'orders' | 'product-detail' | 'portfolio-case' | 'category-page' | 'about' | 'support' | 'favorites'>('home');
+  const [currentView, setCurrentView] = useState<ViewMode>('home');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     const saved = localStorage.getItem('evidencia_theme');
@@ -301,7 +302,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return {
       id: 'default',
       enabled: true,
-      apiUrl: import.meta.env.VITE_MOBLINK_API_URL || 'https://api.evidenciacalcados.com.br/api/v1/produtos?pdf=false',
+      apiUrl: import.meta.env.VITE_MOBLINK_API_URL || '/api/v1/produtos?pdf=false',
       apiToken: 'mob_live_9a8b7c6d5e4f3a2b1c',
       apiUser: '',
       apiPassword: '',
@@ -731,14 +732,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const currentDbProducts = products.length > 0 ? products : getLocalProducts();
       const crossedCatalog = mergeMoblinkWithLocalDb(moblinkRawList, currentDbProducts);
 
-      // Incremental Sync: Salva no Firestore apenas os produtos que sofreram alterações reais de preço ou estoque
+      // Incremental Sync: Salva no Firestore apenas os produtos com saldo > 0 que sofreram alterações reais
       const itemsToSync = filterProductsRequiringSync(currentDbProducts, moblinkRawList);
       if (itemsToSync.length > 0) {
         const crossedMap = new Map(crossedCatalog.map(p => [p.id, p]));
         for (const item of itemsToSync) {
           const mobId = String(item.id);
           const prod = crossedMap.get(mobId);
-          if (prod) {
+          // Produtos com 0 ou menos de saldo não são gravados no Firebase
+          if (prod && (prod.stock > 0 || (prod.saldo_loja ?? 0) > 0)) {
             const docRef = doc(db, 'products', prod.id);
             const sanitized = sanitizeProductForFirestore(prod);
             await setDoc(docRef, sanitized, { merge: true });
@@ -1033,8 +1035,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return adminProfile;
   };
 
-  const registerTeamMember = async (name: string, email: string, role: UserRole, tempPassword: string): Promise<UserProfile> => {
-    const memberProfile = await firebaseAuthService.registerTeamMember(name, email, role, tempPassword);
+  const registerTeamMember = async (name: string, email: string, role: UserRole, _tempPassword?: string): Promise<UserProfile> => {
+    const memberProfile = await firebaseAuthService.registerTeamMember(name, email, role, true);
     saveLocalUser(memberProfile.uid, memberProfile);
     return memberProfile;
   };
@@ -1477,6 +1479,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setProducts(updated);
     saveLocalProducts(updated);
 
+    // Não grava no Firestore se o saldo for <= 0
+    const stock = product.stock ?? product.saldo_loja ?? 0;
+    if (stock <= 0) return;
+
     // Try Firestore
     try {
       const sanitized = sanitizeProductForFirestore(product);
@@ -1501,10 +1507,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateProduct = async (productId: string, updatedFields: Partial<Product>) => {
+    const existing = products.find(p => p.id === productId);
     // Update state & local storage
     const updated = products.map(p => p.id === productId ? { ...p, ...updatedFields } : p);
     setProducts(updated);
     saveLocalProducts(updated);
+
+    // Se o produto já existe e não sofreu alteração real em seus campos, pula gravação no Firestore
+    if (existing && !hasProductChanged(existing, { ...existing, ...updatedFields })) {
+      return;
+    }
 
     // Try Firestore
     try {
@@ -1548,16 +1560,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  // Auth Session State for Sincom/Moblink API
-  const [authSession, setAuthSession] = useState<SincomAuthSession | null>(() => {
-    return sincomAuthService.getSavedSession();
+  // Auth Session — Evidência Calçados API
+  const [authSession, setAuthSession] = useState<EvidenciaAuthSession | null>(() => {
+    return evidenciaAuthService.getSavedSession();
   });
 
-  const loginSincomAuth = async (config?: { apiUrl?: string }): Promise<SincomAuthSession> => {
-    const session = await sincomAuthService.login({
-      apiUrl: config?.apiUrl || moblinkConfig.apiUrl
-    });
-
+  const loginSincomAuth = async (): Promise<EvidenciaAuthSession> => {
+    const session = await evidenciaAuthService.login();
     setAuthSession(session);
 
     if (session.status === 'authenticated' && session.token) {
@@ -1566,7 +1575,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         accessToken: session.token,
         tokenExpiresAt: session.expiresAt,
         authStatus: 'authenticated',
-        lastSyncAt: new Date().toISOString()
+        lastSyncAt: new Date().toISOString(),
       });
     } else {
       await updateMoblinkConfig({ authStatus: 'error' });
@@ -1576,7 +1585,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const logoutSincomAuth = () => {
-    sincomAuthService.logout();
+    evidenciaAuthService.logout();
     setAuthSession(null);
     updateMoblinkConfig({ authStatus: 'unauthenticated' });
   };
@@ -1711,11 +1720,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           stockControl: true
         };
 
-        // Update in Firestore asynchronously
-        try {
-          setDoc(doc(db, 'products', prod.id), updatedProd, { merge: true });
-        } catch (e) {
-          console.warn("Could not sync product update to Firestore:", e);
+        // Update in Firestore asynchronously (apenas se estoque > 0 e se houver alteração real)
+        if (newStockTotal > 0 && hasProductChanged(prod, updatedProd)) {
+          try {
+            setDoc(doc(db, 'products', prod.id), updatedProd, { merge: true });
+          } catch (e) {
+            console.warn("Could not sync product update to Firestore:", e);
+          }
         }
 
         return updatedProd;
@@ -1777,6 +1788,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const newLog: MoblinkSyncLog = {
         id: `log-${Date.now()}`,
         timestamp: nowIso,
+        type: 'manual_api',
         source: 'api',
         status: 'success',
         message: `Sincronização com API MobLink ERP concluída: ${crossedCatalog.length} produtos atualizados com estoque e preços à vista.`,

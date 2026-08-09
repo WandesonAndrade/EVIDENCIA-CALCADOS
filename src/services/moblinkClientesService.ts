@@ -10,16 +10,11 @@ import {
 } from "firebase/firestore";
 import { UserProfile } from "../types";
 import { cleanUndefinedProperties } from "../utils/cleanObject";
+import { evidenciaAuthService } from "../lib/evidenciaAuth";
 
 export const MOBLINK_CLIENTES_API_URL =
   (import.meta as any).env?.VITE_MOBLINK_CLIENTES_API_URL ||
-  (import.meta as any).env?.MOBLINK_CLIENTES_API_URL ||
   "https://api.evidenciacalcados.com.br/api/v1/clientes";
-
-export const MOBLINK_CLIENTES_BEARER_TOKEN =
-  (import.meta as any).env?.VITE_MOBLINK_TOKEN ||
-  (import.meta as any).env?.MOBLINK_API_TOKEN ||
-  "";
 
 export interface MoblinkRawClient {
   id: string;
@@ -66,16 +61,18 @@ export const moblinkClientesService = {
   /**
    * Busca uma página de clientes na API oficial do MobLink ERP
    */
-  async fetchClientesPage(
+  async fetchClientesFromMoblinkApi(
     page: number = 1,
   ): Promise<MoblinkClientesPageResponse> {
-    const response = await fetch(`${MOBLINK_CLIENTES_API_URL}?page=${page}`, {
-      method: "GET",
-      headers: {
-        accept: "application/json",
-        Authorization: `Bearer ${MOBLINK_CLIENTES_BEARER_TOKEN}`,
+    const response = await evidenciaAuthService.fetchWithAuth(
+      `${MOBLINK_CLIENTES_API_URL}?page=${page}`,
+      {
+        method: "GET",
+        headers: {
+          accept: "application/json",
+        },
       },
-    });
+    );
 
     if (!response.ok) {
       throw new Error(
@@ -95,13 +92,12 @@ export const moblinkClientesService = {
     if (!cleanCpf || cleanCpf.length < 11) return null;
 
     try {
-      const response = await fetch(
+      const response = await evidenciaAuthService.fetchWithAuth(
         `${MOBLINK_CLIENTES_API_URL}?cpf_cnpj=${cleanCpf}`,
         {
           method: "GET",
           headers: {
             accept: "application/json",
-            Authorization: `Bearer ${MOBLINK_CLIENTES_BEARER_TOKEN}`,
           },
         },
       );
@@ -329,11 +325,10 @@ export const moblinkClientesService = {
 
     try {
       const url = `${MOBLINK_CLIENTES_API_URL}/${moblinkId}/contas-receber?formatada=false&vencidas=false`;
-      const response = await fetch(url, {
+      const response = await evidenciaAuthService.fetchWithAuth(url, {
         method: "GET",
         headers: {
           accept: "application/json",
-          Authorization: `Bearer ${MOBLINK_CLIENTES_BEARER_TOKEN}`,
         },
       });
 

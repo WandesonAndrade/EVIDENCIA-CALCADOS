@@ -16,7 +16,7 @@ import { moblinkClientesService } from '../services/moblinkClientesService';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { collection, doc, getDocs, setDoc, updateDoc, onSnapshot } from 'firebase/firestore';
 import { 
-  Package, DollarSign, Users, RefreshCw, Plus, 
+  Package, DollarSign, Users, User, RefreshCw, Plus, 
   Trash2, Edit, Save, ToggleLeft, ToggleRight, 
   Upload, Check, AlertCircle, ShoppingBag, Eye,
   BarChart, Layers, MessageSquare, Search, Filter, 
@@ -2325,71 +2325,137 @@ export const AdminPanel: React.FC = () => {
             {/* GRID DE CATEGORIAS E SUBCATEGORIAS TRADUZIDAS */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {cleanCategories.length > 0 ? (
-                cleanCategories.map((cat) => (
-                  <div key={cat.id} className={`p-5 rounded-2xl border flex flex-col justify-between space-y-4 transition-all shadow-xs ${
-                    isDark ? 'bg-slate-900/50 border-slate-800/80 hover:border-slate-700' : 'bg-white border-slate-200 hover:border-slate-300'
-                  }`}>
-                    <div className="space-y-3">
-                      {/* Cabeçalho da Categoria Traduzida */}
-                      <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800/80">
-                        <div className="flex items-center gap-2.5">
-                          <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-500">
-                            <FolderTree className="h-4 w-4" />
+                cleanCategories.map((cat) => {
+                  const isCatVisible = cat.visible !== false && cat.active !== false;
+
+                  return (
+                    <div key={cat.id} className={`p-5 rounded-2xl border flex flex-col justify-between space-y-4 transition-all shadow-xs ${
+                      isDark ? 'bg-slate-900/50 border-slate-800/80 hover:border-slate-700' : 'bg-white border-slate-200 hover:border-slate-300'
+                    }`}>
+                      <div className="space-y-3">
+                        {/* Cabeçalho da Categoria Traduzida */}
+                        <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800/80">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className={`p-2 rounded-xl border shrink-0 ${
+                              isCatVisible 
+                                ? 'bg-amber-500/10 border-amber-500/20 text-amber-500' 
+                                : 'bg-slate-500/10 border-slate-500/20 text-slate-400'
+                            }`}>
+                              <FolderTree className="h-4 w-4" />
+                            </div>
+                            <div className="min-w-0">
+                              <h3 className={`font-extrabold text-sm truncate ${
+                                isCatVisible ? 'text-slate-800 dark:text-slate-100' : 'text-slate-400 dark:text-slate-500 line-through'
+                              }`}>
+                                {cat.name}
+                              </h3>
+                              <span className="text-[10px] text-slate-400 font-mono block">
+                                {cat.subcategories?.length || 0} subcategoria(s)
+                              </span>
+                            </div>
                           </div>
-                          <div>
-                            <h3 className="font-extrabold text-sm text-slate-800 dark:text-slate-100">
-                              {cat.name}
-                            </h3>
-                            <span className="text-[10px] text-slate-400 font-mono">
-                              {cat.subcategories?.length || 0} subcategoria(s)
-                            </span>
+
+                          <div className="flex items-center gap-2 shrink-0">
+                            {/* Toggle / Check Button de Visibilidade da Categoria */}
+                            <label
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl border text-[11px] font-extrabold cursor-pointer transition-all ${
+                                isCatVisible
+                                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20'
+                                  : 'bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400 hover:bg-rose-500/20'
+                              }`}
+                              title={isCatVisible ? "Clique para ocultar esta categoria na loja" : "Clique para exibir esta categoria na loja"}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isCatVisible}
+                                onChange={() => {
+                                  const nextVisible = !isCatVisible;
+                                  updateCategory(cat.id, { visible: nextVisible, active: nextVisible });
+                                  addToast(
+                                    nextVisible ? "Categoria Visível" : "Categoria Ocultada",
+                                    `A categoria "${cat.name}" agora está ${nextVisible ? "visível" : "ocultada"} na loja.`
+                                  );
+                                }}
+                                className="w-3.5 h-3.5 rounded text-amber-500 border-slate-300 focus:ring-amber-500 cursor-pointer"
+                              />
+                              {isCatVisible ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
+                              <span>{isCatVisible ? 'Visível' : 'Oculta'}</span>
+                            </label>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                deleteCategory(cat.id);
+                                addToast("Categoria Removida", `Categoria ${cat.name} foi excluída.`);
+                              }}
+                              title="Excluir Categoria"
+                              className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 rounded-xl transition-all cursor-pointer"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
                           </div>
                         </div>
 
-                        <button
-                          type="button"
-                          onClick={() => {
-                            deleteCategory(cat.id);
-                            addToast("Categoria Removida", `Categoria ${cat.name} foi excluída.`);
-                          }}
-                          title="Excluir Categoria"
-                          className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 rounded-xl transition-all cursor-pointer"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
+                        {/* Lista de Subcategorias Traduzidas */}
+                        <div className="space-y-2 pt-1">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                            Subcategorias (Marque para exibir na loja):
+                          </span>
+                          
+                          {cat.subcategories && cat.subcategories.length > 0 ? (
+                            <div className="flex flex-wrap gap-2">
+                              {cat.subcategories.map((sub: any) => {
+                                const isSubVisible = sub.visible !== false && sub.active !== false;
 
-                      {/* Lista de Subcategorias Traduzidas */}
-                      <div className="space-y-1.5 pt-1">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                          Subcategorias Traduzidas:
-                        </span>
-                        
-                        {cat.subcategories && cat.subcategories.length > 0 ? (
-                          <div className="flex flex-wrap gap-1.5">
-                            {cat.subcategories.map((sub: any) => (
-                              <span
-                                key={sub.id || sub.name}
-                                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border flex items-center gap-1 ${
-                                  isDark 
-                                    ? 'bg-slate-800/80 border-slate-700/80 text-slate-200' 
-                                    : 'bg-slate-100 border-slate-200 text-slate-700'
-                                }`}
-                              >
-                                <Tag className="h-3 w-3 text-amber-500 shrink-0" />
-                                {sub.name}
-                              </span>
-                            ))}
-                          </div>
-                        ) : (
-                          <p className="text-[11px] text-slate-400 italic">
-                            Nenhuma subcategoria vinculada.
-                          </p>
-                        )}
+                                return (
+                                  <label
+                                    key={sub.id || sub.name}
+                                    className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold border flex items-center gap-1.5 cursor-pointer transition-all ${
+                                      isSubVisible
+                                        ? isDark 
+                                          ? 'bg-amber-500/10 border-amber-500/30 text-amber-300 hover:bg-amber-500/20' 
+                                          : 'bg-amber-50 border-amber-200 text-amber-900 hover:bg-amber-100'
+                                        : isDark 
+                                          ? 'bg-slate-800/40 border-slate-800 text-slate-500 line-through hover:bg-slate-800/60' 
+                                          : 'bg-slate-100 border-slate-200 text-slate-400 line-through hover:bg-slate-200'
+                                    }`}
+                                    title={isSubVisible ? `Subcategoria "${sub.name}" visível na loja` : `Subcategoria "${sub.name}" oculta na loja`}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={isSubVisible}
+                                      onChange={() => {
+                                        const nextSubVisible = !isSubVisible;
+                                        const updatedSubs = (cat.subcategories || []).map((s: any) => {
+                                          if ((s.id && s.id === sub.id) || s.name === sub.name) {
+                                            return { ...s, visible: nextSubVisible, active: nextSubVisible };
+                                          }
+                                          return s;
+                                        });
+                                        updateCategory(cat.id, { subcategories: updatedSubs });
+                                        addToast(
+                                          nextSubVisible ? "Subcategoria Visível" : "Subcategoria Ocultada",
+                                          `A subcategoria "${sub.name}" agora está ${nextSubVisible ? "visível" : "ocultada"} na loja.`
+                                        );
+                                      }}
+                                      className="w-3.5 h-3.5 rounded text-amber-500 border-slate-300 focus:ring-amber-500 cursor-pointer"
+                                    />
+                                    <Tag className={`h-3 w-3 ${isSubVisible ? 'text-amber-500' : 'text-slate-400'} shrink-0`} />
+                                    <span>{sub.name}</span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <p className="text-[11px] text-slate-400 italic">
+                              Nenhuma subcategoria vinculada.
+                            </p>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               ) : (
                 <div className="col-span-full p-8 rounded-2xl border text-center space-y-3 bg-slate-50 dark:bg-slate-900/30 border-slate-200 dark:border-slate-800">
                   <FolderTree className="h-8 w-8 text-amber-500 mx-auto" />

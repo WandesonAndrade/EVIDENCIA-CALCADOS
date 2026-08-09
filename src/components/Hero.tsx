@@ -1,61 +1,52 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
-import { ArrowRight, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { scrollToSectionWithOffset } from '../lib/scrollUtils';
 import { sanitizeUrl } from '../lib/securityUtils';
 
 interface Slide {
   id: number;
-  badge: string;
+  collectionTag: string;
   title: string;
   description: string;
   image: string;
   buttonText: string;
-  tabKey: string;
+  categoryFilter: string;
 }
 
 const SLIDES: Slide[] = [
   {
     id: 1,
-    badge: 'LOJA OFICIAL EVIDÊNCIA CALÇADOS',
-    title: 'A sua loja de calçados online!',
-    description: 'Compre no carnê em até 6x sem juros ou receba com entrega rápida e frete flexível com o atendimento da equipe Evidência Calçados.',
-    image: 'https://images.unsplash.com/photo-1549298916-b41d501d3772?q=80&w=1600&auto=format&fit=crop',
-    buttonText: 'Ver Lançamentos',
-    tabKey: 'lançamentos'
+    collectionTag: 'Coleção Outono/Inverno 2025',
+    title: 'Seu próximo passo começa aqui.',
+    description: 'Conforto, estilo e atitude em cada detalhe.',
+    image: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=1600&auto=format&fit=crop',
+    buttonText: 'COMPRE AGORA',
+    categoryFilter: 'TODOS'
   },
   {
     id: 2,
-    badge: 'COLEÇÃO FEMININA',
-    title: 'Charme, sofisticação e conforto extremo.',
-    description: 'Encontre sandálias, sapatilhas, saltos e acessórios refinados criados especialmente para destacar a sua personalidade única.',
+    collectionTag: 'Coleção Feminina 2025',
+    title: 'Charme, sofisticação e conforto.',
+    description: 'Sandálias, sapatilhas, saltos e acessórios refinados.',
     image: 'https://images.unsplash.com/photo-1543163521-1bf539c55dd2?q=80&w=1600&auto=format&fit=crop',
-    buttonText: 'Ver Moda Feminina',
-    tabKey: 'calcados-femininos'
+    buttonText: 'VER MODA FEMININA',
+    categoryFilter: 'FEMININO'
   },
   {
     id: 3,
-    badge: 'COLEÇÃO MASCULINA',
+    collectionTag: 'Coleção Masculina 2025',
     title: 'Estilo moderno e robustez incomparável.',
-    description: 'Sapatos sociais premium, botas indestrutíveis e tênis de alta performance para o homem contemporâneo que valoriza design e atitude.',
+    description: 'Sapatos sociais premium, botas e tênis de alta performance.',
     image: 'https://images.unsplash.com/photo-1533867617858-e7b97e060509?q=80&w=1600&auto=format&fit=crop',
-    buttonText: 'Explorar Linha Masculina',
-    tabKey: 'calcados-masculinos'
-  },
-  {
-    id: 4,
-    badge: 'CAMPANHA DE OFERTAS',
-    title: 'Super Descontos de até 50% OFF.',
-    description: 'Chegou o momento de adquirir aquele calçado desejado com preços incríveis e parcelamento facilitado no Crediário Próprio Evidência.',
-    image: 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?q=80&w=1600&auto=format&fit=crop',
-    buttonText: 'Aproveitar Ofertas',
-    tabKey: 'ofertas'
+    buttonText: 'EXPLORAR MASCULINO',
+    categoryFilter: 'MASCULINO'
   }
 ];
 
 export const Hero: React.FC = () => {
-  const { setSelectedMenuTab, setCurrentView, theme, heroBanners } = useApp();
+  const { setSelectedCategory, setCurrentView, theme, heroBanners } = useApp();
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const autoplayTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -63,15 +54,22 @@ export const Hero: React.FC = () => {
   const isDark = theme === 'dark';
 
   const slides = heroBanners && heroBanners.filter(b => b.active).length > 0
-    ? heroBanners.filter(b => b.active)
+    ? heroBanners.filter(b => b.active).map((b, i) => ({
+        id: i + 1,
+        collectionTag: b.badge || 'Coleção 2025',
+        title: b.title,
+        description: b.description,
+        image: b.image,
+        buttonText: b.buttonText || 'COMPRE AGORA',
+        categoryFilter: b.tabKey || 'TODOS'
+      }))
     : SLIDES;
 
-  // Auto-play effect
   useEffect(() => {
     if (!isPaused && slides.length > 0) {
       autoplayTimerRef.current = setInterval(() => {
         setCurrentSlide(prev => (prev + 1) % slides.length);
-      }, 6000);
+      }, 7000);
     }
 
     return () => {
@@ -94,136 +92,117 @@ export const Hero: React.FC = () => {
     setCurrentSlide(prev => (prev - 1 + slides.length) % slides.length);
   };
 
-  const handleDotClick = (index: number) => {
-    setCurrentSlide(index);
-  };
-
-  const handleSlideAction = (tabKey: string) => {
-    setSelectedMenuTab(tabKey);
-    setCurrentView('category-page');
+  const handleAction = (categoryFilter: string) => {
+    setSelectedCategory(categoryFilter.toUpperCase());
+    if (setCurrentView) setCurrentView('home');
     setTimeout(() => {
-      scrollToSectionWithOffset('category-all-items-section');
+      scrollToSectionWithOffset('catalog-products-section');
     }, 100);
   };
 
   return (
     <div 
       id="hero-banner" 
-      className="relative overflow-hidden rounded-3xl mx-4 sm:mx-6 lg:mx-8 my-6 min-h-[480px] sm:min-h-[520px] md:min-h-[540px] lg:h-[62vh] shadow-2xl border border-slate-800/80 group/hero select-none bg-slate-950"
+      className="relative overflow-hidden rounded-2xl mx-4 sm:mx-6 lg:mx-8 my-6 min-h-[460px] sm:min-h-[500px] lg:h-[58vh] max-w-7xl lg:mx-auto select-none shadow-sm group/hero"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
     >
-      {/* Background Image Slides with High Impact Footwear Showcase & Smooth Crossfade */}
-      <div className="absolute inset-0 w-full h-full">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={currentSlide}
-            initial={{ opacity: 0, scale: 1.08 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.98 }}
-            transition={{ duration: 0.9, ease: [0.25, 1, 0.5, 1] }}
-            className="absolute inset-0 w-full h-full"
-          >
-            <img 
-              src={sanitizeUrl(currentBanner.image)} 
-              alt={currentBanner.title} 
-              className="w-full h-full object-cover opacity-95 brightness-[1.12] contrast-[1.08] saturate-[1.15] filter drop-shadow-md transition-all duration-700"
-            />
-            
-            {/* Multi-layered Light & Vibrant Gradients (Preserving High Legibility & Bright Studio Images) */}
-            <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/30 to-transparent" />
-            <div className="absolute inset-0 bg-gradient-to-r from-slate-950/85 via-slate-950/45 to-transparent" />
-          </motion.div>
-        </AnimatePresence>
-      </div>
-
-      {/* Hero Content: Pure Product & Title Showcase */}
-      <div className="relative h-full max-w-7xl mx-auto px-6 sm:px-10 lg:px-14 py-12 sm:py-16 flex items-center justify-start z-20">
-        <div className="max-w-2xl text-center sm:text-left space-y-4 sm:space-y-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 h-full w-full min-h-[460px] sm:min-h-[500px] lg:h-[58vh]">
+        
+        {/* Esquerda: Conteúdo com Fundo Bege Nude Quente estilo Nordic */}
+        <div className={`lg:col-span-5 flex flex-col justify-center p-8 sm:p-12 lg:p-14 z-20 ${
+          isDark ? 'bg-slate-900 text-white' : 'bg-[#eae6df] text-[#111111]'
+        }`}>
           <AnimatePresence mode="wait">
             <motion.div
               key={currentSlide}
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.5, ease: 'easeOut' }}
-              className="space-y-4 sm:space-y-6"
+              exit={{ opacity: 0, y: -15 }}
+              transition={{ duration: 0.45, ease: 'easeOut' }}
+              className="space-y-6"
             >
-              {/* Badge Tag */}
-              <div className="flex flex-wrap items-center gap-2 justify-center sm:justify-start">
-                <span className="inline-flex items-center space-x-2 px-4 py-1.5 rounded-full text-[11px] sm:text-xs font-black tracking-widest uppercase text-amber-400 bg-amber-400/10 border border-amber-400/40 backdrop-blur-md shadow-[0_0_15px_rgba(245,158,11,0.25)]">
-                  <Sparkles className="h-3.5 w-3.5 text-amber-400" />
-                  <span>{currentBanner.badge}</span>
-                </span>
-              </div>
-              
-              {/* Headline Title */}
-              <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black tracking-tight leading-tight text-white drop-shadow-[0_4px_16px_rgba(0,0,0,0.95)]">
+              {/* Título Principal */}
+              <h1 className="text-3xl sm:text-5xl lg:text-5xl font-black tracking-tight leading-[1.08]">
                 {currentBanner.title}
               </h1>
-              
-              {/* Subtitle / Description */}
-              <p className="text-sm sm:text-base md:text-lg text-slate-200 font-medium leading-relaxed drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)]">
+
+              {/* Subtítulo */}
+              <p className={`text-sm sm:text-base font-medium leading-relaxed max-w-md ${
+                isDark ? 'text-slate-300' : 'text-neutral-700'
+              }`}>
                 {currentBanner.description}
               </p>
-              
-              {/* Action CTA Button with Strong Golden Glow */}
-              <div className="pt-3 flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-4">
-                <motion.button
-                  whileHover={{ scale: 1.05, y: -2 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => handleSlideAction(currentBanner.tabKey)}
-                  className="group inline-flex items-center space-x-3 px-8 py-4 rounded-2xl text-xs sm:text-sm font-black tracking-widest uppercase bg-gradient-to-r from-amber-400 via-amber-400 to-amber-500 text-slate-950 shadow-[0_0_25px_rgba(245,158,11,0.45)] hover:shadow-[0_0_40px_rgba(245,158,11,0.7)] transition-all cursor-pointer border border-amber-300/40"
+
+              {/* Botão de Ação Preto Sólido */}
+              <div className="pt-2">
+                <button
+                  onClick={() => handleAction(currentBanner.categoryFilter)}
+                  className={`inline-block text-xs sm:text-sm font-extrabold tracking-widest uppercase px-8 py-3.5 transition-all cursor-pointer shadow-xs ${
+                    isDark 
+                      ? 'bg-amber-400 text-black hover:bg-amber-300' 
+                      : 'bg-[#111111] text-white hover:bg-neutral-800'
+                  }`}
                 >
-                  <span>{currentBanner.buttonText}</span>
-                  <ArrowRight className="h-4 w-4 sm:h-5 sm:w-5 group-hover:translate-x-1.5 transition-transform duration-200 text-slate-950 stroke-[3]" />
-                </motion.button>
+                  {currentBanner.buttonText}
+                </button>
               </div>
             </motion.div>
           </AnimatePresence>
         </div>
-      </div>
 
-      {/* Floating Glass Arrow Controls (Sides) */}
-      <motion.button
-        whileHover={{ scale: 1.1 }}
-        whileTap={{ scale: 0.9 }}
-        onClick={handlePrev}
-        className="absolute left-4 top-1/2 -translate-y-1/2 z-30 hidden sm:flex items-center justify-center h-12 w-12 rounded-full border border-slate-700/80 bg-slate-900/70 text-white backdrop-blur-xl opacity-0 group-hover/hero:opacity-100 hover:bg-slate-800 hover:text-amber-400 transition-all duration-300 shadow-2xl cursor-pointer"
-        title="Anterior"
-      >
-        <ChevronLeft className="h-6 w-6 stroke-[2.5]" />
-      </motion.button>
-
-      <motion.button
-        whileHover={{ scale: 1.1 }}
-        whileTap={{ scale: 0.9 }}
-        onClick={handleNext}
-        className="absolute right-4 top-1/2 -translate-y-1/2 z-30 hidden sm:flex items-center justify-center h-12 w-12 rounded-full border border-slate-700/80 bg-slate-900/70 text-white backdrop-blur-xl opacity-0 group-hover/hero:opacity-100 hover:bg-slate-800 hover:text-amber-400 transition-all duration-300 shadow-2xl cursor-pointer"
-        title="Próximo"
-      >
-        <ChevronRight className="h-6 w-6 stroke-[2.5]" />
-      </motion.button>
-
-      {/* Sleek Minimalist Carousel Dots (Bottom) */}
-      <div className="absolute bottom-5 left-1/2 -translate-x-1/2 z-30 flex items-center space-x-2.5 backdrop-blur-md px-3.5 py-1.5 rounded-full bg-slate-950/60 border border-white/10">
-        {slides.map((slide, idx) => {
-          const isActive = idx === currentSlide;
-          return (
-            <button
-              key={slide.id}
-              onClick={() => handleDotClick(idx)}
-              className="relative transition-all duration-300 cursor-pointer focus:outline-none py-1"
-              title={`Ir para slide ${idx + 1}`}
+        {/* Direita: Fotografia Editorial de Moda/Calçado */}
+        <div className="lg:col-span-7 relative h-64 sm:h-80 lg:h-full overflow-hidden bg-neutral-200">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={currentSlide}
+              initial={{ opacity: 0, scale: 1.05 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.7, ease: [0.25, 1, 0.5, 1] }}
+              className="absolute inset-0 w-full h-full"
             >
-              <span className={`block rounded-full transition-all duration-300 ${
-                isActive 
-                  ? 'w-7 h-1.5 bg-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.6)]' 
-                  : 'w-1.5 h-1.5 bg-white/40 hover:bg-white/80'
-              }`} />
-            </button>
-          );
-        })}
+              <img 
+                src={sanitizeUrl(currentBanner.image)} 
+                alt={currentBanner.title} 
+                className="w-full h-full object-cover object-center"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent" />
+            </motion.div>
+          </AnimatePresence>
+
+          {/* Etiqueta de Coleção no Topo Direito */}
+          <div className="absolute top-6 right-6 z-20">
+            <span className="text-xs font-semibold tracking-wider text-neutral-900 bg-white/80 backdrop-blur-md px-3.5 py-1.5 rounded-full shadow-xs">
+              {currentBanner.collectionTag}
+            </span>
+          </div>
+
+          {/* Indicador de Slides na Direita Inferior (01 —— 03) */}
+          <div className="absolute bottom-6 right-6 z-20 flex items-center space-x-3 text-white font-mono text-xs font-bold tracking-widest bg-black/40 backdrop-blur-md px-4 py-1.5 rounded-full">
+            <span>0{currentSlide + 1}</span>
+            <span className="w-8 h-[2px] bg-white/70 inline-block" />
+            <span>0{slides.length}</span>
+          </div>
+
+          {/* Botões de Controle Circulares Brancos (Setas Left/Right) */}
+          <button
+            onClick={handlePrev}
+            className="absolute left-4 top-1/2 -translate-y-1/2 z-30 flex items-center justify-center w-10 h-10 rounded-full bg-white/90 text-neutral-900 shadow-md hover:bg-white transition-all cursor-pointer"
+            title="Anterior"
+          >
+            <ChevronLeft className="h-5 w-5 stroke-[2.5]" />
+          </button>
+
+          <button
+            onClick={handleNext}
+            className="absolute right-4 top-1/2 -translate-y-1/2 z-30 flex items-center justify-center w-10 h-10 rounded-full bg-white/90 text-neutral-900 shadow-md hover:bg-white transition-all cursor-pointer"
+            title="Próximo"
+          >
+            <ChevronRight className="h-5 w-5 stroke-[2.5]" />
+          </button>
+        </div>
+
       </div>
     </div>
   );
