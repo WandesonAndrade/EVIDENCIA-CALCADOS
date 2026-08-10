@@ -11,10 +11,9 @@ import {
 import { UserProfile } from "../types";
 import { cleanUndefinedProperties } from "../utils/cleanObject";
 import { evidenciaAuthService } from "../lib/evidenciaAuth";
+import { API_ENDPOINTS } from "./api";
 
-export const MOBLINK_CLIENTES_API_URL =
-  (import.meta as any).env?.VITE_MOBLINK_CLIENTES_API_URL ||
-  "https://api.evidenciacalcados.com.br/api/v1/clientes";
+export const MOBLINK_CLIENTES_API_URL = API_ENDPOINTS.CLIENTES;
 
 export interface MoblinkRawClient {
   id: string;

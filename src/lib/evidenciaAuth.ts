@@ -1,4 +1,5 @@
 import { EvidenciaAuthSession } from '../types';
+import { API_BASE_URL } from '../services/api';
 
 let inMemoryToken: string | null = null;
 let tokenExpiresAt: number = 0;
@@ -114,12 +115,14 @@ export const evidenciaAuthService = {
       headers.set('Authorization', `Bearer ${token}`);
     }
 
+    const apiOrigin = API_BASE_URL.replace(/\/api\/v1\/?$/, '');
+
     try {
       let response = await fetch(url, { ...options, headers });
 
       // Se a API remota responder erro HTTP (401, 500, etc.) em requisição direta, tenta o proxy backend local (/api/v1/...)
-      if (!response.ok && url.startsWith('https://api.evidenciacalcados.com.br')) {
-        const proxyUrl = url.replace('https://api.evidenciacalcados.com.br', '');
+      if (!response.ok && url.startsWith(apiOrigin)) {
+        const proxyUrl = url.replace(apiOrigin, '');
         console.warn(`[evidenciaAuthService] Fallback de proxy ativado (HTTP ${response.status}): ${url} -> ${proxyUrl}`);
         try {
           const proxyResp = await fetch(proxyUrl, { ...options, headers });
@@ -131,9 +134,9 @@ export const evidenciaAuthService = {
 
       return response;
     } catch (netErr) {
-      // Se for uma requisição direta para api.evidenciacalcados.com.br e falhar (ex: CORS ou erro de rede), redireciona suavemente para o proxy do backend
-      if (url.startsWith('https://api.evidenciacalcados.com.br')) {
-        const proxyUrl = url.replace('https://api.evidenciacalcados.com.br', '');
+      // Se for uma requisição direta para apiOrigin e falhar (ex: CORS ou erro de rede), redireciona suavemente para o proxy do backend
+      if (url.startsWith(apiOrigin)) {
+        const proxyUrl = url.replace(apiOrigin, '');
         console.warn(`[evidenciaAuthService] Requisição direta falhou (${(netErr as Error).message}). Redirecionando para o proxy backend: ${proxyUrl}`);
         return fetch(proxyUrl, options);
       }

@@ -1,9 +1,8 @@
 import { GradeProduto } from '../types';
 import { evidenciaAuthService } from '../lib/evidenciaAuth';
+import { API_ENDPOINTS } from './api';
 
-export const MOBLINK_GRADES_API_URL =
-  (import.meta as any).env?.VITE_MOBLINK_GRADES_API_URL ||
-  "https://api.evidenciacalcados.com.br/api/v1/gradesprodutos";
+export const MOBLINK_GRADES_API_URL = API_ENDPOINTS.GRADES_PRODUTOS;
 
 /**
  * Serviço responsável por consumir a rota GET /api/v1/gradesprodutos do MobLink ERP.
@@ -151,7 +150,7 @@ export const getProdutoGradesFromApi = async (
 
     if (!response.ok) {
       response = await evidenciaAuthService.fetchWithAuth(
-        `https://api.evidenciacalcados.com.br/api/v1/produtos/${productId}/grades`,
+        API_ENDPOINTS.PRODUTO_GRADES(productId),
         {
           method: 'GET',
           headers: { Accept: 'application/json' },

@@ -7,7 +7,7 @@ import { Product } from '../types';
 const env = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env : (typeof process !== 'undefined' ? process.env : {});
 
 const firebaseConfig = {
-  projectId: env.VITE_FIREBASE_PROJECT_ID || "gen-lang-client-0731653575",
+  projectId: env.VITE_FIREBASE_PROJECT_ID || "",
   appId: env.VITE_FIREBASE_APP_ID || "",
   apiKey: env.VITE_FIREBASE_API_KEY || "",
   authDomain: env.VITE_FIREBASE_AUTH_DOMAIN || "",

@@ -5,10 +5,9 @@ import {
   normalizeSubcategoryName,
 } from './moblinkCategoriesService';
 import { evidenciaAuthService } from '../lib/evidenciaAuth';
+import { API_ENDPOINTS } from './api';
 
-export const MOBLINK_OFFICIAL_API_URL =
-  (import.meta as any).env?.VITE_MOBLINK_API_URL ||
-  'https://api.evidenciacalcados.com.br/api/v1/produtos?pdf=false';
+export const MOBLINK_OFFICIAL_API_URL = API_ENDPOINTS.PRODUTOS;
 
 
 /**
@@ -488,6 +487,73 @@ export const mapMoblinkToProduct = (item: MoblinkProduto | any): Product => {
 };
 
 /**
+ * Mescla dados de sincronização em tempo real do MobLink ERP com os dados enriquecidos do produto já existente no banco (Firestore).
+ * REGRA DE PROTEÇÃO DE DADOS MENSAGEM DO LOJISTA:
+ * Preserva ESTRITAMENTE as personalizações manuais do lojista que NÃO PODEM ser sobreescritas pelo ERP:
+ * 1. Nome Comercial do Produto (Exibido na Loja Virtual) -> name / nome
+ * 2. Descrição Rica e Detalhes de Apresentação -> description / descricao_completa
+ * 3. Fotos / Imagens / Galeria / Mapeamento de Fotos por Cor -> images / foto_uri / colorImageMap / colorImages
+ */
+export const mergeErpSyncWithExistingDbProduct = (
+  existingDbProd?: any,
+  updatedErpProd?: any
+): Record<string, any> => {
+  if (!updatedErpProd) return existingDbProd || {};
+  if (!existingDbProd) return updatedErpProd;
+
+  // 1. NOME COMERCIAL: se o lojista definiu um nome comercial no banco, ele TEM PRIORIDADE MÁXIMA
+  const protectedName = (existingDbProd.name && String(existingDbProd.name).trim() !== '')
+    ? existingDbProd.name
+    : (existingDbProd.nome && String(existingDbProd.nome).trim() !== '')
+    ? existingDbProd.nome
+    : (updatedErpProd.nome || updatedErpProd.name || updatedErpProd.descricao || '');
+
+  // 2. DESCRIÇÃO RICA: se o lojista cadastrou descrição rica no banco, ela TEM PRIORIDADE MÁXIMA
+  const protectedDescription = (existingDbProd.description && String(existingDbProd.description).trim() !== '')
+    ? existingDbProd.description
+    : (existingDbProd.descricao_completa && String(existingDbProd.descricao_completa).trim() !== '')
+    ? existingDbProd.descricao_completa
+    : (updatedErpProd.description || updatedErpProd.descricao_completa || updatedErpProd.compl_descr || '');
+
+  // 3. FOTOS & GALERIA: se o lojista definiu fotos no banco, elas TÊM PRIORIDADE MÁXIMA
+  const protectedImages = (Array.isArray(existingDbProd.images) && existingDbProd.images.length > 0)
+    ? existingDbProd.images
+    : (Array.isArray(updatedErpProd.images) && updatedErpProd.images.length > 0)
+    ? updatedErpProd.images
+    : (existingDbProd.foto_uri ? [existingDbProd.foto_uri] : updatedErpProd.foto_uri ? [updatedErpProd.foto_uri] : []);
+
+  const protectedFotoUri = existingDbProd.foto_uri || (protectedImages.length > 0 ? protectedImages[0] : updatedErpProd.foto_uri);
+  const protectedColorImageMap = existingDbProd.colorImageMap || updatedErpProd?.colorImageMap;
+  const protectedColorImages = existingDbProd.colorImages || updatedErpProd?.colorImages;
+
+  // Preço e Estoque sempre atualizam em tempo real a partir da API do ERP
+  const livePrice = extractPrecoTabelaMoblink(updatedErpProd) ?? updatedErpProd.price ?? existingDbProd.price ?? 0;
+  const liveStock = extractSaldoLojaMoblink(updatedErpProd) ?? updatedErpProd.stock ?? existingDbProd.stock ?? 0;
+
+  return {
+    ...updatedErpProd,
+    ...existingDbProd,
+    // Garante dados protegidos contra sobrescrita
+    name: protectedName,
+    descricao: protectedName,
+    description: protectedDescription,
+    descricao_completa: protectedDescription,
+    images: protectedImages,
+    foto_uri: protectedFotoUri,
+    colorImageMap: protectedColorImageMap,
+    colorImages: protectedColorImages,
+    // Atualiza preço, estoque e saldo em tempo real do ERP
+    price: livePrice,
+    preco_venda: livePrice,
+    stock: liveStock,
+    saldo_loja: liveStock,
+    saldos_lojas: updatedErpProd.saldos_lojas || existingDbProd.saldos_lojas,
+    visible: liveStock <= 0 ? false : (existingDbProd.visible !== undefined ? existingDbProd.visible : true),
+    lastMoblinkSync: new Date().toISOString()
+  };
+};
+
+/**
  * Sanitiza um objeto de Produto para salvar estritamente o Contrato Limpo no Firestore.
  * Contrato Oficial: { id, name, description, imageUrl, classificacao, price, promoPrice, stock, visible, updatedAt }
  * Prevenção de Dados Fantasmas: Não preenche automaticamente cor, marca, material ou textos padronizados.
@@ -580,12 +646,16 @@ export const sanitizeProductForFirestore = (
     classificacao: cleanClassificacao,
   });
 
+  const finalImagesList = (Array.isArray(product.images) && product.images.length > 0)
+    ? product.images
+    : (imageUrl ? [imageUrl] : []);
+
   // Contrato Oficial Limpo para o Firestore
   const cleanPayload: Record<string, any> = {
     id,
     name,
     description,
-    imageUrl,
+    imageUrl: finalImagesList.length > 0 ? finalImagesList[0] : imageUrl,
     classificacao: cleanClassificacao,
     price,
     promoPrice,
@@ -595,8 +665,8 @@ export const sanitizeProductForFirestore = (
     // Aliases para exibição imediata em componentes legados
     category: catInfo.category,
     subcategory: catInfo.subcategory,
-    images: imageUrl ? [imageUrl] : [],
-    foto_uri: imageUrl,
+    images: finalImagesList,
+    foto_uri: finalImagesList.length > 0 ? finalImagesList[0] : imageUrl,
     preco_venda: price,
     precoVista: precoVistaVal,
     preco_vista: precoVistaVal,
@@ -633,6 +703,12 @@ export const sanitizeProductForFirestore = (
     cleanPayload.gender = product.gender.trim();
   if (product.stockBySize || product.sizeStockMap) {
     cleanPayload.stockBySize = product.stockBySize || product.sizeStockMap;
+  }
+  if (product.colorImageMap) {
+    cleanPayload.colorImageMap = product.colorImageMap;
+  }
+  if (product.colorImages) {
+    cleanPayload.colorImages = product.colorImages;
   }
 
   // Remoção permanente de campos redundantes e legados
@@ -955,7 +1031,7 @@ export const getSingleProdutoMoblinkFromApi = async (
   const cleanId = String(productId).trim();
 
   try {
-    const directUrl = `https://api.evidenciacalcados.com.br/api/v1/produtos/${cleanId}`;
+    const directUrl = API_ENDPOINTS.PRODUTO_SINGLE(cleanId);
     let response: Response;
 
     try {

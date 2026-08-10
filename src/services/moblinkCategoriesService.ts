@@ -2,10 +2,9 @@ import { db } from "../lib/firebase";
 import { doc, setDoc } from "firebase/firestore";
 import { Category, Subcategory, Product, MoblinkProduto } from "../types";
 import { evidenciaAuthService } from "../lib/evidenciaAuth";
+import { API_ENDPOINTS } from "./api";
 
-export const MOBLINK_GRUPOS_API_URL =
-  (import.meta as any).env?.VITE_MOBLINK_GRUPOS_API_URL ||
-  "https://api.evidenciacalcados.com.br/api/v1/produtos/grupos";
+export const MOBLINK_GRUPOS_API_URL = API_ENDPOINTS.PRODUTOS_GRUPOS;
 
 export interface MoblinkGrupoRaw {
   id?: number | string;

@@ -113,6 +113,8 @@ export interface Product {
   gender?: string;
   material?: string;
   color?: string;
+  colorImageMap?: Record<string, string>;
+  colorImages?: Record<string, string[]>;
   modelOrSku?: string;
   referencia?: string;
   warrantyOrVolume?: string;

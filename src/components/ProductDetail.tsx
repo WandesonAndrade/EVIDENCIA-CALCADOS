@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { ShoppingCart, ArrowLeft, Shield, Sparkles, Heart, Share2, Check, CreditCard, CheckCircle2, AlertCircle, ArrowRight, Truck, RefreshCw } from 'lucide-react';
+import { ShoppingCart, ShoppingBag, MapPin, Star, ChevronRight, ArrowLeft, Shield, Sparkles, Heart, Share2, Check, CreditCard, CheckCircle2, AlertCircle, ArrowRight, Truck, RefreshCw } from 'lucide-react';
 import { getGradeProdutoById, getProdutoGradesFromApi } from '../services/moblinkGradesService';
-import { getSingleProdutoMoblinkFromApi, sanitizeProductForFirestore } from '../services/moblinkProductsService';
+import { getSingleProdutoMoblinkFromApi, sanitizeProductForFirestore, mergeErpSyncWithExistingDbProduct } from '../services/moblinkProductsService';
 import { db } from '../lib/firebase';
 import { doc, setDoc } from 'firebase/firestore';
 import { GradeProduto, Product, ProdutoGradesResult } from '../types';
@@ -65,9 +65,11 @@ export const ProductDetail: React.FC = () => {
   }
 
   const p: Product = selectedProduct;
-  const productImages = (p?.images && p.images.length > 0)
-    ? p.images 
-    : [p?.foto_uri || 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?q=80&w=600&auto=format&fit=crop'];
+  const allProductImages = React.useMemo(() => {
+    return (p?.images && p.images.length > 0)
+      ? p.images 
+      : [p?.foto_uri || 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?q=80&w=600&auto=format&fit=crop'];
+  }, [p]);
 
   const idGrade = p.id_grade ?? p.gradeId ?? null;
   const hasGrade = idGrade !== null && idGrade !== undefined && idGrade !== '' && idGrade !== 0 && idGrade !== '0';
@@ -85,13 +87,14 @@ export const ProductDetail: React.FC = () => {
     setMessage('');
     setLoadingGrade(true);
 
-    // Atualização silenciosa e automática diretamente da API do ERP
+    // Atualização silenciosa e automática diretamente da API do ERP (preservando fotos, nome comercial e descrição rica)
     getSingleProdutoMoblinkFromApi(String(p.id))
       .then(updated => {
         if (isMounted && updated) {
-          const sanitized = sanitizeProductForFirestore(updated as any) as Product;
+          const merged = mergeErpSyncWithExistingDbProduct(p, updated) as Product;
+          const sanitized = sanitizeProductForFirestore(merged) as Product;
           setDoc(doc(db, 'products', String(sanitized.id)), sanitized, { merge: true }).catch(() => {});
-          setSelectedProduct(sanitized);
+          setSelectedProduct(merged);
         }
       })
       .catch(err => console.warn('Sincronização automática do ERP:', err));
@@ -135,6 +138,95 @@ export const ProductDetail: React.FC = () => {
     : [p.color, p.material].filter((val, index, self): val is string => Boolean(val && self.indexOf(val) === index));
 
   const colunaOptions = availableCoresForSelectedSize;
+
+  // 3. Auto-seleção inicial de Tamanho Único e Cor da Foto Capa
+  useEffect(() => {
+    // 3.1. Auto-seleção de Tamanho quando há apenas 1 tamanho disponível
+    if (linhaOptions.length === 1 && !selectedLinhaOption) {
+      setSelectedLinhaOption(String(linhaOptions[0]));
+    }
+
+    // 3.2. Auto-seleção de Cor inicial da foto capa quando nenhuma cor foi selecionada ainda
+    if (colunaOptions.length > 0 && !selectedColunaOption) {
+      const coverPhoto = allProductImages[0];
+      let initialColor: string | null = null;
+
+      // Procura qual cor tem a foto capa no colorImages
+      if (p?.colorImages) {
+        const found = Object.keys(p.colorImages).find(cKey => 
+          Array.isArray(p.colorImages?.[cKey]) && p.colorImages[cKey].includes(coverPhoto)
+        );
+        if (found) {
+          const matchInOptions = colunaOptions.find(opt => opt.trim().toLowerCase() === found.trim().toLowerCase());
+          if (matchInOptions) initialColor = matchInOptions;
+        }
+      }
+
+      // Procura no colorImageMap se não achou no colorImages
+      if (!initialColor && p?.colorImageMap) {
+        const found = Object.keys(p.colorImageMap).find(cKey => p.colorImageMap?.[cKey] === coverPhoto);
+        if (found) {
+          const matchInOptions = colunaOptions.find(opt => opt.trim().toLowerCase() === found.trim().toLowerCase());
+          if (matchInOptions) initialColor = matchInOptions;
+        }
+      }
+
+      // Se ainda não achou, pega a 1ª opção de cor disponível
+      if (!initialColor && colunaOptions.length > 0) {
+        initialColor = colunaOptions[0];
+      }
+
+      if (initialColor) {
+        setSelectedColunaOption(initialColor);
+      }
+    }
+  }, [linhaOptions, colunaOptions, selectedLinhaOption, selectedColunaOption, allProductImages, p]);
+
+  // Filtra as fotos da galeria estritamente para a cor selecionada
+  const productImages = React.useMemo(() => {
+    if (!selectedColunaOption) return allProductImages;
+
+    const cleanColor = selectedColunaOption.trim().toLowerCase();
+
+    // 1. Mapeamento de Múltiplas Fotos Por Cor (colorImages)
+    if (p?.colorImages) {
+      const matchedKey = Object.keys(p.colorImages).find(k => k.trim().toLowerCase() === cleanColor);
+      if (matchedKey && Array.isArray(p.colorImages[matchedKey]) && p.colorImages[matchedKey].length > 0) {
+        const colorSpecificPhotos = p.colorImages[matchedKey].filter(u => u && allProductImages.includes(u));
+        if (colorSpecificPhotos.length > 0) return colorSpecificPhotos;
+      }
+    }
+
+    // 2. Mapeamento de Foto Capa Por Cor (colorImageMap)
+    if (p?.colorImageMap) {
+      const matchedKey = Object.keys(p.colorImageMap).find(k => k.trim().toLowerCase() === cleanColor);
+      if (matchedKey && p.colorImageMap[matchedKey]) {
+        const coverUrl = p.colorImageMap[matchedKey];
+        if (allProductImages.includes(coverUrl)) return [coverUrl];
+      }
+    }
+
+    // 3. Variações de foto do ERP MobLink
+    if (validVariacoes && validVariacoes.length > 0) {
+      const matchingVar = validVariacoes.find(v => v.cor && v.cor.trim().toLowerCase() === cleanColor && ((v as any).foto_uri || (v as any).foto_url));
+      if (matchingVar) {
+        const varUri = (matchingVar as any).foto_uri || (matchingVar as any).foto_url;
+        if (varUri && allProductImages.includes(varUri)) return [varUri];
+      }
+    }
+
+    return allProductImages;
+  }, [selectedColunaOption, p, allProductImages, validVariacoes]);
+
+  // Reseta a visualização da foto para a 1ª foto ao trocar de cor
+  useEffect(() => {
+    setActiveImageIndex(0);
+  }, [selectedColunaOption]);
+
+  const handleSelectColorOption = (colorOpt: string) => {
+    setSelectedColunaOption(colorOpt);
+    setActiveImageIndex(0);
+  };
 
   const handleAddToCart = () => {
     if (hasGrade) {
@@ -293,214 +385,295 @@ export const ProductDetail: React.FC = () => {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       id="product-detail-page" 
-      className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-10"
+      className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-5 space-y-4"
     >
-      {/* Botão de Retorno Estilo Apple */}
-      <div className="flex items-center justify-between">
+      {/* Botão de Retorno e Navegação Clean */}
+      <div className="flex items-center justify-between text-xs py-1">
         <motion.button
-          whileHover={{ x: -4 }}
+          whileHover={{ x: -3 }}
           onClick={() => setCurrentView('home')}
-          className={`inline-flex items-center space-x-2 text-xs font-semibold cursor-pointer transition-colors ${
+          className={`inline-flex items-center space-x-1.5 font-semibold cursor-pointer transition-colors ${
             isDark ? 'text-[#86868b] hover:text-white' : 'text-[#515154] hover:text-black'
           }`}
         >
-          <ArrowLeft className="h-4 w-4" />
+          <ArrowLeft className="h-3.5 w-3.5" />
           <span>Voltar para a Vitrine</span>
         </motion.button>
 
-        <div className={`text-xs font-normal ${isDark ? 'text-[#86868b]' : 'text-[#86868b]'}`}>
+        <div className={`hidden sm:block text-xs font-normal ${isDark ? 'text-[#86868b]' : 'text-[#86868b]'}`}>
           Calçados &gt; <span className={isDark ? 'text-slate-300' : 'text-slate-700'}>{p.category}</span> &gt; <span className={`font-semibold ${isDark ? 'text-white' : 'text-[#1d1d1f]'}`}>{p.name}</span>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-6 items-start">
         
-        {/* GALERIA STUDIO APPLE */}
-        <div className="lg:col-span-7 space-y-4">
-          <div className={`relative aspect-square rounded-3xl overflow-hidden border p-8 flex items-center justify-center transition-all ${
-            isDark ? 'bg-[#161617] border-white/10' : 'bg-[#f5f5f7] border-black/5'
-          }`}>
-            <motion.img
-              key={activeImageIndex}
-              initial={{ opacity: 0, scale: 0.98 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-              src={productImages[activeImageIndex]}
-              alt={p.name}
-              className="w-full h-full object-contain"
-            />
-
-            {discountPercent > 0 && (
-              <span className="absolute top-4 left-4 bg-rose-600 text-white font-semibold text-xs px-3.5 py-1 rounded-full shadow-xs">
-                -{discountPercent}% OFF
-              </span>
-            )}
-
-            <button
-              onClick={() => toggleFavorite(p.id)}
-              className={`absolute top-4 right-4 p-3 rounded-full backdrop-blur-md transition-all cursor-pointer shadow-xs ${
-                isFavorite
-                  ? 'bg-rose-500 text-white scale-105'
-                  : isDark ? 'bg-black/40 text-white/70 hover:text-rose-400' : 'bg-black/5 text-[#515154] hover:text-rose-600'
-              }`}
-              title={isFavorite ? 'Remover dos Favoritos' : 'Salvar nos Favoritos'}
-            >
-              <Heart className={`h-5 w-5 ${isFavorite ? 'fill-current' : ''}`} />
-            </button>
-          </div>
-
-          {/* Carrossel de Miniaturas Studio */}
-          {productImages.length > 1 && (
-            <div className="flex items-center space-x-3 overflow-x-auto pb-2">
-              {productImages.map((imgUrl, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => setActiveImageIndex(idx)}
-                  className={`w-20 h-20 rounded-2xl overflow-hidden border transition-all cursor-pointer shrink-0 p-2 ${
-                    activeImageIndex === idx
-                      ? 'border-[#0071e3] scale-105 shadow-xs bg-white dark:bg-[#1d1d1f]'
-                      : isDark ? 'border-white/10 bg-[#161617] opacity-60 hover:opacity-100' : 'border-black/5 bg-[#f5f5f7] opacity-70 hover:opacity-100'
-                  }`}
-                >
-                  <img src={imgUrl} alt={`${p.name} thumb ${idx}`} className="w-full h-full object-contain" />
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* INFORMAÇÕES RELEVANTES & OPÇÕES DE COMPRA */}
-        <div className="lg:col-span-5 space-y-6">
-          <div className="space-y-4">
+        {/* ESQUERDA: CARD PRINCIPAL DO PRODUTO (COMPACTO COM ALTURA LIMITADA) */}
+        <div className={`lg:col-span-7 p-4 sm:p-5 rounded-2xl border space-y-4 shadow-xs ${
+          isDark ? 'bg-[#161617] border-white/10' : 'bg-white border-black/5'
+        }`}>
+          {/* Cabeçalho do Produto: Categoria + Avaliação + Título */}
+          <div className="space-y-1">
             <div className="flex items-center justify-between">
-              <span className={`px-3.5 py-1 rounded-full text-[11px] font-semibold tracking-wide uppercase border ${
-                isDark ? 'bg-white/10 text-white border-white/20' : 'bg-black/5 text-neutral-800 border-black/10'
+              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wide uppercase border ${
+                isDark ? 'bg-white/10 text-white border-white/20' : 'bg-slate-100 text-slate-700 border-slate-200'
               }`}>
                 {p.category}
               </span>
 
-              <button
-                onClick={handleShareProduct}
-                className={`p-2 rounded-full border transition-all cursor-pointer text-xs font-medium flex items-center space-x-1.5 ${
-                  isDark ? 'border-white/10 bg-white/10 text-slate-300 hover:text-white' : 'border-black/10 bg-black/5 text-slate-700 hover:text-black'
-                }`}
-                title="Compartilhar"
-              >
-                {copied ? <Check className="h-4 w-4 text-emerald-400" /> : <Share2 className="h-4 w-4" />}
-                <span>{copied ? 'Copiado' : 'Compartilhar'}</span>
-              </button>
+              {/* Avaliação Estilo Magalu (⭐ 5.0 (novo)) */}
+              <div className="flex items-center space-x-1 text-xs font-medium text-amber-500">
+                <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+                <span className="font-bold text-slate-800 dark:text-slate-200">5.0</span>
+                <span className="text-[#86868b] text-[11px]">(novo)</span>
+              </div>
             </div>
 
-            {/* Título Principal Estilo Apple */}
-            <h1 className={`text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight leading-tight ${
+            <h1 className={`text-lg sm:text-xl lg:text-2xl font-extrabold tracking-tight leading-snug ${
               isDark ? 'text-white' : 'text-[#1d1d1f]'
             }`}>
               {p.name}
             </h1>
 
-            {/* PAINEL DE PREÇOS LIMPO E RELEVANTE */}
-            <div className={`p-6 rounded-3xl border space-y-4 transition-all ${
-              isDark ? 'bg-[#161617] border-white/10' : 'bg-[#f5f5f7] border-black/5'
+            {/* Código de Referência e Vendedor */}
+            <div className="flex flex-wrap items-center gap-2 text-[11px] text-[#86868b]">
+              {(p.referencia || p.referenceCode) && (
+                <span>Ref: <strong className="font-mono text-slate-700 dark:text-slate-300">{p.referencia || p.referenceCode}</strong></span>
+              )}
+              <span>•</span>
+              <span>Vendido por <strong className="text-[#0071e3]">Evidência Calçados</strong></span>
+            </div>
+          </div>
+
+          {/* GALERIA DE FOTOS COM ALTURA FIXA E PROPORCIONAL (ENCAIXA NA TELA SEM SCROLL) */}
+          <div className="relative space-y-2">
+            <div className={`relative h-[260px] sm:h-[320px] lg:h-[340px] rounded-xl overflow-hidden border p-4 flex items-center justify-center transition-all ${
+              isDark ? 'bg-[#1d1d1f] border-white/10' : 'bg-[#f8f8fa] border-black/5'
             }`}>
-              {/* Preço À Vista no PIX (Com Desconto) */}
-              <div>
-                <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 block pb-0.5">
-                  À Vista no PIX (10% OFF)
+              <motion.img
+                key={activeImageIndex}
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+                src={productImages[activeImageIndex]}
+                alt={p.name}
+                className="max-h-full max-w-full object-contain"
+              />
+
+              {/* Desconto Badge */}
+              {discountPercent > 0 && (
+                <span className="absolute top-2.5 left-2.5 bg-rose-600 text-white font-extrabold text-[11px] px-2.5 py-0.5 rounded-full shadow-xs">
+                  -{discountPercent}% OFF
                 </span>
-                <div className="flex items-baseline space-x-3">
-                  <p className="text-3xl sm:text-4xl font-extrabold tracking-tight text-emerald-600 dark:text-emerald-400">
-                    R$ {precoVistaCalculado.toFixed(2).replace('.', ',')}
-                  </p>
-                  {p.originalPrice && p.originalPrice > p.price && (
-                    <span className="text-sm line-through text-[#86868b]">
-                      R$ {p.originalPrice.toFixed(2).replace('.', ',')}
-                    </span>
-                  )}
-                </div>
-              </div>
+              )}
 
-              {/* Cartão de Crédito e Parparcelamento */}
-              <div className={`pt-3 border-t flex flex-col space-y-1 text-xs ${
-                isDark ? 'border-white/10 text-slate-300' : 'border-black/10 text-[#515154]'
-              }`}>
-                <div className="flex items-center justify-between font-semibold">
-                  <span className="flex items-center space-x-1.5">
-                    <CreditCard className="h-4 w-4 text-[#0071e3]" />
-                    <span>Cartão de Crédito:</span>
-                  </span>
-                  <span className={`text-sm font-bold ${isDark ? 'text-white' : 'text-[#1d1d1f]'}`}>
-                    R$ {precoCartaoCalculado.toFixed(2).replace('.', ',')}
-                  </span>
-                </div>
-                <p className="text-[11px] text-[#86868b] pl-5">
-                  ou em até 6x de R$ {(precoCartaoCalculado / 6).toFixed(2).replace('.', ',')} sem juros
-                </p>
-              </div>
+              {/* Botão Flutuante FAVORITO Topo-Direito */}
+              <button
+                onClick={() => toggleFavorite(p.id)}
+                className={`absolute top-2.5 right-2.5 p-2.5 rounded-full backdrop-blur-md transition-all cursor-pointer shadow-xs ${
+                  isFavorite
+                    ? 'bg-rose-500 text-white scale-105'
+                    : isDark ? 'bg-black/50 text-white/80 hover:text-rose-400' : 'bg-white/90 text-sky-600 hover:bg-white shadow-sm'
+                }`}
+                title={isFavorite ? 'Remover dos Favoritos' : 'Salvar nos Favoritos'}
+              >
+                <Heart className={`h-4 w-4 ${isFavorite ? 'fill-current' : ''}`} />
+              </button>
 
-              {/* Crediário Próprio da Loja */}
-              {p.crediarioProprio && (
-                <div className={`pt-3 border-t flex flex-col space-y-1 text-xs ${
-                  isDark ? 'border-white/10 text-slate-300' : 'border-black/10 text-[#515154]'
-                }`}>
-                  <div className="flex items-center justify-between font-semibold">
-                    <span className="flex items-center space-x-1.5 text-amber-500">
-                      <Sparkles className="h-4 w-4" />
-                      <span>Crediário Próprio (Carnê):</span>
-                    </span>
-                    <span className="text-sm font-bold text-amber-500">
-                      até 10x de R$ {(p.price / 10).toFixed(2).replace('.', ',')}
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-[#86868b] pl-5">
-                    Compre no carnê sem comprovação de renda!
-                  </p>
+              {/* Botão Flutuante COMPARTILHAR Canto-Inferior-Direito */}
+              <button
+                onClick={handleShareProduct}
+                className={`absolute bottom-2.5 right-2.5 p-2.5 rounded-full backdrop-blur-md transition-all cursor-pointer shadow-xs ${
+                  isDark ? 'bg-black/50 text-white/80 hover:text-white' : 'bg-white/90 text-sky-600 hover:bg-white shadow-sm'
+                }`}
+                title="Compartilhar"
+              >
+                {copied ? <Check className="h-4 w-4 text-emerald-500" /> : <Share2 className="h-4 w-4" />}
+              </button>
+
+              {/* Paginação em Pontos (Dots) */}
+              {productImages.length > 1 && (
+                <div className="absolute bottom-2.5 left-1/2 -translate-x-1/2 flex items-center space-x-1 bg-black/20 dark:bg-black/40 backdrop-blur-md px-2.5 py-1 rounded-full">
+                  {productImages.map((_, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => setActiveImageIndex(idx)}
+                      className={`h-1.5 rounded-full transition-all cursor-pointer ${
+                        activeImageIndex === idx ? 'w-4 bg-[#0071e3]' : 'w-1.5 bg-white/60 hover:bg-white'
+                      }`}
+                    />
+                  ))}
                 </div>
               )}
             </div>
 
-            {/* Código de Referência */}
-            {(p.referencia || p.referenceCode) && (
-              <div className="text-xs text-[#86868b] font-normal pt-1">
-                Ref: <span className="font-mono font-medium text-[#1d1d1f] dark:text-slate-200">{p.referencia || p.referenceCode}</span>
+            {/* Carrossel de Miniaturas de Fotos (Compacto) */}
+            {productImages.length > 1 && (
+              <div className="flex items-center space-x-2 overflow-x-auto pb-1">
+                {productImages.map((imgUrl, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => setActiveImageIndex(idx)}
+                    className={`w-12 h-12 sm:w-14 sm:h-14 rounded-lg overflow-hidden border-2 transition-all cursor-pointer shrink-0 p-0.5 bg-white dark:bg-[#1d1d1f] ${
+                      activeImageIndex === idx
+                        ? 'border-[#0071e3] scale-105 shadow-xs'
+                        : isDark ? 'border-white/10 opacity-60 hover:opacity-100' : 'border-slate-200 opacity-70 hover:opacity-100'
+                    }`}
+                  >
+                    <img src={imgUrl} alt={`${p.name} thumb ${idx}`} className="w-full h-full object-contain" />
+                  </button>
+                ))}
               </div>
             )}
           </div>
 
-          {/* SELETOR DE TAMANHO & COR ESTILO APPLE */}
-          <div className={`p-6 rounded-3xl border space-y-5 ${
-            isDark ? 'bg-[#161617] border-white/10' : 'bg-[#f5f5f7] border-black/5'
+          {/* SELETOR DE CORES COM MOSTRUÁRIO DE FOTOS (SWATCHES COMPACTOS) */}
+          {colunaOptions.length > 0 && (
+            <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-white/10">
+              <div className="flex items-center justify-between text-xs">
+                <span className={`font-bold ${isDark ? 'text-white' : 'text-[#1d1d1f]'}`}>
+                  Cor: <span className="font-semibold text-[#0071e3]">{selectedColunaOption || 'Selecione a cor'}</span>
+                </span>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {colunaOptions.map((colorOpt) => {
+                  const isSelected = selectedColunaOption === colorOpt;
+                  const colorPhotosList = p?.colorImages?.[colorOpt] || p?.colorImages?.[colorOpt.toUpperCase()] || [];
+                  const colorPhoto = colorPhotosList.length > 0 
+                    ? colorPhotosList[0] 
+                    : (p?.colorImageMap?.[colorOpt] || p?.colorImageMap?.[colorOpt.toUpperCase()]);
+                  const photoCount = colorPhotosList.length;
+
+                  return (
+                    <motion.button
+                      key={colorOpt}
+                      whileHover={{ scale: 1.04 }}
+                      whileTap={{ scale: 0.96 }}
+                      onClick={() => handleSelectColorOption(colorOpt)}
+                      className={`relative group rounded-lg border-2 p-0.5 transition-all cursor-pointer flex flex-col items-center justify-center bg-white dark:bg-[#1d1d1f] ${
+                        isSelected
+                          ? 'border-[#0071e3] ring-2 ring-[#0071e3]/20 shadow-xs'
+                          : isDark ? 'border-white/10 hover:border-white/30' : 'border-slate-200 hover:border-slate-400'
+                      }`}
+                      title={`Selecionar cor ${colorOpt}`}
+                    >
+                      {photoCount > 1 && (
+                        <span className="absolute -top-1 -right-1 bg-[#0071e3] text-white text-[8px] font-black px-1 py-0.2 rounded-full shadow-xs z-10">
+                          {photoCount}
+                        </span>
+                      )}
+                      <div className="w-10 h-12 sm:w-12 sm:h-14 rounded-md overflow-hidden flex items-center justify-center bg-slate-50 dark:bg-slate-800">
+                        {colorPhoto ? (
+                          <img src={colorPhoto} alt={colorOpt} className="w-full h-full object-contain" />
+                        ) : (
+                          <span className="w-3.5 h-3.5 rounded-full bg-[#0071e3]" />
+                        )}
+                      </div>
+                      <span className={`text-[9px] font-bold mt-0.5 px-0.5 truncate max-w-[54px] ${
+                        isSelected ? 'text-[#0071e3]' : isDark ? 'text-slate-300' : 'text-slate-700'
+                      }`}>
+                        {colorOpt}
+                      </span>
+                    </motion.button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Descrição Detalhada & Especificações */}
+          <div className="space-y-1.5 pt-3 border-t border-slate-100 dark:border-white/10">
+            <h4 className={`text-[11px] font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+              Detalhes & Especificações
+            </h4>
+            <div className={`text-xs leading-relaxed whitespace-pre-line ${isDark ? 'text-slate-300' : 'text-[#515154]'}`}>
+              {p.description || p.descricao || p.descricao_completa}
+            </div>
+          </div>
+        </div>
+
+        {/* DIREITA: PAINEL FIXO COMPACTO DE PREÇO, REGIONALIZAÇÃO E COMPRA (VISIBLE ABOVE THE FOLD) */}
+        <div className="lg:col-span-5 space-y-3.5 lg:sticky lg:top-20">
+
+          {/* CARD UNIFICADO DE COMPRA & PREÇO (ENCAIXA PERFEITAMENTE NA TELA) */}
+          <div className={`p-4 sm:p-5 rounded-2xl border space-y-4 shadow-xs ${
+            isDark ? 'bg-[#161617] border-white/10' : 'bg-white border-black/5'
           }`}>
-            {/* Numeração / Tamanho */}
-            <div className="space-y-3">
+            {/* PAINEL DE PREÇO */}
+            <div className="space-y-1.5">
+              <div className="flex items-baseline space-x-2 flex-wrap">
+                <span className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-emerald-600 dark:text-emerald-400">
+                  R$ {precoVistaCalculado.toFixed(2).replace('.', ',')}
+                </span>
+                <span className="text-[11px] font-extrabold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/80 px-2 py-0.5 rounded-md">
+                  no Pix (10% OFF)
+                </span>
+              </div>
+
+              {p.originalPrice && p.originalPrice > p.price && (
+                <div className="text-xs line-through text-[#86868b]">
+                  De: R$ {p.originalPrice.toFixed(2).replace('.', ',')}
+                </div>
+              )}
+
+              <p className="text-xs text-[#86868b]">
+                ou <strong className="text-slate-800 dark:text-slate-200">R$ {precoCartaoCalculado.toFixed(2).replace('.', ',')}</strong> em <strong>6x de R$ {(precoCartaoCalculado / 6).toFixed(2).replace('.', ',')}</strong> sem juros
+              </p>
+            </div>
+
+            {/* CAIXA DE REGIONALIZAÇÃO E ENTREGA EM CAXIAS/MA */}
+            <div className={`p-3 rounded-xl border text-xs space-y-1.5 ${
+              isDark ? 'bg-[#1d1d1f] border-white/10' : 'bg-slate-50 border-slate-200/80'
+            }`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-1.5 font-bold text-slate-800 dark:text-slate-200">
+                  <MapPin className="h-3.5 w-3.5 text-[#0071e3]" />
+                  <span>Região de <strong>Caxias / MA</strong></span>
+                </div>
+                <button 
+                  type="button"
+                  onClick={() => setMessage('Entrega garantida para Caxias-MA e região!')}
+                  className="text-[11px] font-bold text-[#0071e3] hover:underline cursor-pointer"
+                >
+                  Alterar
+                </button>
+              </div>
+
+              <div className="flex items-center space-x-2 text-[11px] text-slate-700 dark:text-slate-300 font-medium pt-0.5">
+                <Truck className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                <span>Receba em Caxias/MA • <strong className="text-emerald-600 dark:text-emerald-400">Retirada Grátis na Loja</strong></span>
+              </div>
+            </div>
+
+            {/* SELETOR DE TAMANHOS */}
+            <div className="space-y-2 pt-1 border-t border-slate-100 dark:border-white/10">
               <div className="flex justify-between items-center text-xs">
-                <label className={`font-semibold text-xs tracking-tight ${
-                  isDark ? 'text-white' : 'text-[#1d1d1f]'
-                }`}>
+                <label className={`font-bold ${isDark ? 'text-white' : 'text-[#1d1d1f]'}`}>
                   Selecione o Tamanho:
                 </label>
                 {selectedLinhaOption && (
-                  <span className="text-xs text-emerald-500 font-medium flex items-center gap-1">
+                  <span className="text-xs text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
                     <CheckCircle2 className="h-3.5 w-3.5" /> Tamanho {selectedLinhaOption}
                   </span>
                 )}
               </div>
 
-              <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+              <div className="grid grid-cols-4 sm:grid-cols-5 gap-1.5">
                 {linhaOptions.map((sizeOpt) => {
                   const isSelected = selectedLinhaOption === sizeOpt;
 
                   return (
                     <motion.button
                       key={String(sizeOpt)}
-                      whileHover={{ scale: 1.04 }}
-                      whileTap={{ scale: 0.96 }}
+                      whileHover={{ scale: 1.03 }}
+                      whileTap={{ scale: 0.97 }}
                       onClick={() => setSelectedLinhaOption(sizeOpt)}
-                      className={`h-11 rounded-2xl border text-xs font-semibold transition-all cursor-pointer flex items-center justify-center ${
+                      className={`h-9 rounded-lg border text-xs font-bold transition-all cursor-pointer flex items-center justify-center ${
                         isSelected
-                          ? 'bg-[#0071e3] border-[#0071e3] text-white font-bold shadow-xs'
+                          ? 'bg-[#0071e3] border-[#0071e3] text-white shadow-xs'
                           : isDark
-                          ? 'border-white/10 text-slate-300 bg-[#1d1d1f] hover:border-white/20 hover:text-white'
-                          : 'border-black/10 text-[#1d1d1f] bg-white hover:border-black/20'
+                          ? 'border-white/10 text-slate-300 bg-[#1d1d1f] hover:border-white/20'
+                          : 'border-slate-200 text-[#1d1d1f] bg-slate-50 hover:border-slate-300'
                       }`}
                     >
                       <span>{sizeOpt}</span>
@@ -510,111 +683,59 @@ export const ProductDetail: React.FC = () => {
               </div>
             </div>
 
-            {/* Cor / Acabamento */}
-            {colunaOptions.length > 0 && (
-              <div className="space-y-3 pt-2">
-                <div className="flex justify-between items-center text-xs">
-                  <label className={`font-semibold text-xs tracking-tight ${
-                    isDark ? 'text-white' : 'text-[#1d1d1f]'
-                  }`}>
-                    Opção de Cor:
-                  </label>
-                  {selectedColunaOption && (
-                    <span className="text-xs text-emerald-500 font-medium flex items-center gap-1">
-                      <CheckCircle2 className="h-3.5 w-3.5" /> {selectedColunaOption}
-                    </span>
-                  )}
-                </div>
+            {/* MENSAGENS DE ALERTA */}
+            <AnimatePresence>
+              {message && (
+                <motion.div 
+                  initial={{ opacity: 0, y: -4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  className={`p-2.5 rounded-xl text-xs font-bold text-center ${
+                    message.includes('sucesso') || message.includes('adicionado')
+                      ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
+                      : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20'
+                  }`}
+                >
+                  {message}
+                </motion.div>
+              )}
+            </AnimatePresence>
 
-                <div className="flex flex-wrap gap-2">
-                  {colunaOptions.map((colorOpt) => {
-                    const isSelected = selectedColunaOption === colorOpt;
+            {/* BOTÕES DE AÇÃO DESTACADOS E COMPACTOS (VISÍVEIS NA PRIMEIRA TELA DENTRO DO FOLD) */}
+            <div className="space-y-2 pt-1">
+              <button
+                onClick={handleAddToCart}
+                className="w-full flex items-center justify-center space-x-2 py-3.5 px-5 bg-[#00a650] hover:bg-[#009146] active:scale-98 text-white font-extrabold text-sm rounded-xl shadow-sm transition-all cursor-pointer"
+              >
+                <ShoppingBag className="h-4 w-4 stroke-[2.5]" />
+                <span>Adicionar à sacola</span>
+              </button>
 
-                    return (
-                      <motion.button
-                        key={colorOpt}
-                        whileHover={{ scale: 1.03 }}
-                        whileTap={{ scale: 0.97 }}
-                        onClick={() => setSelectedColunaOption(colorOpt)}
-                        className={`px-4 py-2 rounded-full border text-xs font-medium transition-all cursor-pointer flex items-center space-x-2 ${
-                          isSelected
-                            ? 'bg-[#0071e3] border-[#0071e3] text-white font-semibold'
-                            : isDark
-                            ? 'border-white/10 text-slate-300 bg-[#1d1d1f] hover:border-white/20'
-                            : 'border-black/10 text-[#1d1d1f] bg-white hover:border-black/20'
-                        }`}
-                      >
-                        <span className={`w-2 h-2 rounded-full ${isSelected ? 'bg-white' : 'bg-[#0071e3]'}`} />
-                        <span>{colorOpt}</span>
-                      </motion.button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
+              <button
+                onClick={handleWhatsAppInstantBuy}
+                className={`w-full flex items-center justify-center space-x-2 py-2.5 px-5 rounded-xl border-2 font-bold text-xs transition-all cursor-pointer ${
+                  isDark 
+                    ? 'border-emerald-500 text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20' 
+                    : 'border-[#00a650] text-[#00a650] bg-emerald-50 hover:bg-emerald-100'
+                }`}
+              >
+                <span>Comprar agora</span>
+                <ArrowRight className="w-3.5 h-3.5 stroke-[2.5]" />
+              </button>
 
-          {/* Descrição do Produto */}
-          <div className="space-y-2">
-            <h4 className={`text-xs font-bold uppercase tracking-wider ${isDark ? 'text-[#86868b]' : 'text-[#86868b]'}`}>
-              Detalhes & Especificações
-            </h4>
-            <div className={`text-xs sm:text-sm leading-relaxed whitespace-pre-line ${isDark ? 'text-slate-300' : 'text-[#515154]'}`}>
-              {p.description || p.descricao || p.descricao_completa}
+              {p.crediarioProprio && (
+                <button
+                  onClick={() => setCurrentView('meu-crediario')}
+                  className={`w-full py-1.5 px-3 text-center text-[11px] font-bold transition-colors cursor-pointer ${
+                    isDark ? 'text-amber-400 hover:underline' : 'text-amber-700 hover:underline'
+                  }`}
+                >
+                  Simular aprovação de Crediário Próprio (Carnê) →
+                </button>
+              )}
             </div>
           </div>
 
-          {/* Mensagem de Alerta */}
-          <AnimatePresence>
-            {message && (
-              <motion.div 
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
-                className={`p-3.5 rounded-2xl text-xs font-semibold text-center ${
-                  message.includes('sucesso') || message.includes('adicionado')
-                    ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
-                    : 'bg-rose-500/10 text-rose-500 border border-rose-500/20'
-                }`}
-              >
-                {message}
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* BOTÕES DE AÇÃO APPLE (PÍLULA AZUL E BORDA CLEAN) */}
-          <div className="space-y-3 pt-2">
-            <button
-              onClick={handleWhatsAppInstantBuy}
-              className="w-full flex items-center justify-center space-x-2 py-3.5 px-6 bg-[#0071e3] hover:bg-[#0077ed] active:scale-98 text-white font-semibold text-sm rounded-full shadow-xs transition-all cursor-pointer"
-            >
-              <span>Comprar Agora</span>
-              <ArrowRight className="w-4 h-4 stroke-[2.5]" />
-            </button>
-
-            <button
-              onClick={handleAddToCart}
-              className={`w-full flex items-center justify-center space-x-2 py-3.5 px-6 rounded-full border font-semibold text-sm transition-all cursor-pointer ${
-                isDark 
-                  ? 'border-white/20 text-white bg-white/5 hover:bg-white/10' 
-                  : 'border-black/15 text-[#1d1d1f] bg-black/5 hover:bg-black/10'
-              }`}
-            >
-              <ShoppingCart className="h-4 w-4" />
-              <span>Adicionar ao Carrinho</span>
-            </button>
-
-            {p.crediarioProprio && (
-              <button
-                onClick={() => setCurrentView('meu-crediario')}
-                className={`w-full py-2.5 px-4 text-center text-xs font-semibold transition-colors cursor-pointer ${
-                  isDark ? 'text-amber-400 hover:underline' : 'text-amber-700 hover:underline'
-                }`}
-              >
-                Simular aprovação de Crediário Próprio →
-              </button>
-            )}
-          </div>
         </div>
       </div>
 

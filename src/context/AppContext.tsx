@@ -10,6 +10,7 @@ import { orderService } from '../services/orderService';
 import { getProdutosMoblink, extractPrecoVistaMoblink, extractSaldoLojaMoblink, sanitizeProductForFirestore, cleanUndefinedFields, filterProductsRequiringSync, hasProductChanged, extractClassificacaoCategoria } from '../services/moblinkProductsService';
 import { moblinkCategoriesService } from '../services/moblinkCategoriesService';
 import { cleanUndefinedProperties } from '../utils/cleanObject';
+import { API_ENDPOINTS } from '../services/api';
 
 
 interface AppContextProps {
@@ -302,7 +303,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return {
       id: 'default',
       enabled: true,
-      apiUrl: import.meta.env.VITE_MOBLINK_API_URL || '/api/v1/produtos?pdf=false',
+      apiUrl: API_ENDPOINTS.PRODUTOS,
       apiToken: 'mob_live_9a8b7c6d5e4f3a2b1c',
       apiUser: '',
       apiPassword: '',
@@ -628,7 +629,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const defaultCover = rawFotoUri || dbRecord?.foto_uri || (dbRecord?.images && dbRecord.images.length > 0 ? dbRecord.images[0] : null) || 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?q=80&w=600&auto=format&fit=crop';
 
       // 1. LIVE DATA FROM MOBLINK API (Preço à Vista e Estoque Real >= 0)
-      const liveName = item.descricao || item.nome || item.name || dbRecord?.name || dbRecord?.descricao || `Produto ${mobId}`;
+      // PRESERVAÇÃO ESTRITA: Se o lojista definiu um Nome Comercial no banco, ele NÃO PODE ser sobreescrito pelo ERP
+      const liveName = (dbRecord?.name && dbRecord.name.trim() !== '')
+        ? dbRecord.name
+        : ((dbRecord as any)?.nome && String((dbRecord as any).nome).trim() !== '')
+        ? (dbRecord as any).nome
+        : (item.nome || item.name || item.descricao || `Produto ${mobId}`);
       
       const apiPrecoVista = extractPrecoVistaMoblink(item);
       const livePrice = apiPrecoVista > 0 ? apiPrecoVista : Number(dbRecord?.price ?? 0);
@@ -652,9 +658,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // Extract Complementary Description (compl_descr)
       const liveComplDescr = item.compl_descr || item.descr_compl || item.descricao_complementar || item.compl_descricao || dbRecord?.compl_descr || '';
 
-      // 2. PRESERVE ENRICHED MEDIA & DESCRIPTION FROM LOCAL DATABASE (FIREBASE) / LOJISTA
+      // 2. PRESERVE ENRICHED MEDIA & DESCRIPTION FROM LOCAL DATABASE (FIREBASE) / LOJISTA (NÃO SOBREESCREVE)
       let combinedImages: string[] = [];
-      if (dbRecord?.images && dbRecord.images.length > 0) {
+      if (dbRecord?.images && Array.isArray(dbRecord.images) && dbRecord.images.length > 0) {
         combinedImages = dbRecord.images;
       } else if (rawFotoUri) {
         combinedImages = [rawFotoUri];
@@ -662,10 +668,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         combinedImages = [defaultCover];
       }
 
+      const colorImageMap = dbRecord?.colorImageMap || (item as any)?.colorImageMap;
+      const colorImages = dbRecord?.colorImages || (item as any)?.colorImages;
+
       // Adaptation for Complete Description (Preserva cadastro manual do lojista se existir)
       let adaptedFullDescription = '';
       if (dbRecord?.description && dbRecord.description.trim() !== '') {
         adaptedFullDescription = dbRecord.description;
+      } else if (dbRecord?.descricao_completa && dbRecord.descricao_completa.trim() !== '') {
+        adaptedFullDescription = dbRecord.descricao_completa;
       } else if (liveComplDescr) {
         adaptedFullDescription = liveComplDescr.includes('<') 
           ? liveComplDescr 
@@ -680,7 +691,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         id: mobId,
         moblinkId: mobId,
         sku: liveSku,
-        name: liveName, // Direct from Moblink API
+        name: liveName, // Preserved from lojista or raw ERP fallback
         descricao: liveName,
         compl_descr: liveComplDescr,
         descricao_completa: adaptedFullDescription,
@@ -701,6 +712,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         onSale: Boolean((liveOriginalPrice && liveOriginalPrice > livePrice) || dbRecord?.onSale),
         images: combinedImages, // Preserved from lojista
         foto_uri: dbRecord?.foto_uri || rawFotoUri || combinedImages[0],
+        colorImageMap,
+        colorImages,
         description: adaptedFullDescription, // Preserved from lojista
         sizes: liveSizes,
         id_grade: liveIdGrade,

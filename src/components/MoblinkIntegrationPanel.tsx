@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { API_BASE_URL, API_ENDPOINTS } from '../services/api';
 import {
   Zap,
   RefreshCw,
@@ -137,8 +138,8 @@ export const MoblinkIntegrationPanel: React.FC = () => {
             <p className="text-lg font-black text-slate-800 dark:text-slate-100">API Oficial ERP</p>
             <span className="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400">Online</span>
           </div>
-          <p className="text-[10px] text-slate-400 truncate font-mono" title="https://api.evidenciacalcados.com.br/api/v1/produtos">
-            api.evidenciacalcados.com.br
+          <p className="text-[10px] text-slate-400 truncate font-mono" title={API_ENDPOINTS.PRODUTOS}>
+            {API_BASE_URL.replace(/^https?:\/\//, '')}
           </p>
         </div>
 

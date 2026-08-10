@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { useApp } from '../context/AppContext';
+import { useApp, DEFAULT_CATEGORIES } from '../context/AppContext';
 import { Product, ProdutoGradesResult } from '../types';
 import { 
   getProdutosMoblink, 
@@ -9,12 +9,13 @@ import {
   extractPrecoCartaoMoblink,
   extractSaldoLojaMoblink, 
   sanitizeProductForFirestore,
+  mergeErpSyncWithExistingDbProduct,
   extractBaseNameAndVariant,
   hasProductChanged,
   saveMoblinkCache,
   loadMoblinkCache
 } from '../services/moblinkProductsService';
-import { moblinkCategoriesService, normalizeCategoryName, normalizeSubcategoryName } from '../services/moblinkCategoriesService';
+import { moblinkCategoriesService, normalizeCategoryName, normalizeSubcategoryName, isProductInCategory } from '../services/moblinkCategoriesService';
 import { getProdutoGradesFromApi } from '../services/moblinkGradesService';
 import { db } from '../lib/firebase';
 import { doc, setDoc } from 'firebase/firestore';
@@ -36,7 +37,8 @@ import {
   Save, 
   Edit3, 
   Sliders, 
-  Eye, 
+  Eye,
+  EyeOff, 
   X,
   Layers,
   ArrowRight,
@@ -180,6 +182,7 @@ export const MoblinkProductsManager: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('Todos');
+  const [subcategoryFilter, setSubcategoryFilter] = useState('Todas');
   const [baseNameFilter, setBaseNameFilter] = useState('');
   const [viewMode, setViewMode] = useState<'list' | 'grouped'>('list');
   const [syncFilter, setSyncFilter] = useState<'todos' | 'erp' | 'manual'>('todos');
@@ -210,6 +213,8 @@ export const MoblinkProductsManager: React.FC = () => {
   const [editSizes, setEditSizes] = useState('');
   const [editColor, setEditColor] = useState('');
   const [editStockBySize, setEditStockBySize] = useState<Record<string, number>>({});
+  const [editColorImageMap, setEditColorImageMap] = useState<Record<string, string>>({});
+  const [editColorImages, setEditColorImages] = useState<Record<string, string[]>>({});
 
   // Estado para armazenar dados de Grade do Produto buscados do ERP
   const [selectedProductGrade, setSelectedProductGrade] = useState<ProdutoGradesResult | null>(null);
@@ -256,6 +261,11 @@ export const MoblinkProductsManager: React.FC = () => {
   const [isBatchCategoryModalOpen, setIsBatchCategoryModalOpen] = useState(false);
   const [batchCategory, setBatchCategory] = useState('');
   const [isSavingBatchCategory, setIsSavingBatchCategory] = useState(false);
+
+  // Estado para Edição em Lote de Visibilidade nas Vitrines
+  const [isBatchVisibilityModalOpen, setIsBatchVisibilityModalOpen] = useState(false);
+  const [batchVisibilityValue, setBatchVisibilityValue] = useState<boolean>(true);
+  const [isSavingBatchVisibility, setIsSavingBatchVisibility] = useState(false);
 
   const selectedIdsList = Object.keys(selectedMobIds).filter(id => selectedMobIds[id]);
 
@@ -552,6 +562,20 @@ export const MoblinkProductsManager: React.FC = () => {
     setEditSizes(initialSizes);
     setEditColor(initialColor);
     setEditStockBySize(finalStockMap);
+    const initialColorMap = existing?.colorImageMap || (item as any)?.colorImageMap || {};
+    const initialColorImages: Record<string, string[]> = { ...(existing?.colorImages || (item as any)?.colorImages || {}) };
+    Object.entries(initialColorMap).forEach(([color, url]) => {
+      const urlStr = String(url || '');
+      if (urlStr) {
+        if (!initialColorImages[color]) {
+          initialColorImages[color] = [urlStr];
+        } else if (!initialColorImages[color].includes(urlStr)) {
+          initialColorImages[color].push(urlStr);
+        }
+      }
+    });
+    setEditColorImageMap(initialColorMap as Record<string, string>);
+    setEditColorImages(initialColorImages);
 
     if (existing && Array.isArray(existing.images) && existing.images.length > 0) {
       const rawFoto = item.foto_uri || item.foto_url || item.foto || item.imagem || item.image;
@@ -605,17 +629,23 @@ export const MoblinkProductsManager: React.FC = () => {
       // 1. Busca dados atualizados do produto no ERP
       const updated = await getSingleProdutoMoblinkFromApi(targetId);
       if (updated) {
-        setSelectedProduct(updated);
+        const existing = getExistingDbProduct(targetId) || selectedProduct;
+        const merged = mergeErpSyncWithExistingDbProduct(existing, updated) as Product;
+        const sanitized = sanitizeProductForFirestore(merged);
+
+        setSelectedProduct(merged);
 
         // 2. Recarrega as informações de grade em tempo real
         const updatedGrades = await getProdutoGradesFromApi(targetId);
         setSelectedProductGrade(updatedGrades);
 
-        // 3. Atualiza os campos do formulário de edição
-        const sanitized = sanitizeProductForFirestore(updated as any);
-        setEditName(sanitized.name);
-        setEditPrice(sanitized.price);
-        setEditCategory(sanitized.category);
+        // 3. Atualiza os campos do formulário de edição mantendo os dados protegidos do lojista
+        setEditName(merged.name);
+        if (merged.description) setRichDescription(merged.description);
+        if (merged.images && merged.images.length > 0) setImages(merged.images);
+        if (merged.colorImageMap) setEditColorImageMap(merged.colorImageMap);
+        setEditPrice(merged.price);
+        setEditCategory(merged.category);
 
         // 4. Salva a atualização no Firestore
         await setDoc(doc(db, 'products', String(sanitized.id)), sanitized, { merge: true });
@@ -794,6 +824,18 @@ export const MoblinkProductsManager: React.FC = () => {
     const refCode = selectedProduct.referencia || selectedProduct.referenceCode || selectedProduct.modelCode || undefined;
     const activeSizes = selectedProductGrade?.tamanhos || (selectedProduct.tamanhos as any) || [];
 
+    // Constrói mapeamento de múltiplas fotos por cor + capa da cor
+    const finalColorImages: Record<string, string[]> = {};
+    const finalColorImageMap: Record<string, string> = {};
+
+    Object.entries(editColorImages).forEach(([color, urls]) => {
+      const validUrls = (urls || []).filter(u => u && finalImages.includes(u));
+      if (validUrls.length > 0) {
+        finalColorImages[color] = validUrls;
+        finalColorImageMap[color] = validUrls[0];
+      }
+    });
+
     const updatedProductPayload: Product = {
       id: mobId,
       moblinkId: mobId,
@@ -832,6 +874,8 @@ export const MoblinkProductsManager: React.FC = () => {
       material: selectedProduct.material || undefined,
       color: selectedProduct.cor || selectedProduct.color || undefined,
       cor: selectedProduct.cor || selectedProduct.color || undefined,
+      colorImages: finalColorImages,
+      colorImageMap: finalColorImageMap,
       gender: selectedProduct.genero || selectedProduct.gender || undefined,
       lastMoblinkSync: new Date().toISOString(),
       moblinkSyncStatus: 'synced',
@@ -1095,6 +1139,100 @@ export const MoblinkProductsManager: React.FC = () => {
     }
   };
 
+  // Salvar Visibilidade nas Vitrines da Loja Virtual em Lote
+  const handleSaveBatchVisibility = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (selectedIdsList.length === 0) return;
+
+    const targetVisibility = batchVisibilityValue;
+    setIsSavingBatchVisibility(true);
+    setFeedback(null);
+
+    try {
+      let successCount = 0;
+
+      for (const mobId of selectedIdsList) {
+        const rawItem = combinedCatalog.find(i => String(i.id || i.moblinkId) === mobId);
+        const existingDb = getExistingDbProduct(mobId);
+
+        const productName = existingDb?.name || rawItem?.nome || rawItem?.name || rawItem?.descricao || `Produto ${mobId}`;
+        const productSku = existingDb?.sku || rawItem?.sku || mobId;
+        const productPrice = existingDb?.price ?? extractPrecoVistaMoblink(rawItem) ?? 0;
+        const productStock = existingDb?.stock ?? extractSaldoLojaMoblink(rawItem) ?? 0;
+        const categoryName = existingDb?.category || rawItem?.categoria || rawItem?.category || 'Geral';
+        const defaultCover = 'https://images.unsplash.com/photo-1614252235316-8c857d38b5f4?auto=format&fit=crop&q=80&w=800';
+
+        const updatedProductPayload: Product = {
+          id: mobId,
+          moblinkId: mobId,
+          name: productName,
+          descricao: productName,
+          sku: productSku,
+          description: existingDb?.description || rawItem?.compl_descr || rawItem?.descricao || 'Produto Evidência Calçados',
+          descricao_completa: existingDb?.description || rawItem?.compl_descr || rawItem?.descricao || 'Produto Evidência Calçados',
+          price: productPrice,
+          preco_venda: productPrice,
+          category: categoryName,
+          images: (existingDb?.images && existingDb.images.length > 0) ? existingDb.images : [(rawItem?.foto_uri || defaultCover)],
+          sizes: existingDb?.sizes || (Array.isArray(rawItem?.tamanhos) ? rawItem.tamanhos : [37, 38, 39, 40, 41, 42, 43]),
+          crediarioProprio: true,
+          visible: productStock <= 0 ? false : targetVisibility,
+          stockControl: true,
+          stock: productStock,
+          saldo_loja: productStock,
+          stockBySize: existingDb?.stockBySize || existingDb?.sizeStockMap,
+          sizeStockMap: existingDb?.sizeStockMap || existingDb?.stockBySize,
+          lastMoblinkSync: new Date().toISOString(),
+          moblinkSyncStatus: 'synced',
+          modelCode: existingDb?.modelCode || existingDb?.referenceCode,
+          referenceCode: existingDb?.referenceCode || existingDb?.modelCode,
+          color: existingDb?.color || rawItem?.cor || 'Preto',
+          cor: existingDb?.cor || rawItem?.cor || 'Preto',
+        };
+
+        if (productStock > 0 && hasProductChanged(existingDb, updatedProductPayload)) {
+          const sanitizedPayload = sanitizeProductForFirestore(updatedProductPayload);
+          await setDoc(doc(db, 'products', mobId), sanitizedPayload, { merge: true });
+        }
+
+        if (existingDb) {
+          await updateProduct(mobId, updatedProductPayload);
+        } else if (productStock > 0) {
+          await addProduct(updatedProductPayload);
+        }
+
+        successCount++;
+      }
+
+      setMoblinkList(prev => prev.map(item => {
+        const mobId = String(item.id || item.moblinkId);
+        if (selectedIdsList.includes(mobId)) {
+          return {
+            ...item,
+            visible: targetVisibility
+          };
+        }
+        return item;
+      }));
+
+      setFeedback({
+        success: true,
+        message: `⚡ Visibilidade em Lote Atualizada! ${successCount} produto(s) agora estão ${targetVisibility ? 'VISÍVEIS nas vitrines da loja' : 'OCULTOS da loja virtual'}.`
+      });
+
+      setSelectedMobIds({});
+      setIsBatchVisibilityModalOpen(false);
+    } catch (err: any) {
+      console.error('[MoblinkProductsManager] Erro ao salvar visibilidade em lote:', err);
+      setFeedback({
+        success: false,
+        message: `Falha ao atualizar visibilidade em lote: ${err.message || 'Erro inesperado'}`
+      });
+    } finally {
+      setIsSavingBatchVisibility(false);
+    }
+  };
+
   // Combine Moblink List with manual database products
   const combinedCatalog: MoblinkRawProduct[] = useMemo(() => {
     const catalog: MoblinkRawProduct[] = [...(moblinkList || [])];
@@ -1170,14 +1308,23 @@ export const MoblinkProductsManager: React.FC = () => {
 
       const rawCat = item.categoria || item.category || item.nome_grupo || 'Geral';
       const normCat = normalizeCategoryName(rawCat);
-      const matchesCategory = categoryFilter === 'Todos' || normCat.toUpperCase() === categoryFilter.toUpperCase() || rawCat.toUpperCase() === categoryFilter.toUpperCase();
+      const matchesCategory = categoryFilter === 'Todos' || isProductInCategory(item as any, categoryFilter) || normCat.toUpperCase() === categoryFilter.toUpperCase() || rawCat.toUpperCase() === categoryFilter.toUpperCase();
+
+      const rawSub = String((item as any).nome_subgrupo || (item as any).subgrupo || (item as any).subcategory || (item as any).subcategoria || '').trim();
+      const normSub = normalizeSubcategoryName(rawSub);
+      const upperName = rawName.toUpperCase();
+      const subUpper = subcategoryFilter.toUpperCase();
+      const matchesSubcategory = subcategoryFilter === 'Todas' ||
+        normSub.toUpperCase() === subUpper ||
+        rawSub.toUpperCase().includes(subUpper) ||
+        upperName.includes(subUpper);
 
       const matchesBaseName = !baseNameFilter || itemBaseName.toLowerCase() === baseNameFilter.toLowerCase();
 
       const isErpItem = Boolean(item.moblinkId || String(item.id || '').startsWith('MOB-') || !item.isManual);
       const matchesSync = syncFilter === 'todos' || (syncFilter === 'erp' && isErpItem) || (syncFilter === 'manual' && !isErpItem);
 
-      return matchesSearch && matchesCategory && matchesBaseName && matchesSync;
+      return matchesSearch && matchesCategory && matchesSubcategory && matchesBaseName && matchesSync;
     });
 
     // Ordenação dinâmica da lista individual
@@ -1206,57 +1353,90 @@ export const MoblinkProductsManager: React.FC = () => {
     });
 
     return filtered;
-  }, [combinedCatalog, searchQuery, categoryFilter, baseNameFilter, syncFilter, hideOutOfStock, sortBy, dbProductsMap]);
+  }, [combinedCatalog, searchQuery, categoryFilter, subcategoryFilter, baseNameFilter, syncFilter, hideOutOfStock, sortBy, dbProductsMap]);
 
-  // Categorias oficiais traduzidas da loja
-  const storeCategories = useMemo(() => {
-    const rawList = [
-      ...(categories || []).map(c => c?.name).filter(Boolean),
-      ...(products || []).map(p => p?.category).filter(Boolean),
-      'Calçados',
-      'Acessórios',
-      'Cosméticos',
-      'Perfumes',
-      'Escolar',
-      'Itens de Viagens'
-    ];
+  // Taxonomia oficial lida diretamente da coleção 'categories' do Firebase Firestore
+  const storeCategoryTree = useMemo(() => {
+    const tree = new Map<string, Set<string>>();
+    const firebaseCategories = (categories && categories.length > 0) ? categories : DEFAULT_CATEGORIES;
 
-    const uniqueMap = new Map<string, string>();
-    rawList.forEach((c) => {
-      if (typeof c === 'string' && c.trim()) {
-        const raw = c.trim();
-        if (/^\d+(\.\d+)?$/.test(raw)) return;
-        const normalized = normalizeCategoryName(raw);
-        if (normalized && normalized !== 'Geral' && !/^\d+(\.\d+)?$/.test(normalized)) {
-          if (!uniqueMap.has(normalized.toUpperCase())) {
-            uniqueMap.set(normalized.toUpperCase(), normalized);
+    firebaseCategories.forEach(cat => {
+      if (!cat || !cat.name || cat.visible === false || cat.active === false) return;
+      const normCat = normalizeCategoryName(cat.name);
+      if (!normCat || normCat === 'Geral') return;
+
+      if (!tree.has(normCat)) {
+        tree.set(normCat, new Set());
+      }
+
+      (cat.subcategories || []).forEach(sub => {
+        if (sub && sub.name && sub.visible !== false && sub.active !== false) {
+          const normSub = normalizeSubcategoryName(sub.name);
+          if (normSub) {
+            tree.get(normCat)!.add(normSub);
           }
         }
-      }
+      });
     });
 
-    return Array.from(uniqueMap.values());
-  }, [categories, products]);
+    return tree;
+  }, [categories]);
 
+  // Lista ESTRITA de Categorias exibidas no dropdown (apenas Categorias da Loja)
   const uniqueCategories = useMemo(() => {
-    const uniqueMap = new Map<string, string>();
+    return Array.from(storeCategoryTree.keys()).sort();
+  }, [storeCategoryTree]);
 
-    storeCategories.forEach(c => uniqueMap.set(c.toUpperCase(), c));
+  // Lista ESTRITA de Subcategorias exibidas no dropdown (apenas Subcategorias das Categorias da Loja)
+  const uniqueSubcategories = useMemo(() => {
+    if (categoryFilter !== 'Todos' && storeCategoryTree.has(categoryFilter)) {
+      return Array.from(storeCategoryTree.get(categoryFilter)!).sort();
+    }
 
-    combinedCatalog.forEach(i => {
-      const raw = (i?.categoria || i?.category || i?.nome_grupo || '').trim();
-      if (raw && !/^\d+(\.\d+)?$/.test(raw)) {
-        const normalized = normalizeCategoryName(raw);
-        if (normalized && normalized !== 'Geral' && !/^\d+(\.\d+)?$/.test(normalized)) {
-          if (!uniqueMap.has(normalized.toUpperCase())) {
-            uniqueMap.set(normalized.toUpperCase(), normalized);
-          }
-        }
-      }
+    const allSubs = new Set<string>();
+    storeCategoryTree.forEach(subsSet => {
+      subsSet.forEach(sub => allSubs.add(sub));
     });
 
-    return Array.from(uniqueMap.values());
-  }, [storeCategories, combinedCatalog]);
+    return Array.from(allSubs).sort();
+  }, [categoryFilter, storeCategoryTree]);
+
+  // Lista de Cores disponíveis extraídas ESTRITAMENTE da Grade / Estoque do Produto no ERP
+  const availableColorsForEditModal = useMemo(() => {
+    const set = new Set<string>();
+
+    // 1. Extrai cores diretamente da Grade de Estoque do ERP (Tabela de Saldo por Tamanho/Cor)
+    if (selectedProductGrade?.cores && selectedProductGrade.cores.length > 0) {
+      selectedProductGrade.cores.forEach(c => {
+        if (c && c.trim()) set.add(c.trim());
+      });
+    }
+
+    if (selectedProductGrade?.variacoes && selectedProductGrade.variacoes.length > 0) {
+      selectedProductGrade.variacoes.forEach(v => {
+        if (v.cor && v.cor.trim()) set.add(v.cor.trim());
+      });
+    }
+
+    // 2. Se a grade do ERP ainda não tiver carregado, carrega da cor cadastrada no produto/modelo
+    if (set.size === 0) {
+      if (editColor && editColor.trim()) set.add(editColor.trim());
+      if (selectedProduct) {
+        const prodCor = selectedProduct.cor || selectedProduct.color;
+        if (prodCor && prodCor.trim()) set.add(prodCor.trim());
+
+        const { baseName } = extractBaseNameAndVariant(selectedProduct.nome || selectedProduct.name || selectedProduct.descricao || '');
+        combinedCatalog.forEach(i => {
+          const { baseName: bName, variant } = extractBaseNameAndVariant(i.nome || i.name || i.descricao || '');
+          if (bName.toLowerCase() === baseName.toLowerCase() && variant && variant !== 'Padrão') {
+            set.add(variant.trim());
+          }
+        });
+      }
+    }
+
+    return Array.from(set).sort();
+  }, [editColor, selectedProductGrade, selectedProduct, combinedCatalog]);
 
   // Estrutura Agrupada por Modelo (Nome-Base) para exibição de variações de cores lado a lado
   const groupedList = useMemo(() => {
@@ -1445,85 +1625,39 @@ export const MoblinkProductsManager: React.FC = () => {
             <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
           </div>
 
-          {/* VIEW MODE TOGGLE BUTTONS */}
-          <div className="flex items-center gap-2 w-full md:w-auto justify-end">
-            <div className="flex items-center p-0.5 bg-slate-100 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
-              <button
-                type="button"
-                onClick={() => setViewMode('list')}
-                className={`px-3 py-1.5 rounded-md text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                  viewMode === 'list' && !baseNameFilter
-                    ? 'bg-amber-500 text-slate-950 shadow-xs'
-                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-                title="Exibir listagem individual de itens em tabela"
-              >
-                <List className="h-3.5 w-3.5" />
-                <span>Lista Tabela</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setViewMode('grouped')}
-                className={`px-3 py-1.5 rounded-md text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                  viewMode === 'grouped' || baseNameFilter
-                    ? 'bg-amber-500 text-slate-950 shadow-xs'
-                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-                title="Agrupar produtos por modelo principal e exibir cores lado a lado"
-              >
-                <Grid className="h-3.5 w-3.5" />
-                <span>Agrupar Cores</span>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* SECUNDARY FILTERS ROW */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100 dark:border-slate-800/80">
-          {/* FILTRO POR NOME-BASE (MODELO PRINCIPAL) */}
-          <div className="flex items-center space-x-1.5 flex-1 min-w-[240px]">
-            <Palette className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-            <span className="text-[10px] font-bold text-slate-400 uppercase shrink-0">Modelo Base:</span>
-            <select
-              value={baseNameFilter}
-              onChange={(e) => setBaseNameFilter(e.target.value)}
-              className="w-full p-1.5 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-xs font-bold focus:outline-none focus:border-amber-500 truncate"
-            >
-              <option value="">Todos os Modelos Principais ({allBaseNames.length})</option>
-              {allBaseNames.map(model => (
-                <option key={model} value={model}>{model}</option>
-              ))}
-            </select>
-          </div>
-
           <div className="flex flex-wrap items-center gap-2">
-            {/* FILTRO DE ORIGEM DA SINCRONIZAÇÃO */}
-            <div className="flex items-center space-x-1.5">
-              <Sliders className="h-3.5 w-3.5 text-slate-400" />
-              <span className="text-[10px] font-bold text-slate-400 uppercase">Origem:</span>
+            {/* FILTRO DE CATEGORIA */}
+            <div className="flex items-center space-x-1">
+              <span className="text-[10px] font-bold text-slate-400 uppercase shrink-0">Categoria:</span>
               <select
-                value={syncFilter}
-                onChange={(e) => setSyncFilter(e.target.value as any)}
-                className="p-1.5 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-xs font-bold focus:outline-none focus:border-amber-500"
+                value={categoryFilter}
+                onChange={(e) => {
+                  setCategoryFilter(e.target.value);
+                  setSubcategoryFilter('Todas');
+                }}
+                className="p-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-xs font-bold focus:outline-none focus:border-amber-500"
               >
-                <option value="todos">Todos os Itens ({combinedCatalog.length})</option>
-                <option value="erp">Sincronizados MobLink ERP</option>
-                <option value="manual">Cadastro Manual</option>
+                <option value="Todos">Todas ({uniqueCategories.length})</option>
+                {uniqueCategories.map(cat => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
               </select>
             </div>
 
-            {/* FILTRO DE CATEGORIA */}
-            <select
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-              className="p-1.5 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-xs font-bold focus:outline-none focus:border-amber-500"
-            >
-              <option value="Todos">Todas Categorias ({uniqueCategories.length})</option>
-              {uniqueCategories.map(cat => (
-                <option key={cat} value={cat}>{cat}</option>
-              ))}
-            </select>
+            {/* FILTRO DE SUBCATEGORIA */}
+            <div className="flex items-center space-x-1">
+              <span className="text-[10px] font-bold text-slate-400 uppercase shrink-0">Subcategoria:</span>
+              <select
+                value={subcategoryFilter}
+                onChange={(e) => setSubcategoryFilter(e.target.value)}
+                className="p-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-xs font-bold focus:outline-none focus:border-amber-500"
+              >
+                <option value="Todas">Todas ({uniqueSubcategories.length})</option>
+                {uniqueSubcategories.map(sub => (
+                  <option key={sub} value={sub}>{sub}</option>
+                ))}
+              </select>
+            </div>
 
             {/* ORDENAÇÃO DE PRODUTOS */}
             <div className="flex items-center space-x-1.5">
@@ -1532,7 +1666,7 @@ export const MoblinkProductsManager: React.FC = () => {
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value as any)}
-                className="p-1.5 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-800 dark:text-amber-400 text-xs font-bold focus:outline-none focus:border-amber-500"
+                className="p-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-800 dark:text-amber-400 text-xs font-bold focus:outline-none focus:border-amber-500"
               >
                 <option value="nameSku">Produto &amp; SKU (A-Z)</option>
                 <option value="refMoblink">Ref MobLink (ID Numérico)</option>
@@ -1542,7 +1676,7 @@ export const MoblinkProductsManager: React.FC = () => {
             </div>
 
             {/* TOGGLE OCULTAR ESTOQUE ZERADO */}
-            <label className="inline-flex items-center gap-1.5 px-2 py-1.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg cursor-pointer select-none shrink-0 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
+            <label className="inline-flex items-center gap-1.5 px-2.5 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg cursor-pointer select-none shrink-0 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
               <input
                 type="checkbox"
                 checked={hideOutOfStock}
@@ -2406,39 +2540,95 @@ export const MoblinkProductsManager: React.FC = () => {
                   </label>
                 </div>
 
-                {/* IMAGES THUMBNAILS GRID */}
+                {/* IMAGES THUMBNAILS GRID WITH COLOR ASSIGNMENT */}
                 {images.length > 0 ? (
-                  <div className="grid grid-cols-3 sm:grid-cols-5 gap-3 pt-2">
-                    {images.map((imgUrl, idx) => (
-                      <div key={idx} className="relative group rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-900 aspect-square">
-                        <img src={imgUrl} alt={`Foto ${idx + 1}`} className="w-full h-full object-cover" />
-                        {idx === 0 && (
-                          <span className="absolute top-1 left-1 bg-amber-500 text-slate-950 font-black text-[9px] px-1.5 py-0.5 rounded shadow-xs">
-                            Capa
-                          </span>
-                        )}
-                        <div className="absolute inset-0 bg-slate-950/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5 p-1">
-                          {idx !== 0 && (
-                            <button
-                              type="button"
-                              onClick={() => handleSetMainImage(idx)}
-                              className="p-1 bg-amber-500 text-slate-950 rounded text-[9px] font-bold cursor-pointer"
-                              title="Tornar imagem principal"
-                            >
-                              Capa
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveImage(idx)}
-                            className="p-1 bg-red-600 text-white rounded text-[9px] font-bold cursor-pointer"
-                            title="Remover foto"
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
+                    {images.map((imgUrl, idx) => {
+                      // Procura cor atribuída neste mapeamento multi-foto
+                      const assignedColor = Object.keys(editColorImages).find(cKey => 
+                        Array.isArray(editColorImages[cKey]) && editColorImages[cKey].includes(imgUrl)
+                      ) || Object.keys(editColorImageMap).find(cKey => editColorImageMap[cKey] === imgUrl);
+
+                      const matchedDropdownValue = assignedColor
+                        ? availableColorsForEditModal.find(c => c.trim().toLowerCase() === assignedColor.trim().toLowerCase()) || assignedColor
+                        : '';
+
+                      return (
+                        <div key={idx} className="flex flex-col space-y-1">
+                          <div className="relative group rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-900 aspect-square">
+                            <img src={imgUrl} alt={`Foto ${idx + 1}`} className="w-full h-full object-cover" />
+                            {idx === 0 && (
+                              <span className="absolute top-1 left-1 bg-amber-500 text-slate-950 font-black text-[9px] px-1.5 py-0.5 rounded shadow-xs z-10">
+                                Capa
+                              </span>
+                            )}
+                            {assignedColor && (
+                              <span className="absolute bottom-1 left-1 bg-sky-500 text-white font-extrabold text-[9px] px-1.5 py-0.5 rounded shadow-xs z-10 truncate max-w-[85%]" title={`Cor: ${assignedColor}`}>
+                                {assignedColor}
+                              </span>
+                            )}
+                            <div className="absolute inset-0 bg-slate-950/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5 p-1 z-20">
+                              {idx !== 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleSetMainImage(idx)}
+                                  className="p-1 bg-amber-500 text-slate-950 rounded text-[9px] font-bold cursor-pointer"
+                                  title="Tornar imagem principal"
+                                >
+                                  Capa
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveImage(idx)}
+                                className="p-1 bg-red-600 text-white rounded text-[9px] font-bold cursor-pointer"
+                                title="Remover foto"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* VÍNCULO DA FOTO COM A COR DA GRADE DO ESTOQUE (Múltiplas Fotos Por Cor Permitidas) */}
+                          <select
+                            value={matchedDropdownValue}
+                            onChange={(e) => {
+                              const selColor = e.target.value;
+                              
+                              // Atualiza editColorImages (múltiplas fotos por cor)
+                              setEditColorImages(prev => {
+                                const copy: Record<string, string[]> = {};
+                                Object.entries(prev).forEach(([cKey, urls]) => {
+                                  copy[cKey] = (urls || []).filter(u => u !== imgUrl);
+                                });
+                                if (selColor) {
+                                  if (!copy[selColor]) copy[selColor] = [];
+                                  if (!copy[selColor].includes(imgUrl)) {
+                                    copy[selColor].push(imgUrl);
+                                  }
+                                }
+                                return copy;
+                              });
+
+                              // Atualiza editColorImageMap (capa por cor)
+                              setEditColorImageMap(prev => {
+                                const copy = { ...prev };
+                                if (selColor && !copy[selColor]) {
+                                  copy[selColor] = imgUrl;
+                                }
+                                return copy;
+                              });
+                            }}
+                            className="w-full p-1 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-[10px] font-bold focus:outline-none focus:border-amber-500"
                           >
-                            <Trash2 className="h-3 w-3" />
-                          </button>
+                            <option value="">-- Cor da foto --</option>
+                            {availableColorsForEditModal.map(c => (
+                              <option key={c} value={c}>{c}</option>
+                            ))}
+                          </select>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : (
                   <div className="p-6 border border-dashed border-slate-300 dark:border-slate-700 rounded-xl text-center space-y-1 bg-slate-50/50 dark:bg-slate-800/30">
@@ -2545,25 +2735,13 @@ export const MoblinkProductsManager: React.FC = () => {
           <button
             type="button"
             onClick={() => {
-              setBatchModelCode('');
-              setIsBatchModalOpen(true);
+              setBatchVisibilityValue(true);
+              setIsBatchVisibilityModalOpen(true);
             }}
-            className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black rounded-xl text-xs flex items-center gap-2 transition-all shadow-md cursor-pointer"
+            className="px-4 py-2 bg-sky-500 hover:bg-sky-600 text-white font-black rounded-xl text-xs flex items-center gap-2 transition-all shadow-md cursor-pointer"
           >
-            <Tags className="h-4 w-4" />
-            <span>Definir Ref Pai em Lote</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              setBatchCategory('');
-              setIsBatchCategoryModalOpen(true);
-            }}
-            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl text-xs flex items-center gap-2 transition-all shadow-md cursor-pointer"
-          >
-            <Folder className="h-4 w-4" />
-            <span>Alterar Categoria em Lote</span>
+            <Eye className="h-4 w-4" />
+            <span>Visibilidade nas Vitrines (Lote)</span>
           </button>
 
           <button
@@ -2576,157 +2754,85 @@ export const MoblinkProductsManager: React.FC = () => {
         </div>
       )}
 
-      {/* MODAL RÁPIDO PARA DEFINIR REF PAI EM LOTE */}
-      {isBatchModalOpen && (
+      {/* MODAL DE ALTERAÇÃO DE VISIBILIDADE EM LOTE */}
+      {isBatchVisibilityModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white dark:bg-[#0f172a] rounded-2xl max-w-md w-full p-6 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-5 animate-scale-up">
             <div className="flex items-center justify-between border-b pb-4 dark:border-slate-800">
               <div className="flex items-center gap-2">
-                <Tags className="h-5 w-5 text-amber-500" />
+                <Eye className="h-5 w-5 text-sky-500" />
                 <h3 className="font-black text-sm text-slate-800 dark:text-slate-100">
-                  Definir Referência Pai em Lote
+                  Exibir nas Vitrines da Loja Virtual (Lote)
                 </h3>
               </div>
               <button
                 type="button"
-                onClick={() => setIsBatchModalOpen(false)}
+                onClick={() => setIsBatchVisibilityModalOpen(false)}
                 className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Você está aplicando o <strong>Código de Referência Pai (Modelo)</strong> para 
-              <strong className="text-amber-500"> {selectedIdsList.length} variação(ões) selecionada(s)</strong> de forma persistente no Firestore.
-            </p>
-
-            <form onSubmit={handleSaveBatchModelCode} className="space-y-4">
-              <div className="space-y-1">
-                <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 block">
-                  Código da Referência Pai (Ex: REF-453M)
-                </label>
-                <input
-                  type="text"
-                  value={batchModelCode}
-                  onChange={(e) => setBatchModelCode(e.target.value)}
-                  placeholder="Ex: REF-453M ou LUELUA-231"
-                  className="w-full p-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-amber-400 font-mono text-sm font-bold focus:outline-none focus:border-amber-500"
-                  autoFocus
-                />
-                <span className="text-[10px] text-slate-400 block pt-0.5">
-                  Este código será gravado no Firestore para todos os SKUs selecionados.
-                </span>
-              </div>
-
-              <div className="flex items-center justify-end gap-3 pt-3 border-t dark:border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setIsBatchModalOpen(false)}
-                  className="px-4 py-2 text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl cursor-pointer"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSavingBatch}
-                  className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs rounded-xl flex items-center gap-2 cursor-pointer transition-all shadow-md disabled:opacity-50"
-                >
-                  {isSavingBatch ? (
-                    <>
-                      <RefreshCw className="h-4 w-4 animate-spin" />
-                      <span>Aplicando em Lote...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Check className="h-4 w-4" />
-                      <span>Aplicar a {selectedIdsList.length} Item(ns)</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL RÁPIDO PARA ALTERAR CATEGORIA EM LOTE */}
-      {isBatchCategoryModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-[#0f172a] rounded-2xl max-w-md w-full p-6 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-5 animate-scale-up">
-            <div className="flex items-center justify-between border-b pb-4 dark:border-slate-800">
-              <div className="flex items-center gap-2">
-                <Folder className="h-5 w-5 text-emerald-500" />
-                <h3 className="font-black text-sm text-slate-800 dark:text-slate-100">
-                  Alterar Categoria em Lote
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsBatchCategoryModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Selecione ou digite a nova <strong>Categoria Oficial</strong> para 
-              <strong className="text-emerald-500"> {selectedIdsList.length} produto(s) selecionado(s)</strong>. Essa alteração será refletida na vitrine e nos filtros da loja virtual.
-            </p>
-
-            <form onSubmit={handleSaveBatchCategory} className="space-y-4">
+            <form onSubmit={handleSaveBatchVisibility} className="space-y-4">
               <div className="space-y-2">
-                <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 block">
-                  Selecione uma Categoria Existente:
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
+                  Escolha o status de exibição para os produtos selecionados:
                 </label>
-                <select
-                  value={batchCategory}
-                  onChange={(e) => setBatchCategory(e.target.value)}
-                  className="w-full p-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 text-xs font-bold focus:outline-none focus:border-emerald-500"
-                >
-                  <option value="">-- Escolha uma Categoria --</option>
-                  {uniqueCategories.map(cat => (
-                    <option key={cat} value={cat}>{cat}</option>
-                  ))}
-                </select>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setBatchVisibilityValue(true)}
+                    className={`p-3.5 rounded-xl border flex flex-col items-center gap-2 transition-all cursor-pointer ${
+                      batchVisibilityValue
+                        ? 'bg-emerald-500/10 border-emerald-500 text-emerald-600 dark:text-emerald-400 font-black shadow-sm'
+                        : 'bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 text-slate-500'
+                    }`}
+                  >
+                    <Eye className="h-6 w-6 text-emerald-500" />
+                    <span className="text-xs">Visível nas Vitrines</span>
+                  </button>
 
-                <div className="pt-2 space-y-1">
-                  <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 block">
-                    Ou digite um novo nome de categoria:
-                  </label>
-                  <input
-                    type="text"
-                    value={batchCategory}
-                    onChange={(e) => setBatchCategory(e.target.value)}
-                    placeholder="Ex: Babuches Infantis"
-                    className="w-full p-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-emerald-400 text-xs font-bold focus:outline-none focus:border-emerald-500"
-                  />
+                  <button
+                    type="button"
+                    onClick={() => setBatchVisibilityValue(false)}
+                    className={`p-3.5 rounded-xl border flex flex-col items-center gap-2 transition-all cursor-pointer ${
+                      !batchVisibilityValue
+                        ? 'bg-rose-500/10 border-rose-500 text-rose-600 dark:text-rose-400 font-black shadow-sm'
+                        : 'bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 text-slate-500'
+                    }`}
+                  >
+                    <EyeOff className="h-6 w-6 text-rose-500" />
+                    <span className="text-xs">Oculto das Vitrines</span>
+                  </button>
                 </div>
+                <p className="text-[11px] text-slate-400 pt-1">
+                  Esta alteração afetará <strong className="text-amber-500">{selectedIdsList.length} produto(s) selecionado(s)</strong> no banco de dados e refletirá instantaneamente nas vitrines da loja virtual.
+                </p>
               </div>
 
               <div className="flex items-center justify-end gap-3 pt-3 border-t dark:border-slate-800">
                 <button
                   type="button"
-                  onClick={() => setIsBatchCategoryModalOpen(false)}
+                  onClick={() => setIsBatchVisibilityModalOpen(false)}
                   className="px-4 py-2 text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  disabled={isSavingBatchCategory || !batchCategory.trim()}
-                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl flex items-center gap-2 cursor-pointer transition-all shadow-md disabled:opacity-50"
+                  disabled={isSavingBatchVisibility}
+                  className="px-5 py-2.5 bg-sky-500 hover:bg-sky-600 text-white font-black text-xs rounded-xl flex items-center gap-2 cursor-pointer transition-all shadow-md disabled:opacity-50"
                 >
-                  {isSavingBatchCategory ? (
+                  {isSavingBatchVisibility ? (
                     <>
                       <RefreshCw className="h-4 w-4 animate-spin" />
-                      <span>Salvando Categoria...</span>
+                      <span>Atualizando Lote...</span>
                     </>
                   ) : (
                     <>
                       <Check className="h-4 w-4" />
-                      <span>Aplicar Categoria</span>
+                      <span>Aplicar a {selectedIdsList.length} Produto(s)</span>
                     </>
                   )}
                 </button>

@@ -1,17 +1,25 @@
-import { auth, db } from '../lib/firebase';
-import { 
-  signInWithPopup, 
-  GoogleAuthProvider, 
-  signOut as firebaseSignOut, 
-  onAuthStateChanged, 
+import { auth, db } from "../lib/firebase";
+import {
+  signInWithPopup,
+  GoogleAuthProvider,
+  signOut as firebaseSignOut,
+  onAuthStateChanged,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   updatePassword,
-  User 
-} from 'firebase/auth';
-import { doc, getDoc, setDoc, collection, query, where, getDocs } from 'firebase/firestore';
-import { UserProfile, UserRole } from '../types';
-import { cleanUndefinedProperties } from '../utils/cleanObject';
+  User,
+} from "firebase/auth";
+import {
+  doc,
+  getDoc,
+  setDoc,
+  collection,
+  query,
+  where,
+  getDocs,
+} from "firebase/firestore";
+import { UserProfile, UserRole } from "../types";
+import { cleanUndefinedProperties } from "../utils/cleanObject";
 
 export const firebaseAuthService = {
   /**
@@ -33,11 +41,11 @@ export const firebaseAuthService = {
    */
   async fetchOrSyncUserProfile(user: User): Promise<UserProfile> {
     const uid = user.uid;
-    const email = (user.email || '').toLowerCase().trim();
-    const name = user.displayName || 'Cliente Evidência';
-    const photoURL = user.photoURL || `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(name)}`;
+    const email = (user.email || "").toLowerCase().trim();
+    const name = user.displayName || "Cliente Evidência";
+    const photoURL = user.photoURL || "";
 
-    const userRef = doc(db, 'users', uid);
+    const userRef = doc(db, "users", uid);
     let existingProfile: UserProfile | null = null;
     let preAuthDocId: string | null = null;
 
@@ -50,31 +58,43 @@ export const firebaseAuthService = {
 
       // 2. Se o documento não existir por UID OU possuir apenas perfil de 'customer',
       // pesquisa na whitelist por e-mail para verificar se há pré-autorização de equipe
-      if (!existingProfile || existingProfile.role === 'customer') {
+      if (!existingProfile || existingProfile.role === "customer") {
         if (email) {
-          const q = query(collection(db, 'users'), where('email', '==', email));
+          const q = query(collection(db, "users"), where("email", "==", email));
           const querySnap = await getDocs(q);
           if (!querySnap.empty) {
-            const teamDoc = querySnap.docs.find(d => {
-              const data = d.data();
-              return data.role === 'admin' || data.role === 'seller' || data.isAuthorizedCollaborator;
-            }) || querySnap.docs[0];
+            const teamDoc =
+              querySnap.docs.find((d) => {
+                const data = d.data();
+                return (
+                  data.role === "admin" ||
+                  data.role === "seller" ||
+                  data.isAuthorizedCollaborator
+                );
+              }) || querySnap.docs[0];
 
             const teamData = teamDoc.data() as UserProfile;
-            if (teamData.role === 'admin' || teamData.role === 'seller' || teamData.isAuthorizedCollaborator) {
+            if (
+              teamData.role === "admin" ||
+              teamData.role === "seller" ||
+              teamData.isAuthorizedCollaborator
+            ) {
               existingProfile = {
                 ...(existingProfile || {}),
                 ...teamData,
-                role: 'admin'
+                role: "admin",
               };
               preAuthDocId = teamDoc.id;
             }
           } else {
             // Fallback de varredura case-insensitive na equipe
-            const teamQuery = query(collection(db, 'users'), where('role', 'in', ['admin', 'seller']));
+            const teamQuery = query(
+              collection(db, "users"),
+              where("role", "in", ["admin", "seller"]),
+            );
             const teamSnap = await getDocs(teamQuery);
-            const matchedDoc = teamSnap.docs.find(d => {
-              const dEmail = (d.data().email || '').toLowerCase().trim();
+            const matchedDoc = teamSnap.docs.find((d) => {
+              const dEmail = (d.data().email || "").toLowerCase().trim();
               return dEmail === email;
             });
             if (matchedDoc) {
@@ -82,7 +102,7 @@ export const firebaseAuthService = {
               existingProfile = {
                 ...(existingProfile || {}),
                 ...teamData,
-                role: 'admin'
+                role: "admin",
               };
               preAuthDocId = matchedDoc.id;
             }
@@ -90,15 +110,27 @@ export const firebaseAuthService = {
         }
       }
     } catch (err) {
-      console.warn("📌 Aviso ao verificar perfil no Firestore (fallback ativo):", err);
+      console.warn(
+        "📌 Aviso ao verificar perfil no Firestore (fallback ativo):",
+        err,
+      );
     }
 
     // E-mails com privilégio admin padrão do sistema
-    const isMasterAdminEmail = email === 'wandesonandrade33@gmail.com' || email === 'admin@evidencia.com' || email === 'vendedor@evidencia.com';
+    const isMasterAdminEmail =
+      email === "wandesonandrade33@gmail.com" ||
+      email === "admin@evidencia.com" ||
+      email === "vendedor@evidencia.com";
 
     if (existingProfile) {
-      const isTeamAuthorized = isMasterAdminEmail || existingProfile.isAuthorizedCollaborator || existingProfile.role === 'admin' || existingProfile.role === 'seller';
-      const inheritedRole: UserRole = isTeamAuthorized ? 'admin' : (existingProfile.role || 'customer');
+      const isTeamAuthorized =
+        isMasterAdminEmail ||
+        existingProfile.isAuthorizedCollaborator ||
+        existingProfile.role === "admin" ||
+        existingProfile.role === "seller";
+      const inheritedRole: UserRole = isTeamAuthorized
+        ? "admin"
+        : existingProfile.role || "customer";
 
       const mergedProfile: UserProfile = {
         ...existingProfile,
@@ -106,18 +138,23 @@ export const firebaseAuthService = {
         name: existingProfile.name || name,
         email: existingProfile.email || email,
         role: inheritedRole,
-        photoURL: photoURL || existingProfile.photoURL
+        photoURL: photoURL || existingProfile.photoURL,
       };
 
       try {
-        await setDoc(userRef, cleanUndefinedProperties(mergedProfile), { merge: true });
+        await setDoc(userRef, cleanUndefinedProperties(mergedProfile), {
+          merge: true,
+        });
       } catch (err) {
-        console.warn("📌 Erro ao salvar perfil sincronizado no Firestore:", err);
+        console.warn(
+          "📌 Erro ao salvar perfil sincronizado no Firestore:",
+          err,
+        );
       }
 
       return mergedProfile;
     } else {
-      const initialRole: UserRole = isMasterAdminEmail ? 'admin' : 'customer';
+      const initialRole: UserRole = isMasterAdminEmail ? "admin" : "customer";
 
       const initialProfile: UserProfile = {
         uid,
@@ -125,11 +162,13 @@ export const firebaseAuthService = {
         email,
         role: initialRole,
         photoURL,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
       };
 
       try {
-        await setDoc(userRef, cleanUndefinedProperties(initialProfile), { merge: true });
+        await setDoc(userRef, cleanUndefinedProperties(initialProfile), {
+          merge: true,
+        });
       } catch (err) {
         console.warn("📌 Erro ao criar perfil no Firestore:", err);
       }
@@ -141,7 +180,10 @@ export const firebaseAuthService = {
   /**
    * Login Isolado do Painel Administrativo via E-mail e Senha
    */
-  async loginAdminWithEmailPassword(emailRaw: string, passwordRaw: string): Promise<UserProfile> {
+  async loginAdminWithEmailPassword(
+    emailRaw: string,
+    passwordRaw: string,
+  ): Promise<UserProfile> {
     const email = emailRaw.toLowerCase().trim();
     const password = passwordRaw.trim();
 
@@ -156,19 +198,26 @@ export const firebaseAuthService = {
       firebaseUser = userCred.user;
     } catch (err: any) {
       console.warn("📌 Aviso no login por senha:", err.code || err.message);
-      
+
       // Fallback de homologação local para contas administrativas conhecidas
-      if (email === 'admin@evidencia.com' || email === 'vendedor@evidencia.com' || email.includes('admin') || email.includes('vendedor')) {
+      if (
+        email === "admin@evidencia.com" ||
+        email === "vendedor@evidencia.com" ||
+        email.includes("admin") ||
+        email.includes("vendedor")
+      ) {
         return {
-          uid: `admin_user_${email.replace(/[^a-zA-Z0-9]/g, '_')}`,
-          name: 'Administrador Evidência',
+          uid: `admin_user_${email.replace(/[^a-zA-Z0-9]/g, "_")}`,
+          name: "Administrador Evidência",
           email,
-          role: 'admin',
+          role: "admin",
           isAuthorizedCollaborator: true,
-          createdAt: new Date().toISOString()
+          createdAt: new Date().toISOString(),
         };
       } else {
-        throw new Error("Credenciais inválidas ou e-mail não autorizado para o painel administrativo.");
+        throw new Error(
+          "Credenciais inválidas ou e-mail não autorizado para o painel administrativo.",
+        );
       }
     }
 
@@ -177,22 +226,29 @@ export const firebaseAuthService = {
     }
 
     const profile = await this.fetchOrSyncUserProfile(firebaseUser);
-    if (profile.role !== 'admin' && !profile.isAuthorizedCollaborator) {
-      throw new Error(`Acesso Não Autorizado: O e-mail (${email}) não possui privilégios na lista de colaboradores.`);
+    if (profile.role !== "admin" && !profile.isAuthorizedCollaborator) {
+      throw new Error(
+        `Acesso Não Autorizado: O e-mail (${email}) não possui privilégios na lista de colaboradores.`,
+      );
     }
 
-    return { ...profile, role: 'admin' };
+    return { ...profile, role: "admin" };
   },
 
   /**
    * Cadastro de Novo Colaborador (Whitelist por E-mail) pelo Administrador no Painel.
    * Não exige criação de senha temporária: o colaborador acessará via Conta Google.
    */
-  async registerTeamMember(name: string, emailRaw: string, _role?: UserRole, isSeller: boolean = true): Promise<UserProfile> {
+  async registerTeamMember(
+    name: string,
+    emailRaw: string,
+    _role?: UserRole,
+    isSeller: boolean = true,
+  ): Promise<UserProfile> {
     const email = emailRaw.toLowerCase().trim();
 
     // 1. Verifica se já existe colaborador cadastrado no Firestore
-    const q = query(collection(db, 'users'), where('email', '==', email));
+    const q = query(collection(db, "users"), where("email", "==", email));
     const existingDocs = await getDocs(q);
 
     let docId: string;
@@ -202,23 +258,25 @@ export const firebaseAuthService = {
       docId = existingDocs.docs[0].id;
       existingData = existingDocs.docs[0].data() as UserProfile;
     } else {
-      docId = `admin_user_${email.replace(/[^a-zA-Z0-9]/g, '_')}`;
+      docId = `admin_user_${email.replace(/[^a-zA-Z0-9]/g, "_")}`;
     }
 
     const teamMemberProfile: UserProfile = {
       ...existingData,
       uid: docId,
-      name: name.trim() || existingData.name || 'Administrador Evidência',
+      name: name.trim() || existingData.name || "Administrador Evidência",
       email,
-      role: 'admin',
+      role: "admin",
       isAuthorizedCollaborator: true,
       isSeller: isSeller,
-      createdAt: existingData.createdAt || new Date().toISOString()
+      createdAt: existingData.createdAt || new Date().toISOString(),
     };
 
     // Salva o registro de pré-autorização no Firestore
-    const userRef = doc(db, 'users', docId);
-    await setDoc(userRef, cleanUndefinedProperties(teamMemberProfile), { merge: true });
+    const userRef = doc(db, "users", docId);
+    await setDoc(userRef, cleanUndefinedProperties(teamMemberProfile), {
+      merge: true,
+    });
     return teamMemberProfile;
   },
 
@@ -227,18 +285,25 @@ export const firebaseAuthService = {
    */
   async getTeamMembers(): Promise<UserProfile[]> {
     try {
-      const q = query(collection(db, 'users'));
+      const q = query(collection(db, "users"));
       const snapshot = await getDocs(q);
       const members: UserProfile[] = [];
       snapshot.forEach((docSnap) => {
         const data = docSnap.data() as UserProfile;
-        if (data.role === 'admin' || data.role === 'seller' || data.isAuthorizedCollaborator) {
+        if (
+          data.role === "admin" ||
+          data.role === "seller" ||
+          data.isAuthorizedCollaborator
+        ) {
           members.push({ uid: docSnap.id, ...data });
         }
       });
       return members;
     } catch (err) {
-      console.warn("📌 Non-fatal error fetching team members from Firestore:", err);
+      console.warn(
+        "📌 Non-fatal error fetching team members from Firestore:",
+        err,
+      );
       return [];
     }
   },
@@ -248,18 +313,16 @@ export const firebaseAuthService = {
    */
   async getActiveSellers(): Promise<UserProfile[]> {
     const members = await this.getTeamMembers();
-    return members.filter(m => m.isSeller !== false);
+    return members.filter((m) => m.isSeller !== false);
   },
-
-
-
-
-
 
   /**
    * Redefinição de Senha do Administrador no Primeiro Acesso
    */
-  async changeAdminPassword(newPassword: string, activeProfile: UserProfile): Promise<UserProfile> {
+  async changeAdminPassword(
+    newPassword: string,
+    activeProfile: UserProfile,
+  ): Promise<UserProfile> {
     if (!newPassword || newPassword.length < 6) {
       throw new Error("A nova senha deve ter no mínimo 6 caracteres.");
     }
@@ -271,14 +334,18 @@ export const firebaseAuthService = {
     const updatedProfile: UserProfile = {
       ...activeProfile,
       requiresPasswordChange: false,
-      tempPassword: undefined
+      tempPassword: undefined,
     };
 
-    const userRef = doc(db, 'users', activeProfile.uid);
-    await setDoc(userRef, {
-      requiresPasswordChange: false,
-      tempPassword: ''
-    }, { merge: true });
+    const userRef = doc(db, "users", activeProfile.uid);
+    await setDoc(
+      userRef,
+      {
+        requiresPasswordChange: false,
+        tempPassword: "",
+      },
+      { merge: true },
+    );
 
     return updatedProfile;
   },
@@ -287,25 +354,35 @@ export const firebaseAuthService = {
    * Atualiza a permissão / cargo de um colaborador (admin | seller | customer)
    */
   async updateTeamMemberRole(uid: string, newRole: UserRole): Promise<void> {
-    const userRef = doc(db, 'users', uid);
-    await setDoc(userRef, { role: newRole, updatedAt: new Date().toISOString() }, { merge: true });
+    const userRef = doc(db, "users", uid);
+    await setDoc(
+      userRef,
+      { role: newRole, updatedAt: new Date().toISOString() },
+      { merge: true },
+    );
   },
 
   /**
    * Atualiza se o colaborador está ativo para vendas no e-commerce (isSeller)
    */
-  async updateTeamMemberSellerStatus(uid: string, isSeller: boolean): Promise<void> {
-    const userRef = doc(db, 'users', uid);
-    await setDoc(userRef, { isSeller, updatedAt: new Date().toISOString() }, { merge: true });
+  async updateTeamMemberSellerStatus(
+    uid: string,
+    isSeller: boolean,
+  ): Promise<void> {
+    const userRef = doc(db, "users", uid);
+    await setDoc(
+      userRef,
+      { isSeller, updatedAt: new Date().toISOString() },
+      { merge: true },
+    );
   },
-
 
   /**
    * Remove o documento do colaborador do Firestore
    */
   async deleteTeamMember(uid: string): Promise<void> {
-    const userRef = doc(db, 'users', uid);
-    const { deleteDoc } = await import('firebase/firestore');
+    const userRef = doc(db, "users", uid);
+    const { deleteDoc } = await import("firebase/firestore");
     await deleteDoc(userRef);
   },
 
@@ -331,5 +408,5 @@ export const firebaseAuthService = {
     } catch (err) {
       console.warn("📌 Erro ao fazer signOut no Firebase Auth:", err);
     }
-  }
+  },
 };
