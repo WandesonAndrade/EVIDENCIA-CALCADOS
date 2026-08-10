@@ -5,7 +5,7 @@ import { Eye, Percent, ChevronLeft, ChevronRight, ArrowLeft, Timer } from 'lucid
 import { Hero } from './Hero';
 import { ProductCard } from './ProductList';
 import { scrollToSectionWithOffset } from '../lib/scrollUtils';
-import { normalizeCategoryName, normalizeSubcategoryName } from '../services/moblinkCategoriesService';
+import { normalizeCategoryName, normalizeSubcategoryName, isProductInCategory } from '../services/moblinkCategoriesService';
 
 interface TabConfig {
   title: string;
@@ -21,35 +21,49 @@ const TAB_CONFIGS: Record<string, TabConfig> = {
     subtitle: 'Linha completa de cuidados pessoais, maquiagem, itens de estética e beleza.',
     bannerImage: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?q=80&w=1600&auto=format&fit=crop',
     badgeText: 'BELEZA & BEM-ESTAR',
-    filter: (prod) => prod.category.toLowerCase().includes('cosmético')
+    filter: (prod) => isProductInCategory(prod, 'COSMÉTICOS')
   },
   'perfumes': {
     title: 'Perfumes & Fragrâncias',
     subtitle: 'Fragrâncias exclusivas, eau de parfum e colônias importadas para encantar.',
     bannerImage: 'https://images.unsplash.com/photo-1541643600914-78b084683601?q=80&w=1600&auto=format&fit=crop',
     badgeText: 'FRAGRÂNCIAS NOBRES',
-    filter: (prod) => prod.category.toLowerCase().includes('perfume')
+    filter: (prod) => isProductInCategory(prod, 'PERFUMES')
   },
   'escolar': {
     title: 'Artigos Escolares & Mochilas',
     subtitle: 'Mochilas duráveis, estojos e utilitários escolares para o dia a dia de estudos.',
     bannerImage: 'https://images.unsplash.com/photo-1588072432836-e10032774350?q=80&w=1600&auto=format&fit=crop',
     badgeText: 'VOLTA ÀS AULAS',
-    filter: (prod) => prod.category.toLowerCase().includes('escolar')
+    filter: (prod) => isProductInCategory(prod, 'ESCOLAR')
   },
   'acessorios': {
     title: 'Acessórios Sofisticados',
     subtitle: 'Cintos, carteiras, bolsas e adornos refinados para complementar seu estilo.',
     bannerImage: 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?q=80&w=1600&auto=format&fit=crop',
     badgeText: 'DETALHES PREMIUM',
-    filter: (prod) => prod.category.toLowerCase().includes('acessório') || prod.category.toLowerCase().includes('bolsa')
+    filter: (prod) => isProductInCategory(prod, 'ACESSÓRIOS')
+  },
+  'acessórios': {
+    title: 'Acessórios Sofisticados',
+    subtitle: 'Cintos, carteiras, bolsas e adornos refinados para complementar seu estilo.',
+    bannerImage: 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?q=80&w=1600&auto=format&fit=crop',
+    badgeText: 'DETALHES PREMIUM',
+    filter: (prod) => isProductInCategory(prod, 'ACESSÓRIOS')
   },
   'calcados': {
     title: 'Coleção de Calçados',
     subtitle: 'Tênis, sandálias, sapatos, botas e papetes com o máximo conforto e elegância.',
     bannerImage: 'https://images.unsplash.com/photo-1549298916-b41d501d3772?q=80&w=1600&auto=format&fit=crop',
     badgeText: 'CALÇADOS PREMIUM',
-    filter: (prod) => prod.category.toLowerCase().includes('calçado') || prod.category.toLowerCase().includes('tênis') || prod.category.toLowerCase().includes('sandália') || prod.category.toLowerCase().includes('sapato') || prod.category.toLowerCase().includes('bota')
+    filter: (prod) => isProductInCategory(prod, 'CALÇADOS')
+  },
+  'calçados': {
+    title: 'Coleção de Calçados',
+    subtitle: 'Tênis, sandálias, sapatos, botas e papetes com o máximo conforto e elegância.',
+    bannerImage: 'https://images.unsplash.com/photo-1549298916-b41d501d3772?q=80&w=1600&auto=format&fit=crop',
+    badgeText: 'CALÇADOS PREMIUM',
+    filter: (prod) => isProductInCategory(prod, 'CALÇADOS')
   },
   'diversos': {
     title: 'Produtos Diversos',
@@ -63,7 +77,21 @@ const TAB_CONFIGS: Record<string, TabConfig> = {
     subtitle: 'Roupas e peças de vestuário contemporâneas para renovar seu estilo.',
     bannerImage: 'https://images.unsplash.com/photo-1489987707025-afc232f7ea0f?q=80&w=1600&auto=format&fit=crop',
     badgeText: 'CONFECÇÕES & VESTUÁRIO',
-    filter: (prod) => prod.category.toLowerCase().includes('confecç') || prod.category.toLowerCase().includes('roupa') || prod.productType === 'roupas'
+    filter: (prod) => isProductInCategory(prod, 'CONFECÇÕES')
+  },
+  'confeccoes': {
+    title: 'Moda & Confecções',
+    subtitle: 'Roupas e peças de vestuário contemporâneas para renovar seu estilo.',
+    bannerImage: 'https://images.unsplash.com/photo-1489987707025-afc232f7ea0f?q=80&w=1600&auto=format&fit=crop',
+    badgeText: 'CONFECÇÕES & VESTUÁRIO',
+    filter: (prod) => isProductInCategory(prod, 'CONFECÇÕES')
+  },
+  'confecção': {
+    title: 'Moda & Confecções',
+    subtitle: 'Roupas e peças de vestuário contemporâneas para renovar seu estilo.',
+    bannerImage: 'https://images.unsplash.com/photo-1489987707025-afc232f7ea0f?q=80&w=1600&auto=format&fit=crop',
+    badgeText: 'CONFECÇÕES & VESTUÁRIO',
+    filter: (prod) => isProductInCategory(prod, 'CONFECÇÕES')
   },
   'lançamentos': {
     title: 'Novidades & Lançamentos',
@@ -80,6 +108,13 @@ const TAB_CONFIGS: Record<string, TabConfig> = {
     filter: (prod) => !!prod.newArrival
   },
   'promoções': {
+    title: 'Super Campanhas de Ofertas',
+    subtitle: 'Descontos especiais com condições exclusivas no Crediário Próprio Evidência.',
+    bannerImage: 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?q=80&w=1600&auto=format&fit=crop',
+    badgeText: 'CAMPANHA PROMOCIONAL',
+    filter: (prod) => !!prod.onSale || (prod.originalPrice && prod.originalPrice > prod.price)
+  },
+  'promocoes': {
     title: 'Super Campanhas de Ofertas',
     subtitle: 'Descontos especiais com condições exclusivas no Crediário Próprio Evidência.',
     bannerImage: 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?q=80&w=1600&auto=format&fit=crop',
@@ -182,27 +217,26 @@ export const CategoryPage: React.FC = () => {
       };
     }
     
-    const foundCategory = categories.find(c => c.id === selectedMenuTab || c.name.toLowerCase() === selectedMenuTab.toLowerCase());
+    const foundCategory = categories.find(c => c.id === selectedMenuTab || c.name.toLowerCase() === selectedMenuTab.toLowerCase() || normalizeCategoryName(c.name).toLowerCase() === selectedMenuTab.toLowerCase());
     if (foundCategory) {
+      const normCatName = normalizeCategoryName(foundCategory.name);
       return {
-        title: foundCategory.name,
-        subtitle: foundCategory.description || `Confira nossa coleção de ${foundCategory.name} com condições e qualidade exclusivas Evidência Calçados.`,
+        title: normCatName,
+        subtitle: foundCategory.description || `Confira nossa coleção de ${normCatName} com condições e qualidade exclusivas Evidência Calçados.`,
         bannerImage: 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?q=80&w=1600&auto=format&fit=crop',
-        badgeText: foundCategory.name.toUpperCase(),
-        filter: (prod: Product) => prod.category.toLowerCase() === foundCategory.name.toLowerCase() || (prod.nome_grupo && prod.nome_grupo.toLowerCase() === foundCategory.name.toLowerCase())
+        badgeText: normCatName.toUpperCase(),
+        filter: (prod: Product) => isProductInCategory(prod, foundCategory.name)
       };
     }
 
     const cleanTabStr = (selectedMenuTab || '').trim();
+    const normTabName = normalizeCategoryName(cleanTabStr);
     return {
-      title: cleanTabStr ? cleanTabStr.toUpperCase() : 'COLEÇÃO EVIDÊNCIA',
-      subtitle: `Confira nossa coleção de ${cleanTabStr} com condições e qualidade exclusivas Evidência Calçados.`,
+      title: normTabName ? normTabName.toUpperCase() : 'COLEÇÃO EVIDÊNCIA',
+      subtitle: `Confira nossa coleção de ${normTabName} com condições e qualidade exclusivas Evidência Calçados.`,
       bannerImage: 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?q=80&w=1600&auto=format&fit=crop',
-      badgeText: cleanTabStr.toUpperCase(),
-      filter: (prod: Product) => 
-        prod.category.toLowerCase().includes(cleanTabStr.toLowerCase()) || 
-        prod.category.toUpperCase() === cleanTabStr.toUpperCase() ||
-        (prod.nome_grupo && prod.nome_grupo.toLowerCase().includes(cleanTabStr.toLowerCase()))
+      badgeText: normTabName.toUpperCase(),
+      filter: (prod: Product) => isProductInCategory(prod, cleanTabStr)
     };
   };
 

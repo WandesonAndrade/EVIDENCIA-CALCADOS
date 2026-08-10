@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { ShoppingCart, MessageSquare, ArrowLeft, Shield, Sparkles, Heart, Share2, Check, User, Layers, CheckCircle2, AlertCircle, CreditCard, Zap, RefreshCw } from 'lucide-react';
+import { ShoppingCart, ArrowLeft, Shield, Sparkles, Heart, Share2, Check, CreditCard, CheckCircle2, AlertCircle, ArrowRight, Truck, RefreshCw } from 'lucide-react';
 import { getGradeProdutoById, getProdutoGradesFromApi } from '../services/moblinkGradesService';
 import { getSingleProdutoMoblinkFromApi, sanitizeProductForFirestore } from '../services/moblinkProductsService';
 import { db } from '../lib/firebase';
@@ -9,10 +9,12 @@ import { GradeProduto, Product, ProdutoGradesResult } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { CompleteProfileModal } from './CompleteProfileModal';
 import { CheckoutConfirmationModal } from './CheckoutConfirmationModal';
+import { ProductCard } from './ProductList';
 import { isProfileIncomplete } from '../App';
 
 export const ProductDetail: React.FC = () => {
   const { 
+    products = [],
     selectedProduct, 
     setSelectedProduct,
     setCurrentView, 
@@ -32,40 +34,10 @@ export const ProductDetail: React.FC = () => {
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [message, setMessage] = useState('');
   const [copied, setCopied] = useState(false);
-  const [isSingleRefreshing, setIsSingleRefreshing] = useState(false);
 
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isConfirmationModalOpen, setIsConfirmationModalOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-
-  // Re-sincronizar dados deste produto individual diretamente do MobLink ERP
-  const handleRefreshSingleProduct = async () => {
-    if (!selectedProduct || !selectedProduct.id) return;
-    const targetId = String(selectedProduct.id);
-    setIsSingleRefreshing(true);
-    try {
-      const updated = await getSingleProdutoMoblinkFromApi(targetId);
-      if (updated) {
-        const sanitized = sanitizeProductForFirestore(updated as any) as Product;
-        await setDoc(doc(db, 'products', String(sanitized.id)), sanitized, { merge: true });
-        setSelectedProduct(sanitized);
-
-        // Recarrega as grades do produto em tempo real
-        const updatedGrades = await getProdutoGradesFromApi(targetId);
-        setProductGradeData(updatedGrades);
-
-        setMessage('✅ Dados de preço, estoque e variações atualizados diretamente do MobLink ERP!');
-        setTimeout(() => setMessage(''), 4000);
-      } else {
-        setMessage('⚠️ Não foi possível obter dados atualizados deste produto no ERP.');
-        setTimeout(() => setMessage(''), 4000);
-      }
-    } catch (err) {
-      console.error('Erro ao atualizar produto do ERP:', err);
-    } finally {
-      setIsSingleRefreshing(false);
-    }
-  };
 
   const isDark = theme === 'dark';
 
@@ -76,16 +48,14 @@ export const ProductDetail: React.FC = () => {
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           className={`p-12 rounded-3xl border backdrop-blur-xl max-w-md mx-auto space-y-4 ${
-            isDark ? 'bg-slate-900/50 border-slate-800 text-slate-300' : 'bg-white/80 border-slate-200 text-slate-600'
+            isDark ? 'bg-[#161617] border-white/10 text-slate-300' : 'bg-[#f5f5f7] border-black/5 text-[#1d1d1f]'
           }`}
         >
-          <AlertCircle className="h-12 w-12 mx-auto text-amber-400" />
+          <AlertCircle className="h-12 w-12 mx-auto text-[#0071e3]" />
           <p className="text-sm font-medium">Nenhum produto selecionado.</p>
           <button 
             onClick={() => setCurrentView('home')} 
-            className={`px-6 py-2.5 rounded-full text-xs font-bold transition-all shadow-md cursor-pointer ${
-              isDark ? 'bg-amber-400 text-slate-950 hover:bg-amber-300' : 'bg-slate-900 text-white hover:bg-slate-800'
-            }`}
+            className="px-6 py-2.5 rounded-full text-xs font-semibold bg-[#0071e3] text-white hover:bg-[#0077ed] transition-all cursor-pointer shadow-xs"
           >
             Voltar para a Vitrine
           </button>
@@ -102,11 +72,12 @@ export const ProductDetail: React.FC = () => {
   const idGrade = p.id_grade ?? p.gradeId ?? null;
   const hasGrade = idGrade !== null && idGrade !== undefined && idGrade !== '' && idGrade !== 0 && idGrade !== '0';
 
-  // Auto-scroll to absolute top when viewing product details
+  // 1. Auto-scroll ao topo no carregamento do produto
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
   }, [p.id]);
 
+  // 2. Sincronização AUTOMÁTICA do produto e grades do ERP MobLink no momento do acesso
   useEffect(() => {
     let isMounted = true;
     setSelectedLinhaOption(null);
@@ -114,37 +85,49 @@ export const ProductDetail: React.FC = () => {
     setMessage('');
     setLoadingGrade(true);
 
-    // Consulta a API de grades específicas do produto GET /api/v1/produtos/{idprod}/grades
-    getProdutoGradesFromApi(p.id).then(gradeResult => {
-      if (isMounted) {
-        setProductGradeData(gradeResult);
-        setLoadingGrade(false);
-      }
-    }).catch(err => {
-      console.warn('Erro ao carregar grade do produto:', err);
-      if (isMounted) setLoadingGrade(false);
-    });
+    // Atualização silenciosa e automática diretamente da API do ERP
+    getSingleProdutoMoblinkFromApi(String(p.id))
+      .then(updated => {
+        if (isMounted && updated) {
+          const sanitized = sanitizeProductForFirestore(updated as any) as Product;
+          setDoc(doc(db, 'products', String(sanitized.id)), sanitized, { merge: true }).catch(() => {});
+          setSelectedProduct(sanitized);
+        }
+      })
+      .catch(err => console.warn('Sincronização automática do ERP:', err));
+
+    // Carrega grades e opções de tamanho em segundo plano
+    getProdutoGradesFromApi(p.id)
+      .then(gradeResult => {
+        if (isMounted) {
+          setProductGradeData(gradeResult);
+          setLoadingGrade(false);
+        }
+      })
+      .catch(err => {
+        console.warn('Erro ao carregar grades:', err);
+        if (isMounted) setLoadingGrade(false);
+      });
 
     if (hasGrade && idGrade) {
-      getGradeProdutoById(idGrade).then(grade => {
-        if (isMounted) setFetchedGrade(grade);
-      }).catch(() => {});
+      getGradeProdutoById(idGrade)
+        .then(grade => {
+          if (isMounted) setFetchedGrade(grade);
+        })
+        .catch(() => {});
     }
 
     return () => { isMounted = false; };
   }, [p.id, idGrade, hasGrade]);
 
-  // Variações reais com saldo_loja > 0
   const validVariacoes = productGradeData?.variacoes || [];
 
-  // Opções para Linha (Tamanho / Numeração) com saldo > 0 (Elimina nulos/zerados)
   const linhaOptions = (productGradeData?.tamanhos && productGradeData.tamanhos.length > 0)
     ? productGradeData.tamanhos
     : (p.sizes && p.sizes.length > 0)
     ? p.sizes.map(String)
     : [];
 
-  // Opções para Coluna (Cor / Acabamento) com saldo > 0 para o tamanho selecionado (ou todas do produto)
   const availableCoresForSelectedSize = selectedLinhaOption && validVariacoes.length > 0
     ? Array.from(new Set(validVariacoes.filter(v => v.tamanho === String(selectedLinhaOption)).map(v => v.cor)))
     : (productGradeData?.cores && productGradeData.cores.length > 0)
@@ -177,7 +160,7 @@ export const ProductDetail: React.FC = () => {
     } else {
       const variationText = selectedLinhaOption ? `Tamanho: ${selectedLinhaOption}` : 'Único';
       addToCart(p, variationText);
-      setMessage('Produto adicionado ao carrinho com sucesso!');
+      setMessage('Produto adicionado ao carrinho!');
     }
 
     setTimeout(() => {
@@ -186,34 +169,25 @@ export const ProductDetail: React.FC = () => {
     }, 1200);
   };
 
-  // Replicated Multi-Step Checkout Pipeline for "Comprar Agora"
   const handleWhatsAppInstantBuy = () => {
-    // 1. Mandatory variation validation (Size & Color)
     if (hasGrade) {
       const descrLinha = fetchedGrade?.descr_linha || 'Tamanho';
       const descrColuna = fetchedGrade?.descr_coluna || 'Cor';
 
       if (!selectedLinhaOption) {
-        setMessage(`⚠️ Por favor, selecione o ${descrLinha} do calçado antes de comprar.`);
+        setMessage(`⚠️ Selecione o ${descrLinha} do calçado antes de prosseguir.`);
         return;
       }
 
       if (!selectedColunaOption) {
-        setMessage(`⚠️ Por favor, selecione a ${descrColuna} antes de comprar.`);
+        setMessage(`⚠️ Selecione a ${descrColuna} antes de prosseguir.`);
         return;
       }
     } else if (p.sizes && p.sizes.length > 0 && !selectedLinhaOption) {
-      setMessage(`⚠️ Por favor, selecione o Tamanho do calçado antes de comprar.`);
+      setMessage(`⚠️ Selecione o Tamanho do calçado antes de prosseguir.`);
       return;
     }
 
-    const descrLinha = fetchedGrade?.descr_linha || 'Tamanho';
-    const descrColuna = fetchedGrade?.descr_coluna || 'Cor';
-    const variationText = hasGrade 
-      ? `${descrLinha}: ${selectedLinhaOption} | ${descrColuna}: ${selectedColunaOption}` 
-      : (selectedLinhaOption ? `Tamanho: ${selectedLinhaOption}` : 'Único');
-
-    // 2. Auth Check
     if (!currentUser) {
       setMessage('Por favor, faça login para realizar sua compra.');
       setTimeout(() => {
@@ -222,13 +196,11 @@ export const ProductDetail: React.FC = () => {
       return;
     }
 
-    // 3. Profile Completeness Check
     if (isProfileIncomplete(currentUser)) {
       setIsProfileModalOpen(true);
       return;
     }
 
-    // 4. Open Dedicated Confirmation Modal
     setIsConfirmationModalOpen(true);
   };
 
@@ -269,12 +241,11 @@ export const ProductDetail: React.FC = () => {
       setIsConfirmationModalOpen(false);
       window.open(order.whatsappUrl, '_blank');
     } catch (error) {
-      console.error("Failed to finalize order from product detail:", error);
+      console.error("Erro ao criar pedido:", error);
     } finally {
       setIsProcessing(false);
     }
   };
-
 
   const handleShareProduct = () => {
     const shareUrl = `${window.location.origin}${window.location.pathname}?product=${p.id}`;
@@ -282,11 +253,9 @@ export const ProductDetail: React.FC = () => {
     if (navigator.share) {
       navigator.share({
         title: `Evidência Calçados - ${p.name}`,
-        text: `Olha só esse lindo calçado: ${p.name}!`,
+        text: `Confira esse lindo calçado: ${p.name}!`,
         url: shareUrl,
-      }).catch((err) => {
-        console.warn("Error sharing:", err);
-      });
+      }).catch(() => {});
     } else {
       navigator.clipboard.writeText(shareUrl).then(() => {
         setCopied(true);
@@ -295,71 +264,84 @@ export const ProductDetail: React.FC = () => {
     }
   };
 
-  const handleShareWhatsAppDirect = () => {
-    const shareUrl = `${window.location.origin}${window.location.pathname}?product=${p.id}`;
-    const text = `Confira esse lindo calçado da Evidência Calçados: *${p.name}* \nPreço: R$ ${p.price.toFixed(2).replace('.', ',')}\nVisualizar no catálogo: ${shareUrl}`;
-    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
-  };
-
   const isFavorite = favorites.includes(p.id);
   const discountPercent = p.originalPrice && p.originalPrice > p.price
     ? Math.round(((p.originalPrice - p.price) / p.originalPrice) * 100)
     : 0;
+
+  const precoVistaCalculado = p.precoVista || p.preco_vista || Math.round(p.price * 0.9 * 100) / 100;
+  const precoCartaoCalculado = p.precoCartao || p.preco_cartao || p.price;
+
+  const relatedProducts = React.useMemo(() => {
+    if (!products || products.length === 0 || !p) return [];
+    const sameCategory = products.filter(prod => 
+      String(prod.id) !== String(p.id) &&
+      (prod.visible !== false) &&
+      (prod.category === p.category || prod.nome_grupo === p.nome_grupo || prod.productType === p.productType)
+    );
+
+    if (sameCategory.length >= 4) {
+      return sameCategory.slice(0, 4);
+    }
+
+    const others = products.filter(prod => String(prod.id) !== String(p.id) && prod.visible !== false);
+    return others.slice(0, 4);
+  }, [products, p]);
 
   return (
     <motion.div 
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       id="product-detail-page" 
-      className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6"
+      className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-10"
     >
-      {/* Back button & Breadcrumb */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* Botão de Retorno Estilo Apple */}
+      <div className="flex items-center justify-between">
         <motion.button
           whileHover={{ x: -4 }}
           onClick={() => setCurrentView('home')}
-          className={`inline-flex items-center space-x-2 text-xs font-bold cursor-pointer transition-colors ${
-            isDark ? 'text-slate-400 hover:text-amber-400' : 'text-slate-600 hover:text-slate-900'
+          className={`inline-flex items-center space-x-2 text-xs font-semibold cursor-pointer transition-colors ${
+            isDark ? 'text-[#86868b] hover:text-white' : 'text-[#515154] hover:text-black'
           }`}
         >
           <ArrowLeft className="h-4 w-4" />
           <span>Voltar para a Vitrine</span>
         </motion.button>
 
-        <div className={`text-xs font-medium ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-          Calçados &gt; <span className={isDark ? 'text-slate-400' : 'text-slate-600'}>{p.category}</span> &gt; <span className={`font-semibold ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>{p.name}</span>
+        <div className={`text-xs font-normal ${isDark ? 'text-[#86868b]' : 'text-[#86868b]'}`}>
+          Calçados &gt; <span className={isDark ? 'text-slate-300' : 'text-slate-700'}>{p.category}</span> &gt; <span className={`font-semibold ${isDark ? 'text-white' : 'text-[#1d1d1f]'}`}>{p.name}</span>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14 items-start">
         
-        {/* GALERIA DE IMAGENS */}
+        {/* GALERIA STUDIO APPLE */}
         <div className="lg:col-span-7 space-y-4">
-          <div className={`relative aspect-square rounded-3xl overflow-hidden border backdrop-blur-xl shadow-xl ${
-            isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-slate-50 border-slate-200'
+          <div className={`relative aspect-square rounded-3xl overflow-hidden border p-8 flex items-center justify-center transition-all ${
+            isDark ? 'bg-[#161617] border-white/10' : 'bg-[#f5f5f7] border-black/5'
           }`}>
             <motion.img
               key={activeImageIndex}
               initial={{ opacity: 0, scale: 0.98 }}
               animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.3 }}
+              transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
               src={productImages[activeImageIndex]}
               alt={p.name}
-              className="w-full h-full object-cover"
+              className="w-full h-full object-contain"
             />
 
             {discountPercent > 0 && (
-              <span className="absolute top-4 left-4 bg-rose-600 text-white font-black text-xs px-3 py-1.5 rounded-full uppercase tracking-wider shadow-lg">
+              <span className="absolute top-4 left-4 bg-rose-600 text-white font-semibold text-xs px-3.5 py-1 rounded-full shadow-xs">
                 -{discountPercent}% OFF
               </span>
             )}
 
             <button
               onClick={() => toggleFavorite(p.id)}
-              className={`absolute top-4 right-4 p-3 rounded-full backdrop-blur-md border transition-all cursor-pointer shadow-md ${
+              className={`absolute top-4 right-4 p-3 rounded-full backdrop-blur-md transition-all cursor-pointer shadow-xs ${
                 isFavorite
-                  ? 'bg-rose-500 text-white border-rose-400 scale-110'
-                  : isDark ? 'bg-slate-900/60 border-slate-800 text-slate-300 hover:text-rose-400' : 'bg-white/80 border-slate-200 text-slate-700 hover:text-rose-600'
+                  ? 'bg-rose-500 text-white scale-105'
+                  : isDark ? 'bg-black/40 text-white/70 hover:text-rose-400' : 'bg-black/5 text-[#515154] hover:text-rose-600'
               }`}
               title={isFavorite ? 'Remover dos Favoritos' : 'Salvar nos Favoritos'}
             >
@@ -367,298 +349,232 @@ export const ProductDetail: React.FC = () => {
             </button>
           </div>
 
+          {/* Carrossel de Miniaturas Studio */}
           {productImages.length > 1 && (
             <div className="flex items-center space-x-3 overflow-x-auto pb-2">
               {productImages.map((imgUrl, idx) => (
                 <button
                   key={idx}
                   onClick={() => setActiveImageIndex(idx)}
-                  className={`w-20 h-20 rounded-2xl overflow-hidden border-2 transition-all cursor-pointer shrink-0 ${
+                  className={`w-20 h-20 rounded-2xl overflow-hidden border transition-all cursor-pointer shrink-0 p-2 ${
                     activeImageIndex === idx
-                      ? 'border-amber-400 scale-105 shadow-md'
-                      : isDark ? 'border-slate-800 opacity-60 hover:opacity-100' : 'border-slate-200 opacity-70 hover:opacity-100'
+                      ? 'border-[#0071e3] scale-105 shadow-xs bg-white dark:bg-[#1d1d1f]'
+                      : isDark ? 'border-white/10 bg-[#161617] opacity-60 hover:opacity-100' : 'border-black/5 bg-[#f5f5f7] opacity-70 hover:opacity-100'
                   }`}
                 >
-                  <img src={imgUrl} alt={`${p.name} thumb ${idx}`} className="w-full h-full object-cover" />
+                  <img src={imgUrl} alt={`${p.name} thumb ${idx}`} className="w-full h-full object-contain" />
                 </button>
               ))}
             </div>
           )}
         </div>
 
-        {/* INFORMAÇÕES & OPÇÕES DE COMPRA */}
+        {/* INFORMAÇÕES RELEVANTES & OPÇÕES DE COMPRA */}
         <div className="lg:col-span-5 space-y-6">
-          <div className="space-y-3">
+          <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                isDark ? 'bg-amber-400/10 text-amber-400 border border-amber-400/20' : 'bg-slate-900 text-white'
+              <span className={`px-3.5 py-1 rounded-full text-[11px] font-semibold tracking-wide uppercase border ${
+                isDark ? 'bg-white/10 text-white border-white/20' : 'bg-black/5 text-neutral-800 border-black/10'
               }`}>
                 {p.category}
               </span>
 
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={handleShareProduct}
-                  className={`p-2 rounded-xl border transition-all cursor-pointer text-xs font-bold flex items-center space-x-1 ${
-                    isDark ? 'border-slate-800 bg-slate-900/60 text-slate-300 hover:bg-slate-800' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-                  }`}
-                  title="Compartilhar Link"
-                >
-                  {copied ? <Check className="h-4 w-4 text-emerald-400" /> : <Share2 className="h-4 w-4" />}
-                  <span>{copied ? 'Copiado!' : 'Compartilhar'}</span>
-                </button>
-              </div>
+              <button
+                onClick={handleShareProduct}
+                className={`p-2 rounded-full border transition-all cursor-pointer text-xs font-medium flex items-center space-x-1.5 ${
+                  isDark ? 'border-white/10 bg-white/10 text-slate-300 hover:text-white' : 'border-black/10 bg-black/5 text-slate-700 hover:text-black'
+                }`}
+                title="Compartilhar"
+              >
+                {copied ? <Check className="h-4 w-4 text-emerald-400" /> : <Share2 className="h-4 w-4" />}
+                <span>{copied ? 'Copiado' : 'Compartilhar'}</span>
+              </button>
             </div>
 
-            <h1 className={`text-2xl sm:text-3xl font-black tracking-tight ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
+            {/* Título Principal Estilo Apple */}
+            <h1 className={`text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight leading-tight ${
+              isDark ? 'text-white' : 'text-[#1d1d1f]'
+            }`}>
               {p.name}
             </h1>
 
-            {/* Exibição Tripla de Preços (PIX / Dinheiro, Cartão de Crédito e Carnê) */}
-            <div className={`p-4 rounded-2xl border space-y-2.5 transition-all ${
-              isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-slate-50 border-slate-200'
+            {/* PAINEL DE PREÇOS LIMPO E RELEVANTE */}
+            <div className={`p-6 rounded-3xl border space-y-4 transition-all ${
+              isDark ? 'bg-[#161617] border-white/10' : 'bg-[#f5f5f7] border-black/5'
             }`}>
-              {/* PREÇO À VISTA (PIX / DINHEIRO) */}
-              <div className="flex items-center justify-between flex-wrap gap-2">
-                <div>
-                  <span className={`text-[10px] font-black uppercase tracking-wider block ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>
-                    ⚡ Preço à Vista (PIX / Dinheiro)
-                  </span>
-                  <p className={`text-3xl font-black ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
-                    R$ {(p.precoVista || p.preco_vista || Math.round(p.price * 0.9 * 100) / 100).toFixed(2).replace('.', ',')}
-                  </p>
-                </div>
-                <span className="px-3 py-1 rounded-full text-xs font-black uppercase bg-emerald-500 text-white shadow-md">
-                  10% OFF À VISTA
+              {/* Preço À Vista no PIX (Com Desconto) */}
+              <div>
+                <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 block pb-0.5">
+                  À Vista no PIX (10% OFF)
                 </span>
+                <div className="flex items-baseline space-x-3">
+                  <p className="text-3xl sm:text-4xl font-extrabold tracking-tight text-emerald-600 dark:text-emerald-400">
+                    R$ {precoVistaCalculado.toFixed(2).replace('.', ',')}
+                  </p>
+                  {p.originalPrice && p.originalPrice > p.price && (
+                    <span className="text-sm line-through text-[#86868b]">
+                      R$ {p.originalPrice.toFixed(2).replace('.', ',')}
+                    </span>
+                  )}
+                </div>
               </div>
 
-              {/* PREÇO NO CARTÃO DE CRÉDITO */}
-              {(p.precoCartao || p.preco_cartao) && (
-                <div className={`pt-2.5 border-t flex items-center justify-between text-xs flex-wrap gap-2 ${
-                  isDark ? 'border-slate-800' : 'border-slate-200'
+              {/* Cartão de Crédito e Parparcelamento */}
+              <div className={`pt-3 border-t flex flex-col space-y-1 text-xs ${
+                isDark ? 'border-white/10 text-slate-300' : 'border-black/10 text-[#515154]'
+              }`}>
+                <div className="flex items-center justify-between font-semibold">
+                  <span className="flex items-center space-x-1.5">
+                    <CreditCard className="h-4 w-4 text-[#0071e3]" />
+                    <span>Cartão de Crédito:</span>
+                  </span>
+                  <span className={`text-sm font-bold ${isDark ? 'text-white' : 'text-[#1d1d1f]'}`}>
+                    R$ {precoCartaoCalculado.toFixed(2).replace('.', ',')}
+                  </span>
+                </div>
+                <p className="text-[11px] text-[#86868b] pl-5">
+                  ou em até 6x de R$ {(precoCartaoCalculado / 6).toFixed(2).replace('.', ',')} sem juros
+                </p>
+              </div>
+
+              {/* Crediário Próprio da Loja */}
+              {p.crediarioProprio && (
+                <div className={`pt-3 border-t flex flex-col space-y-1 text-xs ${
+                  isDark ? 'border-white/10 text-slate-300' : 'border-black/10 text-[#515154]'
                 }`}>
-                  <div className="flex items-center gap-1.5">
-                    <CreditCard className="h-4 w-4 text-blue-500" />
-                    <span className={isDark ? 'text-slate-300' : 'text-slate-700'}>
-                      Preço no Cartão de Crédito: <strong className="font-black text-blue-600 dark:text-blue-400">R$ {(p.precoCartao || p.preco_cartao).toFixed(2).replace('.', ',')}</strong>
+                  <div className="flex items-center justify-between font-semibold">
+                    <span className="flex items-center space-x-1.5 text-amber-500">
+                      <Sparkles className="h-4 w-4" />
+                      <span>Crediário Próprio (Carnê):</span>
+                    </span>
+                    <span className="text-sm font-bold text-amber-500">
+                      até 10x de R$ {(p.price / 10).toFixed(2).replace('.', ',')}
                     </span>
                   </div>
-                  <span className={`text-[11px] font-bold ${isDark ? 'text-blue-400' : 'text-blue-700'}`}>
-                    até 6x de R$ {((p.precoCartao || p.preco_cartao) / 6).toFixed(2).replace('.', ',')}
-                  </span>
+                  <p className="text-[11px] text-[#86868b] pl-5">
+                    Compre no carnê sem comprovação de renda!
+                  </p>
                 </div>
               )}
+            </div>
 
-              {/* PREÇO DE TABELA / CARNÊ */}
-              <div className={`pt-2.5 border-t flex items-center justify-between text-xs flex-wrap gap-2 ${
-                isDark ? 'border-slate-800' : 'border-slate-200'
-              }`}>
-                <span className={isDark ? 'text-slate-300' : 'text-slate-700'}>
-                  Preço de Tabela (Carnê Evidência): <strong className="font-black">R$ {p.price.toFixed(2).replace('.', ',')}</strong>
-                </span>
-                <span className={`text-[11px] font-bold ${isDark ? 'text-amber-400' : 'text-amber-700'}`}>
-                  até 6x de R$ {(p.price / 6).toFixed(2).replace('.', ',')} s/ juros
-                </span>
+            {/* Código de Referência */}
+            {(p.referencia || p.referenceCode) && (
+              <div className="text-xs text-[#86868b] font-normal pt-1">
+                Ref: <span className="font-mono font-medium text-[#1d1d1f] dark:text-slate-200">{p.referencia || p.referenceCode}</span>
               </div>
-            </div>
-
-            {/* Badges de Estoque Sincronizado do MobLink ERP */}
-            <div className="flex items-center gap-2 pt-1">
-              {(p.stock ?? p.saldo_loja ?? 0) > 0 ? (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
-                  <span>Em Estoque ({(p.stock ?? p.saldo_loja)} { (p.stock ?? p.saldo_loja) === 1 ? 'par' : 'pares' })</span>
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
-                  <AlertCircle className="h-3.5 w-3.5 text-rose-500" />
-                  <span>Produto Esgotado</span>
-                </span>
-              )}
-
-              {p.moblinkSyncStatus === 'synced' && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20" title="Preço e Estoque Sincronizados com o MobLink ERP">
-                  <Zap className="h-3 w-3 text-amber-500" />
-                  <span>MobLink ERP</span>
-                </span>
-              )}
-
-              {(p.referencia || p.referenceCode) && (
-                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20" title="Código de Referência do Produto no ERP">
-                  <span>Ref: {p.referencia || p.referenceCode}</span>
-                </span>
-              )}
-
-              {/* Botão de Atualização Individual do ERP */}
-              <button
-                type="button"
-                onClick={handleRefreshSingleProduct}
-                disabled={isSingleRefreshing}
-                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-slate-950 transition-all cursor-pointer shadow-xs disabled:opacity-50 ml-auto sm:ml-0"
-                title="Buscar preços, estoques e variações mais recentes deste produto diretamente no MobLink ERP"
-              >
-                <RefreshCw className={`h-3.5 w-3.5 ${isSingleRefreshing ? 'animate-spin' : ''}`} />
-                <span>{isSingleRefreshing ? 'Atualizando...' : 'Atualizar do ERP'}</span>
-              </button>
-
-              {/* INDICAÇÃO DE TAMANHO ÚNICO */}
-              {((p.sizes && p.sizes.length === 1 && ['UNICA', 'ÚNICA', 'UN', 'U', 'TAMANHO ÚNICO', 'UNICO', 'ÚNICO'].includes(String(p.sizes[0]).toUpperCase())) || (p.sizes && p.sizes.length === 0)) && (
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
-                  <Sparkles className="h-3 w-3 text-emerald-500" />
-                  <span>Tamanho Único</span>
-                </span>
-              )}
-
-              {/* INDICAÇÃO DE LANÇAMENTO */}
-              {p.newArrival && (
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-500/30">
-                  <Sparkles className="h-3 w-3 text-purple-500" />
-                  <span>LANÇAMENTO</span>
-                </span>
-              )}
-            </div>
-
-            {p.crediarioProprio && (
-              <p className={`text-xs font-semibold mt-2 ${isDark ? 'text-amber-300/90' : 'text-amber-900'}`}>
-                Crediário Próprio em até <strong className="font-extrabold text-amber-400">6x de R$ {(p.price / 6).toFixed(2).replace('.', ',')} sem juros</strong> no carnê Evidência!
-              </p>
             )}
           </div>
 
-          {/* SELETOR ULTRA-PREMIUM DE VARIAÇÕES (Tamanho & Cor) */}
-          <div className={`p-5 rounded-2xl border space-y-5 ${
-            isDark ? 'bg-slate-950/50 border-slate-800/80' : 'bg-slate-50/80 border-slate-200/80'
+          {/* SELETOR DE TAMANHO & COR ESTILO APPLE */}
+          <div className={`p-6 rounded-3xl border space-y-5 ${
+            isDark ? 'bg-[#161617] border-white/10' : 'bg-[#f5f5f7] border-black/5'
           }`}>
-            {/* SELEÇÃO DE TAMANHO / NUMERAÇÃO */}
-            <div className="space-y-3">
-              {((p.sizes && p.sizes.length === 1 && ['UNICA', 'ÚNICA', 'UN', 'U', 'TAMANHO ÚNICO', 'UNICO', 'ÚNICO'].includes(String(p.sizes[0]).toUpperCase())) || (p.sizes && p.sizes.length === 0)) ? (
-                <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Sparkles className="h-4 w-4 text-emerald-500" />
-                    <span className="text-xs font-extrabold text-emerald-700 dark:text-emerald-300">
-                      Tamanho Único (UN)
-                    </span>
-                  </div>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-800 dark:text-emerald-200">
-                    Dimensões Padrão
-                  </span>
-                </div>
-              ) : (
-                <>
-                  <div className="flex justify-between items-center text-xs">
-                    <label className={`font-bold uppercase tracking-wider text-xs flex items-center gap-1.5 ${
-                      isDark ? 'text-amber-400' : 'text-slate-900'
-                    }`}>
-                      <span>1. Escolha o Tamanho:</span>
-                    </label>
-                    {selectedLinhaOption ? (
-                      <span className="text-xs text-emerald-500 font-bold flex items-center gap-1">
-                        <CheckCircle2 className="h-3.5 w-3.5" /> {selectedLinhaOption}
-                      </span>
-                    ) : (
-                      <span className="text-[10px] text-rose-500 font-bold uppercase tracking-wider animate-pulse">Obrigatório *</span>
-                    )}
-                  </div>
-
-                  <div className="grid grid-cols-4 sm:grid-cols-6 gap-2.5">
-                    {linhaOptions.map((sizeOpt) => {
-                      const isSelected = selectedLinhaOption === sizeOpt;
-                      const isOutOfStock = p.sizeStockMap && p.sizeStockMap[String(sizeOpt)] === 0;
-
-                      return (
-                        <motion.button
-                          key={String(sizeOpt)}
-                          whileHover={!isOutOfStock ? { scale: 1.05 } : {}}
-                          whileTap={!isOutOfStock ? { scale: 0.95 } : {}}
-                          disabled={isOutOfStock}
-                          onClick={() => setSelectedLinhaOption(sizeOpt)}
-                          className={`relative h-12 rounded-xl border flex flex-col items-center justify-center text-xs font-bold transition-all cursor-pointer ${
-                            isSelected
-                              ? isDark
-                                ? 'bg-amber-400 border-amber-400 text-slate-950 font-black shadow-[0_0_15px_rgba(245,158,11,0.35)] scale-105 z-10'
-                                : 'bg-slate-900 border-slate-900 text-white font-black shadow-lg scale-105 z-10'
-                              : isOutOfStock
-                                ? 'border-slate-800 text-slate-600 bg-slate-900/30 opacity-40 line-through cursor-not-allowed'
-                                : isDark
-                                  ? 'border-slate-800 text-slate-300 bg-slate-900/80 hover:border-slate-700 hover:bg-slate-800'
-                                  : 'border-slate-200 text-slate-700 bg-white hover:border-slate-400 hover:bg-slate-50'
-                          }`}
-                        >
-                          <span>{sizeOpt}</span>
-                        </motion.button>
-                      );
-                    })}
-                  </div>
-                </>
-              )}
-            </div>
-
-            {/* SELEÇÃO DE COR / ACABAMENTO */}
+            {/* Numeração / Tamanho */}
             <div className="space-y-3">
               <div className="flex justify-between items-center text-xs">
-                <label className={`font-bold uppercase tracking-wider text-xs flex items-center gap-1.5 ${
-                  isDark ? 'text-amber-400' : 'text-slate-900'
+                <label className={`font-semibold text-xs tracking-tight ${
+                  isDark ? 'text-white' : 'text-[#1d1d1f]'
                 }`}>
-                  <span>2. Cor / Acabamento:</span>
+                  Selecione o Tamanho:
                 </label>
-                {selectedColunaOption && (
-                  <span className="text-xs text-emerald-500 font-bold flex items-center gap-1">
-                    <CheckCircle2 className="h-3.5 w-3.5" /> {selectedColunaOption}
+                {selectedLinhaOption && (
+                  <span className="text-xs text-emerald-500 font-medium flex items-center gap-1">
+                    <CheckCircle2 className="h-3.5 w-3.5" /> Tamanho {selectedLinhaOption}
                   </span>
                 )}
               </div>
 
-              <div className="flex flex-wrap gap-2">
-                {colunaOptions.map((colorOpt) => {
-                  const isSelected = selectedColunaOption === colorOpt;
+              <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+                {linhaOptions.map((sizeOpt) => {
+                  const isSelected = selectedLinhaOption === sizeOpt;
 
                   return (
                     <motion.button
-                      key={colorOpt}
-                      whileHover={{ scale: 1.03 }}
-                      whileTap={{ scale: 0.97 }}
-                      onClick={() => setSelectedColunaOption(colorOpt)}
-                      className={`px-4 py-2.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer flex items-center space-x-2 ${
+                      key={String(sizeOpt)}
+                      whileHover={{ scale: 1.04 }}
+                      whileTap={{ scale: 0.96 }}
+                      onClick={() => setSelectedLinhaOption(sizeOpt)}
+                      className={`h-11 rounded-2xl border text-xs font-semibold transition-all cursor-pointer flex items-center justify-center ${
                         isSelected
-                          ? isDark
-                            ? 'bg-emerald-500/20 border-emerald-400 text-emerald-300 font-bold shadow-[0_0_12px_rgba(16,185,129,0.2)]'
-                            : 'bg-emerald-50 border-emerald-500 text-emerald-900 font-bold shadow-sm'
+                          ? 'bg-[#0071e3] border-[#0071e3] text-white font-bold shadow-xs'
                           : isDark
-                            ? 'border-slate-800 text-slate-400 bg-slate-900/80 hover:border-slate-700 hover:text-slate-200'
-                            : 'border-slate-200 text-slate-600 bg-white hover:border-slate-300 hover:text-slate-900'
+                          ? 'border-white/10 text-slate-300 bg-[#1d1d1f] hover:border-white/20 hover:text-white'
+                          : 'border-black/10 text-[#1d1d1f] bg-white hover:border-black/20'
                       }`}
                     >
-                      <span className={`w-2.5 h-2.5 rounded-full ${isSelected ? 'bg-emerald-500 shadow-sm' : 'bg-slate-400'}`} />
-                      <span>{colorOpt}</span>
+                      <span>{sizeOpt}</span>
                     </motion.button>
                   );
                 })}
               </div>
             </div>
+
+            {/* Cor / Acabamento */}
+            {colunaOptions.length > 0 && (
+              <div className="space-y-3 pt-2">
+                <div className="flex justify-between items-center text-xs">
+                  <label className={`font-semibold text-xs tracking-tight ${
+                    isDark ? 'text-white' : 'text-[#1d1d1f]'
+                  }`}>
+                    Opção de Cor:
+                  </label>
+                  {selectedColunaOption && (
+                    <span className="text-xs text-emerald-500 font-medium flex items-center gap-1">
+                      <CheckCircle2 className="h-3.5 w-3.5" /> {selectedColunaOption}
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  {colunaOptions.map((colorOpt) => {
+                    const isSelected = selectedColunaOption === colorOpt;
+
+                    return (
+                      <motion.button
+                        key={colorOpt}
+                        whileHover={{ scale: 1.03 }}
+                        whileTap={{ scale: 0.97 }}
+                        onClick={() => setSelectedColunaOption(colorOpt)}
+                        className={`px-4 py-2 rounded-full border text-xs font-medium transition-all cursor-pointer flex items-center space-x-2 ${
+                          isSelected
+                            ? 'bg-[#0071e3] border-[#0071e3] text-white font-semibold'
+                            : isDark
+                            ? 'border-white/10 text-slate-300 bg-[#1d1d1f] hover:border-white/20'
+                            : 'border-black/10 text-[#1d1d1f] bg-white hover:border-black/20'
+                        }`}
+                      >
+                        <span className={`w-2 h-2 rounded-full ${isSelected ? 'bg-white' : 'bg-[#0071e3]'}`} />
+                        <span>{colorOpt}</span>
+                      </motion.button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Descrição & Especificações */}
+          {/* Descrição do Produto */}
           <div className="space-y-2">
-            <h4 className={`text-xs font-bold uppercase tracking-wider ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-              Descrição do Calçado
+            <h4 className={`text-xs font-bold uppercase tracking-wider ${isDark ? 'text-[#86868b]' : 'text-[#86868b]'}`}>
+              Detalhes & Especificações
             </h4>
-            <div className={`text-xs sm:text-sm leading-relaxed whitespace-pre-line ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+            <div className={`text-xs sm:text-sm leading-relaxed whitespace-pre-line ${isDark ? 'text-slate-300' : 'text-[#515154]'}`}>
               {p.description || p.descricao || p.descricao_completa}
             </div>
           </div>
 
-          {/* Feedback Message */}
+          {/* Mensagem de Alerta */}
           <AnimatePresence>
             {message && (
               <motion.div 
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
-                className={`p-3.5 rounded-xl text-xs font-bold text-center ${
+                className={`p-3.5 rounded-2xl text-xs font-semibold text-center ${
                   message.includes('sucesso') || message.includes('adicionado')
-                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                    : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                    ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
+                    : 'bg-rose-500/10 text-rose-500 border border-rose-500/20'
                 }`}
               >
                 {message}
@@ -666,75 +582,121 @@ export const ProductDetail: React.FC = () => {
             )}
           </AnimatePresence>
 
-          {/* Action CTAs */}
-          <div className={`space-y-3 pt-4 border-t ${isDark ? 'border-slate-800/80' : 'border-slate-200/80'}`}>
-            <motion.button
-              whileHover={{ scale: 1.01 }}
-              whileTap={{ scale: 0.99 }}
+          {/* BOTÕES DE AÇÃO APPLE (PÍLULA AZUL E BORDA CLEAN) */}
+          <div className="space-y-3 pt-2">
+            <button
               onClick={handleWhatsAppInstantBuy}
-              className="w-full flex items-center justify-center space-x-2 py-4 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs sm:text-sm rounded-2xl shadow-lg shadow-emerald-600/20 transition-all cursor-pointer uppercase tracking-wider"
+              className="w-full flex items-center justify-center space-x-2 py-3.5 px-6 bg-[#0071e3] hover:bg-[#0077ed] active:scale-98 text-white font-semibold text-sm rounded-full shadow-xs transition-all cursor-pointer"
             >
-              <MessageSquare className="h-5 w-5" />
-              <span>COMPRAR AGORA PELO WHATSAPP</span>
-            </motion.button>
+              <span>Comprar Agora</span>
+              <ArrowRight className="w-4 h-4 stroke-[2.5]" />
+            </button>
 
-            <motion.button
-              whileHover={{ scale: 1.01 }}
-              whileTap={{ scale: 0.99 }}
+            <button
               onClick={handleAddToCart}
-              className={`w-full flex items-center justify-center space-x-2 py-3.5 px-4 rounded-2xl border font-bold text-xs transition-all cursor-pointer ${
+              className={`w-full flex items-center justify-center space-x-2 py-3.5 px-6 rounded-full border font-semibold text-sm transition-all cursor-pointer ${
                 isDark 
-                  ? 'bg-slate-900 border-slate-800 text-slate-200 hover:bg-slate-800 hover:border-slate-700' 
-                  : 'bg-white border-slate-200 text-slate-800 hover:bg-slate-50'
+                  ? 'border-white/20 text-white bg-white/5 hover:bg-white/10' 
+                  : 'border-black/15 text-[#1d1d1f] bg-black/5 hover:bg-black/10'
               }`}
             >
               <ShoppingCart className="h-4 w-4" />
               <span>Adicionar ao Carrinho</span>
-            </motion.button>
+            </button>
+
+            {p.crediarioProprio && (
+              <button
+                onClick={() => setCurrentView('meu-crediario')}
+                className={`w-full py-2.5 px-4 text-center text-xs font-semibold transition-colors cursor-pointer ${
+                  isDark ? 'text-amber-400 hover:underline' : 'text-amber-700 hover:underline'
+                }`}
+              >
+                Simular aprovação de Crediário Próprio →
+              </button>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Footwear Features Banner */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-6">
-        <div className={`p-6 rounded-2xl border backdrop-blur-xl text-center flex flex-col items-center space-y-2 ${
-          isDark ? 'bg-slate-900/40 border-slate-800/80' : 'bg-white/80 border-slate-200/80'
+      {/* PAINEL DE BENEFÍCIOS DO PRODUTO ESTILO APPLE */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-8">
+        <div className={`p-6 rounded-3xl border text-center flex flex-col items-center space-y-2.5 ${
+          isDark ? 'bg-[#161617] border-white/10' : 'bg-[#f5f5f7] border-black/5'
         }`}>
-          <div className="p-3 rounded-full bg-amber-400/10 text-amber-500 mb-1">
+          <div className="p-3 rounded-full bg-[#0071e3]/10 text-[#0071e3]">
             <Shield className="h-6 w-6" />
           </div>
-          <h4 className={`text-sm font-bold ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>Couro Legítimo Garantido</h4>
-          <p className="text-xs text-slate-400">Peles selecionadas para durabilidade e acabamento nobre.</p>
+          <h4 className={`text-sm font-bold ${isDark ? 'text-white' : 'text-[#1d1d1f]'}`}>Garantia de Qualidade</h4>
+          <p className="text-xs text-[#86868b]">Materiais selecionados e acabamento com rigor de fábrica.</p>
         </div>
 
-        <div className={`p-6 rounded-2xl border backdrop-blur-xl text-center flex flex-col items-center space-y-2 ${
-          isDark ? 'bg-slate-900/40 border-slate-800/80' : 'bg-white/80 border-slate-200/80'
+        <div className={`p-6 rounded-3xl border text-center flex flex-col items-center space-y-2.5 ${
+          isDark ? 'bg-[#161617] border-white/10' : 'bg-[#f5f5f7] border-black/5'
         }`}>
-          <div className="p-3 rounded-full bg-amber-400/10 text-amber-500 mb-1">
-            <Sparkles className="h-6 w-6" />
+          <div className="p-3 rounded-full bg-[#0071e3]/10 text-[#0071e3]">
+            <Truck className="h-6 w-6" />
           </div>
-          <h4 className={`text-sm font-bold ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>Palmilha Confort Anatomica</h4>
-          <p className="text-xs text-slate-400">Tecnologia de amortecimento contínuo para o dia todo.</p>
+          <h4 className={`text-sm font-bold ${isDark ? 'text-white' : 'text-[#1d1d1f]'}`}>Entrega Rápida e Segura</h4>
+          <p className="text-xs text-[#86868b]">Opção de entrega direta ou retirada rápida na loja física.</p>
         </div>
 
-        <div className={`p-6 rounded-2xl border backdrop-blur-xl text-center flex flex-col items-center space-y-2 ${
-          isDark ? 'bg-slate-900/40 border-slate-800/80' : 'bg-white/80 border-slate-200/80'
+        <div className={`p-6 rounded-3xl border text-center flex flex-col items-center space-y-2.5 ${
+          isDark ? 'bg-[#161617] border-white/10' : 'bg-[#f5f5f7] border-black/5'
         }`}>
-          <div className="p-3 rounded-full bg-amber-400/10 text-amber-500 mb-1">
-            <ShoppingCart className="h-6 w-6" />
+          <div className="p-3 rounded-full bg-[#0071e3]/10 text-[#0071e3]">
+            <RefreshCw className="h-6 w-6" />
           </div>
-          <h4 className={`text-sm font-bold ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>Entrega Expressa & Crediário</h4>
-          <p className="text-xs text-slate-400">Compre no carnê ou cartão com entrega rápida garantida.</p>
+          <h4 className={`text-sm font-bold ${isDark ? 'text-white' : 'text-[#1d1d1f]'}`}>Troca Simplificada em 30 Dias</h4>
+          <p className="text-xs text-[#86868b]">Garantia de satisfação com processo de troca sem complicações.</p>
         </div>
       </div>
 
-      {/* Step 1 Profile Completion Modal */}
+      {/* SEÇÃO DE PRODUTOS RELACIONADOS (APPLE STUDIO GRID) */}
+      {relatedProducts.length > 0 && (
+        <div className="pt-14 space-y-6 border-t border-black/5 dark:border-white/10">
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2">
+            <div>
+              <h3 className={`text-xl sm:text-2xl font-bold tracking-tight ${isDark ? 'text-white' : 'text-[#1d1d1f]'}`}>
+                Produtos que combinam com seu estilo
+              </h3>
+              <p className="text-xs text-[#86868b] pt-1">
+                Explore outros modelos recomendados da coleção Evidência
+              </p>
+            </div>
+
+            <button
+              onClick={() => setCurrentView('home')}
+              className="text-xs font-semibold text-[#0071e3] hover:underline cursor-pointer text-left sm:text-right"
+            >
+              Ver catálogo completo →
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {relatedProducts.map((relProduct) => (
+              <ProductCard
+                key={String(relProduct.id)}
+                product={relProduct}
+                theme={theme}
+                isFavorite={favorites.includes(relProduct.id)}
+                onToggleFavorite={toggleFavorite}
+                onViewDetails={(prod) => {
+                  setSelectedProduct(prod);
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Modal Etapa 1: Dados do Cliente */}
       <CompleteProfileModal
         isOpen={isProfileModalOpen}
         onClose={() => setIsProfileModalOpen(false)}
       />
 
-      {/* Step 2 Dedicated Confirmation & Delivery Choice Modal */}
+      {/* Modal Etapa 2: Confirmação de Pedido e Entrega */}
       <CheckoutConfirmationModal
         isOpen={isConfirmationModalOpen}
         onClose={() => setIsConfirmationModalOpen(false)}

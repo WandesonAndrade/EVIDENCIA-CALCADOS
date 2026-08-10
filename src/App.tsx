@@ -126,7 +126,7 @@ const AppContent: React.FC = () => {
     return (
       <div className={`min-h-screen transition-colors duration-300 font-sans ${
         theme === 'dark' 
-          ? 'bg-[#0B0F19] text-slate-100 dark' 
+          ? 'bg-[#0d0d0e] text-slate-100 dark' 
           : 'bg-slate-50 text-slate-800'
       }`}>
         <AdminPanel />
@@ -136,12 +136,18 @@ const AppContent: React.FC = () => {
 
 
   return (
-    <div className={`min-h-screen transition-colors duration-300 font-sans flex flex-col justify-between selection:bg-primary selection:text-white ${
+    <div className={`min-h-screen transition-colors duration-300 font-sans flex flex-col justify-between selection:bg-[#0071e3] selection:text-white relative ${
       theme === 'dark' 
-        ? 'bg-[#0B0F19] text-slate-100 dark' 
-        : 'bg-[#f9f9f9] text-slate-800'
+        ? 'bg-[#000000] text-slate-100 dark' 
+        : 'bg-[#f5f5f7] text-[#1d1d1f] antialiased'
     }`}>
-      <div>
+      {/* Luz ambiente de estúdio sutil para o fundo da parte clara */}
+      {theme !== 'dark' && !isAdminView && (
+        <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+          <div className="absolute -top-40 left-1/2 -translate-x-1/2 w-[1200px] h-[600px] bg-gradient-to-b from-[#0071e3]/[0.025] via-[#0071e3]/[0.008] to-transparent rounded-full blur-3xl" />
+        </div>
+      )}
+      <div className="relative z-10">
         <Header />
         
         {showIncompleteWarning && (

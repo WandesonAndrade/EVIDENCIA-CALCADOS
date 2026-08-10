@@ -140,20 +140,23 @@ export const getProdutoGradesFromApi = async (
 
   if (!productId) return emptyResult;
 
-  const url = `https://api.evidenciacalcados.com.br/api/v1/produtos/${productId}/grades`;
-
   try {
-    let response: Response;
-    try {
-      response = await evidenciaAuthService.fetchWithAuth(url, {
+    let response: Response = await evidenciaAuthService.fetchWithAuth(
+      `/api/v1/produtos/${productId}/grades`,
+      {
         method: 'GET',
         headers: { Accept: 'application/json' },
-      });
-    } catch {
-      response = await evidenciaAuthService.fetchWithAuth(`/api/v1/produtos/${productId}/grades`, {
-        method: 'GET',
-        headers: { Accept: 'application/json' },
-      });
+      }
+    );
+
+    if (!response.ok) {
+      response = await evidenciaAuthService.fetchWithAuth(
+        `https://api.evidenciacalcados.com.br/api/v1/produtos/${productId}/grades`,
+        {
+          method: 'GET',
+          headers: { Accept: 'application/json' },
+        }
+      );
     }
 
     if (!response.ok) {
@@ -162,8 +165,7 @@ export const getProdutoGradesFromApi = async (
 
     const data = await response.json();
     return parseAndFilterProdutoGrades(productId, data);
-  } catch (error) {
-    console.warn(`[moblinkGradesService] Erro ao buscar grade do produto #${productId}:`, error);
+  } catch {
     return emptyResult;
   }
 };

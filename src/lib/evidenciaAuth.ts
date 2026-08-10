@@ -117,20 +117,15 @@ export const evidenciaAuthService = {
     try {
       let response = await fetch(url, { ...options, headers });
 
-      // Se a API remota responder 401, solicita novo token ao backend e tenta 1x mais
-      if (response.status === 401) {
-        console.warn('[evidenciaAuthService] HTTP 401 em', url, '- Solicitando novo token ao backend...');
-        const freshToken = await this.getToken(true);
-        if (freshToken) {
-          headers.set('Authorization', `Bearer ${freshToken}`);
-          response = await fetch(url, { ...options, headers });
-        }
-
-        // Se mesmo com freshToken a requisição direta para api.evidenciacalcados.com.br continuar retornando 401, redireciona para o proxy backend local (/api/v1/...)
-        if (!response.ok && url.startsWith('https://api.evidenciacalcados.com.br')) {
-          const proxyUrl = url.replace('https://api.evidenciacalcados.com.br', '');
-          console.warn(`[evidenciaAuthService] Fallback de segurança ativado: Redirecionando ${url} para o proxy do backend ${proxyUrl}`);
-          return fetch(proxyUrl, options);
+      // Se a API remota responder erro HTTP (401, 500, etc.) em requisição direta, tenta o proxy backend local (/api/v1/...)
+      if (!response.ok && url.startsWith('https://api.evidenciacalcados.com.br')) {
+        const proxyUrl = url.replace('https://api.evidenciacalcados.com.br', '');
+        console.warn(`[evidenciaAuthService] Fallback de proxy ativado (HTTP ${response.status}): ${url} -> ${proxyUrl}`);
+        try {
+          const proxyResp = await fetch(proxyUrl, { ...options, headers });
+          if (proxyResp.ok) return proxyResp;
+        } catch {
+          // Mantém a resposta original
         }
       }
 

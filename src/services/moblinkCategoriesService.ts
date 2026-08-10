@@ -24,16 +24,29 @@ export function normalizeCategoryName(raw: string): string {
   if (!raw) return "Geral";
   const clean = raw.trim().toUpperCase();
 
-  if (clean.includes("CALCADO") || clean.includes("CALÇADO")) return "Calçados";
-  if (clean.includes("ACESSORIO") || clean.includes("ACESSÓRIO"))
-    return "Acessórios";
-  if (clean.includes("COSMETICO") || clean.includes("COSMÉTICO"))
-    return "Cosméticos";
-  if (clean.includes("PERFUME")) return "Perfumes";
-  if (clean.includes("ESCOLAR")) return "Escolar";
-  if (clean.includes("VIAGEM") || clean.includes("VIAGENS"))
-    return "Itens de Viagens";
-  if (clean.includes("ROUPA") || clean.includes("VESTUARIO")) return "Roupas";
+  // Dicionário de Correção Gramatical para Categorias do ERP / Banco de Dados
+  if (clean.includes("CONFEC") || clean.includes("ROUPA") || clean.includes("VESTU") || clean.includes("CONFECOES") || clean.includes("CONFECCOES")) return "Confecções";
+  if (clean.includes("CALCAD") || clean.includes("CALÇAD")) return "Calçados";
+  if (clean.includes("ACESSOR") || clean.includes("ACESSÓR")) return "Acessórios";
+  if (clean.includes("PROMO") || clean.includes("OFERTA")) return "Promoções";
+  if (clean.includes("NOVIDAD") || clean.includes("LANÇAMEN") || clean.includes("LANCAMEN")) return "Novidades";
+  if (clean.includes("COSMET") || clean.includes("COSMÉT")) return "Cosméticos";
+  if (clean.includes("PERFUM")) return "Perfumes";
+  if (clean.includes("ESCOLAR") || clean.includes("ESCOLA")) return "Escolar";
+  if (clean.includes("VIAGEM") || clean.includes("VIAGENS")) return "Itens de Viagem";
+  if (clean.includes("DIVERSO")) return "Diversos";
+  if (clean.includes("BOLSA")) return "Bolsas";
+  if (clean.includes("CARTEIR")) return "Carteiras";
+  if (clean.includes("CINTO")) return "Cintos";
+  if (clean.includes("TENIS") || clean.includes("TÊNIS")) return "Tênis";
+  if (clean.includes("SAPATILH")) return "Sapatilhas";
+  if (clean.includes("SANDAL")) return "Sandálias";
+  if (clean.includes("CHINEL")) return "Chinelos";
+  if (clean.includes("RASTEIR")) return "Rasteiras";
+  if (clean.includes("MOCASSIM") || clean.includes("MOCASSIN")) return "Mocassins";
+  if (clean.includes("SAPATO")) return "Sapatos";
+  if (clean.includes("BOTA")) return "Botas";
+  if (clean.includes("PAPETE")) return "Papetes";
 
   return raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase();
 }
@@ -42,30 +55,118 @@ export function normalizeSubcategoryName(raw: string): string {
   if (!raw) return "";
   const clean = raw.trim().toUpperCase();
 
+  // Dicionário de Correção Gramatical para Subcategorias do ERP / Banco de Dados
   if (clean === "MASCULINO" || clean === "MASC") return "Masculino";
   if (clean === "FEMININO" || clean === "FEM") return "Feminino";
-  if (
-    clean.includes("INFANTL MASC") ||
-    clean.includes("INFANTIL MASC") ||
-    clean === "INF MASC"
-  )
-    return "Infantil Masculino";
-  if (
-    clean.includes("INFANTL FEM") ||
-    clean.includes("INFANTIL FEM") ||
-    clean === "INF FEM"
-  )
-    return "Infantil Feminino";
-  if (clean === "BONE" || clean === "BONÉS" || clean === "BONES") return "Boné";
-  if (clean === "RELOGIO" || clean === "RELÓGIOS" || clean === "RELOGIOS")
-    return "Relógio";
-  if (clean === "PERFUME" || clean === "PERFUMES") return "Perfume";
-  if (clean === "BOLSA" || clean === "BOLSAS") return "Bolsa";
-  if (clean === "CINTO" || clean === "CINTOS") return "Cinto";
-  if (clean === "CARTEIRA" || clean === "CARTEIRAS") return "Carteira";
-  if (clean === "OCULOS" || clean === "ÓCULOS") return "Óculos";
+  if (clean.includes("INFANTL MASC") || clean.includes("INFANTIL MASC") || clean === "INF MASC") return "Infantil Masculino";
+  if (clean.includes("INFANTL FEM") || clean.includes("INFANTIL FEM") || clean === "INF FEM") return "Infantil Feminino";
+  if (clean.includes("CONFECOES") || clean.includes("CONFECCOES") || clean.includes("CONFECÇ")) return "Confecções";
+  if (clean.includes("CALCADO") || clean.includes("CALÇADO")) return "Calçados";
+  if (clean.includes("ACESSORIO") || clean.includes("ACESSÓRIO")) return "Acessórios";
+  if (clean.includes("PROMOCOES") || clean.includes("PROMOÇÃO")) return "Promoções";
+  if (clean.includes("COSMETICO") || clean.includes("COSMÉTICO")) return "Cosméticos";
+  if (clean.includes("PERFUME") || clean.includes("PERFUMES")) return "Perfumes";
+  if (clean.includes("SAPATILHA") || clean.includes("SAPATILHAS")) return "Sapatilhas";
+  if (clean.includes("SANDALIA") || clean.includes("SANDÁLIA") || clean.includes("SANDALIAS") || clean.includes("SANDÁLIAS")) return "Sandálias";
+  if (clean.includes("TENIS") || clean.includes("TÊNIS")) return "Tênis";
+  if (clean.includes("CHINELO") || clean.includes("CHINELOS")) return "Chinelos";
+  if (clean.includes("RASTEIRA") || clean.includes("RASTEIRAS") || clean.includes("RASTEIRINHA")) return "Rasteiras";
+  if (clean.includes("MOCASSIM") || clean.includes("MOCASSINS")) return "Mocassins";
+  if (clean.includes("SAPATO") || clean.includes("SAPATOS")) return "Sapatos";
+  if (clean.includes("BOTA") || clean.includes("BOTAS")) return "Botas";
+  if (clean.includes("PAPETE") || clean.includes("PAPETES")) return "Papetes";
+  if (clean.includes("SCARPIN") || clean.includes("SCARPINS")) return "Scarpins";
+  if (clean.includes("BONE") || clean.includes("BONÉS") || clean.includes("BONES")) return "Boné";
+  if (clean.includes("RELOGIO") || clean.includes("RELÓGIOS") || clean.includes("RELOGIOS")) return "Relógio";
+  if (clean.includes("BOLSA") || clean.includes("BOLSAS")) return "Bolsa";
+  if (clean.includes("CINTO") || clean.includes("CINTOS")) return "Cinto";
+  if (clean.includes("CARTEIRA") || clean.includes("CARTEIRAS")) return "Carteira";
+  if (clean.includes("OCULOS") || clean.includes("ÓCULOS")) return "Óculos";
+  if (clean.includes("MOCHILA") || clean.includes("MOCHILAS")) return "Mochila";
+  if (clean.includes("TAMANHO") || clean.includes("TAMANHOS")) return "Tamanhos";
 
   return raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase();
+}
+
+export function isProductInCategory(prod: Product, targetCategory: string): boolean {
+  if (!prod || !targetCategory) return false;
+  const targetNorm = normalizeCategoryName(targetCategory).toUpperCase();
+  const targetClean = targetCategory.trim().toUpperCase();
+
+  if (targetClean === "DIVERSOS" || targetClean === "TODOS" || targetClean === "ALL") {
+    return true;
+  }
+
+  const cat = normalizeCategoryName(prod.category || "").toUpperCase();
+  const categoria = normalizeCategoryName((prod as any).categoria || "").toUpperCase();
+  const grupo = normalizeCategoryName(prod.nome_grupo || "").toUpperCase();
+  const subgrupo = normalizeSubcategoryName(prod.nome_subgrupo || "").toUpperCase();
+  const productType = (prod.productType || "").toUpperCase();
+  const name = (prod.name || "").toUpperCase();
+
+  const rawCat = (prod.category || "").toUpperCase();
+  const rawGrupo = (prod.nome_grupo || "").toUpperCase();
+  const rawSubgrupo = (prod.nome_subgrupo || "").toUpperCase();
+
+  if (cat === targetNorm || categoria === targetNorm || grupo === targetNorm) {
+    return true;
+  }
+
+  if (targetNorm === "CONFECÇÕES" || targetClean.includes("CONFEC") || targetClean.includes("ROUPA") || targetClean.includes("VESTU")) {
+    return (
+      cat.includes("CONFEC") ||
+      cat.includes("ROUPA") ||
+      cat.includes("VESTU") ||
+      grupo.includes("CONFEC") ||
+      grupo.includes("ROUPA") ||
+      grupo.includes("VESTU") ||
+      rawCat.includes("CONFEC") ||
+      rawGrupo.includes("CONFEC") ||
+      rawSubgrupo.includes("CONFEC") ||
+      productType.includes("ROUPA") ||
+      productType.includes("CONFEC")
+    );
+  }
+
+  if (targetNorm === "CALÇADOS" || targetClean.includes("CALCAD")) {
+    const isBolsaOuAcessorio =
+      cat.includes("ACESSÓRIO") ||
+      cat.includes("BOLSA") ||
+      grupo.includes("ACESSÓRIO") ||
+      grupo.includes("BOLSA") ||
+      productType.includes("BOLSA") ||
+      cat.includes("CONFEC") ||
+      grupo.includes("CONFEC");
+    return !isBolsaOuAcessorio;
+  }
+
+  if (targetNorm === "ACESSÓRIOS" || targetClean.includes("ACESSOR") || targetClean.includes("BOLSA")) {
+    return (
+      cat.includes("ACESSÓRIO") ||
+      cat.includes("BOLSA") ||
+      grupo.includes("ACESSÓRIO") ||
+      grupo.includes("BOLSA") ||
+      subgrupo.includes("BOLSA") ||
+      subgrupo.includes("CINTO") ||
+      subgrupo.includes("CARTEIRA") ||
+      rawCat.includes("ACESSOR") ||
+      rawGrupo.includes("ACESSOR") ||
+      rawCat.includes("BOLSA") ||
+      rawGrupo.includes("BOLSA")
+    );
+  }
+
+  const cleanTargetNoAccents = targetClean.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const rawCatNoAccents = rawCat.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const rawGrupoNoAccents = rawGrupo.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const rawSubNoAccents = rawSubgrupo.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+  return (
+    rawCatNoAccents.includes(cleanTargetNoAccents) ||
+    rawGrupoNoAccents.includes(cleanTargetNoAccents) ||
+    rawSubNoAccents.includes(cleanTargetNoAccents) ||
+    name.includes(targetClean)
+  );
 }
 
 export const classificacaoIndex = new Map<
