@@ -15,6 +15,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { moblinkClientesService } from "../services/moblinkClientesService";
+import { cepService } from "../services/cepService";
 
 interface CompleteProfileModalProps {
   isOpen: boolean;
@@ -50,6 +51,29 @@ export const CompleteProfileModal: React.FC<CompleteProfileModalProps> = ({
   const [uf, setUf] = useState("MA");
   const [complemento, setComplemento] = useState("");
   const [pontoReferencia, setPontoReferencia] = useState("");
+
+  const [isLoadingCep, setIsLoadingCep] = useState(false);
+  const [cepSuccessMsg, setCepSuccessMsg] = useState("");
+
+  const handleCepChange = async (val: string) => {
+    const formatted = formatCEP(val);
+    setCep(formatted);
+    setCepSuccessMsg("");
+
+    const clean = val.replace(/\D/g, "");
+    if (clean.length === 8) {
+      setIsLoadingCep(true);
+      const res = await cepService.fetchAddressByCep(clean);
+      setIsLoadingCep(false);
+      if (res) {
+        if (res.logradouro) setEndereco(res.logradouro);
+        if (res.bairro) setBairro(res.bairro);
+        if (res.localidade) setCidade(res.localidade);
+        if (res.uf) setUf(res.uf);
+        setCepSuccessMsg(`✓ Endereço localizado: ${res.localidade}/${res.uf}`);
+      }
+    }
+  };
 
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
@@ -725,30 +749,42 @@ export const CompleteProfileModal: React.FC<CompleteProfileModalProps> = ({
                 </h4>
               </div>
 
-              {/* CEP */}
+              {/* CEP com Busca Automática de Endereço */}
               <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-                  CEP{" "}
-                  {solicitarCrediario ? (
-                    <span className="text-amber-600 font-black">
-                      * (Crediário)
-                    </span>
-                  ) : (
-                    <span className="text-slate-400 font-normal">
-                      (Opcional)
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                    CEP{" "}
+                    {solicitarCrediario ? (
+                      <span className="text-amber-600 font-black">
+                        * (Crediário)
+                      </span>
+                    ) : (
+                      <span className="text-slate-400 font-normal">
+                        (Opcional)
+                      </span>
+                    )}
+                  </label>
+                  {isLoadingCep && (
+                    <span className="text-[10px] text-[#0071e3] font-bold flex items-center gap-1">
+                      <Loader2 className="h-3 w-3 animate-spin text-[#0071e3]" /> Buscando CEP...
                     </span>
                   )}
-                </label>
+                </div>
                 <div className="relative">
                   <input
                     type="text"
-                    placeholder="00000-000"
+                    placeholder="00000-000 (Preenche o endereço automaticamente)"
                     value={cep}
-                    onChange={(e) => setCep(formatCEP(e.target.value))}
+                    onChange={(e) => handleCepChange(e.target.value)}
                     className="w-full pl-8 pr-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-primary text-slate-800 font-medium"
                   />
                   <MapPin className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
                 </div>
+                {cepSuccessMsg && (
+                  <span className="text-[10px] font-extrabold text-emerald-600 block pt-0.5">
+                    {cepSuccessMsg}
+                  </span>
+                )}
               </div>
 
               {/* Endereço (Logradouro) */}

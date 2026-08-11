@@ -5,9 +5,10 @@ import { firebaseAuthService } from '../services/firebaseAuthService';
 import { CompleteProfileModal } from './CompleteProfileModal';
 import { 
   X, CheckCircle2, Truck, ShoppingBag, Zap, CreditCard, 
-  ShieldCheck, MapPin, Info, ArrowRight, MessageSquare, Sparkles, User, Edit3, Plus
+  ShieldCheck, MapPin, Info, ArrowRight, MessageSquare, Sparkles, User, Edit3, Plus, Loader2
 } from 'lucide-react';
 import { motion } from 'motion/react';
+import { cepService } from '../services/cepService';
 
 interface CheckoutConfirmationModalProps {
   isOpen: boolean;
@@ -60,6 +61,36 @@ export const CheckoutConfirmationModal: React.FC<CheckoutConfirmationModalProps>
     uf: 'MA',
     complemento: ''
   });
+
+  const [checkoutCep, setCheckoutCep] = useState<string>('');
+  const [isLoadingCheckoutCep, setIsLoadingCheckoutCep] = useState<boolean>(false);
+
+  const handleCheckoutCepChange = async (val: string) => {
+    const raw = val.replace(/\D/g, '');
+    let formatted = raw;
+    if (raw.length > 5) {
+      formatted = `${raw.slice(0, 5)}-${raw.slice(5, 8)}`;
+    }
+    setCheckoutCep(formatted);
+
+    if (raw.length === 8) {
+      setIsLoadingCheckoutCep(true);
+      const res = await cepService.fetchAddressByCep(raw);
+      setIsLoadingCheckoutCep(false);
+      if (res) {
+        setNewAddrForm(prev => ({
+          ...prev,
+          rua: res.logradouro || prev.rua,
+          bairro: res.bairro || prev.bairro,
+          cidade: res.localidade || prev.cidade,
+          uf: res.uf || prev.uf
+        }));
+        if (res.localidade && res.localidade !== 'Caxias') {
+          setOtherCityName(res.localidade);
+        }
+      }
+    }
+  };
 
   const [otherCityName, setOtherCityName] = useState<string>(
     initialCityName || (currentUser?.cidade && currentUser.cidade !== 'Caxias' ? currentUser.cidade : '')
@@ -463,10 +494,30 @@ export const CheckoutConfirmationModal: React.FC<CheckoutConfirmationModalProps>
 
                       <div className="space-y-2 text-xs">
                         <div>
+                          <div className="flex items-center justify-between">
+                            <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400">CEP (Busca Automática de Endereço):</label>
+                            {isLoadingCheckoutCep && (
+                              <span className="text-[10px] text-[#0071e3] font-bold flex items-center gap-1">
+                                <Loader2 className="h-3 w-3 animate-spin text-[#0071e3]" /> Buscando CEP...
+                              </span>
+                            )}
+                          </div>
+                          <input
+                            type="text"
+                            placeholder="Ex: 65060-020 (Preenche rua e bairro automaticamente)"
+                            value={checkoutCep}
+                            onChange={(e) => handleCheckoutCepChange(e.target.value)}
+                            className={`w-full px-2.5 py-1.5 rounded-lg border text-xs focus:outline-none ${
+                              isDark ? 'bg-slate-950 border-slate-700 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+                            }`}
+                          />
+                        </div>
+
+                        <div>
                           <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400">Identificação do Local (Opcional):</label>
                           <input
                             type="text"
-                            placeholder="Ex: Minha Casa 2, Trabalho, Casa da Praia..."
+                            placeholder="Ex: Minha Casa, Trabalho, Casa da Praia..."
                             value={newAddrForm.label}
                             onChange={(e) => setNewAddrForm({ ...newAddrForm, label: e.target.value })}
                             className={`w-full px-2.5 py-1.5 rounded-lg border text-xs focus:outline-none ${
