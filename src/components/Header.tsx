@@ -121,6 +121,40 @@ export const Header: React.FC = () => {
       className="sticky top-0 z-40 w-full transition-all duration-300"
     >
       {/* 1. TOP ANNOUNCEMENT BAR (Faixa de Benefícios Preta Superior) */}
+      <div className="bg-[#111111] text-white text-[11px] font-medium py-1.5 px-4 sm:px-8 border-b border-neutral-800">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-1 sm:gap-4 text-center sm:text-left">
+          <div className="flex items-center space-x-2 text-neutral-200">
+            <Truck className="h-3.5 w-3.5 text-amber-400" />
+            <span>Frete grátis para compras acima de R$199</span>
+          </div>
+
+          <div className="hidden md:flex items-center space-x-4 text-neutral-300 font-normal">
+            <span
+              className="flex items-center space-x-1 hover:text-white transition-colors cursor-pointer"
+              onClick={() => setCurrentView("support")}
+            >
+              <RefreshCw className="h-3 w-3 text-neutral-400" />
+              <span>Trocas e devoluções</span>
+            </span>
+            <span className="text-neutral-600">|</span>
+            <span
+              className="flex items-center space-x-1 hover:text-white transition-colors cursor-pointer"
+              onClick={() => setCurrentView("support")}
+            >
+              <MessageSquare className="h-3 w-3 text-neutral-400" />
+              <span>Atendimento</span>
+            </span>
+            <span className="text-neutral-600">|</span>
+            <span
+              className="flex items-center space-x-1 hover:text-white transition-colors cursor-pointer"
+              onClick={() => setCurrentView("about")}
+            >
+              <MapPin className="h-3 w-3 text-neutral-400" />
+              <span>Nossas lojas</span>
+            </span>
+          </div>
+        </div>
+      </div>
 
       {/* 2. MAIN HEADER BAR (Logo Atual + Busca Pílula + Ações do Usuário) */}
       <div

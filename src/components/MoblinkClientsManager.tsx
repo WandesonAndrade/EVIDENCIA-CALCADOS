@@ -99,7 +99,15 @@ export const isBirthdayMatch = (bdayStr?: string | null, filter?: 'Todos' | 'Dia
 };
 
 export const MoblinkClientsManager: React.FC<MoblinkClientsManagerProps> = ({ isDark = true }) => {
-  const { products, addToast } = useApp();
+  const { products, addToast: contextAddToast } = useApp();
+
+  const addToast = (title: string, message?: string, type?: 'info' | 'success' | 'error' | 'warning') => {
+    if (typeof contextAddToast === 'function') {
+      contextAddToast(title, message, type);
+    } else {
+      console.log(`[Toast ${type || 'info'}] ${title}: ${message || ''}`);
+    }
+  };
 
   const [clients, setClients] = useState<UserProfile[]>([]);
   const [isLoading, setIsLoading] = useState(true);

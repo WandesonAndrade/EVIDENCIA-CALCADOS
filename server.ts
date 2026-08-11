@@ -9,10 +9,10 @@ const app = express();
 const PORT = 3000;
 
 const EVIDENCIA_API_BASE = process.env.VITE_API_URL
-  ? process.env.VITE_API_URL.replace(/\/api\/v1\/?$/, '')
-  : "https://api.evidenciacalcados.com.br";
+  ? process.env.VITE_API_URL.replace(/\/api\/v1\/?$/, "")
+  : "";
 const EVIDENCIA_LOGIN_URL = process.env.VITE_API_URL
-  ? `${process.env.VITE_API_URL.replace(/\/$/, '')}/login`
+  ? `${process.env.VITE_API_URL.replace(/\/$/, "")}/login`
   : `${EVIDENCIA_API_BASE}/api/v1/login`;
 const EVIDENCIA_CREDENTIALS = {
   usuario: process.env.EVIDENCIA_API_USER || "site",
@@ -56,16 +56,6 @@ function parseJwtExp(token: string): number {
  * Caso contrário, faz login automático junto à API remota.
  */
 async function getValidToken(forceRefresh = false): Promise<string> {
-  // Se houver um token estático configurado no .env, prioriza o uso do .env
-  const envToken =
-    process.env.EVIDENCIA_API_TOKEN?.trim() ||
-    process.env.EVIDENCIA_TOKEN?.trim();
-  if (envToken) {
-    cachedToken = envToken;
-    tokenExpiresAt = parseJwtExp(envToken);
-    return cachedToken;
-  }
-
   const now = Date.now();
 
   if (forceRefresh) {
@@ -73,7 +63,21 @@ async function getValidToken(forceRefresh = false): Promise<string> {
     tokenExpiresAt = 0;
   }
 
-  if (cachedToken && tokenExpiresAt > now + 60_000) {
+  // Se houver um token estático no .env e não for forceRefresh, verifica a expiração
+  const envToken =
+    process.env.EVIDENCIA_API_TOKEN?.trim() ||
+    process.env.EVIDENCIA_TOKEN?.trim();
+
+  if (envToken && !forceRefresh) {
+    const exp = parseJwtExp(envToken);
+    if (exp > now + 60_000) {
+      cachedToken = envToken;
+      tokenExpiresAt = exp;
+      return cachedToken;
+    }
+  }
+
+  if (!forceRefresh && cachedToken && tokenExpiresAt > now + 60_000) {
     return cachedToken;
   }
 

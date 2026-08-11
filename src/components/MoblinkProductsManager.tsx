@@ -367,9 +367,13 @@ export const MoblinkProductsManager: React.FC = () => {
     setSyncProgress({ current: 0, total: 100, phase: 'Consultando produtos no ERP MobLink...' });
     
     try {
-      // 0. Sincroniza e pré-carrega as categorias (grupos do ERP) para permitir mapear a 'classificacao' corretamente (ex: 002.003 -> Calçados)
+      // 0. Sincroniza e pré-carrega as categorias (grupos do ERP) sem abortar o fluxo principal caso falhe
       setSyncProgress({ current: 0, total: 100, phase: 'Sincronizando grupos e categorias (ERP)...' });
-      await moblinkCategoriesService.syncCategoriesToFirestore();
+      try {
+        await moblinkCategoriesService.syncCategoriesToFirestore();
+      } catch (catErr) {
+        console.warn('Pré-sincronização de categorias ignorada ou usando fallback local:', catErr);
+      }
 
       // 1. Busca todos os produtos paginados do ERP Moblink (em paralelo de 5 em 5)
       const items = await getProdutosMoblink((current, total, phase) => {
@@ -451,15 +455,22 @@ export const MoblinkProductsManager: React.FC = () => {
                 cor: existingDb?.cor || item.cor || undefined,
               };
 
-              if (estoqueAtual > 0 && hasProductChanged(existingDb, updatedProductPayload)) {
-                const sanitizedPayload = sanitizeProductForFirestore(updatedProductPayload);
-                await setDoc(doc(db, 'products', mobId), sanitizedPayload, { merge: true });
-              }
-              
-              if (existingDb) {
-                await updateProduct(mobId, updatedProductPayload);
-              } else if (estoqueAtual > 0) {
-                await addProduct(updatedProductPayload);
+              try {
+                if (estoqueAtual > 0 && hasProductChanged(existingDb, updatedProductPayload)) {
+                  const sanitizedPayload = sanitizeProductForFirestore(updatedProductPayload);
+                  await setDoc(doc(db, 'products', mobId), sanitizedPayload, { merge: true });
+                }
+                
+                if (existingDb) {
+                  await updateProduct(mobId, updatedProductPayload);
+                } else if (estoqueAtual > 0) {
+                  await addProduct(updatedProductPayload);
+                }
+              } catch (writeErr) {
+                console.warn(`[MoblinkProductsManager] Aviso ao salvar no Firestore (mantido local): ${mobId}`, writeErr);
+                if (existingDb) {
+                  try { await updateProduct(mobId, updatedProductPayload); } catch {}
+                }
               }
               successCount++;
             }));

@@ -105,7 +105,7 @@ export const moblinkClientesService = {
         const json: MoblinkClientesPageResponse = await response.json();
         if (json && json.data && json.data.length > 0) {
           const rawClient = json.data[0];
-          return await this.saveSingleClientToFirestore(rawClient);
+          return await moblinkClientesService.saveSingleClientToFirestore(rawClient);
         }
       }
     } catch (err) {
@@ -119,14 +119,14 @@ export const moblinkClientesService = {
    * Busca todas as páginas de clientes da API do MobLink ERP
    */
   async fetchAllClientes(): Promise<MoblinkRawClient[]> {
-    const firstPage = await this.fetchClientesPage(1);
+    const firstPage = await moblinkClientesService.fetchClientesFromMoblinkApi(1);
     let allClients: MoblinkRawClient[] = [...(firstPage.data || [])];
     const totalPages = firstPage.lastPage || 1;
 
     if (totalPages > 1) {
       for (let p = 2; p <= Math.min(totalPages, 50); p++) {
         try {
-          const nextPage = await this.fetchClientesPage(p);
+          const nextPage = await moblinkClientesService.fetchClientesFromMoblinkApi(p);
           if (nextPage.data && nextPage.data.length > 0) {
             allClients = allClients.concat(nextPage.data);
           }
@@ -212,7 +212,7 @@ export const moblinkClientesService = {
   ): Promise<{ imported: number; updated: number; errors: number }> {
     if (onProgress) onProgress(0, 0, "Conectando à API do MobLink ERP...");
 
-    const rawClients = await this.fetchAllClientes();
+    const rawClients = await moblinkClientesService.fetchAllClientes();
     const total = rawClients.length;
     let imported = 0;
     let updated = 0;
@@ -229,7 +229,7 @@ export const moblinkClientesService = {
       const client = rawClients[i];
 
       try {
-        await this.saveSingleClientToFirestore(client);
+        await moblinkClientesService.saveSingleClientToFirestore(client);
         imported++;
       } catch (err) {
         console.error(
@@ -299,7 +299,7 @@ export const moblinkClientesService = {
       console.log(
         `📌 Cliente não encontrado no Firestore local. Consultando API MobLink ERP para CPF ${cleanCpf}...`,
       );
-      const erpClient = await this.fetchClienteByCpfDirectly(cleanCpf);
+      const erpClient = await moblinkClientesService.fetchClienteByCpfDirectly(cleanCpf);
       if (erpClient) {
         console.log(
           `✅ Cliente ${erpClient.name} localizado no ERP e salvo no Firestore!`,
@@ -311,6 +311,10 @@ export const moblinkClientesService = {
     }
 
     return null;
+  },
+
+  async getOrCreateUserFromMoblinkCpf(cpf: string): Promise<UserProfile | null> {
+    return moblinkClientesService.findClientByCpf(cpf);
   },
 
   /**
