@@ -44,7 +44,7 @@ export const ProductDetail: React.FC = () => {
   const [isDeliveryModalOpen, setIsDeliveryModalOpen] = useState(false);
   const [cityOrCepInput, setCityOrCepInput] = useState('');
   const [isCalculatingFreight, setIsCalculatingFreight] = useState(false);
-  const [shippingInfo, setShippingInfo] = useState<{ city: string; uf?: string; barrio?: string; freightText?: string; option?: string } | null>(null);
+  const [shippingInfo, setShippingInfo] = useState<{ city: string; uf?: string; barrio?: string; rua?: string; cep?: string; freightText?: string; option?: string } | null>(null);
   const [freightError, setFreightError] = useState('');
 
   const handleSetLocation = async (overrideValue?: string) => {
@@ -72,6 +72,8 @@ export const ProductDetail: React.FC = () => {
               city: 'Caxias',
               uf: 'MA',
               barrio: data.bairro || 'Centro',
+              rua: data.logradouro || '',
+              cep: cleanCep,
               freightText: 'Frete GRÁTIS',
               option: 'Entrega em Caxias'
             });
@@ -81,6 +83,8 @@ export const ProductDetail: React.FC = () => {
               city: data.localidade || rawInput,
               uf: data.uf || '',
               barrio: data.bairro || '',
+              rua: data.logradouro || '',
+              cep: cleanCep,
               freightText: 'Frete a Combinar',
               option: 'Outras Cidades'
             });
@@ -447,8 +451,15 @@ export const ProductDetail: React.FC = () => {
     ? Math.round(((p.originalPrice - p.price) / p.originalPrice) * 100)
     : 0;
 
-  const precoVistaCalculado = p.precoVista || p.preco_vista || Math.round(p.price * 0.9 * 100) / 100;
-  const precoCartaoCalculado = p.precoCartao || p.preco_cartao || p.price;
+  // Regras de Preços por Modalidade:
+  // 1. O Preço de Venda padrão (p.price) é o preço do Crediário da Loja.
+  const precoCrediarioCalculado = (p as any).precoCrediario || (p as any).preco_crediario || p.price;
+
+  // 2. Preço À Vista (Pix / Dinheiro): Quando tiver um preço à vista cadastrado, usa ele. Quando não, usa o preço de venda (p.price).
+  const precoVistaCalculado = (p as any).precoVista ?? (p as any).preco_vista ?? (p as any).precoAvista ?? (p as any).priceCash ?? (p as any).pricePix ?? p.price;
+
+  // 3. Preço no Cartão de Crédito: Quando tiver um preço no cartão cadastrado, usa ele. Quando não, usa o preço de venda (p.price).
+  const precoCartaoCalculado = (p as any).precoCartao ?? (p as any).preco_cartao ?? (p as any).priceCard ?? p.price;
 
   const relatedProducts = React.useMemo(() => {
     if (!products || products.length === 0 || !p) return [];
@@ -686,14 +697,20 @@ export const ProductDetail: React.FC = () => {
             isDark ? 'bg-[#161617] border-white/10' : 'bg-white border-black/5'
           }`}>
             {/* PAINEL DE PREÇO */}
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <div className="flex items-baseline space-x-2 flex-wrap">
                 <span className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-emerald-600 dark:text-emerald-400">
                   R$ {precoVistaCalculado.toFixed(2).replace('.', ',')}
                 </span>
-                <span className="text-[11px] font-extrabold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/80 px-2 py-0.5 rounded-md">
-                  no Pix (10% OFF)
-                </span>
+                {precoVistaCalculado < p.price ? (
+                  <span className="text-[11px] font-extrabold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/80 px-2 py-0.5 rounded-md">
+                    À Vista (Pix / Dinheiro)
+                  </span>
+                ) : (
+                  <span className="text-[11px] font-extrabold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md">
+                    Preço de Venda
+                  </span>
+                )}
               </div>
 
               {p.originalPrice && p.originalPrice > p.price && (
@@ -702,9 +719,15 @@ export const ProductDetail: React.FC = () => {
                 </div>
               )}
 
-              <p className="text-xs text-[#86868b]">
-                ou <strong className="text-slate-800 dark:text-slate-200">R$ {precoCartaoCalculado.toFixed(2).replace('.', ',')}</strong> em <strong>6x de R$ {(precoCartaoCalculado / 6).toFixed(2).replace('.', ',')}</strong> sem juros
-              </p>
+              {/* Tabela Resumo de Pagamento */}
+              <div className="text-xs space-y-1 text-[#86868b] border-t pt-2 border-slate-100 dark:border-white/5">
+                <div>
+                  • <strong>Cartão de Crédito:</strong> <span className="font-bold text-slate-800 dark:text-slate-200">R$ {precoCartaoCalculado.toFixed(2).replace('.', ',')}</span> (em até 10x sem juros)
+                </div>
+                <div>
+                  • <strong>Crediário da Loja:</strong> <span className="font-bold text-slate-800 dark:text-slate-200">R$ {precoCrediarioCalculado.toFixed(2).replace('.', ',')}</span> (Preço no Carnê)
+                </div>
+              </div>
             </div>
 
             {/* CAIXA DE REGIONALIZAÇÃO E ENTREGA COM DESIGN ELEGANTE & BADGE DESTACADO */}
@@ -1159,9 +1182,19 @@ export const ProductDetail: React.FC = () => {
         isOpen={isConfirmationModalOpen}
         onClose={() => setIsConfirmationModalOpen(false)}
         subtotal={p.price}
+        precoVista={precoVistaCalculado}
+        precoCartao={precoCartaoCalculado}
+        precoCrediario={precoCrediarioCalculado}
         cartItemsCount={1}
         initialDeliveryType={selectedDeliveryType}
         initialCityName={shippingInfo?.city || cityOrCepInput.trim()}
+        initialAddressData={shippingInfo ? {
+          cep: shippingInfo.cep,
+          rua: shippingInfo.rua,
+          bairro: shippingInfo.barrio,
+          cidade: shippingInfo.city,
+          uf: shippingInfo.uf
+        } : undefined}
         onConfirmOrder={handleConfirmOrder}
         isProcessing={isProcessing}
       />

@@ -14,9 +14,13 @@ interface CheckoutConfirmationModalProps {
   isOpen: boolean;
   onClose: () => void;
   subtotal: number;
+  precoVista?: number;
+  precoCartao?: number;
+  precoCrediario?: number;
   cartItemsCount: number;
   initialDeliveryType?: 'Entrega em Caxias-MA' | 'Entrega para Outras Cidades' | 'Retirada na Loja';
   initialCityName?: string;
+  initialAddressData?: { cep?: string; rua?: string; bairro?: string; cidade?: string; uf?: string };
   onConfirmOrder: (
     paymentMethod: 'Pix' | 'Cartão de Crédito' | 'Crediário da Loja', 
     deliveryType: 'Entrega em Caxias-MA' | 'Entrega para Outras Cidades' | 'Retirada na Loja',
@@ -31,9 +35,13 @@ export const CheckoutConfirmationModal: React.FC<CheckoutConfirmationModalProps>
   isOpen,
   onClose,
   subtotal,
+  precoVista,
+  precoCartao,
+  precoCrediario,
   cartItemsCount,
   initialDeliveryType,
   initialCityName,
+  initialAddressData,
   onConfirmOrder,
   isProcessing
 }) => {
@@ -121,12 +129,30 @@ export const CheckoutConfirmationModal: React.FC<CheckoutConfirmationModalProps>
         setOtherCityName(currentUser.cidade);
       }
 
-      // Se for um novo cliente sem nenhum endereço cadastrado, abre o formulário de cadastro automaticamente
-      if (allAddresses.length === 0) {
+      if (initialAddressData) {
+        if (initialAddressData.cidade) {
+          setOtherCityName(initialAddressData.cidade);
+        }
+        if (initialAddressData.cep) {
+          const raw = initialAddressData.cep.replace(/\D/g, '');
+          const formatted = raw.length > 5 ? `${raw.slice(0, 5)}-${raw.slice(5, 8)}` : raw;
+          setCheckoutCep(formatted);
+        }
+        setNewAddrForm(prev => ({
+          ...prev,
+          rua: initialAddressData.rua || prev.rua,
+          bairro: initialAddressData.bairro || prev.bairro,
+          cidade: initialAddressData.cidade || prev.cidade,
+          uf: initialAddressData.uf || prev.uf
+        }));
+      }
+
+      // Se for um novo cliente sem nenhum endereço cadastrado OU se vierem dados de busca por CEP, exibe os dados no formulário
+      if (allAddresses.length === 0 || (initialAddressData && initialAddressData.rua)) {
         setIsAddingNewAddress(true);
       }
     }
-  }, [initialCityName, currentUser, isOpen, allAddresses.length]);
+  }, [initialCityName, initialAddressData, currentUser, isOpen, allAddresses.length]);
 
   // Função para salvar novo endereço sem sobrescrever o antigo (Salva no perfil se for o 1º endereço)
   const handleSaveNewAddress = async () => {
@@ -202,9 +228,20 @@ export const CheckoutConfirmationModal: React.FC<CheckoutConfirmationModalProps>
   if (!isOpen || !currentUser) return null;
 
   const isOtherCities = deliveryType === 'Entrega para Outras Cidades';
+  
+  // Regra de Preços por Modalidade de Pagamento:
+  // - Pix / À Vista: precoVista se cadastrado, senão subtotal (preço de venda).
+  // - Cartão: precoCartao se cadastrado, senão subtotal (preço de venda).
+  // - Crediário: precoCrediario se cadastrado, senão subtotal (preço de venda).
+  const activeSubtotal = paymentMethod === 'Pix'
+    ? (precoVista ?? subtotal)
+    : paymentMethod === 'Cartão de Crédito'
+    ? (precoCartao ?? subtotal)
+    : (precoCrediario ?? subtotal);
+
   // Calculate freight cost based on delivery choice
-  const isFreeFreight = (subtotal > 100 && deliveryType === 'Entrega em Caxias-MA') || deliveryType === 'Retirada na Loja';
-  const freightCost = (deliveryType === 'Retirada na Loja' || isOtherCities) ? 0 : (subtotal > 100 ? 0 : 10);
+  const isFreeFreight = (activeSubtotal > 100 && deliveryType === 'Entrega em Caxias-MA') || deliveryType === 'Retirada na Loja';
+  const freightCost = (deliveryType === 'Retirada na Loja' || isOtherCities) ? 0 : (activeSubtotal > 100 ? 0 : 10);
   
   // Cashback Auto-Discount
   const todayStr = new Date().toISOString().split('T')[0];
@@ -213,8 +250,8 @@ export const CheckoutConfirmationModal: React.FC<CheckoutConfirmationModalProps>
     currentUser.cashbackBalance > 0 && 
     (!currentUser.cashbackValidUntil || currentUser.cashbackValidUntil >= todayStr)
   );
-  const cashbackDiscount = isCashbackValid ? Math.min(currentUser.cashbackBalance || 0, subtotal + freightCost) : 0;
-  const grandTotal = Math.max(0, subtotal + freightCost - cashbackDiscount);
+  const cashbackDiscount = isCashbackValid ? Math.min(currentUser.cashbackBalance || 0, activeSubtotal + freightCost) : 0;
+  const grandTotal = Math.max(0, activeSubtotal + freightCost - cashbackDiscount);
 
   const isCrediarioApproved = currentUser.crediarioStatus === 'Aprovado';
 
@@ -834,7 +871,7 @@ export const CheckoutConfirmationModal: React.FC<CheckoutConfirmationModalProps>
 
             <div className="flex justify-between">
               <span>Subtotal ({cartItemsCount} itens):</span>
-              <span>R$ {subtotal.toFixed(2).replace('.', ',')}</span>
+              <span>R$ {activeSubtotal.toFixed(2).replace('.', ',')}</span>
             </div>
 
             <div className="flex justify-between items-center">
