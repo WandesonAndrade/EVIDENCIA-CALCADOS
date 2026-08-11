@@ -377,7 +377,8 @@ export const ProductDetail: React.FC = () => {
     paymentMethod: 'Pix' | 'Cartão de Crédito' | 'Crediário da Loja', 
     deliveryType: 'Entrega em Caxias-MA' | 'Entrega para Outras Cidades' | 'Retirada na Loja',
     installments?: number,
-    sellerName?: string
+    sellerName?: string,
+    customDeliveryAddress?: string
   ) => {
     if (!currentUser) return;
 
@@ -401,9 +402,9 @@ export const ProductDetail: React.FC = () => {
         installments,
         sellerName,
         customerPhone: currentUser.telefone || '',
-        deliveryAddress: deliveryType === 'Retirada na Loja' 
+        deliveryAddress: customDeliveryAddress || (deliveryType === 'Retirada na Loja' 
           ? 'Retirada na Loja: Rua Afonso Pena, 295 - Centro, Caxias - MA'
-          : `${currentUser.endereco || ''}, Nº ${currentUser.numero || ''} - ${currentUser.bairro || ''}`,
+          : `${currentUser.endereco || ''}, Nº ${currentUser.numero || ''} - ${currentUser.bairro || ''}`),
         overrideItems: [directItem]
       });
 

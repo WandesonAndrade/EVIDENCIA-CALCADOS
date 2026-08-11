@@ -4,7 +4,7 @@ import { UserProfile } from '../types';
 import { firebaseAuthService } from '../services/firebaseAuthService';
 import { 
   X, CheckCircle2, Truck, ShoppingBag, Zap, CreditCard, 
-  ShieldCheck, MapPin, Info, ArrowRight, MessageSquare, Sparkles, User
+  ShieldCheck, MapPin, Info, ArrowRight, MessageSquare, Sparkles, User, Edit3
 } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -18,7 +18,8 @@ interface CheckoutConfirmationModalProps {
     paymentMethod: 'Pix' | 'Cartão de Crédito' | 'Crediário da Loja', 
     deliveryType: 'Entrega em Caxias-MA' | 'Entrega para Outras Cidades' | 'Retirada na Loja',
     installments?: number,
-    sellerName?: string
+    sellerName?: string,
+    customDeliveryAddress?: string
   ) => void;
   isProcessing: boolean;
 }
@@ -42,6 +43,35 @@ export const CheckoutConfirmationModal: React.FC<CheckoutConfirmationModalProps>
       setDeliveryType(initialDeliveryType);
     }
   }, [initialDeliveryType, isOpen]);
+
+  // Estado para alteração de endereço e cidade de destino
+  const [isEditingAddress, setIsEditingAddress] = useState<boolean>(false);
+  const [customAddress, setCustomAddress] = useState({
+    rua: currentUser?.endereco || '',
+    numero: currentUser?.numero || '',
+    bairro: currentUser?.bairro || '',
+    cidade: currentUser?.cidade || 'Caxias',
+    uf: currentUser?.uf || 'MA',
+  });
+  const [otherCityName, setOtherCityName] = useState<string>(
+    currentUser?.cidade && currentUser.cidade !== 'Caxias' ? currentUser.cidade : ''
+  );
+
+  useEffect(() => {
+    if (currentUser) {
+      setCustomAddress({
+        rua: currentUser.endereco || '',
+        numero: currentUser.numero || '',
+        bairro: currentUser.bairro || '',
+        cidade: currentUser.cidade || 'Caxias',
+        uf: currentUser.uf || 'MA',
+      });
+      if (currentUser.cidade && currentUser.cidade !== 'Caxias') {
+        setOtherCityName(currentUser.cidade);
+      }
+    }
+  }, [currentUser]);
+
   const [paymentMethod, setPaymentMethod] = useState<'Pix' | 'Cartão de Crédito' | 'Crediário da Loja'>('Pix');
   const [installments, setInstallments] = useState<number>(1);
   const [crediarioInstallments, setCrediarioInstallments] = useState<number>(1);
@@ -108,11 +138,18 @@ export const CheckoutConfirmationModal: React.FC<CheckoutConfirmationModalProps>
       ? installments 
       : (paymentMethod === 'Crediário da Loja' ? crediarioInstallments : 1);
 
+    const formattedAddress = deliveryType === 'Retirada na Loja'
+      ? 'Retirada na Loja: Rua Afonso Pena, 295 - Centro, Caxias - MA'
+      : deliveryType === 'Entrega para Outras Cidades'
+      ? `${customAddress.rua ? `${customAddress.rua}, Nº ${customAddress.numero || 'S/N'} - ${customAddress.bairro || ''}, ` : ''}${otherCityName || customAddress.cidade || 'Outra Cidade'}`
+      : `${customAddress.rua || 'Centro'}, Nº ${customAddress.numero || 'S/N'} - ${customAddress.bairro || 'Centro'}, Caxias - MA`;
+
     onConfirmOrder(
       paymentMethod, 
       deliveryType, 
       selectedInstallments,
-      selectedSellerName !== 'Atendimento Direto da Loja' ? selectedSellerName : undefined
+      selectedSellerName !== 'Atendimento Direto da Loja' ? selectedSellerName : undefined,
+      formattedAddress
     );
   };
 
@@ -238,27 +275,147 @@ export const CheckoutConfirmationModal: React.FC<CheckoutConfirmationModalProps>
             </div>
 
             {/* Address Details & Freight Notice Preview */}
-            <div className={`p-3.5 rounded-2xl border text-xs font-medium space-y-2 ${
-              isDark ? 'bg-slate-950/60 border-slate-800 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700'
+            <div className={`p-4 rounded-2xl border text-xs space-y-3 ${
+              isDark ? 'bg-slate-950/80 border-slate-800 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700'
             }`}>
-              <span className="text-[10px] font-black uppercase text-slate-400 block mb-0.5">Endereço & Localidade Selecionada:</span>
-              {deliveryType === 'Entrega em Caxias-MA' ? (
-                <p className="leading-snug">
-                  {currentUser.endereco}, Nº {currentUser.numero || 'S/N'} - {currentUser.bairro || 'Centro'}, Caxias - MA
-                </p>
-              ) : deliveryType === 'Entrega para Outras Cidades' ? (
-                <div className="space-y-2">
-                  <p className="leading-snug text-emerald-400 font-bold">
-                    {currentUser.endereco ? `${currentUser.endereco}, Nº ${currentUser.numero || 'S/N'} - ${currentUser.bairro || ''}, ${currentUser.cidade || ''}/${currentUser.uf || ''}` : 'Entrega para outra localidade'}
+              <div className="flex items-center justify-between border-b pb-2 border-slate-800/40">
+                <span className="text-[10px] font-black uppercase text-slate-400">
+                  Endereço & Localidade Selecionada:
+                </span>
+                {deliveryType !== 'Retirada na Loja' && (
+                  <button 
+                    type="button" 
+                    onClick={() => setIsEditingAddress(!isEditingAddress)} 
+                    className="text-[#0071e3] hover:underline font-extrabold flex items-center gap-1 cursor-pointer text-[11px]"
+                  >
+                    <Edit3 className="h-3 w-3" />
+                    {isEditingAddress ? 'Concluir Edição' : 'Alterar Endereço'}
+                  </button>
+                )}
+              </div>
+
+              {/* RETIRADA NA LOJA */}
+              {deliveryType === 'Retirada na Loja' ? (
+                <div className="space-y-1">
+                  <p className="leading-snug text-sky-400 font-bold text-xs flex items-start gap-1.5">
+                    <MapPin className="h-4 w-4 shrink-0 mt-0.5" />
+                    <span>Loja Evidência Calçados: Rua Afonso Pena, 295 - Centro, Caxias - MA</span>
                   </p>
-                  <div className="pt-1 border-t border-slate-800/40">
-                    <span className="text-[11px] text-amber-400 font-bold">💬 Frete a combinar / sob consulta (será ajustado no atendimento)</span>
+                  <span className="text-[10px] text-slate-400 block pt-0.5">
+                    (Horário de funcionamento: Seg-Sex: 08h-18h | Sáb: 08h-13h)
+                  </span>
+                </div>
+              ) : deliveryType === 'Entrega para Outras Cidades' ? (
+                /* ENTREGA PARA OUTRAS CIDADES */
+                <div className="space-y-3">
+                  <div className="space-y-1">
+                    <label className="block text-[11px] font-extrabold text-emerald-400">
+                      📍 Informe o Nome da Outra Cidade de Destino:
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Ex: São Luís - MA, Teresina - PI, Imperatriz - MA..."
+                      value={otherCityName}
+                      onChange={(e) => setOtherCityName(e.target.value)}
+                      className={`w-full px-3 py-2 rounded-xl text-xs border font-bold focus:outline-none transition-all ${
+                        isDark ? 'bg-slate-900 border-emerald-500/40 text-white focus:border-emerald-400' : 'bg-white border-emerald-300 text-slate-900 focus:border-emerald-500'
+                      }`}
+                    />
+                  </div>
+
+                  {isEditingAddress ? (
+                    <div className="space-y-2 p-3 rounded-xl bg-slate-900/60 border border-slate-800 text-xs">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-400">Rua / Logradouro:</label>
+                        <input 
+                          type="text" 
+                          value={customAddress.rua} 
+                          onChange={(e) => setCustomAddress({ ...customAddress, rua: e.target.value })}
+                          placeholder="Ex: Rua das Flores"
+                          className="w-full px-2.5 py-1.5 rounded-lg border text-xs bg-slate-950 border-slate-700 text-white focus:outline-none" 
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-slate-400">Número:</label>
+                          <input 
+                            type="text" 
+                            value={customAddress.numero} 
+                            onChange={(e) => setCustomAddress({ ...customAddress, numero: e.target.value })}
+                            placeholder="Ex: 123"
+                            className="w-full px-2.5 py-1.5 rounded-lg border text-xs bg-slate-950 border-slate-700 text-white focus:outline-none" 
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-slate-400">Bairro:</label>
+                          <input 
+                            type="text" 
+                            value={customAddress.bairro} 
+                            onChange={(e) => setCustomAddress({ ...customAddress, bairro: e.target.value })}
+                            placeholder="Ex: Renascença"
+                            className="w-full px-2.5 py-1.5 rounded-lg border text-xs bg-slate-950 border-slate-700 text-white focus:outline-none" 
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-2.5 rounded-xl bg-slate-900/40 border border-slate-800/80 leading-relaxed">
+                      <span className="text-[10px] font-bold text-slate-400 block">Endereço de envio:</span>
+                      <p className="font-semibold text-slate-200 text-xs">
+                        {customAddress.rua ? `${customAddress.rua}, Nº ${customAddress.numero || 'S/N'} - ${customAddress.bairro || ''}` : 'Endereço será confirmado via WhatsApp'}
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="pt-2 border-t border-slate-800/40 flex items-center space-x-1.5 text-[11px] text-amber-400 font-bold">
+                    <MessageSquare className="h-3.5 w-3.5 shrink-0" />
+                    <span>💬 Frete a combinar / sob consulta via WhatsApp para {otherCityName || 'a cidade informada'}</span>
                   </div>
                 </div>
               ) : (
-                <p className="leading-snug text-sky-400 font-bold">
-                  Loja Evidência Calçados: Rua Afonso Pena, 295 - Centro, Caxias - MA (Seg-Sex: 08h-18h | Sáb: 08h-13h)
-                </p>
+                /* ENTREGA EM CAXIAS - MA */
+                <div className="space-y-2">
+                  {isEditingAddress ? (
+                    <div className="space-y-2 p-3 rounded-xl bg-slate-900/60 border border-slate-800 text-xs">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-400">Rua / Logradouro:</label>
+                        <input 
+                          type="text" 
+                          value={customAddress.rua} 
+                          onChange={(e) => setCustomAddress({ ...customAddress, rua: e.target.value })}
+                          placeholder="Ex: Rua Afonso Pena"
+                          className="w-full px-2.5 py-1.5 rounded-lg border text-xs bg-slate-950 border-slate-700 text-white focus:outline-none" 
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-slate-400">Número:</label>
+                          <input 
+                            type="text" 
+                            value={customAddress.numero} 
+                            onChange={(e) => setCustomAddress({ ...customAddress, numero: e.target.value })}
+                            placeholder="Ex: 295"
+                            className="w-full px-2.5 py-1.5 rounded-lg border text-xs bg-slate-950 border-slate-700 text-white focus:outline-none" 
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-slate-400">Bairro:</label>
+                          <input 
+                            type="text" 
+                            value={customAddress.bairro} 
+                            onChange={(e) => setCustomAddress({ ...customAddress, bairro: e.target.value })}
+                            placeholder="Ex: Centro"
+                            className="w-full px-2.5 py-1.5 rounded-lg border text-xs bg-slate-950 border-slate-700 text-white focus:outline-none" 
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="leading-snug text-xs font-semibold text-slate-200 bg-slate-900/40 p-2.5 rounded-xl border border-slate-800">
+                      {customAddress.rua ? `${customAddress.rua}, Nº ${customAddress.numero || 'S/N'} - ${customAddress.bairro || 'Centro'}, Caxias - MA` : `${currentUser.endereco || 'Endereço em Caxias'}, Nº ${currentUser.numero || 'S/N'} - ${currentUser.bairro || 'Centro'}, Caxias - MA`}
+                    </p>
+                  )}
+                </div>
               )}
             </div>
           </div>
