@@ -5,7 +5,7 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-const app = express();
+export const app = express();
 const PORT = 3000;
 
 const EVIDENCIA_API_BASE = process.env.VITE_API_URL
@@ -271,4 +271,10 @@ async function startServer() {
   });
 }
 
-startServer();
+if (!process.env.VERCEL) {
+  startServer();
+}
+
+// Vercel serverless entry point
+export default (req: any, res: any) => app(req, res);
+
