@@ -108,7 +108,7 @@ export const evidenciaAuthService = {
    * Auto-renews token from backend if remote API responds with 401, or falls back to Node proxy on network/CORS error or 401 failure.
    */
   async fetchWithAuth(url: string, options: RequestInit = {}): Promise<Response> {
-    const token = await this.getToken();
+    let token = await this.getToken();
     const headers = new Headers(options.headers || {});
     headers.set('Accept', 'application/json');
     if (token) {
@@ -120,12 +120,27 @@ export const evidenciaAuthService = {
     try {
       let response = await fetch(url, { ...options, headers });
 
+      // Se a API remota responder HTTP 401, força a renovação imediata do token no backend (forceRefresh = true) e tenta 1x mais
+      if (response.status === 401) {
+        console.warn(`[evidenciaAuthService] HTTP 401 retornado em ${url}. Forçando renovação de token...`);
+        const freshToken = await this.getToken(true);
+        if (freshToken) {
+          const retryHeaders = new Headers(options.headers || {});
+          retryHeaders.set('Accept', 'application/json');
+          retryHeaders.set('Authorization', `Bearer ${freshToken}`);
+          response = await fetch(url, { ...options, headers: retryHeaders });
+          if (response.ok) return response;
+        }
+      }
+
       // Se a API remota responder erro HTTP (401, 500, etc.) em requisição direta, tenta o proxy backend local (/api/v1/...)
       if (!response.ok && url.startsWith(apiOrigin)) {
         const proxyUrl = url.replace(apiOrigin, '');
         console.warn(`[evidenciaAuthService] Fallback de proxy ativado (HTTP ${response.status}): ${url} -> ${proxyUrl}`);
         try {
-          const proxyResp = await fetch(proxyUrl, { ...options, headers });
+          const proxyHeaders = new Headers(options.headers || {});
+          proxyHeaders.set('Accept', 'application/json');
+          const proxyResp = await fetch(proxyUrl, { ...options, headers: proxyHeaders });
           if (proxyResp.ok) return proxyResp;
         } catch {
           // Mantém a resposta original
@@ -138,7 +153,9 @@ export const evidenciaAuthService = {
       if (url.startsWith(apiOrigin)) {
         const proxyUrl = url.replace(apiOrigin, '');
         console.warn(`[evidenciaAuthService] Requisição direta falhou (${(netErr as Error).message}). Redirecionando para o proxy backend: ${proxyUrl}`);
-        return fetch(proxyUrl, options);
+        const proxyHeaders = new Headers(options.headers || {});
+        proxyHeaders.set('Accept', 'application/json');
+        return fetch(proxyUrl, { ...options, headers: proxyHeaders });
       }
       throw netErr;
     }
