@@ -164,7 +164,7 @@ export const AboutUs: React.FC = () => {
               A <strong>Evidência Calçados</strong> abriu suas portas oficialmente em <strong>09/09/2025</strong> com a missão de trazer para a cidade de Caxias-MA uma curadoria moderna de calçados, confecções e acessórios das principais marcas do mercado.
             </p>
             <p>
-              Em nossa loja física e no catálogo digital integrados, combinamos atendimento humanizado, facilidade de crediário próprio em até 10x sem juros e entrega expressa para toda a região.
+              Em nossa loja física e no catálogo digital integrados, combinamos atendimento humanizado, facilidade de crediário próprio em até 6x sem juros e entrega expressa para toda a região.
             </p>
           </div>
           
@@ -206,7 +206,7 @@ export const AboutUs: React.FC = () => {
             </div>
             <div className="flex items-center space-x-3">
               <Mail className="h-4 w-4 text-[#0071e3] shrink-0" />
-              <span>contato@evidenciacalcados.com</span>
+              <span>evidenicacalcados2025@gmail.com</span>
             </div>
           </div>
         </div>

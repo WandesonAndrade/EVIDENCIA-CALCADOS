@@ -222,7 +222,7 @@ export const SupportPage: React.FC = () => {
                 theme === 'dark' ? 'text-red-400' : 'text-primary'
               }`}>Prazo de Troca</span>
               <p className={`text-xs leading-relaxed font-light ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
-                Você tem até <strong>30 dias corridos</strong> após a compra para realizar a troca de qualquer calçado que não tenha sido usado, conservando a embalagem original e etiqueta.
+                Você tem até <strong>15 dias corridos</strong> após a compra para realizar a troca de qualquer calçado que não tenha sido usado, conservando a embalagem original e etiqueta.
               </p>
             </div>
 
@@ -285,7 +285,7 @@ export const SupportPage: React.FC = () => {
                 <Mail className="h-4.5 w-4.5 text-accent-blue mt-0.5 shrink-0" />
                 <div className="space-y-0.5">
                   <span className="font-bold text-white block">E-mail Corporativo:</span>
-                  <p className="font-light text-accent-blue">contato@evidenciacalcados.com</p>
+                  <p className="font-light text-accent-blue">evidenicacalcados2025@gmail.com</p>
                 </div>
               </div>
             </div>

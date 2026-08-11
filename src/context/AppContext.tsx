@@ -101,7 +101,7 @@ export const DEFAULT_HERO_BANNERS: HeroBanner[] = [
     id: 'banner-1',
     badge: 'LOJA OFICIAL CAXIAS - MA',
     title: 'A sua loja de Caxias - MA está online!',
-    description: 'Compre no carnê em até 10x sem juros ou receba via entrega rápida com o atendimento exclusivo da equipe Evidência Calçados.',
+    description: 'Compre no carnê em até 6x sem juros ou receba via entrega rápida com o atendimento exclusivo da equipe Evidência Calçados.',
     image: 'https://images.unsplash.com/photo-1549298916-b41d501d3772?q=80&w=1600&auto=format&fit=crop',
     buttonText: 'Ver Lançamentos',
     tabKey: 'lançamentos',
@@ -158,13 +158,13 @@ export const DEFAULT_ABOUT_CONFIG: AboutConfig = {
     { label: 'Anos de História', value: '25+' },
     { label: 'Clientes Atendidos', value: '100k+' },
     { label: 'Garantia de Qualidade', value: '100%' },
-    { label: 'Parcelas Crediário', value: '10x' }
+    { label: 'Parcelas Crediário', value: '6x' }
   ]
 };
 
 export const DEFAULT_CONTACT_CONFIG: ContactConfig = {
   whatsapp: '5599984684867',
-  email: 'contato@evidencia.com.br',
+  email: 'evidenicacalcados2025@gmail.com',
   address: 'Rua Afonso Pena, 295 - Centro, Caxias - MA',
   hours: 'Segunda a Sexta: 08:00 às 18:00 | Sábado: 08:00 às 13:00',
   promoBannerText: 'Frete grátis para todo Brasil em compras acima de R$ 350!',

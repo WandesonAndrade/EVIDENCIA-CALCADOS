@@ -725,7 +725,7 @@ export const ProductDetail: React.FC = () => {
                   • <strong>Cartão de Crédito:</strong> <span className="font-bold text-slate-800 dark:text-slate-200">R$ {precoCartaoCalculado.toFixed(2).replace('.', ',')}</span> (em até 10x sem juros)
                 </div>
                 <div>
-                  • <strong>Crediário da Loja:</strong> <span className="font-bold text-slate-800 dark:text-slate-200">R$ {precoCrediarioCalculado.toFixed(2).replace('.', ',')}</span> (Preço no Carnê)
+                  • <strong>Crediário da Loja:</strong> <span className="font-bold text-slate-800 dark:text-slate-200">R$ {precoCrediarioCalculado.toFixed(2).replace('.', ',')}</span> (em até 6x sem juros)
                 </div>
               </div>
             </div>
@@ -932,7 +932,7 @@ export const ProductDetail: React.FC = () => {
           <div className="p-3 rounded-full bg-[#0071e3]/10 text-[#0071e3]">
             <RefreshCw className="h-6 w-6" />
           </div>
-          <h4 className={`text-sm font-bold ${isDark ? 'text-white' : 'text-[#1d1d1f]'}`}>Troca Simplificada em 30 Dias</h4>
+          <h4 className={`text-sm font-bold ${isDark ? 'text-white' : 'text-[#1d1d1f]'}`}>Troca Simplificada em 15 Dias</h4>
           <p className="text-xs text-[#86868b]">Garantia de satisfação com processo de troca sem complicações.</p>
         </div>
       </div>

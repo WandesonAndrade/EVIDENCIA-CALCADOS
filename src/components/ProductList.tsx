@@ -737,7 +737,7 @@ export const ProductList: React.FC = () => {
                 Crediário da Loja
               </h3>
               <p className={`text-xs font-medium leading-relaxed ${isDark ? 'text-slate-300' : 'text-neutral-700'}`}>
-                Parcele suas compras em até <strong className="font-extrabold text-black dark:text-white">10x sem juros</strong> no Carnê Evidência, sem burocracia.
+                Parcele suas compras em até <strong className="font-extrabold text-black dark:text-white">6x sem juros</strong> no Carnê Evidência, sem burocracia.
               </p>
               <div className="pt-2">
                 <button
@@ -857,7 +857,7 @@ export const ProductList: React.FC = () => {
             </div>
             <div>
               <h4 className="text-xs sm:text-sm font-bold tracking-tight">Crediário Próprio</h4>
-              <p className="text-[11px] text-[#86868b] pt-0.5">Parcele em até 10x sem juros</p>
+              <p className="text-[11px] text-[#86868b] pt-0.5">Parcele em até 6x sem juros</p>
             </div>
           </div>
 
@@ -867,7 +867,7 @@ export const ProductList: React.FC = () => {
             </div>
             <div>
               <h4 className="text-xs sm:text-sm font-bold tracking-tight">Troca Simplificada</h4>
-              <p className="text-[11px] text-[#86868b] pt-0.5">Até 30 dias para efetuar sua troca</p>
+              <p className="text-[11px] text-[#86868b] pt-0.5">Até 15 dias para efetuar sua troca</p>
             </div>
           </div>
 

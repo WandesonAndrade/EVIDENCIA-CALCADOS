@@ -272,7 +272,7 @@ export const AdminPanel: React.FC = () => {
 
   // CMS 3: Contact & Support State & Form
   const [contactWhatsApp, setContactWhatsApp] = useState(contactConfig?.whatsapp || '5599984684867');
-  const [contactEmail, setContactEmail] = useState(contactConfig?.email || 'contato@evidencia.com.br');
+  const [contactEmail, setContactEmail] = useState(contactConfig?.email || 'evidenicacalcados2025@gmail.com');
   const [contactAddress, setContactAddress] = useState(contactConfig?.address || 'Rua Afonso Pena, 295 - Centro, Caxias - MA');
   const [contactHours, setContactHours] = useState(contactConfig?.hours || 'Segunda a Sexta: 08:00 às 18:00 | Sábado: 08:00 às 13:00');
   const [promoText, setPromoText] = useState(contactConfig?.promoBannerText || 'Frete grátis para todo Brasil em compras acima de R$ 350!');
@@ -2162,7 +2162,7 @@ export const AdminPanel: React.FC = () => {
                     type="email"
                     value={contactEmail}
                     onChange={(e) => setContactEmail(e.target.value)}
-                    placeholder="Ex: contato@evidencia.com.br"
+                    placeholder="Ex: evidenicacalcados2025@gmail.com"
                     className={`w-full p-3 rounded-xl text-xs border focus:outline-none ${
                       isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-100 border-slate-300'
                     }`}
