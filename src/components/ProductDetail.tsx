@@ -47,8 +47,8 @@ export const ProductDetail: React.FC = () => {
   const [shippingInfo, setShippingInfo] = useState<{ city: string; uf?: string; barrio?: string; freightText?: string; option?: string } | null>(null);
   const [freightError, setFreightError] = useState('');
 
-  const handleSetLocation = async () => {
-    const rawInput = cityOrCepInput.trim();
+  const handleSetLocation = async (overrideValue?: string) => {
+    const rawInput = (overrideValue !== undefined ? overrideValue : cityOrCepInput).trim();
     if (!rawInput) {
       setFreightError('Informe o nome da sua Cidade ou CEP.');
       return;
@@ -113,6 +113,14 @@ export const ProductDetail: React.FC = () => {
         freightText: 'Frete a Combinar',
         option: 'Outras Cidades'
       });
+    }
+  };
+
+  const handleCityOrCepInputChange = (val: string) => {
+    setCityOrCepInput(val);
+    const clean = val.replace(/\D/g, '');
+    if (clean.length === 8) {
+      handleSetLocation(val);
     }
   };
 
@@ -1075,7 +1083,7 @@ export const ProductDetail: React.FC = () => {
                       type="text"
                       placeholder="Ex: São Luís - MA, Teresina, 65000-000..."
                       value={cityOrCepInput}
-                      onChange={(e) => setCityOrCepInput(e.target.value)}
+                      onChange={(e) => handleCityOrCepInputChange(e.target.value)}
                       onKeyDown={(e) => { if (e.key === 'Enter') handleSetLocation(); }}
                       className={`flex-1 px-3.5 py-2.5 rounded-xl text-xs border font-medium focus:outline-none transition-all ${
                         isDark ? 'bg-[#161617] border-white/20 text-white focus:border-[#0071e3]' : 'bg-white border-slate-300 text-slate-900 focus:border-[#0071e3]'
@@ -1083,7 +1091,7 @@ export const ProductDetail: React.FC = () => {
                     />
                     <button
                       type="button"
-                      onClick={handleSetLocation}
+                      onClick={() => handleSetLocation()}
                       disabled={isCalculatingFreight}
                       className="px-4 py-2.5 bg-[#0071e3] hover:bg-[#0077ed] text-white rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center space-x-1 shrink-0 shadow-xs"
                     >
