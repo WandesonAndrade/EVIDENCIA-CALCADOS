@@ -46,7 +46,7 @@ export const Footer: React.FC = () => {
             {/* Redes Sociais em Estilo Pílula Apple */}
             <div className="flex items-center space-x-3">
               <a
-                href="https://instagram.com"
+                href="https://www.instagram.com/evidencia.calcados_"
                 target="_blank"
                 rel="noopener noreferrer"
                 className={`p-2.5 rounded-full border hover:scale-110 transition-all cursor-pointer shadow-xs ${
@@ -59,7 +59,7 @@ export const Footer: React.FC = () => {
                 <Instagram className="h-4 w-4" />
               </a>
               <a
-                href="https://facebook.com"
+                href="https://www.facebook.com/profile.php?id=61582310099583"
                 target="_blank"
                 rel="noopener noreferrer"
                 className={`p-2.5 rounded-full border hover:scale-110 transition-all cursor-pointer shadow-xs ${
