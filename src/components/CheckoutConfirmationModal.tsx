@@ -13,6 +13,7 @@ interface CheckoutConfirmationModalProps {
   onClose: () => void;
   subtotal: number;
   cartItemsCount: number;
+  initialDeliveryType?: 'Entrega em Caxias-MA' | 'Entrega para Outras Cidades' | 'Retirada na Loja';
   onConfirmOrder: (
     paymentMethod: 'Pix' | 'Cartão de Crédito' | 'Crediário da Loja', 
     deliveryType: 'Entrega em Caxias-MA' | 'Entrega para Outras Cidades' | 'Retirada na Loja',
@@ -27,13 +28,20 @@ export const CheckoutConfirmationModal: React.FC<CheckoutConfirmationModalProps>
   onClose,
   subtotal,
   cartItemsCount,
+  initialDeliveryType,
   onConfirmOrder,
   isProcessing
 }) => {
   const { currentUser, theme } = useApp();
   const isDark = theme === 'dark';
 
-  const [deliveryType, setDeliveryType] = useState<'Entrega em Caxias-MA' | 'Entrega para Outras Cidades' | 'Retirada na Loja'>('Entrega em Caxias-MA');
+  const [deliveryType, setDeliveryType] = useState<'Entrega em Caxias-MA' | 'Entrega para Outras Cidades' | 'Retirada na Loja'>(initialDeliveryType || 'Entrega em Caxias-MA');
+
+  useEffect(() => {
+    if (initialDeliveryType) {
+      setDeliveryType(initialDeliveryType);
+    }
+  }, [initialDeliveryType, isOpen]);
   const [paymentMethod, setPaymentMethod] = useState<'Pix' | 'Cartão de Crédito' | 'Crediário da Loja'>('Pix');
   const [installments, setInstallments] = useState<number>(1);
   const [crediarioInstallments, setCrediarioInstallments] = useState<number>(1);

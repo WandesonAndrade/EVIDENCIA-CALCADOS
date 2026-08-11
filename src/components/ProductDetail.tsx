@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { ShoppingCart, ShoppingBag, MapPin, Star, ChevronRight, ArrowLeft, Shield, Sparkles, Heart, Share2, Check, CreditCard, CheckCircle2, AlertCircle, ArrowRight, Truck, RefreshCw } from 'lucide-react';
+import { ShoppingCart, ShoppingBag, MapPin, Star, ChevronRight, ArrowLeft, Shield, Sparkles, Heart, Share2, Check, CreditCard, CheckCircle2, AlertCircle, ArrowRight, Truck, RefreshCw, Package, MessageSquare, Search, Loader2, X } from 'lucide-react';
 import { getGradeProdutoById, getProdutoGradesFromApi } from '../services/moblinkGradesService';
 import { getSingleProdutoMoblinkFromApi, sanitizeProductForFirestore, mergeErpSyncWithExistingDbProduct } from '../services/moblinkProductsService';
 import { db } from '../lib/firebase';
@@ -38,6 +38,62 @@ export const ProductDetail: React.FC = () => {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isConfirmationModalOpen, setIsConfirmationModalOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // Estado da Modalidade de Entrega e Simulador de Frete por CEP
+  const [selectedDeliveryType, setSelectedDeliveryType] = useState<'Entrega em Caxias-MA' | 'Entrega para Outras Cidades' | 'Retirada na Loja'>('Entrega em Caxias-MA');
+  const [isDeliveryModalOpen, setIsDeliveryModalOpen] = useState(false);
+  const [cepInput, setCepInput] = useState('');
+  const [isCalculatingFreight, setIsCalculatingFreight] = useState(false);
+  const [shippingInfo, setShippingInfo] = useState<{ city: string; uf: string; barrio?: string; freightText?: string; option?: string } | null>(null);
+  const [freightError, setFreightError] = useState('');
+
+  const handleCalculateFreight = async () => {
+    const cleanCep = cepInput.replace(/\D/g, '');
+    if (cleanCep.length !== 8) {
+      setFreightError('Digite um CEP válido com 8 dígitos.');
+      return;
+    }
+
+    setFreightError('');
+    setIsCalculatingFreight(true);
+
+    try {
+      const res = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
+      const data = await res.json();
+
+      if (data.erro) {
+        setFreightError('CEP não encontrado. Verifique o número digitado.');
+        setIsCalculatingFreight(false);
+        return;
+      }
+
+      const isCaxias = data.localidade?.toLowerCase().includes('caxias') && data.uf === 'MA';
+
+      if (isCaxias) {
+        setSelectedDeliveryType('Entrega em Caxias-MA');
+        setShippingInfo({
+          city: 'Caxias',
+          uf: 'MA',
+          barrio: data.bairro || 'Centro',
+          freightText: 'Frete GRÁTIS',
+          option: 'Entrega em Caxias'
+        });
+      } else {
+        setSelectedDeliveryType('Entrega para Outras Cidades');
+        setShippingInfo({
+          city: data.localidade || 'Sua Cidade',
+          uf: data.uf || 'UF',
+          barrio: data.bairro || '',
+          freightText: 'A partir de R$ 24,90 (PAC/SEDEX)',
+          option: 'Outras Cidades'
+        });
+      }
+    } catch {
+      setFreightError('Erro ao consultar CEP. Tente novamente.');
+    } finally {
+      setIsCalculatingFreight(false);
+    }
+  };
 
   const isDark = theme === 'dark';
 
@@ -621,27 +677,47 @@ export const ProductDetail: React.FC = () => {
               </p>
             </div>
 
-            {/* CAIXA DE REGIONALIZAÇÃO E ENTREGA EM CAXIAS/MA */}
-            <div className={`p-3 rounded-xl border text-xs space-y-1.5 ${
+            {/* CAIXA DE REGIONALIZAÇÃO E ENTREGA COM BOTÃO [ALTERAR] */}
+            <div className={`p-3 rounded-xl border text-xs space-y-1.5 transition-all ${
               isDark ? 'bg-[#1d1d1f] border-white/10' : 'bg-slate-50 border-slate-200/80'
             }`}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-1.5 font-bold text-slate-800 dark:text-slate-200">
                   <MapPin className="h-3.5 w-3.5 text-[#0071e3]" />
-                  <span>Região de <strong>Caxias / MA</strong></span>
+                  <span>
+                    {selectedDeliveryType === 'Retirada na Loja'
+                      ? 'Retirada na Loja (Caxias / MA)'
+                      : selectedDeliveryType === 'Entrega para Outras Cidades' && shippingInfo
+                      ? `Região de ${shippingInfo.city} / ${shippingInfo.uf}`
+                      : 'Região de Caxias / MA'}
+                  </span>
                 </div>
                 <button 
                   type="button"
-                  onClick={() => setMessage('Entrega garantida para Caxias-MA e região!')}
-                  className="text-[11px] font-bold text-[#0071e3] hover:underline cursor-pointer"
+                  onClick={() => setIsDeliveryModalOpen(true)}
+                  className="text-[11px] font-extrabold text-[#0071e3] hover:underline cursor-pointer"
                 >
                   Alterar
                 </button>
               </div>
 
               <div className="flex items-center space-x-2 text-[11px] text-slate-700 dark:text-slate-300 font-medium pt-0.5">
-                <Truck className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-                <span>Receba em Caxias/MA • <strong className="text-emerald-600 dark:text-emerald-400">Retirada Grátis na Loja</strong></span>
+                {selectedDeliveryType === 'Retirada na Loja' ? (
+                  <>
+                    <MapPin className="h-3.5 w-3.5 text-sky-500 shrink-0" />
+                    <span>Retire no Centro (Rua Afonso Pena, 295) • <strong className="text-sky-500">Frete GRÁTIS</strong></span>
+                  </>
+                ) : selectedDeliveryType === 'Entrega para Outras Cidades' ? (
+                  <>
+                    <Package className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                    <span>{shippingInfo?.freightText || 'Envio para todo Brasil'} • <strong className="text-emerald-600 dark:text-emerald-400">Frete a Combinar</strong></span>
+                  </>
+                ) : (
+                  <>
+                    <Truck className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                    <span>Receba em Caxias/MA • <strong className="text-emerald-600 dark:text-emerald-400">Retirada Grátis na Loja</strong></span>
+                  </>
+                )}
               </div>
             </div>
 
@@ -811,6 +887,200 @@ export const ProductDetail: React.FC = () => {
         </div>
       )}
 
+      {/* MODAL DE SELEÇÃO DE MODALIDADE DE ENTREGA & CÁLCULO DE FRETE (Inspiração Foto 2) */}
+      <AnimatePresence>
+        {isDeliveryModalOpen && (
+          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className={`max-w-lg w-full rounded-3xl border p-6 space-y-5 shadow-2xl relative ${
+                isDark ? 'bg-[#161617] border-white/10 text-white' : 'bg-white border-black/10 text-slate-900'
+              }`}
+            >
+              <div className="flex items-center justify-between border-b pb-3 border-slate-100 dark:border-white/10">
+                <div className="flex items-center space-x-2 font-extrabold text-sm">
+                  <Truck className="h-5 w-5 text-[#0071e3]" />
+                  <span>1. ESCOLHA A MODALIDADE DE ENTREGA</span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsDeliveryModalOpen(false)}
+                  className="p-1.5 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              {/* GRID DE 3 OPÇÕES (IDÊNTICO À FOTO 2) */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {/* Opção 1: Entrega Caxias */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedDeliveryType('Entrega em Caxias-MA');
+                  }}
+                  className={`p-3.5 rounded-2xl border text-left flex flex-col justify-between transition-all cursor-pointer ${
+                    selectedDeliveryType === 'Entrega em Caxias-MA'
+                      ? 'border-2 border-amber-500 bg-amber-500/10 shadow-xs'
+                      : isDark ? 'border-white/10 bg-[#1d1d1f] hover:border-white/20' : 'border-slate-200 bg-slate-50 hover:border-slate-300'
+                  }`}
+                >
+                  <div className="flex items-center justify-between w-full mb-1">
+                    <span className="font-extrabold text-xs flex items-center space-x-1.5">
+                      <Truck className="h-4 w-4 text-amber-500 shrink-0" />
+                      <span>Entrega Caxias</span>
+                    </span>
+                    {selectedDeliveryType === 'Entrega em Caxias-MA' && (
+                      <CheckCircle2 className="h-4 w-4 text-amber-500 shrink-0" />
+                    )}
+                  </div>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-snug font-medium mt-1">
+                    Endereço urbano em Caxias - MA.
+                  </p>
+                  <div className="mt-3 pt-2 border-t border-slate-200 dark:border-white/10 text-[11px] font-black text-emerald-600 dark:text-emerald-400">
+                    Frete GRÁTIS
+                  </div>
+                </button>
+
+                {/* Opção 2: Outras Cidades */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedDeliveryType('Entrega para Outras Cidades');
+                  }}
+                  className={`p-3.5 rounded-2xl border text-left flex flex-col justify-between transition-all cursor-pointer ${
+                    selectedDeliveryType === 'Entrega para Outras Cidades'
+                      ? 'border-2 border-emerald-500 bg-emerald-500/10 shadow-xs'
+                      : isDark ? 'border-white/10 bg-[#1d1d1f] hover:border-white/20' : 'border-slate-200 bg-slate-50 hover:border-slate-300'
+                  }`}
+                >
+                  <div className="flex items-center justify-between w-full mb-1">
+                    <span className="font-extrabold text-xs flex items-center space-x-1.5">
+                      <MessageSquare className="h-4 w-4 text-emerald-500 shrink-0" />
+                      <span>Outras Cidades</span>
+                    </span>
+                    {selectedDeliveryType === 'Entrega para Outras Cidades' && (
+                      <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                    )}
+                  </div>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-snug font-medium mt-1">
+                    Envio para todo Brasil.
+                  </p>
+                  <div className="mt-3 pt-2 border-t border-slate-200 dark:border-white/10 text-[11px] font-black text-emerald-600 dark:text-emerald-400">
+                    Frete a Combinar
+                  </div>
+                </button>
+
+                {/* Opção 3: Retirada Loja */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedDeliveryType('Retirada na Loja');
+                  }}
+                  className={`p-3.5 rounded-2xl border text-left flex flex-col justify-between transition-all cursor-pointer ${
+                    selectedDeliveryType === 'Retirada na Loja'
+                      ? 'border-2 border-sky-500 bg-sky-500/10 shadow-xs'
+                      : isDark ? 'border-white/10 bg-[#1d1d1f] hover:border-white/20' : 'border-slate-200 bg-slate-50 hover:border-slate-300'
+                  }`}
+                >
+                  <div className="flex items-center justify-between w-full mb-1">
+                    <span className="font-extrabold text-xs flex items-center space-x-1.5">
+                      <MapPin className="h-4 w-4 text-sky-500 shrink-0" />
+                      <span>Retirada Loja</span>
+                    </span>
+                    {selectedDeliveryType === 'Retirada na Loja' && (
+                      <CheckCircle2 className="h-4 w-4 text-sky-500 shrink-0" />
+                    )}
+                  </div>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-snug font-medium mt-1">
+                    Retire no Centro.
+                  </p>
+                  <div className="mt-3 pt-2 border-t border-slate-200 dark:border-white/10 text-[11px] font-black text-sky-600 dark:text-sky-400">
+                    Frete GRÁTIS
+                  </div>
+                </button>
+              </div>
+
+              {/* SIMULADOR DE CEP E CALCULADORA DE FRETE (QUANDO "OUTRAS CIDADES" ESTIVER ATIVO) */}
+              {selectedDeliveryType === 'Entrega para Outras Cidades' && (
+                <div className={`p-4 rounded-2xl border space-y-3 ${
+                  isDark ? 'bg-slate-900/80 border-white/10' : 'bg-slate-50 border-slate-200'
+                }`}>
+                  <label className="block text-xs font-bold">
+                    Calcular Frete por CEP:
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Ex: 65000-000"
+                      value={cepInput}
+                      onChange={(e) => setCepInput(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleCalculateFreight(); }}
+                      className={`flex-1 px-3 py-2 rounded-xl text-xs border font-medium focus:outline-none ${
+                        isDark ? 'bg-[#161617] border-white/20 text-white' : 'bg-white border-slate-300 text-slate-900'
+                      }`}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleCalculateFreight}
+                      disabled={isCalculatingFreight}
+                      className="px-4 py-2 bg-[#0071e3] hover:bg-[#0077ed] text-white rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center space-x-1 shrink-0"
+                    >
+                      {isCalculatingFreight ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <>
+                          <Search className="h-3.5 w-3.5" />
+                          <span>Calcular</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {freightError && (
+                    <p className="text-[11px] font-bold text-rose-500">{freightError}</p>
+                  )}
+
+                  {shippingInfo && (
+                    <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs space-y-1.5">
+                      <div className="flex items-center justify-between font-extrabold text-emerald-600 dark:text-emerald-400">
+                        <span>📍 {shippingInfo.city} / {shippingInfo.uf} {shippingInfo.barrio ? `(${shippingInfo.barrio})` : ''}</span>
+                        <span className="text-[10px] bg-emerald-500 text-white px-2 py-0.5 rounded-full">Localidade Encontrada</span>
+                      </div>
+                      <div className="space-y-1 text-[11px] text-slate-700 dark:text-slate-300 pt-1 border-t border-emerald-500/20">
+                        <div className="flex justify-between font-bold">
+                          <span>🚚 Envio PAC (Correios):</span>
+                          <span className="text-emerald-600 dark:text-emerald-400">R$ 24,90 (5-8 dias)</span>
+                        </div>
+                        <div className="flex justify-between font-bold">
+                          <span>⚡ Envio SEDEX:</span>
+                          <span className="text-emerald-600 dark:text-emerald-400">R$ 42,00 (2-4 dias)</span>
+                        </div>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400 pt-0.5">
+                          * O frete exato será confirmado e ajustado no atendimento final via WhatsApp.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* BOTÃO DE CONFIRMAR MODALIDADE */}
+              <button
+                type="button"
+                onClick={() => setIsDeliveryModalOpen(false)}
+                className="w-full py-3.5 px-4 bg-[#00a650] hover:bg-[#009146] text-white font-extrabold text-xs rounded-2xl shadow-sm transition-all cursor-pointer text-center"
+              >
+                Confirmar Modalidade de Entrega
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* Modal Etapa 1: Dados do Cliente */}
       <CompleteProfileModal
         isOpen={isProfileModalOpen}
@@ -823,6 +1093,7 @@ export const ProductDetail: React.FC = () => {
         onClose={() => setIsConfirmationModalOpen(false)}
         subtotal={p.price}
         cartItemsCount={1}
+        initialDeliveryType={selectedDeliveryType}
         onConfirmOrder={handleConfirmOrder}
         isProcessing={isProcessing}
       />
