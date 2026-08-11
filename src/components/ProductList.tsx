@@ -334,7 +334,8 @@ export const ProductList: React.FC = () => {
     setSelectedCategory(catName.toUpperCase());
     if (setSelectedSubcategory) setSelectedSubcategory('TODAS');
     if (setSelectedMenuTab) setSelectedMenuTab(catName.toLowerCase());
-    scrollToSectionWithOffset(catalogSectionRef.current || "catalog-products-section");
+    if (setCurrentView) setCurrentView('category-page');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleSelectSubcategoryItem = (subName: string) => {
@@ -513,10 +514,13 @@ export const ProductList: React.FC = () => {
 
       {/* 3. BENTO GRID (BANNERS DE DESTAQUE STUDIO APPLE) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Banner Esquerdo Grande (Lançamentos) */}
-        <div className={`lg:col-span-6 rounded-3xl p-8 sm:p-10 flex items-center justify-between relative overflow-hidden transition-all min-h-[340px] border ${
-          isDark ? 'bg-[#161617] border-white/10 text-white' : 'bg-[#eae6df] border-black/5 text-[#111111]'
-        }`}>
+        {/* Banner Esquerdo Grande (Lançamentos / Novidades) */}
+        <div 
+          onClick={() => handleSelectCategory('NOVIDADES')}
+          className={`lg:col-span-6 rounded-3xl p-8 sm:p-10 flex items-center justify-between relative overflow-hidden transition-all min-h-[340px] border cursor-pointer group ${
+            isDark ? 'bg-[#161617] border-white/10 text-white hover:border-white/20' : 'bg-[#eae6df] border-black/5 text-[#111111] hover:border-black/15'
+          }`}
+        >
           <div className="space-y-3 z-20 w-full sm:w-[58%] pr-2">
             <span className={`inline-block text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-1 rounded-full border ${
               isDark ? 'text-blue-400 bg-blue-400/10 border-blue-400/20' : 'text-neutral-800 bg-white/60 border-black/10'
@@ -531,7 +535,8 @@ export const ProductList: React.FC = () => {
             </p>
             <div className="pt-2">
               <button
-                onClick={() => handleSelectCategory('NOVIDADES')}
+                type="button"
+                onClick={(e) => { e.stopPropagation(); handleSelectCategory('NOVIDADES'); }}
                 className="bg-[#0071e3] text-white hover:bg-[#0077ed] text-xs font-extrabold tracking-wider px-6 py-3 rounded-full uppercase transition-all cursor-pointer shadow-xs"
               >
                 VER NOVIDADES
@@ -545,35 +550,39 @@ export const ProductList: React.FC = () => {
             <img 
               src="https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?q=80&w=800&auto=format&fit=crop" 
               alt="Novos Modelos" 
-              className="w-full h-full object-cover"
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
             />
           </div>
         </div>
 
         {/* Coluna Direita (2 Banners Menores Studio) */}
         <div className="lg:col-span-6 grid grid-rows-2 gap-6">
-          {/* Top Card (Linha Esportiva) */}
-          <div className={`rounded-3xl p-7 sm:p-8 flex items-center justify-between relative overflow-hidden transition-all min-h-[160px] border ${
-            isDark ? 'bg-[#161617] border-white/10 text-white' : 'bg-[#f0eee9] border-black/5 text-[#111111]'
-          }`}>
+          {/* Top Card (Linha Sapatos / Calçados) */}
+          <div 
+            onClick={() => handleSelectCategory('CALÇADOS')}
+            className={`rounded-3xl p-7 sm:p-8 flex items-center justify-between relative overflow-hidden transition-all min-h-[160px] border cursor-pointer group ${
+              isDark ? 'bg-[#161617] border-white/10 text-white hover:border-white/20' : 'bg-[#f0eee9] border-black/5 text-[#111111] hover:border-black/15'
+            }`}
+          >
             <div className="space-y-2 z-20 w-full sm:w-[58%] pr-2">
-              <span className={`inline-block text-[10px] font-extrabold uppercase tracking-wider px-2 rounded-full ${
+              <span className={`inline-block text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full ${
                 isDark ? 'text-emerald-400 bg-emerald-400/10' : 'text-emerald-800 bg-emerald-900/10'
               }`}>
-                Linha Performance
+                Linha Sapatos
               </span>
               <h3 className="text-lg sm:text-xl font-bold tracking-tight">
-                Para todos os seus treinos
+                Para todos os seus momentos
               </h3>
               <p className={`text-xs font-medium ${isDark ? 'text-slate-300' : 'text-neutral-600'}`}>
                 Desempenho, amortecimento e estilo para ir mais longe.
               </p>
               <div className="pt-1">
                 <button
-                  onClick={() => handleSelectCategory('ESPORTES')}
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); handleSelectCategory('CALÇADOS'); }}
                   className="bg-black text-white hover:bg-neutral-800 dark:bg-white dark:text-black dark:hover:bg-neutral-200 text-[11px] font-extrabold tracking-wider px-5 py-2.5 rounded-full uppercase transition-all cursor-pointer shadow-xs"
                 >
-                  VER ESPORTIVOS
+                  VER SAPATOS
                 </button>
               </div>
             </div>
@@ -583,18 +592,21 @@ export const ProductList: React.FC = () => {
               }`} />
               <img 
                 src="https://images.unsplash.com/photo-1542291026-7eec264c27ff?q=80&w=600&auto=format&fit=crop" 
-                alt="Treinos" 
-                className="w-full h-full object-cover"
+                alt="Sapatos" 
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
               />
             </div>
           </div>
 
           {/* Bottom Card (Bolsas & Acessórios) */}
-          <div className={`rounded-3xl p-7 sm:p-8 flex items-center justify-between relative overflow-hidden transition-all min-h-[160px] border ${
-            isDark ? 'bg-[#161617] border-white/10 text-white' : 'bg-[#eee8df] border-black/5 text-[#111111]'
-          }`}>
+          <div 
+            onClick={() => handleSelectCategory('ACESSÓRIOS')}
+            className={`rounded-3xl p-7 sm:p-8 flex items-center justify-between relative overflow-hidden transition-all min-h-[160px] border cursor-pointer group ${
+              isDark ? 'bg-[#161617] border-white/10 text-white hover:border-white/20' : 'bg-[#eee8df] border-black/5 text-[#111111] hover:border-black/15'
+            }`}
+          >
             <div className="space-y-2 z-20 w-full sm:w-[58%] pr-2">
-              <span className={`inline-block text-[10px] font-extrabold uppercase tracking-wider px-2 rounded-full ${
+              <span className={`inline-block text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full ${
                 isDark ? 'text-purple-400 bg-purple-400/10' : 'text-purple-800 bg-purple-900/10'
               }`}>
                 Acessórios & Bolsas
@@ -607,10 +619,11 @@ export const ProductList: React.FC = () => {
               </p>
               <div className="pt-1">
                 <button
-                  onClick={() => handleSelectCategory('ACESSÓRIOS')}
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); handleSelectCategory('ACESSÓRIOS'); }}
                   className="bg-black text-white hover:bg-neutral-800 dark:bg-white dark:text-black dark:hover:bg-neutral-200 text-[11px] font-extrabold tracking-wider px-5 py-2.5 rounded-full uppercase transition-all cursor-pointer shadow-xs"
                 >
-                  VER BOLSAS
+                  VER ACESSÓRIOS
                 </button>
               </div>
             </div>
@@ -620,8 +633,8 @@ export const ProductList: React.FC = () => {
               }`} />
               <img 
                 src="https://images.unsplash.com/photo-1584917865442-de89df76afd3?q=80&w=600&auto=format&fit=crop" 
-                alt="Bolsas" 
-                className="w-full h-full object-cover"
+                alt="Acessórios" 
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
               />
             </div>
           </div>
