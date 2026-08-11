@@ -15,9 +15,9 @@ const EVIDENCIA_LOGIN_URL = process.env.VITE_API_URL
   ? `${process.env.VITE_API_URL.replace(/\/$/, "")}/login`
   : `${EVIDENCIA_API_BASE}/api/v1/login`;
 const EVIDENCIA_CREDENTIALS = {
-  usuario: process.env.EVIDENCIA_API_USER || "site",
-  senha: process.env.EVIDENCIA_API_PASSWORD || "987654",
-  loja: process.env.EVIDENCIA_API_LOJA || "0",
+  usuario: process.env.EVIDENCIA_API_USER,
+  senha: process.env.EVIDENCIA_API_PASSWORD,
+  loja: process.env.EVIDENCIA_API_LOJA,
 };
 
 // Guardado com segurança em memória RAM apenas no servidor backend Node.js
@@ -277,4 +277,3 @@ if (!process.env.VERCEL) {
 
 // Vercel serverless entry point
 export default (req: any, res: any) => app(req, res);
-
