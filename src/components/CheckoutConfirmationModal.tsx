@@ -81,38 +81,61 @@ export const CheckoutConfirmationModal: React.FC<CheckoutConfirmationModalProps>
     ? [defaultAddress, ...userSavedList]
     : userSavedList;
 
-  // Atualiza nome da cidade quando initialCityName, currentUser ou modal abre
+  // Sincroniza cidade e verifica se o cliente possui endereço salvo ao abrir
   useEffect(() => {
-    if (initialCityName) {
-      setOtherCityName(initialCityName);
-    } else if (currentUser?.cidade && currentUser.cidade !== 'Caxias') {
-      setOtherCityName(currentUser.cidade);
-    }
-  }, [initialCityName, currentUser, isOpen]);
+    if (isOpen) {
+      if (initialCityName) {
+        setOtherCityName(initialCityName);
+      } else if (currentUser?.cidade && currentUser.cidade !== 'Caxias') {
+        setOtherCityName(currentUser.cidade);
+      }
 
-  // Função para salvar novo endereço sem sobrescrever o antigo
+      // Se for um novo cliente sem nenhum endereço cadastrado, abre o formulário de cadastro automaticamente
+      if (allAddresses.length === 0) {
+        setIsAddingNewAddress(true);
+      }
+    }
+  }, [initialCityName, currentUser, isOpen, allAddresses.length]);
+
+  // Função para salvar novo endereço sem sobrescrever o antigo (Salva no perfil se for o 1º endereço)
   const handleSaveNewAddress = async () => {
     if (!newAddrForm.rua.trim() || !newAddrForm.bairro.trim()) {
       alert('Por favor, informe a Rua e o Bairro do novo endereço.');
       return;
     }
 
+    const targetCity = deliveryType === 'Entrega para Outras Cidades' 
+      ? (otherCityName.trim() || newAddrForm.cidade.trim() || 'Outra Cidade')
+      : (newAddrForm.cidade.trim() || 'Caxias');
+
     const newAddrObj: SavedAddress = {
       id: 'addr_' + Date.now(),
-      label: newAddrForm.label.trim() || `Endereço ${(currentUser?.savedAddresses?.length || 0) + 2}`,
+      label: newAddrForm.label.trim() || (allAddresses.length === 0 ? 'Endereço Principal' : `Endereço ${allAddresses.length + 1}`),
       rua: newAddrForm.rua.trim(),
       numero: newAddrForm.numero.trim() || 'S/N',
       bairro: newAddrForm.bairro.trim(),
-      cidade: deliveryType === 'Entrega para Outras Cidades' 
-        ? (otherCityName.trim() || newAddrForm.cidade.trim() || 'Outra Cidade')
-        : (newAddrForm.cidade.trim() || 'Caxias'),
+      cidade: targetCity,
       uf: newAddrForm.uf.trim() || 'MA',
       complemento: newAddrForm.complemento.trim(),
     };
 
     const updatedAddresses = [...(currentUser?.savedAddresses || []), newAddrObj];
+    const isFirstAddress = !currentUser?.endereco;
+
+    const profileDataToSave: Partial<UserProfile> = {
+      savedAddresses: updatedAddresses
+    };
+
+    if (isFirstAddress) {
+      profileDataToSave.endereco = newAddrObj.rua;
+      profileDataToSave.numero = newAddrObj.numero;
+      profileDataToSave.bairro = newAddrObj.bairro;
+      profileDataToSave.cidade = newAddrObj.cidade;
+      profileDataToSave.uf = newAddrObj.uf;
+    }
+
     try {
-      await updateUserProfile({ savedAddresses: updatedAddresses });
+      await updateUserProfile(profileDataToSave);
       setSelectedAddressId(newAddrObj.id);
       setIsAddingNewAddress(false);
       setNewAddrForm({
