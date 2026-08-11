@@ -281,6 +281,18 @@ export interface Category {
 
 export type CrediarioStatus = 'NaoSolicitado' | 'EmAnalise' | 'Aprovado' | 'Rejeitado';
 
+export interface SavedAddress {
+  id: string;
+  label?: string; // Ex: 'Casa', 'Trabalho', 'Endereço 2'
+  rua: string;
+  numero: string;
+  bairro: string;
+  cidade: string;
+  uf: string;
+  complemento?: string;
+  formattedAddress?: string;
+}
+
 export interface UserProfile {
   uid: string;
   email: string;
@@ -303,6 +315,7 @@ export interface UserProfile {
   uf?: string;
   complemento?: string;
   pontoReferencia?: string;
+  savedAddresses?: SavedAddress[];
   // Professional & Emergency Contacts for Store Credit
   profissao?: string;
   rendaMensal?: string;

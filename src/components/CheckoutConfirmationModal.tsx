@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { UserProfile } from '../types';
+import { UserProfile, SavedAddress } from '../types';
 import { firebaseAuthService } from '../services/firebaseAuthService';
 import { 
   X, CheckCircle2, Truck, ShoppingBag, Zap, CreditCard, 
-  ShieldCheck, MapPin, Info, ArrowRight, MessageSquare, Sparkles, User, Edit3
+  ShieldCheck, MapPin, Info, ArrowRight, MessageSquare, Sparkles, User, Edit3, Plus
 } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -33,7 +33,7 @@ export const CheckoutConfirmationModal: React.FC<CheckoutConfirmationModalProps>
   onConfirmOrder,
   isProcessing
 }) => {
-  const { currentUser, theme } = useApp();
+  const { currentUser, updateUserProfile, theme } = useApp();
   const isDark = theme === 'dark';
 
   const [deliveryType, setDeliveryType] = useState<'Entrega em Caxias-MA' | 'Entrega para Outras Cidades' | 'Retirada na Loja'>(initialDeliveryType || 'Entrega em Caxias-MA');
@@ -44,33 +44,84 @@ export const CheckoutConfirmationModal: React.FC<CheckoutConfirmationModalProps>
     }
   }, [initialDeliveryType, isOpen]);
 
-  // Estado para alteração de endereço e cidade de destino
-  const [isEditingAddress, setIsEditingAddress] = useState<boolean>(false);
-  const [customAddress, setCustomAddress] = useState({
-    rua: currentUser?.endereco || '',
-    numero: currentUser?.numero || '',
-    bairro: currentUser?.bairro || '',
-    cidade: currentUser?.cidade || 'Caxias',
-    uf: currentUser?.uf || 'MA',
+  // Estado para gestão de múltiplos endereços (Sem sobrescrever anteriores)
+  const [selectedAddressId, setSelectedAddressId] = useState<string>('default');
+  const [isAddingNewAddress, setIsAddingNewAddress] = useState<boolean>(false);
+  const [newAddrForm, setNewAddrForm] = useState({
+    label: '',
+    rua: '',
+    numero: '',
+    bairro: '',
+    cidade: 'Caxias',
+    uf: 'MA',
+    complemento: ''
   });
+
   const [otherCityName, setOtherCityName] = useState<string>(
     currentUser?.cidade && currentUser.cidade !== 'Caxias' ? currentUser.cidade : ''
   );
 
+  // Lista normalizada de todos os endereços salvos
+  const defaultAddress: SavedAddress = {
+    id: 'default',
+    label: 'Endereço Cadastrado',
+    rua: currentUser?.endereco || '',
+    numero: currentUser?.numero || 'S/N',
+    bairro: currentUser?.bairro || 'Centro',
+    cidade: currentUser?.cidade || 'Caxias',
+    uf: currentUser?.uf || 'MA',
+  };
+
+  const userSavedList: SavedAddress[] = currentUser?.savedAddresses || [];
+  const allAddresses: SavedAddress[] = defaultAddress.rua 
+    ? [defaultAddress, ...userSavedList]
+    : userSavedList;
+
+  // Atualiza nome da cidade quando currentUser carrega
   useEffect(() => {
-    if (currentUser) {
-      setCustomAddress({
-        rua: currentUser.endereco || '',
-        numero: currentUser.numero || '',
-        bairro: currentUser.bairro || '',
-        cidade: currentUser.cidade || 'Caxias',
-        uf: currentUser.uf || 'MA',
-      });
-      if (currentUser.cidade && currentUser.cidade !== 'Caxias') {
-        setOtherCityName(currentUser.cidade);
-      }
+    if (currentUser?.cidade && currentUser.cidade !== 'Caxias') {
+      setOtherCityName(currentUser.cidade);
     }
   }, [currentUser]);
+
+  // Função para salvar novo endereço sem sobrescrever o antigo
+  const handleSaveNewAddress = async () => {
+    if (!newAddrForm.rua.trim() || !newAddrForm.bairro.trim()) {
+      alert('Por favor, informe a Rua e o Bairro do novo endereço.');
+      return;
+    }
+
+    const newAddrObj: SavedAddress = {
+      id: 'addr_' + Date.now(),
+      label: newAddrForm.label.trim() || `Endereço ${(currentUser?.savedAddresses?.length || 0) + 2}`,
+      rua: newAddrForm.rua.trim(),
+      numero: newAddrForm.numero.trim() || 'S/N',
+      bairro: newAddrForm.bairro.trim(),
+      cidade: deliveryType === 'Entrega para Outras Cidades' 
+        ? (otherCityName.trim() || newAddrForm.cidade.trim() || 'Outra Cidade')
+        : (newAddrForm.cidade.trim() || 'Caxias'),
+      uf: newAddrForm.uf.trim() || 'MA',
+      complemento: newAddrForm.complemento.trim(),
+    };
+
+    const updatedAddresses = [...(currentUser?.savedAddresses || []), newAddrObj];
+    try {
+      await updateUserProfile({ savedAddresses: updatedAddresses });
+      setSelectedAddressId(newAddrObj.id);
+      setIsAddingNewAddress(false);
+      setNewAddrForm({
+        label: '',
+        rua: '',
+        numero: '',
+        bairro: '',
+        cidade: 'Caxias',
+        uf: 'MA',
+        complemento: ''
+      });
+    } catch (error) {
+      console.error("Erro ao salvar endereço:", error);
+    }
+  };
 
   const [paymentMethod, setPaymentMethod] = useState<'Pix' | 'Cartão de Crédito' | 'Crediário da Loja'>('Pix');
   const [installments, setInstallments] = useState<number>(1);
@@ -138,11 +189,13 @@ export const CheckoutConfirmationModal: React.FC<CheckoutConfirmationModalProps>
       ? installments 
       : (paymentMethod === 'Crediário da Loja' ? crediarioInstallments : 1);
 
+    const activeAddressObj = allAddresses.find(a => a.id === selectedAddressId) || allAddresses[0] || defaultAddress;
+
     const formattedAddress = deliveryType === 'Retirada na Loja'
       ? 'Retirada na Loja: Rua Afonso Pena, 295 - Centro, Caxias - MA'
       : deliveryType === 'Entrega para Outras Cidades'
-      ? `${customAddress.rua ? `${customAddress.rua}, Nº ${customAddress.numero || 'S/N'} - ${customAddress.bairro || ''}, ` : ''}${otherCityName || customAddress.cidade || 'Outra Cidade'}`
-      : `${customAddress.rua || 'Centro'}, Nº ${customAddress.numero || 'S/N'} - ${customAddress.bairro || 'Centro'}, Caxias - MA`;
+      ? `${activeAddressObj?.rua ? `${activeAddressObj.rua}, Nº ${activeAddressObj.numero || 'S/N'} - ${activeAddressObj.bairro || ''}, ` : ''}${otherCityName || activeAddressObj?.cidade || 'Outra Cidade'}/${activeAddressObj?.uf || 'MA'}`
+      : `${activeAddressObj?.rua || 'Centro'}, Nº ${activeAddressObj?.numero || 'S/N'} - ${activeAddressObj?.bairro || 'Centro'}, Caxias - MA`;
 
     onConfirmOrder(
       paymentMethod, 
@@ -274,7 +327,7 @@ export const CheckoutConfirmationModal: React.FC<CheckoutConfirmationModalProps>
               </button>
             </div>
 
-            {/* Address Details & Freight Notice Preview */}
+            {/* Address Details & Saved Multi-Address Selection */}
             <div className={`p-4 rounded-2xl border text-xs space-y-3 ${
               isDark ? 'bg-slate-950/80 border-slate-800 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700'
             }`}>
@@ -285,11 +338,11 @@ export const CheckoutConfirmationModal: React.FC<CheckoutConfirmationModalProps>
                 {deliveryType !== 'Retirada na Loja' && (
                   <button 
                     type="button" 
-                    onClick={() => setIsEditingAddress(!isEditingAddress)} 
+                    onClick={() => setIsAddingNewAddress(!isAddingNewAddress)} 
                     className="text-[#0071e3] hover:underline font-extrabold flex items-center gap-1 cursor-pointer text-[11px]"
                   >
-                    <Edit3 className="h-3 w-3" />
-                    {isEditingAddress ? 'Concluir Edição' : 'Alterar Endereço'}
+                    <Plus className="h-3.5 w-3.5 text-[#0071e3]" />
+                    {isAddingNewAddress ? 'Cancelar' : '+ Novo Endereço'}
                   </button>
                 )}
               </div>
@@ -305,115 +358,129 @@ export const CheckoutConfirmationModal: React.FC<CheckoutConfirmationModalProps>
                     (Horário de funcionamento: Seg-Sex: 08h-18h | Sáb: 08h-13h)
                   </span>
                 </div>
-              ) : deliveryType === 'Entrega para Outras Cidades' ? (
-                /* ENTREGA PARA OUTRAS CIDADES */
+              ) : (
+                /* ENTREGA CAXIAS OU OUTRAS CIDADES: SELEÇÃO E CADASTRO DE NOVO ENDEREÇO */
                 <div className="space-y-3">
-                  <div className="space-y-1">
-                    <label className="block text-[11px] font-extrabold text-emerald-400">
-                      📍 Informe o Nome da Outra Cidade de Destino:
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Ex: São Luís - MA, Teresina - PI, Imperatriz - MA..."
-                      value={otherCityName}
-                      onChange={(e) => setOtherCityName(e.target.value)}
-                      className={`w-full px-3 py-2 rounded-xl text-xs border font-bold focus:outline-none transition-all ${
-                        isDark ? 'bg-slate-900 border-emerald-500/40 text-white focus:border-emerald-400' : 'bg-white border-emerald-300 text-slate-900 focus:border-emerald-500'
-                      }`}
-                    />
-                  </div>
-
-                  {isEditingAddress ? (
-                    <div className="space-y-2 p-3 rounded-xl bg-slate-900/60 border border-slate-800 text-xs">
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-slate-400">Rua / Logradouro:</label>
-                        <input 
-                          type="text" 
-                          value={customAddress.rua} 
-                          onChange={(e) => setCustomAddress({ ...customAddress, rua: e.target.value })}
-                          placeholder="Ex: Rua das Flores"
-                          className="w-full px-2.5 py-1.5 rounded-lg border text-xs bg-slate-950 border-slate-700 text-white focus:outline-none" 
-                        />
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-slate-400">Número:</label>
-                          <input 
-                            type="text" 
-                            value={customAddress.numero} 
-                            onChange={(e) => setCustomAddress({ ...customAddress, numero: e.target.value })}
-                            placeholder="Ex: 123"
-                            className="w-full px-2.5 py-1.5 rounded-lg border text-xs bg-slate-950 border-slate-700 text-white focus:outline-none" 
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-slate-400">Bairro:</label>
-                          <input 
-                            type="text" 
-                            value={customAddress.bairro} 
-                            onChange={(e) => setCustomAddress({ ...customAddress, bairro: e.target.value })}
-                            placeholder="Ex: Renascença"
-                            className="w-full px-2.5 py-1.5 rounded-lg border text-xs bg-slate-950 border-slate-700 text-white focus:outline-none" 
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="p-2.5 rounded-xl bg-slate-900/40 border border-slate-800/80 leading-relaxed">
-                      <span className="text-[10px] font-bold text-slate-400 block">Endereço de envio:</span>
-                      <p className="font-semibold text-slate-200 text-xs">
-                        {customAddress.rua ? `${customAddress.rua}, Nº ${customAddress.numero || 'S/N'} - ${customAddress.bairro || ''}` : 'Endereço será confirmado via WhatsApp'}
-                      </p>
+                  {deliveryType === 'Entrega para Outras Cidades' && (
+                    <div className="space-y-1">
+                      <label className="block text-[11px] font-extrabold text-emerald-400">
+                        📍 Informe o Nome da Outra Cidade de Destino:
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Ex: São Luís - MA, Teresina - PI, Imperatriz - MA..."
+                        value={otherCityName}
+                        onChange={(e) => setOtherCityName(e.target.value)}
+                        className={`w-full px-3 py-2 rounded-xl text-xs border font-bold focus:outline-none transition-all ${
+                          isDark ? 'bg-slate-900 border-emerald-500/40 text-white focus:border-emerald-400' : 'bg-white border-emerald-300 text-slate-900 focus:border-emerald-500'
+                        }`}
+                      />
                     </div>
                   )}
 
-                  <div className="pt-2 border-t border-slate-800/40 flex items-center space-x-1.5 text-[11px] text-amber-400 font-bold">
-                    <MessageSquare className="h-3.5 w-3.5 shrink-0" />
-                    <span>💬 Frete a combinar / sob consulta via WhatsApp para {otherCityName || 'a cidade informada'}</span>
-                  </div>
-                </div>
-              ) : (
-                /* ENTREGA EM CAXIAS - MA */
-                <div className="space-y-2">
-                  {isEditingAddress ? (
-                    <div className="space-y-2 p-3 rounded-xl bg-slate-900/60 border border-slate-800 text-xs">
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-slate-400">Rua / Logradouro:</label>
-                        <input 
-                          type="text" 
-                          value={customAddress.rua} 
-                          onChange={(e) => setCustomAddress({ ...customAddress, rua: e.target.value })}
-                          placeholder="Ex: Rua Afonso Pena"
-                          className="w-full px-2.5 py-1.5 rounded-lg border text-xs bg-slate-950 border-slate-700 text-white focus:outline-none" 
-                        />
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-slate-400">Número:</label>
-                          <input 
-                            type="text" 
-                            value={customAddress.numero} 
-                            onChange={(e) => setCustomAddress({ ...customAddress, numero: e.target.value })}
-                            placeholder="Ex: 295"
-                            className="w-full px-2.5 py-1.5 rounded-lg border text-xs bg-slate-950 border-slate-700 text-white focus:outline-none" 
+                  {/* FORMULÁRIO DE CADASTRO DE NOVO ENDEREÇO (SEM SOBRESCREVER OS ANTERIORES) */}
+                  {isAddingNewAddress ? (
+                    <div className="p-3.5 rounded-2xl bg-slate-900/90 border border-[#0071e3]/40 space-y-2.5 shadow-sm">
+                      <span className="text-xs font-extrabold text-[#0071e3] block flex items-center gap-1">
+                        <Plus className="h-3.5 w-3.5" />
+                        Cadastrar Novo Endereço de Entrega
+                      </span>
+
+                      <div className="space-y-2 text-xs">
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-400">Identificação do Local (Opcional):</label>
+                          <input
+                            type="text"
+                            placeholder="Ex: Minha Casa 2, Trabalho, Casa da Praia..."
+                            value={newAddrForm.label}
+                            onChange={(e) => setNewAddrForm({ ...newAddrForm, label: e.target.value })}
+                            className="w-full px-2.5 py-1.5 rounded-lg border bg-slate-950 border-slate-700 text-white focus:outline-none focus:border-[#0071e3]"
                           />
                         </div>
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-slate-400">Bairro:</label>
-                          <input 
-                            type="text" 
-                            value={customAddress.bairro} 
-                            onChange={(e) => setCustomAddress({ ...customAddress, bairro: e.target.value })}
-                            placeholder="Ex: Centro"
-                            className="w-full px-2.5 py-1.5 rounded-lg border text-xs bg-slate-950 border-slate-700 text-white focus:outline-none" 
+
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-400">Rua / Logradouro:*</label>
+                          <input
+                            type="text"
+                            placeholder="Ex: Rua das Flores"
+                            value={newAddrForm.rua}
+                            onChange={(e) => setNewAddrForm({ ...newAddrForm, rua: e.target.value })}
+                            className="w-full px-2.5 py-1.5 rounded-lg border bg-slate-950 border-slate-700 text-white focus:outline-none focus:border-[#0071e3]"
                           />
                         </div>
+
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-400">Número:*</label>
+                            <input
+                              type="text"
+                              placeholder="Ex: 123 ou S/N"
+                              value={newAddrForm.numero}
+                              onChange={(e) => setNewAddrForm({ ...newAddrForm, numero: e.target.value })}
+                              className="w-full px-2.5 py-1.5 rounded-lg border bg-slate-950 border-slate-700 text-white focus:outline-none focus:border-[#0071e3]"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-400">Bairro:*</label>
+                            <input
+                              type="text"
+                              placeholder="Ex: Renascença"
+                              value={newAddrForm.bairro}
+                              onChange={(e) => setNewAddrForm({ ...newAddrForm, bairro: e.target.value })}
+                              className="w-full px-2.5 py-1.5 rounded-lg border bg-slate-950 border-slate-700 text-white focus:outline-none focus:border-[#0071e3]"
+                            />
+                          </div>
+                        </div>
                       </div>
+
+                      <button
+                        type="button"
+                        onClick={handleSaveNewAddress}
+                        className="w-full py-2.5 bg-[#00a650] hover:bg-[#009146] text-white font-extrabold text-xs rounded-xl shadow-xs cursor-pointer transition-all mt-1"
+                      >
+                        Salvar e Selecionar Novo Endereço
+                      </button>
                     </div>
                   ) : (
-                    <p className="leading-snug text-xs font-semibold text-slate-200 bg-slate-900/40 p-2.5 rounded-xl border border-slate-800">
-                      {customAddress.rua ? `${customAddress.rua}, Nº ${customAddress.numero || 'S/N'} - ${customAddress.bairro || 'Centro'}, Caxias - MA` : `${currentUser.endereco || 'Endereço em Caxias'}, Nº ${currentUser.numero || 'S/N'} - ${currentUser.bairro || 'Centro'}, Caxias - MA`}
-                    </p>
+                    /* LISTA DE ENDEREÇOS SALVOS PARA SELEÇÃO */
+                    <div className="space-y-2">
+                      <span className="text-[10px] font-bold text-slate-400 block">
+                        Escolha entre seus endereços salvos:
+                      </span>
+                      <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+                        {allAddresses.map((addr) => {
+                          const isSelected = selectedAddressId === addr.id;
+                          return (
+                            <div
+                              key={addr.id}
+                              onClick={() => setSelectedAddressId(addr.id)}
+                              className={`p-3 rounded-xl border text-xs cursor-pointer transition-all flex items-start justify-between ${
+                                isSelected
+                                  ? 'border-2 border-emerald-500 bg-emerald-500/10 shadow-xs'
+                                  : 'border-slate-800 bg-slate-900/40 hover:border-slate-700'
+                              }`}
+                            >
+                              <div className="space-y-0.5">
+                                <span className="font-extrabold text-slate-200 block text-[11px]">
+                                  📍 {addr.label || 'Endereço Salvo'}
+                                </span>
+                                <p className="text-slate-300 text-[11px] font-medium leading-snug">
+                                  {addr.rua}, Nº {addr.numero} - {addr.bairro}, {addr.cidade}/{addr.uf}
+                                </p>
+                              </div>
+                              {isSelected && <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {deliveryType === 'Entrega para Outras Cidades' && (
+                    <div className="pt-2 border-t border-slate-800/40 flex items-center space-x-1.5 text-[11px] text-amber-400 font-bold">
+                      <MessageSquare className="h-3.5 w-3.5 shrink-0" />
+                      <span>💬 Frete a combinar / sob consulta via WhatsApp para {otherCityName || 'a cidade informada'}</span>
+                    </div>
                   )}
                 </div>
               )}
