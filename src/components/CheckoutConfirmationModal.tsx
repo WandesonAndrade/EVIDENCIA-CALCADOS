@@ -14,6 +14,7 @@ interface CheckoutConfirmationModalProps {
   subtotal: number;
   cartItemsCount: number;
   initialDeliveryType?: 'Entrega em Caxias-MA' | 'Entrega para Outras Cidades' | 'Retirada na Loja';
+  initialCityName?: string;
   onConfirmOrder: (
     paymentMethod: 'Pix' | 'Cartão de Crédito' | 'Crediário da Loja', 
     deliveryType: 'Entrega em Caxias-MA' | 'Entrega para Outras Cidades' | 'Retirada na Loja',
@@ -30,6 +31,7 @@ export const CheckoutConfirmationModal: React.FC<CheckoutConfirmationModalProps>
   subtotal,
   cartItemsCount,
   initialDeliveryType,
+  initialCityName,
   onConfirmOrder,
   isProcessing
 }) => {
@@ -58,7 +60,7 @@ export const CheckoutConfirmationModal: React.FC<CheckoutConfirmationModalProps>
   });
 
   const [otherCityName, setOtherCityName] = useState<string>(
-    currentUser?.cidade && currentUser.cidade !== 'Caxias' ? currentUser.cidade : ''
+    initialCityName || (currentUser?.cidade && currentUser.cidade !== 'Caxias' ? currentUser.cidade : '')
   );
 
   // Lista normalizada de todos os endereços salvos
@@ -77,12 +79,14 @@ export const CheckoutConfirmationModal: React.FC<CheckoutConfirmationModalProps>
     ? [defaultAddress, ...userSavedList]
     : userSavedList;
 
-  // Atualiza nome da cidade quando currentUser carrega
+  // Atualiza nome da cidade quando initialCityName, currentUser ou modal abre
   useEffect(() => {
-    if (currentUser?.cidade && currentUser.cidade !== 'Caxias') {
+    if (initialCityName) {
+      setOtherCityName(initialCityName);
+    } else if (currentUser?.cidade && currentUser.cidade !== 'Caxias') {
       setOtherCityName(currentUser.cidade);
     }
-  }, [currentUser]);
+  }, [initialCityName, currentUser, isOpen]);
 
   // Função para salvar novo endereço sem sobrescrever o antigo
   const handleSaveNewAddress = async () => {

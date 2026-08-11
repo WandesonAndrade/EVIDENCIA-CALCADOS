@@ -1153,6 +1153,7 @@ export const ProductDetail: React.FC = () => {
         subtotal={p.price}
         cartItemsCount={1}
         initialDeliveryType={selectedDeliveryType}
+        initialCityName={shippingInfo?.city || cityOrCepInput.trim()}
         onConfirmOrder={handleConfirmOrder}
         isProcessing={isProcessing}
       />
