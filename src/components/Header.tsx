@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { BrandLogo } from "./BrandLogo";
+import { CompleteProfileModal } from "./CompleteProfileModal";
 import { checkIsProfileComplete } from "../App";
 import { scrollToSectionWithOffset } from "../lib/scrollUtils";
 import { normalizeCategoryName } from "../services/moblinkCategoriesService";
@@ -45,6 +46,7 @@ export const Header: React.FC = () => {
   } = useApp();
 
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const isDark = theme === "dark";
 
   const activeUser = currentAdminUser || currentUser;
@@ -332,6 +334,21 @@ export const Header: React.FC = () => {
 
                             <button
                               onClick={() => {
+                                setIsProfileModalOpen(true);
+                                setIsDropdownOpen(false);
+                              }}
+                              className={`w-full text-left px-4 py-2 text-xs font-medium transition-colors flex items-center space-x-2 cursor-pointer ${
+                                isDark
+                                  ? "text-slate-300 hover:bg-slate-800"
+                                  : "text-neutral-700 hover:bg-neutral-100"
+                              }`}
+                            >
+                              <User className="h-4 w-4 text-neutral-400" />
+                              <span>Meus Dados Cadastrais</span>
+                            </button>
+
+                            <button
+                              onClick={() => {
                                 setCurrentView("meu-crediario");
                                 setIsDropdownOpen(false);
                               }}
@@ -450,6 +467,11 @@ export const Header: React.FC = () => {
           </div>
         </div>
       </div>
+
+      <CompleteProfileModal
+        isOpen={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
+      />
     </header>
   );
 };

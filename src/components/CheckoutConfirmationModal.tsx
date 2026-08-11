@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { UserProfile, SavedAddress } from '../types';
 import { firebaseAuthService } from '../services/firebaseAuthService';
+import { CompleteProfileModal } from './CompleteProfileModal';
 import { 
   X, CheckCircle2, Truck, ShoppingBag, Zap, CreditCard, 
   ShieldCheck, MapPin, Info, ArrowRight, MessageSquare, Sparkles, User, Edit3, Plus
@@ -46,7 +47,8 @@ export const CheckoutConfirmationModal: React.FC<CheckoutConfirmationModalProps>
     }
   }, [initialDeliveryType, isOpen]);
 
-  // Estado para gestão de múltiplos endereços (Sem sobrescrever anteriores)
+  // Estado para edição de dados do perfil e gestão de múltiplos endereços
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false);
   const [selectedAddressId, setSelectedAddressId] = useState<string>('default');
   const [isAddingNewAddress, setIsAddingNewAddress] = useState<boolean>(false);
   const [newAddrForm, setNewAddrForm] = useState({
@@ -247,6 +249,48 @@ export const CheckoutConfirmationModal: React.FC<CheckoutConfirmationModalProps>
 
         <div className="p-5 sm:p-6 space-y-6 max-h-[80vh] overflow-y-auto">
           
+          {/* SEÇÃO 0: DADOS DO CLIENTE */}
+          <div className={`p-4 rounded-2xl border text-xs space-y-2 transition-all ${
+            isDark ? 'bg-[#1d1d1f] border-white/10 text-slate-200' : 'bg-slate-50 border-slate-200 text-slate-800'
+          }`}>
+            <div className="flex items-center justify-between border-b pb-2 border-slate-200 dark:border-white/10">
+              <span className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                <User className="h-3.5 w-3.5 text-[#0071e3]" />
+                Dados do Cliente Responsável pelo Pedido:
+              </span>
+              <button 
+                type="button" 
+                onClick={() => setIsProfileModalOpen(true)}
+                className="text-[#0071e3] hover:underline font-extrabold flex items-center gap-1 cursor-pointer text-[11px]"
+              >
+                <Edit3 className="h-3 w-3" />
+                Editar Dados
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+              <div>
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold block">Nome Completo:</span>
+                <span className="font-extrabold text-slate-900 dark:text-white text-xs">{currentUser.name || 'Cliente'}</span>
+              </div>
+
+              <div>
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold block">E-mail:</span>
+                <span className="font-semibold text-slate-700 dark:text-slate-300 text-xs truncate block">{currentUser.email || 'Não informado'}</span>
+              </div>
+
+              <div>
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold block">Telefone / WhatsApp:</span>
+                <span className="font-extrabold text-emerald-600 dark:text-emerald-400 text-xs">{currentUser.telefone || 'Não informado'}</span>
+              </div>
+
+              <div>
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold block">CPF:</span>
+                <span className="font-semibold text-slate-700 dark:text-slate-300 text-xs">{currentUser.cpf || 'Não informado'}</span>
+              </div>
+            </div>
+          </div>
+
           {/* SECTION 1: OPÇÕES DE ENTREGA */}
           <div className="space-y-3">
             <h4 className={`text-xs font-black uppercase tracking-wider flex items-center space-x-2 ${
@@ -764,6 +808,11 @@ export const CheckoutConfirmationModal: React.FC<CheckoutConfirmationModalProps>
 
         </div>
       </motion.div>
+
+      <CompleteProfileModal
+        isOpen={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
+      />
     </div>
   );
 };
