@@ -9,10 +9,10 @@ const app = express();
 const PORT = 3000;
 
 const EVIDENCIA_API_BASE = process.env.VITE_API_URL
-  ? process.env.VITE_API_URL.replace(/\/api\/v1\/?$/, '')
-  : "https://api.evidenciacalcados.com.br";
+  ? process.env.VITE_API_URL.replace(/\/api\/v1\/?$/, "")
+  : "";
 const EVIDENCIA_LOGIN_URL = process.env.VITE_API_URL
-  ? `${process.env.VITE_API_URL.replace(/\/$/, '')}/login`
+  ? `${process.env.VITE_API_URL.replace(/\/$/, "")}/login`
   : `${EVIDENCIA_API_BASE}/api/v1/login`;
 const EVIDENCIA_CREDENTIALS = {
   usuario: process.env.EVIDENCIA_API_USER || "site",

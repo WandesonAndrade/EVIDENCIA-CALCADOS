@@ -20,7 +20,7 @@ const getEnvApiUrl = (): string => {
   }
 
   // Base URL padrão oficial do projeto Evidência Calçados
-  return "https://api.evidenciacalcados.com.br";
+  return "";
 };
 
 /**
