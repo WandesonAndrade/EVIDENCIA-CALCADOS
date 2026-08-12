@@ -80,6 +80,14 @@ interface SaleGroup {
   hasOverdue: boolean;
 }
 
+interface SelectedParcel {
+  parcelId: string;
+  saleKey: string;
+  parcNum: string;
+  value: number;
+  description: string;
+}
+
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export const MeuCrediario: React.FC = () => {
@@ -96,9 +104,11 @@ export const MeuCrediario: React.FC = () => {
   const [verifiedClientName, setVerifiedClientName] = useState('');
   const [expandedSales, setExpandedSales] = useState<Set<string>>(new Set());
 
-  // ── Pix Payment Modal ──
+  // ── Pix Payment Modal & Paid State ──
   const [pixModalOpen, setPixModalOpen] = useState(false);
-  const [pixSelectedParcel, setPixSelectedParcel] = useState<{ value: number; description: string } | null>(null);
+  const [pixSelectedParcel, setPixSelectedParcel] = useState<SelectedParcel | null>(null);
+  const [paidParcelKeys, setPaidParcelKeys] = useState<Set<string>>(new Set());
+  const [paymentSuccessToast, setPaymentSuccessToast] = useState<string | null>(null);
 
   // ── CPF Mask ──
   const handleCpfChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -181,21 +191,41 @@ export const MeuCrediario: React.FC = () => {
       });
 
       const totalValue = sorted.reduce((s, i) => s + (i.valor_parcela ?? i.valor ?? i.saldo ?? 0), 0);
-      const totalPending = sorted.reduce((s, i) => {
+      const totalPending = sorted.reduce((s, i, idx) => {
+        const parcNum = i.parcela || `${idx + 1}/${sorted.length}`;
+        const parcelUniqueKey = String(i.id || `${saleKey}_${parcNum}`);
+        const isPaid = getInstallmentAmount(i).isPaid || paidParcelKeys.has(parcelUniqueKey) || paidParcelKeys.has(String(i.id));
         const amt = getInstallmentAmount(i);
-        return amt.isPaid ? s : s + amt.displayAmount;
+        return isPaid ? s : s + amt.displayAmount;
       }, 0);
-      const hasOverdue = sorted.some((i) => {
+      const hasOverdue = sorted.some((i, idx) => {
+        const parcNum = i.parcela || `${idx + 1}/${sorted.length}`;
+        const parcelUniqueKey = String(i.id || `${saleKey}_${parcNum}`);
+        const isPaid = getInstallmentAmount(i).isPaid || paidParcelKeys.has(parcelUniqueKey) || paidParcelKeys.has(String(i.id));
         const amt = getInstallmentAmount(i);
-        return amt.isOverdue;
+        return !isPaid && amt.isOverdue;
       });
 
       return { saleKey, items: sorted, totalValue, totalPending, hasOverdue };
     });
-  }, [invoices]);
+  }, [invoices, paidParcelKeys]);
 
   const totalPendingAll = groupedSales.reduce((s, g) => s + g.totalPending, 0);
   const hasAnyOverdue = groupedSales.some((g) => g.hasOverdue);
+
+  // ── Handle Pix Payment Success ──
+  const handlePaymentSuccess = useCallback((paymentId: number) => {
+    if (pixSelectedParcel) {
+      const key = pixSelectedParcel.parcelId;
+      setPaidParcelKeys((prev) => new Set(prev).add(key));
+      setPaymentSuccessToast(`🎉 Pagamento da ${pixSelectedParcel.description} confirmado via Pix com sucesso!`);
+    }
+    if (verifiedMoblinkId) {
+      moblinkClientesService.fetchClienteContasReceber(verifiedMoblinkId).then((data) => {
+        setInvoices(data);
+      }).catch(console.error);
+    }
+  }, [pixSelectedParcel, verifiedMoblinkId]);
 
   const toggleSale = (key: string) => {
     setExpandedSales((prev) => {
@@ -392,6 +422,27 @@ export const MeuCrediario: React.FC = () => {
               className="space-y-4"
             >
               {/* Summary Header */}
+              {paymentSuccessToast && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className={`p-4 rounded-xl border flex items-center justify-between shadow-sm ${
+                    isDark ? 'bg-emerald-950/60 border-emerald-500/40 text-emerald-300' : 'bg-emerald-50 border-emerald-300 text-emerald-800'
+                  }`}
+                >
+                  <div className="flex items-center space-x-2.5">
+                    <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-500" />
+                    <p className="text-xs font-bold">{paymentSuccessToast}</p>
+                  </div>
+                  <button
+                    onClick={() => setPaymentSuccessToast(null)}
+                    className="text-xs font-black hover:opacity-75 cursor-pointer ml-2"
+                  >
+                    ✕
+                  </button>
+                </motion.div>
+              )}
+
               <div className={`${cardBase} p-5`}>
                 <div className="flex items-center justify-between flex-wrap gap-3">
                   <div>
@@ -530,13 +581,15 @@ export const MeuCrediario: React.FC = () => {
                                 const parcNum = inv.parcela || `${idx + 1}/${group.items.length}`;
                                 const dtVenc = formatDate(inv.data_vencimento || inv.vencimento);
                                 const amountInfo = getInstallmentAmount(inv);
-                                const isPaid = amountInfo.isPaid;
-                                const isOverdue = amountInfo.isOverdue;
+                                const parcelUniqueKey = String(inv.id || `${group.saleKey}_${parcNum}`);
+                                const isPaidByPix = paidParcelKeys.has(parcelUniqueKey) || paidParcelKeys.has(String(inv.id));
+                                const isPaid = amountInfo.isPaid || isPaidByPix;
+                                const isOverdue = !isPaid && amountInfo.isOverdue;
 
                                 return (
                                   <div
                                     key={inv.id || idx}
-                                    className={`flex items-center justify-between p-3.5 rounded-xl border ${
+                                    className={`flex items-center justify-between p-3.5 rounded-xl border transition-all ${
                                       isPaid
                                         ? (isDark ? 'bg-emerald-950/30 border-emerald-500/30' : 'bg-emerald-50 border-emerald-300')
                                         : isOverdue
@@ -581,7 +634,13 @@ export const MeuCrediario: React.FC = () => {
                                     {/* Right: status badge + value + pay button */}
                                     <div className="flex items-center space-x-2 sm:space-x-3 shrink-0">
                                       <div>
-                                        {isPaid ? (
+                                        {isPaidByPix ? (
+                                          <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-1 rounded-full ${
+                                            isDark ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-emerald-100 text-emerald-700 border border-emerald-300'
+                                          }`}>
+                                            ✓ Pago via Pix
+                                          </span>
+                                        ) : isPaid ? (
                                           <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-1 rounded-full ${
                                             isDark ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-emerald-100 text-emerald-700 border border-emerald-300'
                                           }`}>
@@ -624,6 +683,9 @@ export const MeuCrediario: React.FC = () => {
                                           onClick={(e) => {
                                             e.stopPropagation();
                                             setPixSelectedParcel({
+                                              parcelId: parcelUniqueKey,
+                                              saleKey: String(group.saleKey),
+                                              parcNum: String(parcNum),
                                               value: amountInfo.displayAmount,
                                               description: `Parcela ${parcNum} – Venda #${group.saleKey}`,
                                             });
@@ -671,6 +733,7 @@ export const MeuCrediario: React.FC = () => {
           nomeCliente={verifiedClientName || activeUser?.name || (activeUser as any)?.displayName}
           cpfCliente={cpfInput || activeUser?.cpf}
           externalReference={pixSelectedParcel ? `venda_${pixSelectedParcel.description.replace(/\D/g, '_')}` : undefined}
+          onPaymentSuccess={handlePaymentSuccess}
         />
       </div>
     </div>

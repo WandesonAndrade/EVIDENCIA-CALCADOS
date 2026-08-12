@@ -12,12 +12,15 @@ interface PixPaymentModalProps {
   nomeCliente?: string;
   cpfCliente?: string;
   externalReference?: string;
+  onPaymentSuccess?: (paymentId: number) => void;
 }
 
 interface PixData {
   payment_id: number;
   qr_code: string;
   qr_code_base64: string | null;
+  expires_at?: number;
+  reused?: boolean;
 }
 
 type ModalState = 'loading' | 'awaiting' | 'approved' | 'error';
@@ -32,19 +35,30 @@ export const PixPaymentModal: React.FC<PixPaymentModalProps> = ({
   nomeCliente,
   cpfCliente,
   externalReference,
+  onPaymentSuccess,
 }) => {
   const [state, setState] = useState<ModalState>('loading');
   const [pixData, setPixData] = useState<PixData | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
   const [copied, setCopied] = useState(false);
+  const [timeLeftSec, setTimeLeftSec] = useState<number>(0);
   const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const pollingRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
+  const timerRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
 
   // Stop polling
   const stopPolling = useCallback(() => {
     if (pollingRef.current) {
       clearInterval(pollingRef.current);
       pollingRef.current = undefined;
+    }
+  }, []);
+
+  // Stop countdown
+  const stopTimer = useCallback(() => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = undefined;
     }
   }, []);
 
@@ -59,7 +73,11 @@ export const PixPaymentModal: React.FC<PixPaymentModalProps> = ({
 
         if (data.success && data.status === 'approved') {
           stopPolling();
+          stopTimer();
           setState('approved');
+          if (onPaymentSuccess) {
+            onPaymentSuccess(paymentId);
+          }
         }
       } catch {
         // Silently ignore polling errors — keep trying
@@ -70,65 +88,86 @@ export const PixPaymentModal: React.FC<PixPaymentModalProps> = ({
     pollingRef.current = setInterval(checkStatus, 5_000);
     // Also check immediately after a short delay
     setTimeout(checkStatus, 2_000);
-  }, [stopPolling]);
+  }, [stopPolling, stopTimer, onPaymentSuccess]);
 
-  // Generate Pix on open
-  useEffect(() => {
-    if (!isOpen) return;
-
+  // Fetch / Generate Pix
+  const fetchPix = useCallback(async (forceNew = false) => {
     setState('loading');
     setPixData(null);
     setErrorMsg('');
     setCopied(false);
     stopPolling();
+    stopTimer();
 
-    const controller = new AbortController();
+    try {
+      const res = await fetch('/gerar-pix-parcela', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          valor: parcelValue,
+          descricao: parcelDescription,
+          emailCliente,
+          nomeCliente,
+          cpfCliente,
+          externalReference,
+          forceNew,
+        }),
+      });
 
-    (async () => {
-      try {
-        const res = await fetch('/gerar-pix-parcela', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            valor: parcelValue,
-            descricao: parcelDescription,
-            emailCliente,
-            nomeCliente,
-            cpfCliente,
-            externalReference,
-          }),
-          signal: controller.signal,
-        });
+      const data = await res.json();
 
-        const data = await res.json();
-
-        if (!res.ok || !data.success) {
-          throw new Error(data.message || 'Erro ao gerar Pix.');
-        }
-
-        const pix: PixData = {
-          payment_id: data.payment_id,
-          qr_code: data.qr_code,
-          qr_code_base64: data.qr_code_base64,
-        };
-
-        setPixData(pix);
-        setState('awaiting');
-
-        // Start polling for payment confirmation
-        startPolling(pix.payment_id);
-      } catch (err: any) {
-        if (err.name === 'AbortError') return;
-        setErrorMsg(err.message || 'Erro inesperado ao gerar Pix.');
-        setState('error');
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Erro ao gerar Pix.');
       }
-    })();
 
+      const pix: PixData = {
+        payment_id: data.payment_id,
+        qr_code: data.qr_code,
+        qr_code_base64: data.qr_code_base64,
+        expires_at: data.expires_at,
+        reused: data.reused,
+      };
+
+      setPixData(pix);
+      setState('awaiting');
+
+      // Start countdown if expires_at present
+      if (pix.expires_at) {
+        const initialSec = Math.max(0, Math.floor((pix.expires_at - Date.now()) / 1000));
+        setTimeLeftSec(initialSec);
+
+        timerRef.current = setInterval(() => {
+          setTimeLeftSec((prev) => {
+            if (prev <= 1) {
+              stopTimer();
+              stopPolling();
+              setErrorMsg('O tempo de validade do QR Code expirou.');
+              setState('error');
+              return 0;
+            }
+            return prev - 1;
+          });
+        }, 1000);
+      }
+
+      // Start polling
+      startPolling(pix.payment_id);
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Erro inesperado ao gerar Pix.');
+      setState('error');
+    }
+  }, [parcelValue, parcelDescription, emailCliente, nomeCliente, cpfCliente, externalReference, startPolling, stopPolling, stopTimer]);
+
+  // Generate Pix on open
+  useEffect(() => {
+    if (isOpen) {
+      fetchPix(false);
+    }
     return () => {
-      controller.abort();
       stopPolling();
+      stopTimer();
     };
-  }, [isOpen, parcelValue, parcelDescription, emailCliente, startPolling, stopPolling]);
+  }, [isOpen, fetchPix, stopPolling, stopTimer]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -274,16 +313,28 @@ export const PixPaymentModal: React.FC<PixPaymentModalProps> = ({
                       {errorMsg}
                     </p>
                   </div>
-                  <button
-                    onClick={onClose}
-                    className={`mt-2 px-5 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
-                      isDark
-                        ? 'bg-white/10 text-white hover:bg-white/15'
-                        : 'bg-black/5 text-[#1d1d1f] hover:bg-black/10'
-                    }`}
-                  >
-                    Fechar
-                  </button>
+                  <div className="flex items-center space-x-2.5 mt-2">
+                    <button
+                      onClick={() => fetchPix(true)}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                        isDark
+                          ? 'bg-[#0a84ff] text-white hover:bg-[#409cff]'
+                          : 'bg-[#007aff] text-white hover:bg-[#0066d6]'
+                      }`}
+                    >
+                      Gerar Novo QR Code
+                    </button>
+                    <button
+                      onClick={onClose}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
+                        isDark
+                          ? 'bg-white/10 text-white hover:bg-white/15'
+                          : 'bg-black/5 text-[#1d1d1f] hover:bg-black/10'
+                      }`}
+                    >
+                      Fechar
+                    </button>
+                  </div>
                 </motion.div>
               )}
 
@@ -354,16 +405,36 @@ export const PixPaymentModal: React.FC<PixPaymentModalProps> = ({
                     </div>
                   </div>
 
-                  {/* Status Indicator */}
-                  <div className="flex items-center justify-center space-x-2">
-                    <span className="relative flex h-2.5 w-2.5">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
-                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500" />
-                    </span>
-                    <p className={`text-xs font-bold ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>
-                      Aguardando pagamento...
-                    </p>
-                    <RefreshCw className={`h-3 w-3 animate-spin ${isDark ? 'text-amber-400/50' : 'text-amber-600/50'}`} />
+                  {/* Status Indicator & Countdown */}
+                  <div className="flex flex-col items-center space-y-1">
+                    <div className="flex items-center justify-center space-x-2">
+                      <span className="relative flex h-2.5 w-2.5">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500" />
+                      </span>
+                      <p className={`text-xs font-bold ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>
+                        Aguardando pagamento...
+                      </p>
+                      <RefreshCw className={`h-3 w-3 animate-spin ${isDark ? 'text-amber-400/50' : 'text-amber-600/50'}`} />
+                    </div>
+
+                    {/* Expiration timer & reuse badge */}
+                    {timeLeftSec > 0 && (
+                      <div className="flex items-center space-x-1.5 pt-0.5">
+                        <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full ${
+                          isDark ? 'bg-white/10 text-white/70' : 'bg-black/5 text-black/60'
+                        }`}>
+                          Válido por {Math.floor(timeLeftSec / 60).toString().padStart(2, '0')}:{(timeLeftSec % 60).toString().padStart(2, '0')}
+                        </span>
+                        {pixData.reused && (
+                          <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                            isDark ? 'bg-sky-500/20 text-sky-300 border border-sky-500/30' : 'bg-sky-50 text-sky-700 border border-sky-200'
+                          }`}>
+                            QR Code Ativo
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {/* Copy & Paste Code */}

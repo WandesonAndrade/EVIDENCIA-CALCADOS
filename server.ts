@@ -1,5 +1,6 @@
 import express from "express";
 import path from "path";
+import fs from "fs";
 import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
 
@@ -152,7 +153,46 @@ app.get("/api/auth-token", async (req, res) => {
   }
 });
 
-// --- INTEGRAÇÃO PIX MERCADO PAGO ---
+// --- INTEGRAÇÃO PIX MERCADO PAGO & PERSISTÊNCIA ---
+
+interface PixCacheEntry {
+  payment_id: number;
+  qr_code: string;
+  qr_code_base64: string | null;
+  valor: number;
+  descricao: string;
+  emailCliente: string;
+  createdAt: number;
+  expiresAt: number;
+  expirationDateIso: string;
+}
+
+const PIX_CACHE_FILE = path.join(process.cwd(), ".pix_cache.json");
+let pixCacheMap = new Map<string, PixCacheEntry>();
+
+function loadPixCache() {
+  try {
+    if (fs.existsSync(PIX_CACHE_FILE)) {
+      const raw = fs.readFileSync(PIX_CACHE_FILE, "utf-8");
+      const json = JSON.parse(raw);
+      pixCacheMap = new Map(Object.entries(json));
+      console.log(`[Pix Cache] Carregadas ${pixCacheMap.size} transações em cache de arquivo.`);
+    }
+  } catch (err: any) {
+    console.warn("[Pix Cache] Falha ao carregar arquivo de cache:", err.message);
+  }
+}
+
+function savePixCache() {
+  try {
+    const obj = Object.fromEntries(pixCacheMap.entries());
+    fs.writeFileSync(PIX_CACHE_FILE, JSON.stringify(obj, null, 2), "utf-8");
+  } catch (err: any) {
+    console.warn("[Pix Cache] Falha ao salvar arquivo de cache:", err.message);
+  }
+}
+
+loadPixCache();
 
 app.post("/gerar-pix-parcela", async (req, res) => {
   const mpToken = process.env.MERCADO_PAGO_ACCESS_TOKEN?.replace(/['"]/g, "").trim();
@@ -163,7 +203,7 @@ app.post("/gerar-pix-parcela", async (req, res) => {
       .json({ success: false, message: "Integração Pix não configurada no servidor. Adicione o MERCADO_PAGO_ACCESS_TOKEN no .env." });
   }
 
-  const { valor, descricao, emailCliente, nomeCliente, cpfCliente, externalReference } = req.body || {};
+  const { valor, descricao, emailCliente, nomeCliente, cpfCliente, externalReference, forceNew } = req.body || {};
 
   if (!valor || typeof valor !== "number" || valor <= 0) {
     return res
@@ -180,6 +220,54 @@ app.post("/gerar-pix-parcela", async (req, res) => {
       .status(400)
       .json({ success: false, message: "Campo 'emailCliente' inválido." });
   }
+
+  const parcelKey = String(externalReference || descricao).trim().toLowerCase();
+  const now = Date.now();
+
+  // ── PERSISTÊNCIA & REUTILIZAÇÃO ──
+  if (!forceNew && parcelKey && pixCacheMap.has(parcelKey)) {
+    const existing = pixCacheMap.get(parcelKey)!;
+    const isExpired = existing.expiresAt <= now + 60_000; // resta menos de 1 minuto
+    const amountChanged = Math.abs(existing.valor - valor) > 0.01; // valor mudou (juros ERP)
+
+    if (!isExpired && !amountChanged) {
+      const remainingMin = Math.max(1, Math.round((existing.expiresAt - now) / 60_000));
+      console.log(
+        `[Pix MP Cache] Reutilizando QR Code ativo para '${parcelKey}' (Valor: R$ ${valor.toFixed(2)}, expira em ~${remainingMin} min, ID #${existing.payment_id})`
+      );
+
+      return res.json({
+        success: true,
+        payment_id: existing.payment_id,
+        qr_code: existing.qr_code,
+        qr_code_base64: existing.qr_code_base64,
+        expires_at: existing.expiresAt,
+        reused: true,
+      });
+    }
+
+    if (amountChanged) {
+      console.log(
+        `[Pix MP Cache] Valor da parcela mudou de R$ ${existing.valor.toFixed(2)} para R$ ${valor.toFixed(2)} (Juros/ERP). Cancelando pagamento antigo #${existing.payment_id}...`
+      );
+      // Cancela pagamento antigo no Mercado Pago
+      fetch(`https://api.mercadopago.com/v1/payments/${existing.payment_id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${mpToken}`,
+        },
+        body: JSON.stringify({ status: "cancelled" }),
+      }).catch((err) => console.warn("[Pix MP Cancel Error]", err.message));
+    } else if (isExpired) {
+      console.log(`[Pix MP Cache] QR Code anterior para '${parcelKey}' expirou. Gerando novo QR Code.`);
+    }
+  }
+
+  // ── TEMPO DE VALIDADE DO PIX (30 MINUTOS) ──
+  const EXPIRATION_MINUTES = 30;
+  const expiresAtMs = now + EXPIRATION_MINUTES * 60_000;
+  const dateOfExpirationIso = new Date(expiresAtMs).toISOString();
 
   // Montagem do payload Mercado Pago seguindo a documentação oficial
   const payerObj: Record<string, any> = { email: emailCliente };
@@ -206,6 +294,7 @@ app.post("/gerar-pix-parcela", async (req, res) => {
     transaction_amount: Number(valor),
     description: String(descricao).slice(0, 200),
     payment_method_id: "pix",
+    date_of_expiration: dateOfExpirationIso,
     payer: payerObj,
     additional_info: {
       items: [
@@ -228,7 +317,7 @@ app.post("/gerar-pix-parcela", async (req, res) => {
   const timeoutId = setTimeout(() => controller.abort(), 15_000);
 
   try {
-    console.log(`[Pix MP] Gerando pagamento Pix de R$ ${valor.toFixed(2)} para ${emailCliente}...`);
+    console.log(`[Pix MP] Criando novo pagamento Pix de R$ ${valor.toFixed(2)} para ${emailCliente} (Válido por ${EXPIRATION_MINUTES} min)...`);
 
     const mpRes = await fetch("https://api.mercadopago.com/v1/payments", {
       method: "POST",
@@ -261,13 +350,33 @@ app.post("/gerar-pix-parcela", async (req, res) => {
         .json({ success: false, message: "QR Code Pix não retornado pelo Mercado Pago." });
     }
 
-    console.log(`[Pix MP] Pagamento #${data.id} gerado com sucesso.`);
+    console.log(`[Pix MP] Pagamento #${data.id} gerado e salvo em cache.`);
+
+    // Salva no cache persistente
+    const cacheEntry: PixCacheEntry = {
+      payment_id: data.id,
+      qr_code: txData.qr_code,
+      qr_code_base64: txData.qr_code_base64 || null,
+      valor,
+      descricao,
+      emailCliente,
+      createdAt: now,
+      expiresAt: expiresAtMs,
+      expirationDateIso: dateOfExpirationIso,
+    };
+
+    if (parcelKey) {
+      pixCacheMap.set(parcelKey, cacheEntry);
+      savePixCache();
+    }
 
     return res.json({
       success: true,
       payment_id: data.id,
       qr_code: txData.qr_code,
       qr_code_base64: txData.qr_code_base64 || null,
+      expires_at: expiresAtMs,
+      reused: false,
     });
   } catch (err: any) {
     clearTimeout(timeoutId);
