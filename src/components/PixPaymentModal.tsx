@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Copy, Check, Loader2, QrCode, AlertTriangle, CheckCircle2, RefreshCw } from 'lucide-react';
+import { pixFirestoreService } from '../services/pixFirestoreService';
 
 interface PixPaymentModalProps {
   isOpen: boolean;
@@ -23,7 +24,7 @@ interface PixData {
   reused?: boolean;
 }
 
-type ModalState = 'loading' | 'awaiting' | 'approved' | 'error';
+type ModalState = 'idle' | 'loading' | 'awaiting' | 'approved' | 'error';
 
 export const PixPaymentModal: React.FC<PixPaymentModalProps> = ({
   isOpen,
@@ -37,20 +38,20 @@ export const PixPaymentModal: React.FC<PixPaymentModalProps> = ({
   externalReference,
   onPaymentSuccess,
 }) => {
-  const [state, setState] = useState<ModalState>('loading');
+  const [state, setState] = useState<ModalState>('idle');
   const [pixData, setPixData] = useState<PixData | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
   const [copied, setCopied] = useState(false);
   const [timeLeftSec, setTimeLeftSec] = useState<number>(0);
   const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const pollingRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
-  const timerRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
+  const pollingRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Stop polling
   const stopPolling = useCallback(() => {
     if (pollingRef.current) {
       clearInterval(pollingRef.current);
-      pollingRef.current = undefined;
+      pollingRef.current = null;
     }
   }, []);
 
@@ -58,7 +59,7 @@ export const PixPaymentModal: React.FC<PixPaymentModalProps> = ({
   const stopTimer = useCallback(() => {
     if (timerRef.current) {
       clearInterval(timerRef.current);
-      timerRef.current = undefined;
+      timerRef.current = null;
     }
   }, []);
 
@@ -69,12 +70,18 @@ export const PixPaymentModal: React.FC<PixPaymentModalProps> = ({
     const checkStatus = async () => {
       try {
         const res = await fetch(`/verificar-pix/${paymentId}`);
+        if (!res.ok) return;
         const data = await res.json();
 
         if (data.success && data.status === 'approved') {
           stopPolling();
           stopTimer();
           setState('approved');
+
+          // Atualiza status para 'approved' na coleção pix_transacoes no Firestore
+          const parcelKey = String(externalReference || parcelDescription).trim().toLowerCase();
+          pixFirestoreService.updatePixStatus(pixFirestoreService.buildDocId(parcelKey), 'approved').catch(console.warn);
+
           if (onPaymentSuccess) {
             onPaymentSuccess(paymentId);
           }
@@ -88,7 +95,7 @@ export const PixPaymentModal: React.FC<PixPaymentModalProps> = ({
     pollingRef.current = setInterval(checkStatus, 5_000);
     // Also check immediately after a short delay
     setTimeout(checkStatus, 2_000);
-  }, [stopPolling, stopTimer, onPaymentSuccess]);
+  }, [stopPolling, stopTimer, onPaymentSuccess, externalReference, parcelDescription]);
 
   // Fetch / Generate Pix
   const fetchPix = useCallback(async (forceNew = false) => {
@@ -130,6 +137,26 @@ export const PixPaymentModal: React.FC<PixPaymentModalProps> = ({
 
       setPixData(pix);
       setState('awaiting');
+
+      // Salva/Garante persistência na coleção pix_transacoes no Firestore
+      const parcelKey = String(externalReference || parcelDescription).trim().toLowerCase();
+      pixFirestoreService.savePixTransacao({
+        parcelKey,
+        payment_id: data.payment_id,
+        qr_code: data.qr_code,
+        qr_code_base64: data.qr_code_base64 || null,
+        transaction_amount: parcelValue,
+        status: 'pending',
+        emailCliente,
+        nomeCliente,
+        cpfCliente,
+        descricao: parcelDescription,
+        externalReference,
+        createdAt: Date.now(),
+        expires_at: data.expires_at || (Date.now() + 30 * 60000),
+        expirationDateIso: new Date(data.expires_at || (Date.now() + 30 * 60000)).toISOString(),
+        audited: false,
+      }).catch(console.warn);
 
       // Start countdown if expires_at present
       if (pix.expires_at) {

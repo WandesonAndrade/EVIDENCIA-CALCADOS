@@ -157,6 +157,26 @@ export const MeuCrediario: React.FC = () => {
       setInvoices(data);
       setViewState('invoices');
 
+      // Recupera parcelas com Pix aprovado salvos no Firestore / backend
+      try {
+        const pixRes = await fetch('/listar-pix-transacoes');
+        const pixData = await pixRes.json();
+        if (pixData.success && Array.isArray(pixData.transactions)) {
+          const approvedKeys = pixData.transactions
+            .filter((t: any) => t.status === 'approved' || t.audited)
+            .map((t: any) => String(t.parcelKey).toLowerCase());
+          if (approvedKeys.length > 0) {
+            setPaidParcelKeys((prev) => {
+              const next = new Set(prev);
+              approvedKeys.forEach((k: string) => next.add(k));
+              return next;
+            });
+          }
+        }
+      } catch (err) {
+        console.warn('Falha ao sincronizar Pix aprovados do Firestore:', err);
+      }
+
       // Auto-expand first sale
       if (data.length > 0) {
         const firstKey = String(data[0].id_venda ?? data[0].documento ?? 'other');

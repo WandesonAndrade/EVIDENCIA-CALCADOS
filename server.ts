@@ -3,6 +3,8 @@ import path from "path";
 import fs from "fs";
 import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
+import { db } from "./src/lib/firebase.js";
+import { doc, getDoc, setDoc, updateDoc, collection, getDocs, query, where } from "firebase/firestore";
 
 dotenv.config();
 
@@ -153,7 +155,28 @@ app.get("/api/auth-token", async (req, res) => {
   }
 });
 
-// --- INTEGRAÇÃO PIX MERCADO PAGO & PERSISTÊNCIA ---
+// --- INTEGRAÇÃO PIX MERCADO PAGO & PERSISTÊNCIA FIRESTORE (pix_transacoes) ---
+
+export interface PixFirestoreRecord {
+  parcelKey: string;
+  payment_id: number;
+  qr_code: string;
+  qr_code_base64: string | null;
+  transaction_amount: number;
+  status: "pending" | "approved" | "cancelled" | "expired";
+  emailCliente: string;
+  nomeCliente?: string;
+  cpfCliente?: string;
+  descricao: string;
+  externalReference?: string;
+  createdAt: number;
+  expires_at: number;
+  expirationDateIso: string;
+  audited?: boolean;
+  auditedBy?: string | null;
+  auditedAt?: string | null;
+  updatedAt?: string;
+}
 
 interface PixCacheEntry {
   payment_id: number;
@@ -194,6 +217,61 @@ function savePixCache() {
 
 loadPixCache();
 
+// ── Funções de Apoio ao Firestore ('pix_transacoes') ──
+
+function getPixDocId(parcelKey: string): string {
+  return parcelKey.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 120);
+}
+
+// Salva registro de Pix no Firestore na coleção 'pix_transacoes'
+async function savePixToFirestore(record: PixFirestoreRecord): Promise<void> {
+  try {
+    const docId = getPixDocId(record.parcelKey);
+    const docRef = doc(db, "pix_transacoes", docId);
+    await setDoc(
+      docRef,
+      {
+        ...record,
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true }
+    );
+    console.log(`[Firestore Pix] Documento 'pix_transacoes/${docId}' salvo no Firestore (Payment ID #${record.payment_id}).`);
+  } catch (err: any) {
+    console.warn(`[Firestore Pix Warn] Falha ao salvar 'pix_transacoes' no Firestore:`, err.message);
+  }
+}
+
+// Consulta registro de Pix no Firestore
+async function getPixFromFirestore(parcelKey: string): Promise<PixFirestoreRecord | null> {
+  try {
+    const docId = getPixDocId(parcelKey);
+    const docRef = doc(db, "pix_transacoes", docId);
+    const snap = await getDoc(docRef);
+    if (snap.exists()) {
+      return snap.data() as PixFirestoreRecord;
+    }
+  } catch (err: any) {
+    console.warn(`[Firestore Pix Warn] Erro ao consultar 'pix_transacoes/${parcelKey}':`, err.message);
+  }
+  return null;
+}
+
+// Atualiza status do Pix no Firestore (ex: approved, cancelled, expired)
+async function updatePixStatusInFirestore(parcelKey: string, status: "pending" | "approved" | "cancelled" | "expired"): Promise<void> {
+  try {
+    const docId = getPixDocId(parcelKey);
+    const docRef = doc(db, "pix_transacoes", docId);
+    await updateDoc(docRef, {
+      status,
+      updatedAt: new Date().toISOString(),
+    });
+    console.log(`[Firestore Pix Status] Status de 'pix_transacoes/${docId}' atualizado para '${status}'.`);
+  } catch (err: any) {
+    console.warn(`[Firestore Pix Status Warn] Falha ao atualizar status no Firestore:`, err.message);
+  }
+}
+
 app.post("/gerar-pix-parcela", async (req, res) => {
   const mpToken = process.env.MERCADO_PAGO_ACCESS_TOKEN?.replace(/['"]/g, "").trim();
   if (!mpToken) {
@@ -224,16 +302,39 @@ app.post("/gerar-pix-parcela", async (req, res) => {
   const parcelKey = String(externalReference || descricao).trim().toLowerCase();
   const now = Date.now();
 
-  // ── PERSISTÊNCIA & REUTILIZAÇÃO ──
-  if (!forceNew && parcelKey && pixCacheMap.has(parcelKey)) {
-    const existing = pixCacheMap.get(parcelKey)!;
-    const isExpired = existing.expiresAt <= now + 60_000; // resta menos de 1 minuto
-    const amountChanged = Math.abs(existing.valor - valor) > 0.01; // valor mudou (juros ERP)
+  // ── REUTILIZAÇÃO INTELIGENTE VIA FIRESTORE & CACHE ──
+  let existing: PixFirestoreRecord | null = null;
+  if (parcelKey) {
+    existing = await getPixFromFirestore(parcelKey);
+  }
 
+  // Fallback cache local em memória RAM se não achou no Firestore
+  if (!existing && parcelKey && pixCacheMap.has(parcelKey)) {
+    const c = pixCacheMap.get(parcelKey)!;
+    existing = {
+      parcelKey,
+      payment_id: c.payment_id,
+      qr_code: c.qr_code,
+      qr_code_base64: c.qr_code_base64,
+      transaction_amount: c.valor,
+      status: "pending",
+      emailCliente: c.emailCliente,
+      descricao: c.descricao,
+      createdAt: c.createdAt,
+      expires_at: c.expiresAt,
+      expirationDateIso: c.expirationDateIso,
+    };
+  }
+
+  if (!forceNew && existing && (existing.status === "pending" || !existing.status)) {
+    const isExpired = existing.expires_at <= now + 60_000; // resta menos de 1 minuto
+    const amountChanged = Math.abs(existing.transaction_amount - valor) > 0.01; // valor mudou (juros MobLink ERP)
+
+    // Se o valor for o mesmo e o QR Code ainda estiver dentro da validade (expires_at):
     if (!isExpired && !amountChanged) {
-      const remainingMin = Math.max(1, Math.round((existing.expiresAt - now) / 60_000));
+      const remainingMin = Math.max(1, Math.round((existing.expires_at - now) / 60_000));
       console.log(
-        `[Pix MP Cache] Reutilizando QR Code ativo para '${parcelKey}' (Valor: R$ ${valor.toFixed(2)}, expira em ~${remainingMin} min, ID #${existing.payment_id})`
+        `[Pix MP Firestore] Reutilizando QR Code ativo no Firestore para '${parcelKey}' (Valor: R$ ${valor.toFixed(2)}, expira em ~${remainingMin} min, ID #${existing.payment_id})`
       );
 
       return res.json({
@@ -241,15 +342,17 @@ app.post("/gerar-pix-parcela", async (req, res) => {
         payment_id: existing.payment_id,
         qr_code: existing.qr_code,
         qr_code_base64: existing.qr_code_base64,
-        expires_at: existing.expiresAt,
+        expires_at: existing.expires_at,
         reused: true,
       });
     }
 
+    // Se o valor mudou (houve atualização de juros no MobLink ERP):
     if (amountChanged) {
       console.log(
-        `[Pix MP Cache] Valor da parcela mudou de R$ ${existing.valor.toFixed(2)} para R$ ${valor.toFixed(2)} (Juros/ERP). Cancelando pagamento antigo #${existing.payment_id}...`
+        `[Pix MP Firestore] Valor da parcela mudou no MobLink ERP de R$ ${existing.transaction_amount.toFixed(2)} para R$ ${valor.toFixed(2)} (Juros/ERP). Cancelando Pix antigo #${existing.payment_id} no Mercado Pago & Firestore...`
       );
+
       // Cancela pagamento antigo no Mercado Pago
       fetch(`https://api.mercadopago.com/v1/payments/${existing.payment_id}`, {
         method: "PUT",
@@ -259,8 +362,12 @@ app.post("/gerar-pix-parcela", async (req, res) => {
         },
         body: JSON.stringify({ status: "cancelled" }),
       }).catch((err) => console.warn("[Pix MP Cancel Error]", err.message));
+
+      // Atualiza status no Firestore
+      await updatePixStatusInFirestore(parcelKey, "cancelled");
     } else if (isExpired) {
-      console.log(`[Pix MP Cache] QR Code anterior para '${parcelKey}' expirou. Gerando novo QR Code.`);
+      console.log(`[Pix MP Firestore] QR Code anterior para '${parcelKey}' expirou. Atualizando status no Firestore e gerando novo QR Code.`);
+      await updatePixStatusInFirestore(parcelKey, "expired");
     }
   }
 
@@ -350,9 +457,30 @@ app.post("/gerar-pix-parcela", async (req, res) => {
         .json({ success: false, message: "QR Code Pix não retornado pelo Mercado Pago." });
     }
 
-    console.log(`[Pix MP] Pagamento #${data.id} gerado e salvo em cache.`);
+    console.log(`[Pix MP] Pagamento #${data.id} gerado com sucesso.`);
 
-    // Salva no cache persistente
+    // ── PERSISTÊNCIA NO FIRESTORE ('pix_transacoes') & CACHE LOCAL ──
+    const firestoreRecord: PixFirestoreRecord = {
+      parcelKey,
+      payment_id: data.id,
+      qr_code: txData.qr_code,
+      qr_code_base64: txData.qr_code_base64 || null,
+      transaction_amount: Number(valor),
+      status: "pending",
+      emailCliente,
+      nomeCliente: nomeCliente || undefined,
+      cpfCliente: cpfCliente || undefined,
+      descricao,
+      externalReference: externalReference || undefined,
+      createdAt: now,
+      expires_at: expiresAtMs,
+      expirationDateIso: dateOfExpirationIso,
+      audited: false,
+    };
+
+    await savePixToFirestore(firestoreRecord);
+
+    // Salva no cache local em memória RAM
     const cacheEntry: PixCacheEntry = {
       payment_id: data.id,
       qr_code: txData.qr_code,
@@ -428,6 +556,14 @@ app.get("/verificar-pix/:paymentId", async (req, res) => {
         .json({ success: false, message: `Erro ao consultar pagamento: ${detail}` });
     }
 
+    // Se o pagamento foi aprovado ou alterou status no Mercado Pago, atualiza no Firestore
+    if (data.status) {
+      const parcelKeyMatch = Array.from(pixCacheMap.entries()).find(([_, val]) => val.payment_id === data.id)?.[0];
+      if (parcelKeyMatch) {
+        updatePixStatusInFirestore(parcelKeyMatch, data.status).catch(() => {});
+      }
+    }
+
     return res.json({
       success: true,
       payment_id: data.id,
@@ -442,6 +578,134 @@ app.get("/verificar-pix/:paymentId", async (req, res) => {
       .status(503)
       .json({ success: false, message: `Falha ao consultar Mercado Pago: ${err.message}` });
   }
+});
+
+// --- RECURSOS DO DASHBOARD FINANCEIRO & AUDITORIA DE PAGAMENTOS ---
+
+const PIX_AUDIT_FILE = path.join(process.cwd(), ".pix_audit.json");
+let pixAuditMap = new Map<string, { audited: boolean; auditedBy?: string; auditedAt?: string }>();
+
+function loadPixAudit() {
+  try {
+    if (fs.existsSync(PIX_AUDIT_FILE)) {
+      const raw = fs.readFileSync(PIX_AUDIT_FILE, "utf-8");
+      const json = JSON.parse(raw);
+      pixAuditMap = new Map(Object.entries(json));
+    }
+  } catch (err: any) {
+    console.warn("[Pix Audit] Falha ao carregar auditorias:", err.message);
+  }
+}
+
+function savePixAudit() {
+  try {
+    const obj = Object.fromEntries(pixAuditMap.entries());
+    fs.writeFileSync(PIX_AUDIT_FILE, JSON.stringify(obj, null, 2), "utf-8");
+  } catch (err: any) {
+    console.warn("[Pix Audit] Falha ao salvar auditorias:", err.message);
+  }
+}
+
+loadPixAudit();
+
+// Retorna lista de pagamentos gerados/recebidos da coleção 'pix_transacoes' no Firestore
+app.get("/listar-pix-transacoes", async (req, res) => {
+  try {
+    const colRef = collection(db, "pix_transacoes");
+    const snap = await getDocs(colRef);
+
+    if (!snap.empty) {
+      const transactions = snap.docs.map((docSnap) => {
+        const d = docSnap.data() as PixFirestoreRecord;
+        const auditInfo = pixAuditMap.get(String(d.payment_id)) || { audited: Boolean(d.audited) };
+        return {
+          parcelKey: d.parcelKey,
+          payment_id: d.payment_id,
+          valor: d.transaction_amount || (d as any).valor,
+          descricao: d.descricao,
+          emailCliente: d.emailCliente,
+          createdAt: d.createdAt,
+          expiresAt: d.expires_at,
+          expirationDateIso: d.expirationDateIso,
+          audited: Boolean(auditInfo.audited || d.audited),
+          auditedBy: auditInfo.auditedBy || d.auditedBy || null,
+          auditedAt: auditInfo.auditedAt || d.auditedAt || null,
+          status: d.status,
+        };
+      });
+
+      return res.json({ success: true, transactions });
+    }
+  } catch (err: any) {
+    console.warn("[Firestore List Warn] Falha ao consultar Firestore, usando cache local:", err.message);
+  }
+
+  // Fallback para cache local se Firestore não retornar resultados
+  const transactions = Array.from(pixCacheMap.entries()).map(([key, item]) => {
+    const auditInfo = pixAuditMap.get(String(item.payment_id)) || { audited: false };
+    return {
+      parcelKey: key,
+      payment_id: item.payment_id,
+      valor: item.valor,
+      descricao: item.descricao,
+      emailCliente: item.emailCliente,
+      createdAt: item.createdAt,
+      expiresAt: item.expiresAt,
+      expirationDateIso: item.expirationDateIso,
+      audited: Boolean(auditInfo.audited),
+      auditedBy: auditInfo.auditedBy || null,
+      auditedAt: auditInfo.auditedAt || null,
+      status: "pending",
+    };
+  });
+
+  return res.json({ success: true, transactions });
+});
+
+// Permite ao Administrador marcar/desmarcar o Check de Conferência no Firestore & Local
+app.post("/auditar-pix-transacao", async (req, res) => {
+  const { paymentId, audited, auditedBy } = req.body || {};
+  if (!paymentId) {
+    return res.status(400).json({ success: false, message: "paymentId é obrigatório" });
+  }
+
+  const key = String(paymentId);
+  const auditedByStr = auditedBy || "Administrador";
+  const auditedAtStr = new Date().toISOString();
+
+  if (audited) {
+    pixAuditMap.set(key, {
+      audited: true,
+      auditedBy: auditedByStr,
+      auditedAt: auditedAtStr,
+    });
+  } else {
+    pixAuditMap.set(key, { audited: false });
+  }
+
+  savePixAudit();
+
+  // Atualiza no Firestore ('pix_transacoes')
+  try {
+    const colRef = collection(db, "pix_transacoes");
+    const q = query(colRef, where("payment_id", "==", Number(paymentId)));
+    const snap = await getDocs(q);
+
+    if (!snap.empty) {
+      const docSnap = snap.docs[0];
+      await updateDoc(docSnap.ref, {
+        audited: Boolean(audited),
+        auditedBy: audited ? auditedByStr : null,
+        auditedAt: audited ? auditedAtStr : null,
+        updatedAt: auditedAtStr,
+      });
+      console.log(`[Firestore Audit] Atualizado documento '${docSnap.id}' para audited=${audited}`);
+    }
+  } catch (err: any) {
+    console.warn("[Firestore Audit Warn] Falha ao atualizar auditoria no Firestore:", err.message);
+  }
+
+  return res.json({ success: true, paymentId, audited: Boolean(audited) });
 });
 
 // --- PROXY BACKEND TRANSPARENTE E SEGURO ---

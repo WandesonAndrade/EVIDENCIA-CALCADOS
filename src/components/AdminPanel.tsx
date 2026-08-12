@@ -10,6 +10,7 @@ import { TeamManagement } from './TeamManagement';
 import { checkIsProfileComplete } from '../App';
 import { storage, db, auth, app } from '../lib/firebase';
 import { moblinkClientesService } from '../services/moblinkClientesService';
+import { FinancialDashboard } from './FinancialDashboard';
 
 
 
@@ -30,6 +31,7 @@ import { moblinkCategoriesService, normalizeCategoryName, normalizeSubcategoryNa
 
 type AdminTab = 
   | 'overview' 
+  | 'financeiro'
   | 'inventory' 
   | 'sales' 
   | 'crediario'
@@ -843,6 +845,18 @@ export const AdminPanel: React.FC = () => {
               </button>
 
               <button
+                onClick={() => setActiveTab('financeiro')}
+                className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  activeTab === 'financeiro'
+                    ? isDark ? 'bg-[#007aff]/15 text-[#007aff] border border-[#007aff]/30' : 'bg-[#007aff] text-white shadow-sm'
+                    : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <DollarSign className="h-4 w-4 text-[#007aff]" />
+                <span>Dashboard Financeiro</span>
+              </button>
+
+              <button
                 onClick={() => setActiveTab('sales')}
                 className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                   activeTab === 'sales'
@@ -1080,14 +1094,26 @@ export const AdminPanel: React.FC = () => {
           </div>
         )}
 
+        {/* TAB FINANCEIRO: DASHBOARD FINANCEIRO */}
+        {activeTab === 'financeiro' && (
+          <FinancialDashboard />
+        )}
+
         {/* TAB 1: VISÃO GERAL */}
         {activeTab === 'overview' && (
           <div className="space-y-8">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <h2 className="text-2xl font-black tracking-tight">Visão Geral do E-commerce</h2>
                 <p className="text-xs text-slate-400">Resumo de desempenho, inventário e pedidos</p>
               </div>
+              <button
+                onClick={() => setActiveTab('financeiro')}
+                className="flex items-center space-x-2 px-4 py-2.5 rounded-xl text-xs font-black bg-[#007aff] text-white hover:bg-[#0066d6] shadow-sm transition-all cursor-pointer shrink-0"
+              >
+                <DollarSign className="h-4 w-4" />
+                <span>Dashboard Financeiro</span>
+              </button>
             </div>
 
             {/* Metric Cards */}

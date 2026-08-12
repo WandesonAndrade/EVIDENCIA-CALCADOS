@@ -51,7 +51,14 @@ export async function seedDatabaseIfNeeded() {
     const productsCollectionRef = collection(db, 'products');
     const snapshot = await getDocs(productsCollectionRef);
     console.log(`Firestore products collection fetched. Total items in database: ${snapshot.size}`);
+
+    // Verifica e valida a coleção pix_transacoes no Firestore
+    const pixCollectionRef = collection(db, 'pix_transacoes');
+    const pixSnapshot = await getDocs(pixCollectionRef);
+    console.log(`🔥 Coleção Firestore 'pix_transacoes' conectada e pronta. Total de registros em histórico: ${pixSnapshot.size}`);
   } catch (error) {
-    console.warn("Firestore collection products check:", error);
+    console.warn("Firestore collections check:", error);
   }
 }
+
+seedDatabaseIfNeeded();
