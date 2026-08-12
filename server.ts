@@ -152,6 +152,189 @@ app.get("/api/auth-token", async (req, res) => {
   }
 });
 
+// --- INTEGRAÇÃO PIX MERCADO PAGO ---
+
+app.post("/gerar-pix-parcela", async (req, res) => {
+  const mpToken = process.env.MERCADO_PAGO_ACCESS_TOKEN?.replace(/['"]/g, "").trim();
+  if (!mpToken) {
+    console.error("[Pix MP] MERCADO_PAGO_ACCESS_TOKEN não configurado no .env");
+    return res
+      .status(500)
+      .json({ success: false, message: "Integração Pix não configurada no servidor. Adicione o MERCADO_PAGO_ACCESS_TOKEN no .env." });
+  }
+
+  const { valor, descricao, emailCliente, nomeCliente, cpfCliente, externalReference } = req.body || {};
+
+  if (!valor || typeof valor !== "number" || valor <= 0) {
+    return res
+      .status(400)
+      .json({ success: false, message: "Campo 'valor' inválido. Informe um número positivo." });
+  }
+  if (!descricao || typeof descricao !== "string") {
+    return res
+      .status(400)
+      .json({ success: false, message: "Campo 'descricao' é obrigatório." });
+  }
+  if (!emailCliente || typeof emailCliente !== "string" || !emailCliente.includes("@")) {
+    return res
+      .status(400)
+      .json({ success: false, message: "Campo 'emailCliente' inválido." });
+  }
+
+  // Montagem do payload Mercado Pago seguindo a documentação oficial
+  const payerObj: Record<string, any> = { email: emailCliente };
+
+  if (nomeCliente && typeof nomeCliente === "string") {
+    const parts = nomeCliente.trim().split(" ");
+    payerObj.first_name = parts[0] || "Cliente";
+    if (parts.length > 1) {
+      payerObj.last_name = parts.slice(1).join(" ");
+    }
+  }
+
+  if (cpfCliente && typeof cpfCliente === "string") {
+    const cleanCpf = cpfCliente.replace(/\D/g, "");
+    if (cleanCpf.length === 11) {
+      payerObj.identification = {
+        type: "CPF",
+        number: cleanCpf,
+      };
+    }
+  }
+
+  const paymentBody: Record<string, any> = {
+    transaction_amount: Number(valor),
+    description: String(descricao).slice(0, 200),
+    payment_method_id: "pix",
+    payer: payerObj,
+    additional_info: {
+      items: [
+        {
+          id: String(externalReference || `parcela-${Date.now()}`).slice(0, 64),
+          title: String(descricao).slice(0, 255),
+          description: String(descricao).slice(0, 255),
+          quantity: 1,
+          unit_price: Number(valor),
+        },
+      ],
+    },
+  };
+
+  if (externalReference && typeof externalReference === "string") {
+    paymentBody.external_reference = String(externalReference).replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 64);
+  }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15_000);
+
+  try {
+    console.log(`[Pix MP] Gerando pagamento Pix de R$ ${valor.toFixed(2)} para ${emailCliente}...`);
+
+    const mpRes = await fetch("https://api.mercadopago.com/v1/payments", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${mpToken}`,
+        "X-Idempotency-Key": `pix-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+      },
+      body: JSON.stringify(paymentBody),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    const data: any = await mpRes.json();
+
+    if (!mpRes.ok) {
+      console.error("[Pix MP] Erro na API do Mercado Pago:", data);
+      const detail = data?.message || data?.cause?.[0]?.description || `HTTP ${mpRes.status}`;
+      return res
+        .status(mpRes.status >= 400 && mpRes.status < 500 ? 400 : 502)
+        .json({ success: false, message: `Erro ao gerar Pix: ${detail}` });
+    }
+
+    const txData = data.point_of_interaction?.transaction_data;
+    if (!txData?.qr_code) {
+      console.error("[Pix MP] Resposta inesperada – sem qr_code:", JSON.stringify(data).slice(0, 500));
+      return res
+        .status(502)
+        .json({ success: false, message: "QR Code Pix não retornado pelo Mercado Pago." });
+    }
+
+    console.log(`[Pix MP] Pagamento #${data.id} gerado com sucesso.`);
+
+    return res.json({
+      success: true,
+      payment_id: data.id,
+      qr_code: txData.qr_code,
+      qr_code_base64: txData.qr_code_base64 || null,
+    });
+  } catch (err: any) {
+    clearTimeout(timeoutId);
+    console.error("[Pix MP Error]", err.message);
+    return res
+      .status(503)
+      .json({ success: false, message: `Falha ao conectar com Mercado Pago: ${err.message}` });
+  }
+});
+
+// --- VERIFICAÇÃO DE STATUS PIX MERCADO PAGO ---
+
+app.get("/verificar-pix/:paymentId", async (req, res) => {
+  const mpToken = process.env.MERCADO_PAGO_ACCESS_TOKEN?.replace(/['"]/g, "").trim();
+  if (!mpToken) {
+    return res
+      .status(500)
+      .json({ success: false, message: "Integração Pix não configurada no servidor." });
+  }
+
+  const { paymentId } = req.params;
+  if (!paymentId || !/^\d+$/.test(paymentId)) {
+    return res
+      .status(400)
+      .json({ success: false, message: "ID de pagamento inválido." });
+  }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10_000);
+
+  try {
+    const mpRes = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${mpToken}`,
+      },
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    const data: any = await mpRes.json();
+
+    if (!mpRes.ok) {
+      const detail = data?.message || `HTTP ${mpRes.status}`;
+      return res
+        .status(mpRes.status === 404 ? 404 : 502)
+        .json({ success: false, message: `Erro ao consultar pagamento: ${detail}` });
+    }
+
+    return res.json({
+      success: true,
+      payment_id: data.id,
+      status: data.status,
+      status_detail: data.status_detail,
+      date_approved: data.date_approved || null,
+      transaction_amount: data.transaction_amount,
+    });
+  } catch (err: any) {
+    clearTimeout(timeoutId);
+    return res
+      .status(503)
+      .json({ success: false, message: `Falha ao consultar Mercado Pago: ${err.message}` });
+  }
+});
+
 // --- PROXY BACKEND TRANSPARENTE E SEGURO ---
 
 app.use(["/api/v1", "/v1"], async (req, res, next) => {

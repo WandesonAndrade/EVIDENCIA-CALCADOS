@@ -6,6 +6,7 @@ import {
   MoblinkContaReceber,
   getInstallmentAmount,
 } from '../services/moblinkClientesService';
+import { PixPaymentModal } from './PixPaymentModal';
 import {
   FileText,
   ChevronDown,
@@ -19,6 +20,7 @@ import {
   ShieldCheck,
   CreditCard,
   User,
+  Smartphone,
 } from 'lucide-react';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -93,6 +95,10 @@ export const MeuCrediario: React.FC = () => {
   const [verifiedMoblinkId, setVerifiedMoblinkId] = useState('');
   const [verifiedClientName, setVerifiedClientName] = useState('');
   const [expandedSales, setExpandedSales] = useState<Set<string>>(new Set());
+
+  // ── Pix Payment Modal ──
+  const [pixModalOpen, setPixModalOpen] = useState(false);
+  const [pixSelectedParcel, setPixSelectedParcel] = useState<{ value: number; description: string } | null>(null);
 
   // ── CPF Mask ──
   const handleCpfChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -572,8 +578,8 @@ export const MeuCrediario: React.FC = () => {
                                       </div>
                                     </div>
 
-                                    {/* Right: status badge + value */}
-                                    <div className="flex items-center space-x-3 shrink-0">
+                                    {/* Right: status badge + value + pay button */}
+                                    <div className="flex items-center space-x-2 sm:space-x-3 shrink-0">
                                       <div>
                                         {isPaid ? (
                                           <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-1 rounded-full ${
@@ -611,6 +617,28 @@ export const MeuCrediario: React.FC = () => {
                                           </span>
                                         )}
                                       </div>
+                                      {/* Pagar Agora Button (only for unpaid) */}
+                                      {!isPaid && (
+                                        <motion.button
+                                          whileTap={{ scale: 0.93 }}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setPixSelectedParcel({
+                                              value: amountInfo.displayAmount,
+                                              description: `Parcela ${parcNum} – Venda #${group.saleKey}`,
+                                            });
+                                            setPixModalOpen(true);
+                                          }}
+                                          className={`flex items-center space-x-1 px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                                            isDark
+                                              ? 'bg-[#0a84ff] hover:bg-[#409cff] text-white shadow-[0_0_16px_rgba(10,132,255,0.3)]'
+                                              : 'bg-[#007aff] hover:bg-[#0066d6] text-white shadow-sm'
+                                          }`}
+                                        >
+                                          <Smartphone className="h-3 w-3" />
+                                          <span>Pagar</span>
+                                        </motion.button>
+                                      )}
                                     </div>
                                   </div>
                                 );
@@ -631,6 +659,19 @@ export const MeuCrediario: React.FC = () => {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Pix Payment Modal */}
+        <PixPaymentModal
+          isOpen={pixModalOpen}
+          onClose={() => { setPixModalOpen(false); setPixSelectedParcel(null); }}
+          isDark={isDark}
+          parcelDescription={pixSelectedParcel?.description || ''}
+          parcelValue={pixSelectedParcel?.value || 0}
+          emailCliente={activeUser?.email || 'cliente@evidenciacalcados.com'}
+          nomeCliente={verifiedClientName || activeUser?.name || (activeUser as any)?.displayName}
+          cpfCliente={cpfInput || activeUser?.cpf}
+          externalReference={pixSelectedParcel ? `venda_${pixSelectedParcel.description.replace(/\D/g, '_')}` : undefined}
+        />
       </div>
     </div>
   );

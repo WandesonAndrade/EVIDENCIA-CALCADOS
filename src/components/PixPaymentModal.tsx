@@ -1,0 +1,430 @@
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { X, Copy, Check, Loader2, QrCode, AlertTriangle, CheckCircle2, RefreshCw } from 'lucide-react';
+
+interface PixPaymentModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  isDark: boolean;
+  parcelDescription: string;
+  parcelValue: number;
+  emailCliente: string;
+  nomeCliente?: string;
+  cpfCliente?: string;
+  externalReference?: string;
+}
+
+interface PixData {
+  payment_id: number;
+  qr_code: string;
+  qr_code_base64: string | null;
+}
+
+type ModalState = 'loading' | 'awaiting' | 'approved' | 'error';
+
+export const PixPaymentModal: React.FC<PixPaymentModalProps> = ({
+  isOpen,
+  onClose,
+  isDark,
+  parcelDescription,
+  parcelValue,
+  emailCliente,
+  nomeCliente,
+  cpfCliente,
+  externalReference,
+}) => {
+  const [state, setState] = useState<ModalState>('loading');
+  const [pixData, setPixData] = useState<PixData | null>(null);
+  const [errorMsg, setErrorMsg] = useState('');
+  const [copied, setCopied] = useState(false);
+  const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const pollingRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
+
+  // Stop polling
+  const stopPolling = useCallback(() => {
+    if (pollingRef.current) {
+      clearInterval(pollingRef.current);
+      pollingRef.current = undefined;
+    }
+  }, []);
+
+  // Poll payment status
+  const startPolling = useCallback((paymentId: number) => {
+    stopPolling();
+
+    const checkStatus = async () => {
+      try {
+        const res = await fetch(`/verificar-pix/${paymentId}`);
+        const data = await res.json();
+
+        if (data.success && data.status === 'approved') {
+          stopPolling();
+          setState('approved');
+        }
+      } catch {
+        // Silently ignore polling errors — keep trying
+      }
+    };
+
+    // Poll every 5 seconds
+    pollingRef.current = setInterval(checkStatus, 5_000);
+    // Also check immediately after a short delay
+    setTimeout(checkStatus, 2_000);
+  }, [stopPolling]);
+
+  // Generate Pix on open
+  useEffect(() => {
+    if (!isOpen) return;
+
+    setState('loading');
+    setPixData(null);
+    setErrorMsg('');
+    setCopied(false);
+    stopPolling();
+
+    const controller = new AbortController();
+
+    (async () => {
+      try {
+        const res = await fetch('/gerar-pix-parcela', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            valor: parcelValue,
+            descricao: parcelDescription,
+            emailCliente,
+            nomeCliente,
+            cpfCliente,
+            externalReference,
+          }),
+          signal: controller.signal,
+        });
+
+        const data = await res.json();
+
+        if (!res.ok || !data.success) {
+          throw new Error(data.message || 'Erro ao gerar Pix.');
+        }
+
+        const pix: PixData = {
+          payment_id: data.payment_id,
+          qr_code: data.qr_code,
+          qr_code_base64: data.qr_code_base64,
+        };
+
+        setPixData(pix);
+        setState('awaiting');
+
+        // Start polling for payment confirmation
+        startPolling(pix.payment_id);
+      } catch (err: any) {
+        if (err.name === 'AbortError') return;
+        setErrorMsg(err.message || 'Erro inesperado ao gerar Pix.');
+        setState('error');
+      }
+    })();
+
+    return () => {
+      controller.abort();
+      stopPolling();
+    };
+  }, [isOpen, parcelValue, parcelDescription, emailCliente, startPolling, stopPolling]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
+      stopPolling();
+    };
+  }, [stopPolling]);
+
+  const handleCopy = async () => {
+    if (!pixData?.qr_code) return;
+    try {
+      await navigator.clipboard.writeText(pixData.qr_code);
+      setCopied(true);
+      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
+      copyTimeoutRef.current = setTimeout(() => setCopied(false), 2500);
+    } catch {
+      const textarea = document.createElement('textarea');
+      textarea.value = pixData.qr_code;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+      setCopied(true);
+      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
+      copyTimeoutRef.current = setTimeout(() => setCopied(false), 2500);
+    }
+  };
+
+  const formatCurrency = (v: number) =>
+    v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
+          onClick={onClose}
+        >
+          {/* Backdrop with blur */}
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-xl" />
+
+          {/* Modal Card */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.92, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.92, y: 20 }}
+            transition={{ type: 'spring', damping: 28, stiffness: 350 }}
+            onClick={(e) => e.stopPropagation()}
+            className={`relative w-full max-w-[420px] rounded-3xl overflow-hidden shadow-2xl ${
+              isDark
+                ? 'bg-[#1c1c1e] border border-white/10'
+                : 'bg-white border border-black/5'
+            }`}
+            style={{
+              boxShadow: isDark
+                ? '0 25px 80px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.05)'
+                : '0 25px 80px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.04)',
+            }}
+          >
+            {/* Header */}
+            <div className="px-6 pt-6 pb-4 flex items-start justify-between">
+              <div>
+                <h2 className={`text-lg font-black tracking-tight ${isDark ? 'text-white' : 'text-[#1d1d1f]'}`}>
+                  {state === 'approved' ? 'Pagamento Confirmado' : 'Pagamento via Pix'}
+                </h2>
+                <p className={`text-xs mt-0.5 ${isDark ? 'text-[#86868b]' : 'text-[#86868b]'}`}>
+                  {parcelDescription}
+                </p>
+              </div>
+              <button
+                onClick={onClose}
+                className={`p-1.5 rounded-full transition-colors cursor-pointer ${
+                  isDark
+                    ? 'bg-white/10 hover:bg-white/20 text-white/70'
+                    : 'bg-black/5 hover:bg-black/10 text-black/50'
+                }`}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Value Badge */}
+            <div className="px-6 pb-4">
+              <div className={`inline-flex items-center px-3.5 py-1.5 rounded-full text-sm font-black font-mono ${
+                state === 'approved'
+                  ? (isDark
+                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                      : 'bg-emerald-50 text-emerald-700 border border-emerald-200')
+                  : (isDark
+                      ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                      : 'bg-amber-50 text-amber-700 border border-amber-200')
+              }`}>
+                {formatCurrency(parcelValue)}
+              </div>
+            </div>
+
+            {/* Divider */}
+            <div className={`mx-6 h-px ${isDark ? 'bg-white/8' : 'bg-black/5'}`} />
+
+            {/* Body */}
+            <div className="px-6 py-6">
+              {/* Loading State */}
+              {state === 'loading' && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="flex flex-col items-center py-10 space-y-4"
+                >
+                  <Loader2 className={`h-10 w-10 animate-spin ${isDark ? 'text-[#0a84ff]' : 'text-[#007aff]'}`} />
+                  <div className="text-center">
+                    <p className={`text-sm font-bold ${isDark ? 'text-white' : 'text-[#1d1d1f]'}`}>
+                      Gerando QR Code...
+                    </p>
+                    <p className={`text-xs mt-1 ${isDark ? 'text-[#86868b]' : 'text-[#86868b]'}`}>
+                      Conectando ao Mercado Pago
+                    </p>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* Error State */}
+              {state === 'error' && (
+                <motion.div
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex flex-col items-center py-8 space-y-4"
+                >
+                  <div className={`p-3 rounded-full ${isDark ? 'bg-rose-500/15' : 'bg-rose-50'}`}>
+                    <AlertTriangle className={`h-7 w-7 ${isDark ? 'text-rose-400' : 'text-rose-600'}`} />
+                  </div>
+                  <div className="text-center">
+                    <p className={`text-sm font-black ${isDark ? 'text-white' : 'text-[#1d1d1f]'}`}>
+                      Erro ao gerar Pix
+                    </p>
+                    <p className={`text-xs mt-1.5 max-w-[280px] ${isDark ? 'text-[#86868b]' : 'text-[#86868b]'}`}>
+                      {errorMsg}
+                    </p>
+                  </div>
+                  <button
+                    onClick={onClose}
+                    className={`mt-2 px-5 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
+                      isDark
+                        ? 'bg-white/10 text-white hover:bg-white/15'
+                        : 'bg-black/5 text-[#1d1d1f] hover:bg-black/10'
+                    }`}
+                  >
+                    Fechar
+                  </button>
+                </motion.div>
+              )}
+
+              {/* Approved State */}
+              {state === 'approved' && pixData && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="flex flex-col items-center py-8 space-y-5"
+                >
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ type: 'spring', damping: 12, stiffness: 200, delay: 0.1 }}
+                    className={`p-4 rounded-full ${isDark ? 'bg-emerald-500/15' : 'bg-emerald-50'}`}
+                  >
+                    <CheckCircle2 className={`h-12 w-12 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
+                  </motion.div>
+                  <div className="text-center space-y-1">
+                    <p className={`text-lg font-black ${isDark ? 'text-white' : 'text-[#1d1d1f]'}`}>
+                      Pix Recebido!
+                    </p>
+                    <p className={`text-xs ${isDark ? 'text-[#86868b]' : 'text-[#86868b]'}`}>
+                      Pagamento confirmado com sucesso.
+                    </p>
+                  </div>
+                  <p className={`text-[10px] ${isDark ? 'text-[#48484a]' : 'text-[#aeaeb2]'}`}>
+                    ID #{pixData.payment_id}
+                  </p>
+                  <button
+                    onClick={onClose}
+                    className={`mt-2 px-8 py-2.5 rounded-xl text-sm font-black transition-all cursor-pointer ${
+                      isDark
+                        ? 'bg-emerald-500 hover:bg-emerald-400 text-white shadow-[0_0_20px_rgba(16,185,129,0.3)]'
+                        : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm'
+                    }`}
+                  >
+                    Fechar
+                  </button>
+                </motion.div>
+              )}
+
+              {/* Awaiting Payment State */}
+              {state === 'awaiting' && pixData && (
+                <motion.div
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="space-y-5"
+                >
+                  {/* QR Code */}
+                  <div className="flex justify-center">
+                    <div className={`p-4 rounded-2xl ${isDark ? 'bg-white' : 'bg-white border border-black/5'}`}>
+                      {pixData.qr_code_base64 ? (
+                        <img
+                          src={`data:image/png;base64,${pixData.qr_code_base64}`}
+                          alt="QR Code Pix"
+                          className="w-48 h-48"
+                          draggable={false}
+                        />
+                      ) : (
+                        <div className="w-48 h-48 flex flex-col items-center justify-center space-y-2">
+                          <QrCode className="h-16 w-16 text-slate-300" />
+                          <p className="text-[10px] text-slate-400 text-center">
+                            Use o código abaixo
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Status Indicator */}
+                  <div className="flex items-center justify-center space-x-2">
+                    <span className="relative flex h-2.5 w-2.5">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500" />
+                    </span>
+                    <p className={`text-xs font-bold ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>
+                      Aguardando pagamento...
+                    </p>
+                    <RefreshCw className={`h-3 w-3 animate-spin ${isDark ? 'text-amber-400/50' : 'text-amber-600/50'}`} />
+                  </div>
+
+                  {/* Copy & Paste Code */}
+                  <div className="space-y-2">
+                    <p className={`text-[10px] font-black uppercase tracking-wider ${isDark ? 'text-[#86868b]' : 'text-[#86868b]'}`}>
+                      Pix Copia e Cola
+                    </p>
+                    <div className={`relative rounded-xl overflow-hidden border ${
+                      isDark ? 'border-white/10 bg-black/30' : 'border-black/10 bg-[#f5f5f7]'
+                    }`}>
+                      <div className={`px-3 py-2.5 pr-14 text-[11px] font-mono break-all leading-relaxed max-h-20 overflow-y-auto ${
+                        isDark ? 'text-white/70' : 'text-[#1d1d1f]/70'
+                      }`}>
+                        {pixData.qr_code}
+                      </div>
+                      <button
+                        onClick={handleCopy}
+                        className={`absolute right-2 top-1/2 -translate-y-1/2 flex items-center space-x-1 px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                          copied
+                            ? (isDark
+                                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                                : 'bg-emerald-100 text-emerald-700 border border-emerald-300')
+                            : (isDark
+                                ? 'bg-white/10 text-white/80 hover:bg-white/15 border border-white/10'
+                                : 'bg-white text-[#1d1d1f] hover:bg-white/80 border border-black/10 shadow-sm')
+                        }`}
+                      >
+                        {copied ? (
+                          <>
+                            <Check className="h-3 w-3" />
+                            <span>Copiado</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="h-3 w-3" />
+                            <span>Copiar</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Payment ID */}
+                  <p className={`text-[10px] text-center ${isDark ? 'text-[#48484a]' : 'text-[#aeaeb2]'}`}>
+                    ID do Pagamento: #{pixData.payment_id}
+                  </p>
+                </motion.div>
+              )}
+            </div>
+
+            {/* Footer */}
+            {state !== 'approved' && (
+              <div className="px-6 pb-6 pt-2">
+                <div className={`text-center text-[10px] leading-relaxed ${isDark ? 'text-[#48484a]' : 'text-[#aeaeb2]'}`}>
+                  Escaneie o QR Code ou copie o código acima e cole no app do seu banco para efetuar o pagamento.
+                </div>
+              </div>
+            )}
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+};
