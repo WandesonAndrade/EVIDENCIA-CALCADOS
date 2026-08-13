@@ -1004,19 +1004,16 @@ export const mapMoblinkProdutoToClean = (items: any[]): MoblinkProduto[] => {
     const preco_venda = extractPrecoVistaMoblink(item);
     const saldo_loja = extractSaldoLojaMoblink(item);
 
-    const defaultCover =
-      index % 2 === 0
-        ? "https://images.unsplash.com/photo-1533867617858-e7b97e060509?q=80&w=600&auto=format&fit=crop"
-        : "https://images.unsplash.com/photo-1549298916-b41d501d3772?q=80&w=600&auto=format&fit=crop";
-
-    const foto_uri =
+    const rawFoto =
       item.foto_uri ||
       item.imagem ||
       item.image ||
       item.foto ||
       (Array.isArray(item.images) && item.images.length > 0
         ? item.images[0]
-        : defaultCover);
+        : "");
+
+    const foto_uri = typeof rawFoto === "string" ? rawFoto.trim() : "";
 
     let id_grade = item.id_grade ?? item.gradeId ?? item.grade_id;
     if (

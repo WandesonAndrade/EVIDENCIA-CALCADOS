@@ -95,7 +95,7 @@ export const FavoritesList: React.FC = () => {
                 {/* Image Container with Badge */}
                 <div className={`relative aspect-square overflow-hidden ${theme === 'dark' ? 'bg-slate-950' : 'bg-slate-50'}`}>
                   <img 
-                    src={prod.images?.[0] || prod.foto_uri || 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?q=80&w=600&auto=format&fit=crop'} 
+                    src={prod.images?.[0] || prod.foto_uri || ''} 
                     alt={prod.name} 
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                   />

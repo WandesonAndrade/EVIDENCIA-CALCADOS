@@ -271,7 +271,7 @@ export const Cart: React.FC = () => {
                   <div className="flex items-center space-x-4">
                     {/* Image */}
                     <img 
-                      src={item.product?.images?.[0] || item.product?.foto_uri || 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?q=80&w=600&auto=format&fit=crop'} 
+                      src={item.product?.images?.[0] || item.product?.foto_uri || ''} 
                       alt={item.product.name} 
                       className={`w-20 h-20 object-cover rounded-xl border shadow-sm ${
                         isDark ? 'border-slate-800 bg-slate-950' : 'border-slate-200 bg-slate-50'
@@ -463,7 +463,7 @@ export const Cart: React.FC = () => {
                   isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
                 }`}>
                   <img 
-                    src={p.images?.[0] || p.foto_uri || 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?q=80&w=600&auto=format&fit=crop'} 
+                    src={p.images?.[0] || p.foto_uri || ''} 
                     alt={p.name} 
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
                   />

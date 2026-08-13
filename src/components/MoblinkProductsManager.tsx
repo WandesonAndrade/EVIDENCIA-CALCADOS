@@ -960,8 +960,7 @@ export const MoblinkProductsManager: React.FC = () => {
     const productStock = extractSaldoLojaMoblink(selectedProduct);
     const categoryName = normalizeCategoryName(selectedProduct.nome_grupo || selectedProduct.categoria || selectedProduct.category || 'Geral');
 
-    const defaultCover = 'https://images.unsplash.com/photo-1614252235316-8c857d38b5f4?auto=format&fit=crop&q=80&w=800';
-    const finalImages = images.length > 0 ? images : [defaultCover];
+    const finalImages = images.filter(img => img && typeof img === 'string' && img.trim() !== '');
 
     const refCode = selectedProduct.referencia || selectedProduct.referenceCode || selectedProduct.modelCode || undefined;
     const activeSizes = selectedProductGrade?.tamanhos || (selectedProduct.tamanhos as any) || [];
@@ -1115,7 +1114,8 @@ export const MoblinkProductsManager: React.FC = () => {
         const productPrice = existingDb?.price ?? extractPrecoVistaMoblink(rawItem) ?? 0;
         const productStock = existingDb?.stock ?? extractSaldoLojaMoblink(rawItem) ?? 0;
         const categoryName = existingDb?.category || rawItem?.categoria || rawItem?.category || 'Geral';
-        const defaultCover = 'https://images.unsplash.com/photo-1614252235316-8c857d38b5f4?auto=format&fit=crop&q=80&w=800';
+        const rawFoto = rawItem?.foto_uri || rawItem?.foto_url || rawItem?.imagem || rawItem?.image || '';
+        const validImages = (existingDb?.images && existingDb.images.length > 0) ? existingDb.images : (rawFoto ? [rawFoto] : []);
 
         const updatedProductPayload: Product = {
           id: mobId,
@@ -1128,7 +1128,7 @@ export const MoblinkProductsManager: React.FC = () => {
           price: productPrice,
           preco_venda: productPrice,
           category: categoryName,
-          images: (existingDb?.images && existingDb.images.length > 0) ? existingDb.images : [(rawItem?.foto_uri || defaultCover)],
+          images: validImages,
           sizes: existingDb?.sizes || (Array.isArray(rawItem?.tamanhos) ? rawItem.tamanhos : [37, 38, 39, 40, 41, 42, 43]),
           crediarioProprio: true,
           visible: productStock <= 0 ? false : (existingDb?.visible ?? true),
@@ -1206,7 +1206,8 @@ export const MoblinkProductsManager: React.FC = () => {
         const productSku = existingDb?.sku || rawItem?.sku || mobId;
         const productPrice = existingDb?.price ?? extractPrecoVistaMoblink(rawItem) ?? 0;
         const productStock = existingDb?.stock ?? extractSaldoLojaMoblink(rawItem) ?? 0;
-        const defaultCover = 'https://images.unsplash.com/photo-1614252235316-8c857d38b5f4?auto=format&fit=crop&q=80&w=800';
+        const rawFoto = rawItem?.foto_uri || rawItem?.foto_url || rawItem?.imagem || rawItem?.image || '';
+        const validImages = (existingDb?.images && existingDb.images.length > 0) ? existingDb.images : (rawFoto ? [rawFoto] : []);
 
         const updatedProductPayload: Product = {
           id: mobId,
@@ -1219,7 +1220,7 @@ export const MoblinkProductsManager: React.FC = () => {
           price: productPrice,
           preco_venda: productPrice,
           category: newCat,
-          images: (existingDb?.images && existingDb.images.length > 0) ? existingDb.images : [(rawItem?.foto_uri || defaultCover)],
+          images: validImages,
           sizes: existingDb?.sizes || (Array.isArray(rawItem?.tamanhos) ? rawItem.tamanhos : [37, 38, 39, 40, 41, 42, 43]),
           crediarioProprio: true,
           visible: productStock <= 0 ? false : (existingDb?.visible ?? true),
@@ -1302,7 +1303,8 @@ export const MoblinkProductsManager: React.FC = () => {
         const productPrice = existingDb?.price ?? extractPrecoVistaMoblink(rawItem) ?? 0;
         const productStock = existingDb?.stock ?? extractSaldoLojaMoblink(rawItem) ?? 0;
         const categoryName = existingDb?.category || rawItem?.categoria || rawItem?.category || 'Geral';
-        const defaultCover = 'https://images.unsplash.com/photo-1614252235316-8c857d38b5f4?auto=format&fit=crop&q=80&w=800';
+        const rawFoto = rawItem?.foto_uri || rawItem?.foto_url || rawItem?.imagem || rawItem?.image || '';
+        const validImages = (existingDb?.images && existingDb.images.length > 0) ? existingDb.images : (rawFoto ? [rawFoto] : []);
 
         const updatedProductPayload: Product = {
           id: mobId,
@@ -1315,7 +1317,7 @@ export const MoblinkProductsManager: React.FC = () => {
           price: productPrice,
           preco_venda: productPrice,
           category: categoryName,
-          images: (existingDb?.images && existingDb.images.length > 0) ? existingDb.images : [(rawItem?.foto_uri || defaultCover)],
+          images: validImages,
           sizes: existingDb?.sizes || (Array.isArray(rawItem?.tamanhos) ? rawItem.tamanhos : [37, 38, 39, 40, 41, 42, 43]),
           crediarioProprio: true,
           visible: productStock <= 0 ? false : targetVisibility,

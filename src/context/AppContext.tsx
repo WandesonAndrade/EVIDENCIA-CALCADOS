@@ -626,7 +626,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const dbRecord = dbMap.get(mobId);
 
       const rawFotoUri = item.foto_uri || item.foto_url || item.fotoUri || item.fotoUrl || item.imagem || item.image || item.foto;
-      const defaultCover = rawFotoUri || dbRecord?.foto_uri || (dbRecord?.images && dbRecord.images.length > 0 ? dbRecord.images[0] : null) || 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?q=80&w=600&auto=format&fit=crop';
 
       // 1. LIVE DATA FROM MOBLINK API (Preço à Vista e Estoque Real >= 0)
       // PRESERVAÇÃO ESTRITA: Se o lojista definiu um Nome Comercial no banco, ele NÃO PODE ser sobreescrito pelo ERP
@@ -658,14 +657,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // Extract Complementary Description (compl_descr)
       const liveComplDescr = item.compl_descr || item.descr_compl || item.descricao_complementar || item.compl_descricao || dbRecord?.compl_descr || '';
 
-      // 2. PRESERVE ENRICHED MEDIA & DESCRIPTION FROM LOCAL DATABASE (FIREBASE) / LOJISTA (NÃO SOBREESCREVE)
+      // 2. PRESERVE ENRICHED MEDIA & DESCRIPTION FROM LOCAL DATABASE (FIREBASE) / LOJISTA (NÃO SOBREESCREVE FOTOS DO ADMINISTRADOR)
       let combinedImages: string[] = [];
       if (dbRecord?.images && Array.isArray(dbRecord.images) && dbRecord.images.length > 0) {
-        combinedImages = dbRecord.images;
-      } else if (rawFotoUri) {
-        combinedImages = [rawFotoUri];
+        combinedImages = dbRecord.images.filter(Boolean);
+      } else if (rawFotoUri && typeof rawFotoUri === 'string' && rawFotoUri.trim() !== '') {
+        combinedImages = [rawFotoUri.trim()];
       } else {
-        combinedImages = [defaultCover];
+        combinedImages = [];
       }
 
       const colorImageMap = dbRecord?.colorImageMap || (item as any)?.colorImageMap;

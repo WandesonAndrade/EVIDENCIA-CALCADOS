@@ -225,7 +225,7 @@ export const ProductList: React.FC = () => {
         subMap.set(key, {
           id: key,
           name: normSub,
-          image: img || "https://images.unsplash.com/photo-1549298916-b41d501d3772?q=80&w=400&auto=format&fit=crop",
+          image: img || "",
           itemCount: 1,
         });
       }

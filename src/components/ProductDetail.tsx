@@ -156,8 +156,8 @@ export const ProductDetail: React.FC = () => {
   const p: Product = selectedProduct;
   const allProductImages = React.useMemo(() => {
     return (p?.images && p.images.length > 0)
-      ? p.images 
-      : [p?.foto_uri || 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?q=80&w=600&auto=format&fit=crop'];
+      ? p.images.filter(Boolean) 
+      : (p?.foto_uri ? [p.foto_uri] : []);
   }, [p]);
 
   const idGrade = p.id_grade ?? p.gradeId ?? null;
