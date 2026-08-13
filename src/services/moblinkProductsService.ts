@@ -95,6 +95,58 @@ export const extractBaseNameAndVariant = (
 };
 
 /**
+ * Checagem de Grade de Produto (Obrigatório para Venda).
+ * Verifica se um produto retornado da API do MobLink ERP (ou do banco) possui uma Grade de Tamanhos/Numerações/Variações válida.
+ * 
+ * REGRA EXPLICITA: Apenas produtos que possuem grade (com tamanhos/variações) estarão disponíveis para venda.
+ */
+export const hasProductValidGrade = (item: any): boolean => {
+  if (!item || typeof item !== "object") return false;
+
+  // 1. Array de tamanhos/sizes com tamanhos/numerações válidas
+  const sizesList = Array.isArray(item.tamanhos)
+    ? item.tamanhos
+    : Array.isArray(item.sizes)
+      ? item.sizes
+      : [];
+
+  const validSizes = sizesList.filter((s: any) => {
+    if (s === null || s === undefined) return false;
+    const str = String(s).trim();
+    return str !== "" && str !== "0";
+  });
+
+  if (validSizes.length > 0) return true;
+
+  // 2. Array de variações de grade (grade, grades, variacoes, grade_items)
+  const gradeItemsList = Array.isArray(item.grade)
+    ? item.grade
+    : Array.isArray(item.grades)
+      ? item.grades
+      : Array.isArray(item.variacoes)
+        ? item.variacoes
+        : Array.isArray(item.grade_items)
+          ? item.grade_items
+          : [];
+
+  if (gradeItemsList.length > 0) return true;
+
+  // 3. Mapeamento de estoque por tamanho (stockBySize / sizeStockMap)
+  const stockBySizeObj = item.stockBySize || item.sizeStockMap;
+  if (typeof stockBySizeObj === "object" && stockBySizeObj !== null) {
+    const keys = Object.keys(stockBySizeObj).filter(k => k && k.trim() !== '' && k !== '0');
+    if (keys.length > 0) return true;
+  }
+
+  // 4. Saldos por tamanho (saldos_lojas_grade)
+  const saldosLojaGrade = Array.isArray(item.saldos_lojas_grade) ? item.saldos_lojas_grade : [];
+  if (saldosLojaGrade.length > 0) return true;
+
+  // Se o produto não possui numerações/tamanhos ou variações de grade reais, retorna false
+  return false;
+};
+
+/**
  * Remove recursivamente qualquer propriedade com valor `undefined` de um objeto ou array.
  * Evita o erro do Firestore: 'Unsupported field value: undefined'.
  */
@@ -442,13 +494,16 @@ export const mapMoblinkToProduct = (item: MoblinkProduto | any): Product => {
   const stockVal = extractSaldoLojaMoblink(item);
   const stock = Math.max(0, stockVal);
 
-  // Visibilidade na vitrine
+  // Checagem obrigatória de Grade (Apenas produtos com grade estarão disponíveis para venda)
+  const hasGrade = hasProductValidGrade(item);
+
+  // Visibilidade na vitrine: Apenas produtos COM GRADE e COM ESTOQUE estarão disponíveis para venda!
   const visible =
     item.visible !== undefined
-      ? stock <= 0
+      ? (stock <= 0 || !hasGrade)
         ? false
         : Boolean(item.visible)
-      : stock > 0;
+      : (stock > 0 && hasGrade);
 
   const catInfo = extractClassificacaoCategoria({
     classificacao: cleanClassificacao,
@@ -464,6 +519,7 @@ export const mapMoblinkToProduct = (item: MoblinkProduto | any): Product => {
     promoPrice,
     stock,
     visible,
+    hasGrade,
     updatedAt: item.updatedAt || new Date().toISOString(),
 
     // Aliases e propriedades derivadas para UI (sem inventar metadados nulos)
@@ -632,13 +688,16 @@ export const sanitizeProductForFirestore = (
         : 0;
   const stock = Math.max(0, stockVal);
 
-  // Visibilidade
+  // Checagem de Grade de Produto (Apenas produtos COM GRADE e ESTOQUE > 0 são marcados como visíveis/disponíveis para venda!)
+  const hasGrade = product.hasGrade !== undefined ? Boolean(product.hasGrade) : hasProductValidGrade(product);
+
+  // Visibilidade estrita: Apenas visível para venda se tiver grade e estoque > 0
   const visible =
     product.visible !== undefined
-      ? stock <= 0
+      ? (stock <= 0 || !hasGrade)
         ? false
         : Boolean(product.visible)
-      : stock > 0;
+      : (stock > 0 && hasGrade);
 
   const updatedAt = product.updatedAt || new Date().toISOString();
 
@@ -661,6 +720,7 @@ export const sanitizeProductForFirestore = (
     promoPrice,
     stock,
     visible,
+    hasGrade,
     updatedAt,
     // Aliases para exibição imediata em componentes legados
     category: catInfo.category,
@@ -1192,8 +1252,10 @@ export const filterProductsRequiringSync = (
   return freshMoblinkList.filter((freshItem) => {
     const freshId = String(freshItem.id);
     const stock = extractSaldoLojaMoblink(freshItem);
-    // Ignora e não envia para o Firebase produtos com 0 ou saldo negativo
-    if (stock <= 0) return false;
+    const hasGrade = hasProductValidGrade(freshItem);
+
+    // Ignora e não envia para o Firebase como produto ativo para venda se tiver 0 saldo ou NÃO tiver grade
+    if (stock <= 0 || !hasGrade) return false;
     const existing = existingMap.get(freshId);
     return hasProductChanged(existing, freshItem);
   });

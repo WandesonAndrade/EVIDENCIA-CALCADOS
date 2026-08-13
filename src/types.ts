@@ -79,6 +79,7 @@ export interface MoblinkProduto {
   cor?: string;
   genero?: string;
   gender?: string;
+  hasGrade?: boolean;
 }
 
 export interface Product {
@@ -105,6 +106,7 @@ export interface Product {
   sizes: (number | string)[];
   crediarioProprio: boolean;
   visible: boolean;
+  hasGrade?: boolean;
   stockControl: boolean;
   stock: number;
   newArrival?: boolean;

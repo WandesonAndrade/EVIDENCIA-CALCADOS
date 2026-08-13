@@ -12,6 +12,7 @@ import {
   mergeErpSyncWithExistingDbProduct,
   extractBaseNameAndVariant,
   hasProductChanged,
+  hasProductValidGrade,
   saveMoblinkCache,
   loadMoblinkCache
 } from '../services/moblinkProductsService';
@@ -187,6 +188,8 @@ export const MoblinkProductsManager: React.FC = () => {
   const [viewMode, setViewMode] = useState<'list' | 'grouped'>('list');
   const [syncFilter, setSyncFilter] = useState<'todos' | 'erp' | 'manual'>('todos');
   const [hideOutOfStock, setHideOutOfStock] = useState(false);
+  const [hideNoGrade, setHideNoGrade] = useState(false);
+  const [gradeFilter, setGradeFilter] = useState<'todos' | 'com_grade' | 'sem_grade'>('todos');
   const [sortBy, setSortBy] = useState<'nameSku' | 'refMoblink' | 'stockAsc' | 'stockDesc'>('nameSku');
   const [fetchError, setFetchError] = useState<string | null>(null);
 
@@ -354,10 +357,10 @@ export const MoblinkProductsManager: React.FC = () => {
     }
   }, [products]);
 
-  // Resetar página ao mudar filtros de busca/categoria/origem/modelo/viewMode
+  // Resetar página ao mudar filtros de busca/categoria/origem/modelo/viewMode/grade
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, categoryFilter, syncFilter, baseNameFilter, viewMode]);
+  }, [searchQuery, categoryFilter, subcategoryFilter, syncFilter, baseNameFilter, viewMode, hideOutOfStock, hideNoGrade, gradeFilter, sortBy]);
 
   // Sincronização manual por acionamento direto do botão [Atualizar Estoque ERP]
   const fetchMoblinkProducts = async () => {
@@ -417,16 +420,14 @@ export const MoblinkProductsManager: React.FC = () => {
               const precoTabela = extractPrecoTabelaMoblink(item);
               const precoVista = extractPrecoVistaMoblink(item);
               const estoqueAtual = extractSaldoLojaMoblink(item);
-              const rawName = item.nome || item.name || item.descricao || 'Produto MobLink';
+              const itemHasGrade = hasProductValidGrade(item) || Boolean(existingDb?.hasGrade);
 
-              const updatedProductPayload: Product = {
+              const updatedProductPayload: any = {
                 id: mobId,
                 moblinkId: mobId,
-                name: existingDb?.name || rawName,
-                descricao: rawName,
-                compl_descr: item.compl_descr || item.descr_compl,
-                sku: existingDb?.sku || item.sku || mobId,
-                description: existingDb?.description || item.compl_descr || item.descricao || rawName,
+                name: item.nome || item.name || item.descricao,
+                descricao: item.descricao || item.nome,
+                description: existingDb?.description || item.compl_descr || item.descricao || '',
                 price: precoTabela,
                 preco_venda: precoTabela,
                 precoVista: precoVista,
@@ -441,7 +442,8 @@ export const MoblinkProductsManager: React.FC = () => {
                 images: (existingDb?.images && existingDb.images.length > 0) ? existingDb.images : (item.foto_uri ? [item.foto_uri] : []),
                 sizes: existingDb?.sizes || (Array.isArray(item.tamanhos) ? item.tamanhos : []),
                 crediarioProprio: true,
-                visible: estoqueAtual <= 0 ? false : (existingDb?.visible ?? true),
+                hasGrade: itemHasGrade,
+                visible: (estoqueAtual > 0 && itemHasGrade) ? (existingDb?.visible ?? true) : false,
                 stockControl: true,
                 stock: estoqueAtual,
                 saldo_loja: estoqueAtual,
@@ -1306,6 +1308,14 @@ export const MoblinkProductsManager: React.FC = () => {
       // Ignorar produtos com estoque zerado quando a opção estiver ativa
       if (hideOutOfStock && estoque <= 0) return false;
 
+      // Checagem de Grade de Produto (Grade de Tamanhos/Numerações/Variações)
+      const itemHasGrade = hasProductValidGrade(item) || Boolean(existingDb?.hasGrade);
+
+      // Ocultar produtos sem grade se o filtro 'hideNoGrade' estiver ativo ou conforme 'gradeFilter'
+      if (hideNoGrade && !itemHasGrade) return false;
+      if (gradeFilter === 'com_grade' && !itemHasGrade) return false;
+      if (gradeFilter === 'sem_grade' && itemHasGrade) return false;
+
       const rawName = String(item.nome || item.name || item.descricao || '');
       const { baseName: itemBaseName } = extractBaseNameAndVariant(rawName);
       const sku = String(item.sku || '').toLowerCase();
@@ -1364,7 +1374,7 @@ export const MoblinkProductsManager: React.FC = () => {
     });
 
     return filtered;
-  }, [combinedCatalog, searchQuery, categoryFilter, subcategoryFilter, baseNameFilter, syncFilter, hideOutOfStock, sortBy, dbProductsMap]);
+  }, [combinedCatalog, searchQuery, categoryFilter, subcategoryFilter, baseNameFilter, syncFilter, hideOutOfStock, hideNoGrade, gradeFilter, sortBy, dbProductsMap]);
 
   // Taxonomia oficial lida diretamente da coleção 'categories' do Firebase Firestore
   const storeCategoryTree = useMemo(() => {
@@ -1686,6 +1696,21 @@ export const MoblinkProductsManager: React.FC = () => {
               </select>
             </div>
 
+            {/* FILTRO SELETIVO DE GRADE */}
+            <div className="flex items-center space-x-1.5">
+              <Layers className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+              <span className="text-[10px] font-bold text-slate-400 uppercase shrink-0">Grade:</span>
+              <select
+                value={gradeFilter}
+                onChange={(e) => setGradeFilter(e.target.value as any)}
+                className="p-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-800 dark:text-amber-400 text-xs font-bold focus:outline-none focus:border-amber-500"
+              >
+                <option value="todos">Todas (Com &amp; Sem Grade)</option>
+                <option value="com_grade">✓ Apenas Com Grade (Disponível p/ Venda)</option>
+                <option value="sem_grade">⚠️ Apenas Sem Grade (Indisponível)</option>
+              </select>
+            </div>
+
             {/* TOGGLE OCULTAR ESTOQUE ZERADO */}
             <label className="inline-flex items-center gap-1.5 px-2.5 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg cursor-pointer select-none shrink-0 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
               <input
@@ -1696,6 +1721,20 @@ export const MoblinkProductsManager: React.FC = () => {
               />
               <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
                 Ocultar Estoque Zerado (0)
+              </span>
+            </label>
+
+            {/* TOGGLE OCULTAR PRODUTOS SEM GRADE */}
+            <label className="inline-flex items-center gap-1.5 px-2.5 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg cursor-pointer select-none shrink-0 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors" title="Ocultar produtos que não possuem grade de tamanhos cadastrada">
+              <input
+                type="checkbox"
+                checked={hideNoGrade}
+                onChange={(e) => setHideNoGrade(e.target.checked)}
+                className="w-3.5 h-3.5 rounded text-amber-500 border-slate-300 focus:ring-amber-500 cursor-pointer"
+              />
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1">
+                <Layers className="h-3.5 w-3.5 text-amber-500" />
+                Ocultar Sem Grade
               </span>
             </label>
           </div>
@@ -2129,6 +2168,23 @@ export const MoblinkProductsManager: React.FC = () => {
                                 Lançamento
                               </span>
                             )}
+                            {(() => {
+                              const hasGrade = hasProductValidGrade(item) || Boolean(existingDb?.hasGrade);
+                              if (hasGrade) {
+                                return (
+                                  <span className="text-[9px] font-extrabold px-2 py-0.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded border border-emerald-500/30 inline-flex items-center gap-1">
+                                    <Layers className="h-2.5 w-2.5 text-emerald-500" />
+                                    ✓ Grade Ativa
+                                  </span>
+                                );
+                              }
+                              return (
+                                <span className="text-[9px] font-extrabold px-2 py-0.5 bg-rose-500/10 text-rose-600 dark:text-rose-400 rounded border border-rose-500/30 inline-flex items-center gap-1" title="Produtos sem grade de tamanhos/variações não são salvos como visíveis na loja para venda">
+                                  <AlertCircle className="h-2.5 w-2.5 text-rose-500" />
+                                  ⚠️ Sem Grade (Indisponível p/ Venda)
+                                </span>
+                              );
+                            })()}
                           </div>
                         </td>
 
