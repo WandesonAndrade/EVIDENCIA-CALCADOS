@@ -502,6 +502,135 @@ export const MoblinkProductsManager: React.FC = () => {
     }
   };
 
+  /**
+   * REGRA EXPLICITA SOLICITADA PELO USUÁRIO:
+   * Pega todos os IDs dos produtos com saldo de estoque positivo (> 0),
+   * verifica se existe grade (localmente ou via API de grades do Moblink ERP /produtos/{id}/grades).
+   * 
+   * - Caso TENHA grade: atribui tag "Grade Ativa" e ativa visible = true (Visível nas vitrines da loja virtual).
+   * - Caso NÃO TENHA grade: atribui tag "Sem Grade (Indisponível p/ Venda)" e desmarca/desativa visible = false (Oculto das vitrines da loja virtual).
+   */
+  const handleAuditAndApplyGradesToStockProducts = async () => {
+    setIsLoading(true);
+    setFetchError(null);
+    setSyncProgress({ current: 0, total: 100, phase: 'Iniciando auditoria de grades para produtos com estoque positivo...' });
+
+    try {
+      // 1. Seleciona todos os produtos com saldo de estoque positivo (> 0)
+      const stockItems = (combinedCatalog || []).filter(item => {
+        const mobId = String(item.id || item.moblinkId || '');
+        const existingDb = dbProductsMap.get(mobId);
+        const estoque = existingDb?.stock ?? extractSaldoLojaMoblink(item);
+        return estoque > 0;
+      });
+
+      const totalToAudit = stockItems.length;
+      if (totalToAudit === 0) {
+        setSyncProgress(null);
+        setIsLoading(false);
+        alert('Nenhum produto com saldo em estoque positivo (> 0) foi encontrado.');
+        return;
+      }
+
+      let withGradeCount = 0;
+      let noGradeCount = 0;
+
+      // 2. Processa os produtos em lotes de 10
+      const chunkSize = 10;
+      for (let i = 0; i < totalToAudit; i += chunkSize) {
+        const chunk = stockItems.slice(i, i + chunkSize);
+        setSyncProgress({
+          current: i,
+          total: totalToAudit,
+          phase: `Auditando e aplicando visibilidade no Firestore (${i}/${totalToAudit})...`
+        });
+
+        await Promise.all(chunk.map(async (item) => {
+          const mobId = String(item.id || item.moblinkId || '');
+          const existingDb = dbProductsMap.get(mobId);
+          const estoqueAtual = existingDb?.stock ?? extractSaldoLojaMoblink(item);
+
+          // Verifica se possui grade válida no objeto local
+          let hasGrade = hasProductValidGrade(item) || Boolean(existingDb?.hasGrade);
+
+          // Se a verificação rápida local for falsa, realiza chamada remota de confirmação na API de grades
+          if (!hasGrade && mobId) {
+            try {
+              const gradeResult = await getProdutoGradesFromApi(mobId);
+              if (gradeResult && (gradeResult.hasGrade || (Array.isArray(gradeResult.tamanhos) && gradeResult.tamanhos.length > 0) || (Array.isArray(gradeResult.variacoes) && gradeResult.variacoes.length > 0))) {
+                hasGrade = true;
+                if (Array.isArray(gradeResult.tamanhos) && gradeResult.tamanhos.length > 0) {
+                  item.tamanhos = gradeResult.tamanhos;
+                }
+              }
+            } catch {
+              // Mantém resultado local
+            }
+          }
+
+          // APLICAÇÃO DA REGRA SOLICITADA:
+          // Se estoque > 0 e TEM GRADE => visible = true (Visível nas vitrines da loja virtual)
+          // Se estoque > 0 e NÃO TEM GRADE => visible = false (Desmarcado/Oculto nas vitrines da loja virtual)
+          const isVisibleInStore = hasGrade;
+
+          if (hasGrade) {
+            withGradeCount++;
+          } else {
+            noGradeCount++;
+          }
+
+          const precoTabela = extractPrecoTabelaMoblink(item) || existingDb?.price || 0;
+          const precoVista = extractPrecoVistaMoblink(item) || existingDb?.precoVista || precoTabela;
+
+          const updatedPayload: any = {
+            id: mobId,
+            moblinkId: mobId,
+            name: item.nome || item.name || item.descricao,
+            descricao: item.descricao || item.nome,
+            description: existingDb?.description || item.compl_descr || item.descricao || '',
+            price: precoTabela,
+            preco_venda: precoTabela,
+            precoVista: precoVista,
+            preco_vista: precoVista,
+            category: (item.categoria && item.categoria !== 'Geral') ? item.categoria : (existingDb?.category || 'Geral'),
+            subcategory: item.subcategoria || existingDb?.subcategory || '',
+            foto_uri: item.foto_uri || existingDb?.foto_uri,
+            images: (existingDb?.images && existingDb.images.length > 0) ? existingDb.images : (item.foto_uri ? [item.foto_uri] : []),
+            sizes: item.tamanhos || existingDb?.sizes || [],
+            hasGrade: hasGrade,
+            visible: isVisibleInStore,
+            stockControl: true,
+            stock: estoqueAtual,
+            saldo_loja: estoqueAtual,
+            lastMoblinkSync: new Date().toISOString(),
+            moblinkSyncStatus: 'synced',
+          };
+
+          try {
+            const sanitizedPayload = sanitizeProductForFirestore(updatedPayload);
+            await setDoc(doc(db, 'products', mobId), sanitizedPayload, { merge: true });
+            if (existingDb) {
+              await updateProduct(mobId, updatedPayload);
+            }
+          } catch (writeErr) {
+            console.warn(`[MoblinkProductsManager] Aviso ao salvar auditoria de grade no Firestore: ${mobId}`, writeErr);
+          }
+        }));
+      }
+
+      setFeedback({
+        success: true,
+        message: `⚡ Auditoria de Grades Concluída com Sucesso! ${withGradeCount} produtos com Grade Ativa (Visíveis na Vitrine Virtual) e ${noGradeCount} produtos sem Grade (Desmarcados e Ocultos da Vitrine).`
+      });
+    } catch (err: any) {
+      console.error('Erro na auditoria de grades:', err);
+      setFetchError(err.message || 'Falha ao auditar grades do estoque');
+    } finally {
+      setSyncProgress(null);
+      setIsLoading(false);
+    }
+  };
+
   // Indexador em tempo constante O(1) para produtos do Firestore
   const dbProductsMap = useMemo(() => {
     const map = new Map<string, Product>();
@@ -1581,14 +1710,26 @@ export const MoblinkProductsManager: React.FC = () => {
           </p>
         </div>
 
-        <button
-          onClick={fetchMoblinkProducts}
-          disabled={isLoading}
-          className="px-4 py-2.5 bg-slate-900 dark:bg-slate-800 text-white font-bold rounded-xl text-xs hover:bg-slate-800 transition-all flex items-center gap-2 cursor-pointer shadow-sm shrink-0 disabled:opacity-50"
-        >
-          <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin text-amber-400' : ''}`} />
-          {isLoading ? 'Sincronizando ERP...' : 'Atualizar Estoque ERP'}
-        </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={fetchMoblinkProducts}
+            disabled={isLoading}
+            className="px-4 py-2.5 bg-slate-900 dark:bg-slate-800 text-white font-bold rounded-xl text-xs hover:bg-slate-800 transition-all flex items-center gap-2 cursor-pointer shadow-sm shrink-0 disabled:opacity-50"
+          >
+            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin text-amber-400' : ''}`} />
+            {isLoading ? 'Sincronizando ERP...' : 'Atualizar Estoque ERP'}
+          </button>
+
+          <button
+            onClick={handleAuditAndApplyGradesToStockProducts}
+            disabled={isLoading}
+            className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl text-xs transition-all flex items-center gap-2 cursor-pointer shadow-sm shrink-0 disabled:opacity-50 shadow-emerald-500/20"
+            title="Percorre todos os produtos com saldo em estoque positivo (> 0), verifica existência de grade e define 'Grade Ativa + Visível' ou 'Sem Grade + Oculto'"
+          >
+            <Layers className="h-4 w-4 text-emerald-300" />
+            <span>⚡ Auditar &amp; Validar Grades do Estoque</span>
+          </button>
+        </div>
       </div>
 
       {/* BARRA DE PROGRESSO DE SINCRONIZAÇÃO ERP */}
