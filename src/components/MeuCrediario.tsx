@@ -5,7 +5,9 @@ import {
   moblinkClientesService,
   MoblinkContaReceber,
   getInstallmentAmount,
+  getParcelId,
 } from '../services/moblinkClientesService';
+import { pixFirestoreService, PixTransacaoFirestore } from '../services/pixFirestoreService';
 import { PixPaymentModal } from './PixPaymentModal';
 import {
   FileText,
@@ -108,6 +110,7 @@ export const MeuCrediario: React.FC = () => {
   const [pixModalOpen, setPixModalOpen] = useState(false);
   const [pixSelectedParcel, setPixSelectedParcel] = useState<SelectedParcel | null>(null);
   const [paidParcelKeys, setPaidParcelKeys] = useState<Set<string>>(new Set());
+  const [approvedPixList, setApprovedPixList] = useState<PixTransacaoFirestore[]>([]);
   const [paymentSuccessToast, setPaymentSuccessToast] = useState<string | null>(null);
 
   // ── CPF Mask ──
@@ -159,19 +162,25 @@ export const MeuCrediario: React.FC = () => {
 
       // Recupera parcelas com Pix aprovado salvos no Firestore / backend
       try {
+        const firestorePixDocs = await pixFirestoreService.fetchAllPixTransacoes();
+        setApprovedPixList(firestorePixDocs);
+
+        const approvedKeys: string[] = firestorePixDocs
+          .filter((t) => t.status === 'approved' || t.audited)
+          .map((t) => String(t.parcelKey).toLowerCase());
+
         const pixRes = await fetch('/listar-pix-transacoes');
         const pixData = await pixRes.json();
         if (pixData.success && Array.isArray(pixData.transactions)) {
-          const approvedKeys = pixData.transactions
-            .filter((t: any) => t.status === 'approved' || t.audited)
-            .map((t: any) => String(t.parcelKey).toLowerCase());
-          if (approvedKeys.length > 0) {
-            setPaidParcelKeys((prev) => {
-              const next = new Set(prev);
-              approvedKeys.forEach((k: string) => next.add(k));
-              return next;
-            });
-          }
+          pixData.transactions.forEach((t: any) => {
+            if ((t.status === 'approved' || t.audited) && t.parcelKey) {
+              approvedKeys.push(String(t.parcelKey).toLowerCase());
+            }
+          });
+        }
+
+        if (approvedKeys.length > 0) {
+          setPaidParcelKeys(new Set(approvedKeys));
         }
       } catch (err) {
         console.warn('Falha ao sincronizar Pix aprovados do Firestore:', err);
@@ -214,14 +223,16 @@ export const MeuCrediario: React.FC = () => {
       const totalPending = sorted.reduce((s, i, idx) => {
         const parcNum = i.parcela || `${idx + 1}/${sorted.length}`;
         const parcelUniqueKey = String(i.id || `${saleKey}_${parcNum}`);
-        const isPaid = getInstallmentAmount(i).isPaid || paidParcelKeys.has(parcelUniqueKey) || paidParcelKeys.has(String(i.id));
+        const isPaidByMatch = pixFirestoreService.checkIfParcelIsPaidInFirestore(i, approvedPixList);
+        const isPaid = getInstallmentAmount(i).isPaid || paidParcelKeys.has(parcelUniqueKey) || paidParcelKeys.has(String(i.id)) || isPaidByMatch;
         const amt = getInstallmentAmount(i);
         return isPaid ? s : s + amt.displayAmount;
       }, 0);
       const hasOverdue = sorted.some((i, idx) => {
         const parcNum = i.parcela || `${idx + 1}/${sorted.length}`;
         const parcelUniqueKey = String(i.id || `${saleKey}_${parcNum}`);
-        const isPaid = getInstallmentAmount(i).isPaid || paidParcelKeys.has(parcelUniqueKey) || paidParcelKeys.has(String(i.id));
+        const isPaidByMatch = pixFirestoreService.checkIfParcelIsPaidInFirestore(i, approvedPixList);
+        const isPaid = getInstallmentAmount(i).isPaid || paidParcelKeys.has(parcelUniqueKey) || paidParcelKeys.has(String(i.id)) || isPaidByMatch;
         const amt = getInstallmentAmount(i);
         return !isPaid && amt.isOverdue;
       });
@@ -602,7 +613,8 @@ export const MeuCrediario: React.FC = () => {
                                 const dtVenc = formatDate(inv.data_vencimento || inv.vencimento);
                                 const amountInfo = getInstallmentAmount(inv);
                                 const parcelUniqueKey = String(inv.id || `${group.saleKey}_${parcNum}`);
-                                const isPaidByPix = paidParcelKeys.has(parcelUniqueKey) || paidParcelKeys.has(String(inv.id));
+                                const isPaidByFirebaseMatch = pixFirestoreService.checkIfParcelIsPaidInFirestore(inv, approvedPixList);
+                                const isPaidByPix = paidParcelKeys.has(parcelUniqueKey) || paidParcelKeys.has(String(inv.id)) || isPaidByFirebaseMatch;
                                 const isPaid = amountInfo.isPaid || isPaidByPix;
                                 const isOverdue = !isPaid && amountInfo.isOverdue;
 
@@ -702,12 +714,14 @@ export const MeuCrediario: React.FC = () => {
                                           whileTap={{ scale: 0.93 }}
                                           onClick={(e) => {
                                             e.stopPropagation();
+                                            const exactParcelId = String(inv.id || getParcelId(inv) || '').trim();
+                                            const exactSaleId = String(group.saleKey || inv.id_venda || '').trim();
                                             setPixSelectedParcel({
-                                              parcelId: parcelUniqueKey,
-                                              saleKey: String(group.saleKey),
+                                              parcelId: exactParcelId,
+                                              saleKey: exactSaleId,
                                               parcNum: String(parcNum),
                                               value: amountInfo.displayAmount,
-                                              description: `Parcela ${parcNum} – Venda #${group.saleKey}`,
+                                              description: `Parcela ${parcNum} – Venda #${exactSaleId}`,
                                             });
                                             setPixModalOpen(true);
                                           }}
@@ -752,7 +766,9 @@ export const MeuCrediario: React.FC = () => {
           emailCliente={activeUser?.email || 'cliente@evidenciacalcados.com'}
           nomeCliente={verifiedClientName || activeUser?.name || (activeUser as any)?.displayName}
           cpfCliente={cpfInput || activeUser?.cpf}
-          externalReference={pixSelectedParcel ? `venda_${pixSelectedParcel.description.replace(/\D/g, '_')}` : undefined}
+          externalReference={pixSelectedParcel ? `venda_${pixSelectedParcel.saleKey}_parcela_${pixSelectedParcel.parcelId}` : undefined}
+          idVenda={pixSelectedParcel?.saleKey}
+          idParcela={pixSelectedParcel?.parcelId}
           onPaymentSuccess={handlePaymentSuccess}
         />
       </div>

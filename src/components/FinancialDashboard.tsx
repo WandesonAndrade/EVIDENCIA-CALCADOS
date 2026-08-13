@@ -16,6 +16,7 @@ export interface ReceivedPayment {
   id: string | number;
   payment_id: number;
   clientName: string;
+  clientCpf?: string;
   clientEmail?: string;
   clientPhone?: string;
   parcelDescription: string;
@@ -123,13 +124,23 @@ export const FinancialDashboard: React.FC = () => {
       const mappedReceived: ReceivedPayment[] = pixTxs.map((t: any) => {
         const key = String(t.payment_id);
         const isAuditedLocal = localAudits[key]?.audited ?? t.audited;
+
+        const rawCpf = String(t.cpfCliente || t.cpf || '').replace(/\D/g, '');
+        const formattedCpf = rawCpf.length === 11 
+          ? rawCpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
+          : (t.cpfCliente || t.cpf);
+
+        const clientName = t.nomeCliente || (t.emailCliente ? t.emailCliente.split('@')[0].replace(/\./g, ' ') : 'Cliente Crediário');
+        const amount = Number(t.transaction_amount ?? t.valor ?? t.transactionAmount ?? 0);
+
         return {
           id: t.payment_id,
           payment_id: t.payment_id,
-          clientName: t.emailCliente?.split('@')[0]?.replace(/\./g, ' ') || 'Cliente Crediário',
+          clientName,
+          clientCpf: formattedCpf,
           clientEmail: t.emailCliente,
           parcelDescription: t.descricao || `Parcela Pix #${t.payment_id}`,
-          amount: Number(t.valor || 0),
+          amount,
           paymentDate: t.createdAt ? new Date(t.createdAt).toLocaleDateString('pt-BR') + ' ' + new Date(t.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : 'Hoje',
           method: 'Pix Mercado Pago',
           audited: Boolean(isAuditedLocal),
@@ -145,10 +156,11 @@ export const FinancialDashboard: React.FC = () => {
             id: 203599781,
             payment_id: 203599781,
             clientName: 'Wandeson Andrade',
+            clientCpf: '123.456.789-00',
             clientEmail: 'wandesonaandrade@gmail.com',
-            parcelDescription: 'Parcela 01/02 – Venda #3573',
+            parcelDescription: 'Parcela 01/04 – Venda #4375',
             amount: 92.53,
-            paymentDate: new Date(Date.now() - 3600000).toLocaleDateString('pt-BR') + ' 11:30',
+            paymentDate: new Date(Date.now() - 3600000).toLocaleDateString('pt-BR') + ' 10:20',
             method: 'Pix Mercado Pago',
             audited: Boolean(localAudits['203599781']?.audited),
             auditedBy: 'Administrador',
@@ -157,6 +169,7 @@ export const FinancialDashboard: React.FC = () => {
             id: 203599782,
             payment_id: 203599782,
             clientName: 'Maria Silva Oliveira',
+            clientCpf: '987.654.321-11',
             clientEmail: 'maria.silva@exemplo.com',
             parcelDescription: 'Parcela 02/04 – Venda #4120',
             amount: 145.00,
@@ -170,6 +183,7 @@ export const FinancialDashboard: React.FC = () => {
             id: 203599783,
             payment_id: 203599783,
             clientName: 'Carlos Eduardo Santos',
+            clientCpf: '456.789.123-22',
             clientEmail: 'carlos.santos@exemplo.com',
             parcelDescription: 'Parcela 01/03 – Venda #3988',
             amount: 78.90,
@@ -732,8 +746,7 @@ export const FinancialDashboard: React.FC = () => {
                     <th className="py-3 px-4">Check Conferência</th>
                     <th className="py-3 px-4">Cliente</th>
                     <th className="py-3 px-4">Mensalidade / Parcela</th>
-                    <th className="py-3 px-4">Status MobLink ERP</th>
-                    <th className="py-3 px-4">Valor</th>
+                    <th className="py-3 px-4">Valor Pago no Pix (MP)</th>
                     <th className="py-3 px-4">Data / Método</th>
                     <th className="py-3 px-4">ID Transação</th>
                   </tr>
@@ -777,7 +790,7 @@ export const FinancialDashboard: React.FC = () => {
                         </button>
                       </td>
 
-                      {/* Cliente */}
+                      {/* Cliente (Nome do Cadastro e CPF) */}
                       <td className="py-3.5 px-4">
                         <div className="flex items-center space-x-2.5">
                           <div className={`h-8 w-8 rounded-full flex items-center justify-center font-black text-xs shrink-0 ${
@@ -789,7 +802,11 @@ export const FinancialDashboard: React.FC = () => {
                             <p className={`font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>
                               {payment.clientName}
                             </p>
-                            {payment.clientEmail && (
+                            {payment.clientCpf ? (
+                              <p className={`text-[10px] font-mono font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                CPF: {payment.clientCpf}
+                              </p>
+                            ) : payment.clientEmail && (
                               <p className={`text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                                 {payment.clientEmail}
                               </p>
@@ -807,10 +824,11 @@ export const FinancialDashboard: React.FC = () => {
                         </span>
                       </td>
 
-                      {/* Valor */}
+                      {/* Valor Pago no Pix (Mercado Pago) */}
                       <td className="py-3.5 px-4 whitespace-nowrap">
-                        <span className="font-mono font-black text-sm text-emerald-500">
-                          {formatCurrency(payment.amount)}
+                        <span className="inline-flex items-center space-x-1 font-mono font-black text-sm text-emerald-500 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20">
+                          <DollarSign className="h-3.5 w-3.5" />
+                          <span>{formatCurrency(payment.amount)}</span>
                         </span>
                       </td>
 

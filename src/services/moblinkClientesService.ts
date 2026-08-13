@@ -358,10 +358,20 @@ export const moblinkClientesService = {
 
 export interface MoblinkContaReceber {
   id?: string | number;
+  id_conta_receber?: string | number | null;
+  id_contas_receber?: string | number | null;
+  id_duplicata?: string | number | null;
+  id_parcela?: string | number | null;
+  id_receber?: string | number | null;
+  id_lancamento?: string | number | null;
+  id_titulo?: string | number | null;
+  codigo?: string | number | null;
   id_venda?: string | number | null;
   documento?: string | number | null;
   numero_documento?: string | number | null;
   parcela?: string | number | null;
+  nro_parcela?: string | number | null;
+  num_parcela?: string | number | null;
   data_vencimento?: string | null;
   vencimento?: string | null;
   data_emissao?: string | null;
@@ -378,6 +388,44 @@ export interface MoblinkContaReceber {
   historico?: string | null;
   historico_origem?: string | null;
   loja?: string | null;
+}
+
+/**
+ * Retorna o ID único ou o identificador exato da parcela vindo da API do MobLink ERP
+ */
+export function getParcelId(inv: MoblinkContaReceber): string {
+  if (inv.id !== undefined && inv.id !== null && String(inv.id).trim() !== "") {
+    return String(inv.id).trim();
+  }
+  if (inv.id_conta_receber !== undefined && inv.id_conta_receber !== null) {
+    return String(inv.id_conta_receber).trim();
+  }
+  if (inv.id_contas_receber !== undefined && inv.id_contas_receber !== null) {
+    return String(inv.id_contas_receber).trim();
+  }
+  if (inv.id_duplicata !== undefined && inv.id_duplicata !== null) {
+    return String(inv.id_duplicata).trim();
+  }
+  if (inv.id_parcela !== undefined && inv.id_parcela !== null) {
+    return String(inv.id_parcela).trim();
+  }
+  if (inv.id_receber !== undefined && inv.id_receber !== null) {
+    return String(inv.id_receber).trim();
+  }
+  if (inv.id_lancamento !== undefined && inv.id_lancamento !== null) {
+    return String(inv.id_lancamento).trim();
+  }
+  if (inv.id_titulo !== undefined && inv.id_titulo !== null) {
+    return String(inv.id_titulo).trim();
+  }
+  if (inv.codigo !== undefined && inv.codigo !== null) {
+    return String(inv.codigo).trim();
+  }
+  
+  // Fallback: ID da Venda + Número da Parcela
+  const saleId = String(inv.id_venda ?? inv.documento ?? "0").trim();
+  const parcNum = String(inv.parcela ?? inv.numero_documento ?? inv.nro_parcela ?? inv.num_parcela ?? "1").trim();
+  return `${saleId}_${parcNum}`;
 }
 
 /**

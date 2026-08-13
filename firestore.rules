@@ -84,6 +84,11 @@ service cloud.firestore {
       allow write: if isAuth();
     }
 
+    // Regra para Transações Pix (Meu Crediário e Auditoria Financeira)
+    match /pix_transacoes/{transacaoId} {
+      allow read, write: if true;
+    }
+
     // Regra Global de Bloqueio Padrão (Zero Trust)
     match /{document=**} {
       allow read, write: if false;

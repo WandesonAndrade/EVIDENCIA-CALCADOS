@@ -13,6 +13,8 @@ interface PixPaymentModalProps {
   nomeCliente?: string;
   cpfCliente?: string;
   externalReference?: string;
+  idVenda?: string;
+  idParcela?: string;
   onPaymentSuccess?: (paymentId: number) => void;
 }
 
@@ -36,6 +38,8 @@ export const PixPaymentModal: React.FC<PixPaymentModalProps> = ({
   nomeCliente,
   cpfCliente,
   externalReference,
+  idVenda,
+  idParcela,
   onPaymentSuccess,
 }) => {
   const [state, setState] = useState<ModalState>('idle');
@@ -139,7 +143,7 @@ export const PixPaymentModal: React.FC<PixPaymentModalProps> = ({
       setState('awaiting');
 
       // Salva/Garante persistência na coleção pix_transacoes no Firestore
-      const parcelKey = String(externalReference || parcelDescription).trim().toLowerCase();
+      const parcelKey = String(externalReference || (idVenda && idParcela ? `venda_${idVenda}_parcela_${idParcela}` : parcelDescription)).trim().toLowerCase();
       pixFirestoreService.savePixTransacao({
         parcelKey,
         payment_id: data.payment_id,
@@ -152,6 +156,8 @@ export const PixPaymentModal: React.FC<PixPaymentModalProps> = ({
         cpfCliente,
         descricao: parcelDescription,
         externalReference,
+        id_venda: idVenda || null,
+        id_parcela: idParcela || null,
         createdAt: Date.now(),
         expires_at: data.expires_at || (Date.now() + 30 * 60000),
         expirationDateIso: new Date(data.expires_at || (Date.now() + 30 * 60000)).toISOString(),
