@@ -20,6 +20,7 @@ import {
 } from "firebase/firestore";
 import { UserProfile, UserRole } from "../types";
 import { cleanUndefinedProperties } from "../utils/cleanObject";
+import { moblinkClientesService } from "./moblinkClientesService";
 
 export const firebaseAuthService = {
   /**
@@ -389,7 +390,6 @@ export const firebaseAuthService = {
   /**
    * Realiza login via Google com popup e verificação de registro no Firestore
    */
-
   async loginWithGoogle(): Promise<UserProfile | null> {
     const provider = new GoogleAuthProvider();
     const result = await signInWithPopup(auth, provider);
@@ -397,6 +397,156 @@ export const firebaseAuthService = {
       return this.fetchOrSyncUserProfile(result.user);
     }
     return null;
+  },
+
+  /**
+   * Realiza login do cliente via CPF e Senha utilizando e-mail sintético (@evidencia.com)
+   */
+  async loginComCpf(cpf: string, senha: string): Promise<UserProfile> {
+    const emailSintetico = gerarEmailDoCpf(cpf);
+
+    if (!senha || senha.length < 6) {
+      throw new Error("A senha deve conter no mínimo 6 caracteres.");
+    }
+
+    try {
+      const userCredential = await signInWithEmailAndPassword(auth, emailSintetico, senha);
+      return await this.fetchOrSyncUserProfile(userCredential.user);
+    } catch (error: any) {
+      console.error("Erro no login com CPF:", error);
+      if (
+        error.code === "auth/user-not-found" ||
+        error.code === "auth/invalid-credential" ||
+        error.code === "auth/wrong-password"
+      ) {
+        throw new Error("CPF ou senha incorretos. Caso ainda não tenha conta, faça o seu cadastro.");
+      }
+      if (error.code === "auth/invalid-email") {
+        throw new Error("CPF inválido. Verifique os números digitados.");
+      }
+      throw error;
+    }
+  },
+
+  /**
+   * Verifica o status de um CPF no sistema:
+   * 1. Verifica se já possui conta ativa no Firebase Auth / Firestore com senha definida.
+   * 2. Verifica se o cliente já consta no cadastro do MobLink ERP.
+   */
+  async checkCpfStatus(cpfInput: string): Promise<{
+    hasFirebaseAccount: boolean;
+    existsInErp: boolean;
+    erpClientData?: UserProfile | null;
+    existingProfile?: UserProfile | null;
+  }> {
+    const cleanCpf = cpfInput.replace(/\D/g, "");
+    if (!cleanCpf || cleanCpf.length !== 11) {
+      return { hasFirebaseAccount: false, existsInErp: false };
+    }
+
+    const syntheticEmail = `${cleanCpf}@evidencia.com`;
+
+    let hasFirebaseAccount = false;
+    let existingProfile: UserProfile | null = null;
+
+    try {
+      const q = query(
+        collection(db, "users"),
+        where("email", "==", syntheticEmail)
+      );
+      const snap = await getDocs(q);
+      if (!snap.empty) {
+        existingProfile = snap.docs[0].data() as UserProfile;
+        hasFirebaseAccount = true;
+      } else {
+        const qCpf = query(
+          collection(db, "users"),
+          where("cpf", "==", cleanCpf)
+        );
+        const snapCpf = await getDocs(qCpf);
+        if (!snapCpf.empty) {
+          existingProfile = snapCpf.docs[0].data() as UserProfile;
+          if (existingProfile.email === syntheticEmail || (existingProfile.uid && existingProfile.uid.length > 20)) {
+            hasFirebaseAccount = true;
+          }
+        }
+      }
+    } catch {
+      // Ignora restrições de leitura no Firestore quando o visitante ainda não está logado
+    }
+
+    let erpClientData: UserProfile | null = null;
+    let existsInErp = false;
+
+    try {
+      const moblinkResult = await moblinkClientesService.fetchClienteByCpfDirectly(cleanCpf);
+      if (moblinkResult) {
+        existsInErp = true;
+        erpClientData = moblinkResult;
+      }
+    } catch (err) {
+      console.warn("📌 Erro ao consultar cliente por CPF no ERP:", err);
+    }
+
+    return {
+      hasFirebaseAccount,
+      existsInErp,
+      erpClientData,
+      existingProfile,
+    };
+  },
+
+  /**
+   * Cadastra um novo cliente via CPF, Senha, Nome e Telefone utilizando e-mail sintético (@evidencia.com)
+   */
+  async cadastrarComCpf(
+    cpf: string,
+    senha: string,
+    name: string,
+    telefone?: string,
+    erpData?: Partial<UserProfile>
+  ): Promise<UserProfile> {
+    const emailSintetico = gerarEmailDoCpf(cpf);
+    const cpfLimpo = cpf.replace(/\D/g, "");
+
+    if (!name || name.trim().length < 2) {
+      throw new Error("Por favor, informe seu nome completo.");
+    }
+
+    if (!senha || senha.length < 6) {
+      throw new Error("A senha deve conter no mínimo 6 caracteres.");
+    }
+
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, emailSintetico, senha);
+      const user = userCredential.user;
+
+      const userProfile: UserProfile = {
+        ...(erpData || {}),
+        uid: user.uid,
+        name: name.trim(),
+        email: emailSintetico,
+        cpf: cpfLimpo,
+        telefone: telefone ? telefone.trim() : (erpData?.telefone || ""),
+        role: "customer",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      const userRef = doc(db, "users", user.uid);
+      await setDoc(userRef, cleanUndefinedProperties(userProfile), { merge: true });
+
+      return userProfile;
+    } catch (error: any) {
+      console.error("Erro no cadastro com CPF:", error);
+      if (error.code === "auth/email-already-in-use") {
+        throw new Error("Este CPF já está cadastrado com uma senha no sistema. Faça o login com sua senha.");
+      }
+      if (error.code === "auth/weak-password") {
+        throw new Error("Sua senha é muito fraca. Digite uma senha com no mínimo 6 caracteres.");
+      }
+      throw error;
+    }
   },
 
   /**
@@ -409,4 +559,16 @@ export const firebaseAuthService = {
       console.warn("📌 Erro ao fazer signOut no Firebase Auth:", err);
     }
   },
+};
+
+/**
+ * Remove pontos, traços e gera um e-mail sintético fictício e único (@evidencia.com) a partir do CPF do usuário.
+ * Exemplo: "123.456.789-09" -> "12345678909@evidencia.com"
+ */
+export const gerarEmailDoCpf = (cpf: string): string => {
+  const cpfLimpo = String(cpf || "").replace(/\D/g, "");
+  if (!cpfLimpo || cpfLimpo.length !== 11) {
+    throw new Error("Por favor, informe um CPF válido com 11 dígitos.");
+  }
+  return `${cpfLimpo}@evidencia.com`;
 };

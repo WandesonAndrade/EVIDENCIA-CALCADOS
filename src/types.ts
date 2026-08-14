@@ -301,6 +301,7 @@ export interface UserProfile {
   name: string;
   role: UserRole;
   createdAt?: string;
+  updatedAt?: string;
   photoURL?: string;
   rg?: string;
   cpf?: string;

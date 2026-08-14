@@ -33,6 +33,9 @@ interface AppContextProps {
   userRole: UserRole | null;
   registerUser: (name: string, email: string, role: UserRole) => Promise<UserProfile>;
   loginUser: (email: string) => Promise<UserProfile | null>;
+  loginWithCpf: (cpf: string, senha: string) => Promise<UserProfile>;
+  registerWithCpf: (cpf: string, senha: string, name: string, telefone?: string, erpData?: Partial<UserProfile>) => Promise<UserProfile>;
+  checkCpfStatus: (cpf: string) => Promise<{ hasFirebaseAccount: boolean; existsInErp: boolean; erpClientData?: UserProfile | null; existingProfile?: UserProfile | null }>;
   loginAdmin: (email: string, password?: string) => Promise<UserProfile>;
   registerTeamMember: (name: string, email: string, role: UserRole, tempPassword?: string) => Promise<UserProfile>;
   changeAdminPassword: (newPassword: string, activeProfile: UserProfile) => Promise<UserProfile>;
@@ -1045,6 +1048,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return null;
   };
 
+  const loginWithCpf = async (cpf: string, senha: string): Promise<UserProfile> => {
+    const profile = await firebaseAuthService.loginComCpf(cpf, senha);
+    setCurrentUser(profile);
+    localStorage.setItem('evidencia_user', JSON.stringify(profile));
+    return profile;
+  };
+
+  const registerWithCpf = async (cpf: string, senha: string, name: string, telefone?: string, erpData?: Partial<UserProfile>): Promise<UserProfile> => {
+    const profile = await firebaseAuthService.cadastrarComCpf(cpf, senha, name, telefone, erpData);
+    setCurrentUser(profile);
+    localStorage.setItem('evidencia_user', JSON.stringify(profile));
+    return profile;
+  };
+
+  const checkCpfStatus = async (cpf: string) => {
+    return await firebaseAuthService.checkCpfStatus(cpf);
+  };
+
   const loginAdmin = async (email: string, password?: string): Promise<UserProfile> => {
     const adminProfile = await firebaseAuthService.loginAdminWithEmailPassword(email, password || 'admin123');
     setCurrentAdminUser(adminProfile);
@@ -1862,6 +1883,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         userRole: (currentAdminUser ? currentAdminUser.role : (currentUser ? currentUser.role : null)),
         registerUser,
         loginUser,
+        loginWithCpf,
+        registerWithCpf,
+        checkCpfStatus,
         loginAdmin,
         registerTeamMember,
         changeAdminPassword,
