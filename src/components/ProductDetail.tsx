@@ -455,11 +455,13 @@ export const ProductDetail: React.FC = () => {
   // 1. O Preço de Venda padrão (p.price) é o preço do Crediário da Loja.
   const precoCrediarioCalculado = (p as any).precoCrediario || (p as any).preco_crediario || p.price;
 
-  // 2. Preço À Vista (Pix / Dinheiro): Quando tiver um preço à vista cadastrado, usa ele. Quando não, usa o preço de venda (p.price).
-  const precoVistaCalculado = (p as any).precoVista ?? (p as any).preco_vista ?? (p as any).precoAvista ?? (p as any).priceCash ?? (p as any).pricePix ?? p.price;
+  // 2. Preço À Vista (Pix / Dinheiro): Quando tiver um preço à vista cadastrado, usa ele. Quando não tiver, usa o Preço de Venda (p.price).
+  const rawVistaVal = (p as any).precoVista ?? (p as any).preco_vista ?? (p as any).precoAvista ?? (p as any).priceCash ?? (p as any).pricePix;
+  const precoVistaCalculado = (typeof rawVistaVal === 'number' && !isNaN(rawVistaVal) && rawVistaVal > 0) ? rawVistaVal : p.price;
 
-  // 3. Preço no Cartão de Crédito: Quando tiver um preço no cartão cadastrado, usa ele. Quando não, usa o preço de venda (p.price).
-  const precoCartaoCalculado = (p as any).precoCartao ?? (p as any).preco_cartao ?? (p as any).priceCard ?? p.price;
+  // 3. Preço no Cartão de Crédito: Quando tiver um preço no cartão cadastrado, usa ele. Quando não tiver, usa o Preço de Venda (p.price).
+  const rawCartaoVal = (p as any).precoCartao ?? (p as any).preco_cartao ?? (p as any).priceCard;
+  const precoCartaoCalculado = (typeof rawCartaoVal === 'number' && !isNaN(rawCartaoVal) && rawCartaoVal > 0) ? rawCartaoVal : p.price;
 
   const relatedProducts = React.useMemo(() => {
     if (!products || products.length === 0 || !p) return [];

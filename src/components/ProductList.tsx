@@ -32,7 +32,10 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
     ? Math.round(((originalPrice - mainPrice) / originalPrice) * 100)
     : 0;
 
-  const pixPrice = (mainPrice * 0.9).toFixed(2).replace(".", ",");
+  const rawPrecoVista = product.precoVista ?? product.preco_vista;
+  const hasCustomVista = typeof rawPrecoVista === "number" && !isNaN(rawPrecoVista) && rawPrecoVista > 0 && rawPrecoVista < mainPrice;
+  const precoVistaVal = hasCustomVista ? rawPrecoVista : mainPrice;
+  const pixPrice = precoVistaVal.toFixed(2).replace(".", ",");
   const parcelas = 6;
   const valorParcela = (mainPrice / parcelas).toFixed(2).replace(".", ",");
 
@@ -139,7 +142,7 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
                   ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" 
                   : "bg-emerald-50 text-emerald-700 border-emerald-200"
               }`}>
-                <span>R$ {pixPrice} à vista no PIX (10% OFF)</span>
+                <span>R$ {pixPrice} à vista no PIX{hasCustomVista ? ` (${Math.round(((mainPrice - precoVistaVal) / mainPrice) * 100)}% OFF)` : ''}</span>
               </span>
             </div>
           </div>

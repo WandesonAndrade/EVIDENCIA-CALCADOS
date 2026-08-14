@@ -232,8 +232,10 @@ export const extractPrecoTabelaMoblink = (item: any): number => {
 export const extractPrecoVistaMoblink = (item: any): number => {
   if (!item || typeof item !== "object") return 0;
 
+  const basePrice = extractPrecoTabelaMoblink(item);
+
+  // 1. Se a API do MobLink ERP enviou a lista de tabelas `precos`:
   if (Array.isArray(item.precos) && item.precos.length > 0) {
-    // Busca exata por nome_tab_preco: campo oficial da API MobLink
     const vistaObj = item.precos.find((p: any) => {
       if (typeof p !== "object" || p === null) return false;
       const nomTab = String(
@@ -241,6 +243,7 @@ export const extractPrecoVistaMoblink = (item: any): number => {
       ).toUpperCase();
       return (
         nomTab === "A VISTA" ||
+        nomTab === "À VISTA" ||
         nomTab.includes("VISTA") ||
         nomTab.includes("PIX")
       );
@@ -252,29 +255,45 @@ export const extractPrecoVistaMoblink = (item: any): number => {
         vistaObj.preco_venda ??
         vistaObj.valor ??
         vistaObj.price;
-      if (typeof val === "number" && !isNaN(val) && val > 0) return val;
-      if (typeof val === "string") {
-        const parsed = Number(val.replace(",", ".")) || 0;
-        if (parsed > 0) return parsed;
-      }
+      let parsed = 0;
+      if (typeof val === "number" && !isNaN(val) && val > 0) parsed = val;
+      else if (typeof val === "string") parsed = Number(val.replace(",", ".")) || 0;
+
+      if (parsed > 0) return parsed;
     }
+
+    // Se o ERP retornou a lista de tabelas `precos` e NENHUMA tabela de À VISTA/PIX está presente,
+    // significa que o ERP NÃO possui preço à vista cadastrado para este produto.
+    // Retorna o Preço de Venda (basePrice) diretamente!
+    return basePrice;
   }
 
-  // Fallback: preco_vista ou precoVista diretamente no objeto
+  // 2. Se não houver array `precos`, analisa valor direto armazenado
   const directVista = item.preco_vista ?? item.precoVista;
-  if (typeof directVista === "number" && !isNaN(directVista) && directVista > 0)
-    return directVista;
+  let parsedDirect = 0;
+  if (typeof directVista === "number" && !isNaN(directVista) && directVista > 0) {
+    parsedDirect = directVista;
+  } else if (typeof directVista === "string") {
+    parsedDirect = Number(directVista.replace(",", ".")) || 0;
+  }
 
-  // Fallback: preco_promocao (se houver)
+  if (parsedDirect > 0 && basePrice > 0) {
+    // Se o valor armazenado for o antigo desconto automático de 10% (ex: 275.31 para 305.90), descarta-o
+    const old10PercentCalc = Math.round(basePrice * 0.9 * 100) / 100;
+    if (Math.abs(parsedDirect - old10PercentCalc) < 0.05) {
+      return basePrice;
+    }
+    return parsedDirect;
+  }
+
+  // 3. Fallback: preco_promocao (se houver e for menor que o preço base)
   const rawPromo = item.preco_promocao;
-  if (typeof rawPromo === "number" && !isNaN(rawPromo) && rawPromo > 0)
+  if (typeof rawPromo === "number" && !isNaN(rawPromo) && rawPromo > 0 && rawPromo < basePrice) {
     return rawPromo;
+  }
 
-  // Fallback final: 10% de desconto sobre o preço de tabela
-  const basePrice = extractPrecoTabelaMoblink(item);
-  if (basePrice > 0) return Math.round(basePrice * 0.9 * 100) / 100;
-
-  return 0;
+  // Fallback final: Preço de Venda (basePrice)
+  return basePrice;
 };
 
 /**
