@@ -12,6 +12,7 @@ import { UserProfile } from "../types";
 import { cleanUndefinedProperties } from "../utils/cleanObject";
 import { evidenciaAuthService } from "../lib/evidenciaAuth";
 import { API_ENDPOINTS } from "./api";
+import { parseValor } from "../utils/numberUtils";
 
 export const MOBLINK_CLIENTES_API_URL = API_ENDPOINTS.CLIENTES;
 
@@ -447,12 +448,12 @@ export function getInstallmentAmount(inv: MoblinkContaReceber): {
   const isOverdue =
     !isPaid && (statusRaw.includes("VENC") || statusRaw.includes("ATRAS"));
 
-  const originalAmount = inv.valor_parcela ?? inv.valor ?? inv.saldo ?? 0;
+  const originalAmount = parseValor(inv.valor_parcela ?? inv.valor ?? inv.saldo);
+  const valorPago = parseValor(inv.valor_pago);
 
   if (isPaid) {
     return {
-      displayAmount:
-        inv.valor_pago && inv.valor_pago > 0 ? inv.valor_pago : originalAmount,
+      displayAmount: valorPago > 0 ? valorPago : originalAmount,
       originalAmount,
       hasInterest: false,
       interestAmount: 0,
@@ -462,17 +463,12 @@ export function getInstallmentAmount(inv: MoblinkContaReceber): {
   }
 
   // Prioriza o campo saldo_devedor oficial do ERP MobLink (com juros/encargos aplicados)
-  const saldoDevedor =
-    inv.saldo_devedor !== undefined &&
-    inv.saldo_devedor !== null &&
-    inv.saldo_devedor >= 0
-      ? inv.saldo_devedor
-      : inv.saldo !== undefined && inv.saldo !== null && inv.saldo > 0
-        ? inv.saldo
-        : originalAmount;
+  const parsedSaldoDevedor = parseValor(inv.saldo_devedor);
+  const parsedSaldo = parseValor(inv.saldo);
+  const saldoDevedor = parsedSaldoDevedor > 0 ? parsedSaldoDevedor : (parsedSaldo > 0 ? parsedSaldo : originalAmount);
 
   // Cálculo de juros/encargos extras
-  const explicitJuros = inv.juros ?? inv.valor_juros ?? 0;
+  const explicitJuros = parseValor(inv.juros ?? inv.valor_juros);
   const computedInterest =
     saldoDevedor > originalAmount
       ? saldoDevedor - originalAmount

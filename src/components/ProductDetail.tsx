@@ -176,7 +176,7 @@ export const ProductDetail: React.FC = () => {
     setMessage('');
     setLoadingGrade(true);
 
-    // Atualização silenciosa e automática diretamente da API do ERP (preservando fotos, nome comercial e descrição rica)
+    // Atualização silenciosa e automática diretamente da API do ERP (Preço, Estoque, Grade e Visibilidade)
     getSingleProdutoMoblinkFromApi(String(p.id))
       .then(updated => {
         if (isMounted && updated) {
@@ -194,6 +194,16 @@ export const ProductDetail: React.FC = () => {
         if (isMounted) {
           setProductGradeData(gradeResult);
           setLoadingGrade(false);
+          if (gradeResult && gradeResult.tamanhos && gradeResult.tamanhos.length > 0) {
+            const updatedWithGrades: any = {
+              ...p,
+              sizes: gradeResult.tamanhos,
+              hasGrade: true,
+            };
+            const sanitized = sanitizeProductForFirestore(updatedWithGrades) as Product;
+            setDoc(doc(db, 'products', String(sanitized.id)), sanitized, { merge: true }).catch(() => {});
+            setSelectedProduct(updatedWithGrades as Product);
+          }
         }
       })
       .catch(err => {
@@ -452,16 +462,20 @@ export const ProductDetail: React.FC = () => {
     : 0;
 
   // Regras de Preços por Modalidade:
-  // 1. O Preço de Venda padrão (p.price) é o preço do Crediário da Loja.
+  // 1. O Preço de Venda padrão (p.price) é o preço de Tabela / Crediário da Loja.
   const precoCrediarioCalculado = (p as any).precoCrediario || (p as any).preco_crediario || p.price;
 
-  // 2. Preço À Vista (Pix / Dinheiro): Quando tiver um preço à vista cadastrado, usa ele. Quando não tiver, usa o Preço de Venda (p.price).
-  const rawVistaVal = (p as any).precoVista ?? (p as any).preco_vista ?? (p as any).precoAvista ?? (p as any).priceCash ?? (p as any).pricePix;
-  const precoVistaCalculado = (typeof rawVistaVal === 'number' && !isNaN(rawVistaVal) && rawVistaVal > 0) ? rawVistaVal : p.price;
+  // 2. Preço À Vista (Pix / Dinheiro): Se tiver um preço à vista cadastrado usa ele; caso contrário, aplica 10% de desconto sobre o preço de tabela.
+  const precoVistaVal = (p as any).precoVista ?? (p as any).preco_vista ?? (p as any).precoAvista ?? (p as any).priceCash ?? (p as any).pricePix;
+  const precoVistaCalculado = (typeof precoVistaVal === 'number' && precoVistaVal > 0)
+    ? precoVistaVal
+    : (p.price > 0 ? Math.round(p.price * 0.9 * 100) / 100 : p.price);
 
-  // 3. Preço no Cartão de Crédito: Quando tiver um preço no cartão cadastrado, usa ele. Quando não tiver, usa o Preço de Venda (p.price).
-  const rawCartaoVal = (p as any).precoCartao ?? (p as any).preco_cartao ?? (p as any).priceCard;
-  const precoCartaoCalculado = (typeof rawCartaoVal === 'number' && !isNaN(rawCartaoVal) && rawCartaoVal > 0) ? rawCartaoVal : p.price;
+  // 3. Preço no Cartão de Crédito: Se tiver um preço no cartão cadastrado usa ele; caso contrário, aplica 10% de desconto sobre o preço de tabela.
+  const precoCartaoVal = (p as any).precoCartao ?? (p as any).preco_cartao ?? (p as any).priceCard;
+  const precoCartaoCalculado = (typeof precoCartaoVal === 'number' && precoCartaoVal > 0)
+    ? precoCartaoVal
+    : (p.price > 0 ? Math.round(p.price * 0.9 * 100) / 100 : p.price);
 
   const relatedProducts = React.useMemo(() => {
     if (!products || products.length === 0 || !p) return [];

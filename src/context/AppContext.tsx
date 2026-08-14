@@ -7,7 +7,7 @@ import { evidenciaAuthService } from '../lib/evidenciaAuth';
 import { firebaseAuthService } from '../services/firebaseAuthService';
 import { userDataService } from '../services/userDataService';
 import { orderService } from '../services/orderService';
-import { getProdutosMoblink, extractPrecoVistaMoblink, extractSaldoLojaMoblink, sanitizeProductForFirestore, cleanUndefinedFields, filterProductsRequiringSync, hasProductChanged, extractClassificacaoCategoria } from '../services/moblinkProductsService';
+import { getProdutosMoblink, extractPrecoTabelaMoblink, extractPrecoVistaMoblink, extractPrecoCartaoMoblink, parseValor, extractSaldoLojaMoblink, sanitizeProductForFirestore, cleanUndefinedFields, filterProductsRequiringSync, hasProductChanged, extractClassificacaoCategoria } from '../services/moblinkProductsService';
 import { moblinkCategoriesService } from '../services/moblinkCategoriesService';
 import { cleanUndefinedProperties } from '../utils/cleanObject';
 import { API_ENDPOINTS } from '../services/api';
@@ -635,8 +635,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         ? (dbRecord as any).nome
         : (item.nome || item.name || item.descricao || `Produto ${mobId}`);
       
-      const apiPrecoVista = extractPrecoVistaMoblink(item);
-      const livePrice = apiPrecoVista > 0 ? apiPrecoVista : Number(dbRecord?.price ?? 0);
+      const liveTabelaPrice = extractPrecoTabelaMoblink(item) || parseValor(dbRecord?.price ?? dbRecord?.preco_venda);
+      const livePrice = liveTabelaPrice > 0 ? liveTabelaPrice : Number(dbRecord?.price ?? 0);
+      const livePrecoVista = extractPrecoVistaMoblink(item) || parseValor(dbRecord?.precoVista || dbRecord?.preco_vista) || (livePrice > 0 ? Math.round(livePrice * 0.9 * 100) / 100 : 0);
+      const livePrecoCartao = extractPrecoCartaoMoblink(item) || parseValor(dbRecord?.precoCartao || dbRecord?.preco_cartao) || (livePrice > 0 ? Math.round(livePrice * 0.9 * 100) / 100 : 0);
       const liveOriginalPrice = typeof item.precoOriginal === 'number' ? item.precoOriginal : item.precoOriginal ? Number(item.precoOriginal) : dbRecord?.originalPrice;
 
       // Estoque (trata valores negativos como 0)
@@ -694,9 +696,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         descricao: liveName,
         compl_descr: liveComplDescr,
         descricao_completa: adaptedFullDescription,
-        price: livePrice, // Direct from Moblink API
+        price: livePrice, // Preço Tabela de Venda
         preco_venda: livePrice,
         preco_venda_fracao: livePrice,
+        precoVista: livePrecoVista,
+        preco_vista: livePrecoVista,
+        precoCartao: livePrecoCartao,
+        preco_cartao: livePrecoCartao,
         originalPrice: liveOriginalPrice,
         stock: liveStock, // Direct from Moblink API (>= 0)
         saldo_loja: liveStock,

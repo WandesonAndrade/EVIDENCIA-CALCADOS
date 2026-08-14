@@ -10,6 +10,8 @@ import { useApp } from '../context/AppContext';
 import { moblinkClientesService, MoblinkContaReceber } from '../services/moblinkClientesService';
 import { pixFirestoreService } from '../services/pixFirestoreService';
 
+import { parseValor } from '../utils/numberUtils';
+
 // ─── Interfaces ───────────────────────────────────────────────────────────────
 
 export interface ReceivedPayment {
@@ -131,7 +133,7 @@ export const FinancialDashboard: React.FC = () => {
           : (t.cpfCliente || t.cpf);
 
         const clientName = t.nomeCliente || (t.emailCliente ? t.emailCliente.split('@')[0].replace(/\./g, ' ') : 'Cliente Crediário');
-        const amount = Number(t.transaction_amount ?? t.valor ?? t.transactionAmount ?? 0);
+        const amount = parseValor(t.transaction_amount ?? t.valor ?? t.transactionAmount);
 
         return {
           id: t.payment_id,

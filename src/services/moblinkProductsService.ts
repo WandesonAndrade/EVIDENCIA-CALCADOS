@@ -6,8 +6,10 @@ import {
 } from './moblinkCategoriesService';
 import { evidenciaAuthService } from '../lib/evidenciaAuth';
 import { API_ENDPOINTS } from './api';
+import { parseValor } from '../utils/numberUtils';
 
 export const MOBLINK_OFFICIAL_API_URL = API_ENDPOINTS.PRODUTOS;
+export { parseValor };
 
 
 /**
@@ -201,23 +203,18 @@ export const extractPrecoTabelaMoblink = (item: any): number => {
   // Prioridade 1: preco_venda direto da API MobLink ERP
   const direct =
     item.preco_venda ?? item.price ?? item.preco_venda_fracao ?? item.preco;
-  if (typeof direct === "number" && !isNaN(direct) && direct > 0) return direct;
-  if (typeof direct === "string") {
-    const parsed = Number(direct.replace(",", ".")) || 0;
-    if (parsed > 0) return parsed;
-  }
+  const parsedDirect = parseValor(direct);
+  if (parsedDirect > 0) return parsedDirect;
 
   // Prioridade 2: primeiro item do array precos (fallback)
   if (Array.isArray(item.precos) && item.precos.length > 0) {
     for (const p of item.precos) {
-      if (typeof p === "number" && !isNaN(p) && p > 0) return p;
+      const parsedP = parseValor(p);
+      if (parsedP > 0) return parsedP;
       if (typeof p === "object" && p !== null) {
         const val = p.preco ?? p.preco_venda ?? p.valor ?? p.price;
-        if (typeof val === "number" && !isNaN(val) && val > 0) return val;
-        if (typeof val === "string") {
-          const parsed = Number(val.replace(",", ".")) || 0;
-          if (parsed > 0) return parsed;
-        }
+        const parsedVal = parseValor(val);
+        if (parsedVal > 0) return parsedVal;
       }
     }
   }
@@ -232,10 +229,8 @@ export const extractPrecoTabelaMoblink = (item: any): number => {
 export const extractPrecoVistaMoblink = (item: any): number => {
   if (!item || typeof item !== "object") return 0;
 
-  const basePrice = extractPrecoTabelaMoblink(item);
-
-  // 1. Se a API do MobLink ERP enviou a lista de tabelas `precos`:
   if (Array.isArray(item.precos) && item.precos.length > 0) {
+    // Busca exata por nome_tab_preco: campo oficial da API MobLink
     const vistaObj = item.precos.find((p: any) => {
       if (typeof p !== "object" || p === null) return false;
       const nomTab = String(
@@ -243,7 +238,6 @@ export const extractPrecoVistaMoblink = (item: any): number => {
       ).toUpperCase();
       return (
         nomTab === "A VISTA" ||
-        nomTab === "À VISTA" ||
         nomTab.includes("VISTA") ||
         nomTab.includes("PIX")
       );
@@ -255,45 +249,24 @@ export const extractPrecoVistaMoblink = (item: any): number => {
         vistaObj.preco_venda ??
         vistaObj.valor ??
         vistaObj.price;
-      let parsed = 0;
-      if (typeof val === "number" && !isNaN(val) && val > 0) parsed = val;
-      else if (typeof val === "string") parsed = Number(val.replace(",", ".")) || 0;
-
-      if (parsed > 0) return parsed;
+      const parsedVal = parseValor(val);
+      if (parsedVal > 0) return parsedVal;
     }
-
-    // Se o ERP retornou a lista de tabelas `precos` e NENHUMA tabela de À VISTA/PIX está presente,
-    // significa que o ERP NÃO possui preço à vista cadastrado para este produto.
-    // Retorna o Preço de Venda (basePrice) diretamente!
-    return basePrice;
   }
 
-  // 2. Se não houver array `precos`, analisa valor direto armazenado
-  const directVista = item.preco_vista ?? item.precoVista;
-  let parsedDirect = 0;
-  if (typeof directVista === "number" && !isNaN(directVista) && directVista > 0) {
-    parsedDirect = directVista;
-  } else if (typeof directVista === "string") {
-    parsedDirect = Number(directVista.replace(",", ".")) || 0;
-  }
+  // Fallback: preco_vista ou precoVista diretamente no objeto
+  const directVista = parseValor(item.preco_vista ?? item.precoVista);
+  if (directVista > 0) return directVista;
 
-  if (parsedDirect > 0 && basePrice > 0) {
-    // Se o valor armazenado for o antigo desconto automático de 10% (ex: 275.31 para 305.90), descarta-o
-    const old10PercentCalc = Math.round(basePrice * 0.9 * 100) / 100;
-    if (Math.abs(parsedDirect - old10PercentCalc) < 0.05) {
-      return basePrice;
-    }
-    return parsedDirect;
-  }
+  // Fallback: preco_promocao (se houver)
+  const rawPromo = parseValor(item.preco_promocao);
+  if (rawPromo > 0) return rawPromo;
 
-  // 3. Fallback: preco_promocao (se houver e for menor que o preço base)
-  const rawPromo = item.preco_promocao;
-  if (typeof rawPromo === "number" && !isNaN(rawPromo) && rawPromo > 0 && rawPromo < basePrice) {
-    return rawPromo;
-  }
+  // Fallback final: 10% de desconto sobre o preço de tabela
+  const basePrice = extractPrecoTabelaMoblink(item);
+  if (basePrice > 0) return Math.round(basePrice * 0.9 * 100) / 100;
 
-  // Fallback final: Preço de Venda (basePrice)
-  return basePrice;
+  return 0;
 };
 
 /**
@@ -325,21 +298,20 @@ export const extractPrecoCartaoMoblink = (item: any): number => {
         cartaoObj.preco_venda ??
         cartaoObj.valor ??
         cartaoObj.price;
-      if (typeof val === "number" && !isNaN(val) && val > 0) return val;
-      if (typeof val === "string") {
-        const parsed = Number(val.replace(",", ".")) || 0;
-        if (parsed > 0) return parsed;
-      }
+      const parsedVal = parseValor(val);
+      if (parsedVal > 0) return parsedVal;
     }
   }
 
   // Fallback: preco_cartao ou precoCartao diretamente no objeto
-  const directCartao = item.preco_cartao ?? item.precoCartao;
-  if (typeof directCartao === "number" && !isNaN(directCartao) && directCartao > 0)
-    return directCartao;
+  const directCartao = parseValor(item.preco_cartao ?? item.precoCartao);
+  if (directCartao > 0) return directCartao;
 
-  // Fallback final: preço de tabela (preco_venda)
-  return extractPrecoTabelaMoblink(item);
+  // Fallback final: 10% de desconto em relação ao preço de venda de tabela (preco_venda)
+  const basePrice = extractPrecoTabelaMoblink(item);
+  if (basePrice > 0) return Math.round(basePrice * 0.9 * 100) / 100;
+
+  return 0;
 };
 
 /**
@@ -601,14 +573,30 @@ export const mergeErpSyncWithExistingDbProduct = (
   const protectedColorImageMap = existingDbProd.colorImageMap || updatedErpProd?.colorImageMap;
   const protectedColorImages = existingDbProd.colorImages || updatedErpProd?.colorImages;
 
-  // Preço e Estoque sempre atualizam em tempo real a partir da API do ERP
-  const livePrice = extractPrecoTabelaMoblink(updatedErpProd) ?? updatedErpProd.price ?? existingDbProd.price ?? 0;
+  // 4. ATUALIZAÇÃO COMPLETA EM TEMPO REAL A PARTIR DO ERP (Preços, Estoque e Grade)
+  const livePrice = extractPrecoTabelaMoblink(updatedErpProd) || parseValor(updatedErpProd.price ?? existingDbProd.price);
+  const livePrecoVista = extractPrecoVistaMoblink(updatedErpProd) || (livePrice > 0 ? Math.round(livePrice * 0.9 * 100) / 100 : 0);
+  const livePrecoCartao = extractPrecoCartaoMoblink(updatedErpProd) || (livePrice > 0 ? Math.round(livePrice * 0.9 * 100) / 100 : 0);
+  const livePrecoPromo = parseValor(updatedErpProd.preco_promocao ?? existingDbProd.preco_promocao);
   const liveStock = extractSaldoLojaMoblink(updatedErpProd) ?? updatedErpProd.stock ?? existingDbProd.stock ?? 0;
+
+  // Grade & Numerações ativas
+  const liveSizes = (Array.isArray(updatedErpProd.tamanhos) && updatedErpProd.tamanhos.length > 0)
+    ? updatedErpProd.tamanhos
+    : (Array.isArray(updatedErpProd.sizes) && updatedErpProd.sizes.length > 0)
+    ? updatedErpProd.sizes
+    : (existingDbProd.sizes || []);
+
+  const liveHasGrade = hasProductValidGrade(updatedErpProd) || hasProductValidGrade(existingDbProd) || liveSizes.length > 0;
+  const liveIdGrade = updatedErpProd.id_grade ?? updatedErpProd.gradeId ?? existingDbProd.id_grade ?? existingDbProd.gradeId ?? null;
+
+  // Visibilidade: se o produto tem estoque > 0 e tem grade => visível na loja virtual
+  const isVisibleInStore = liveStock > 0 ? liveHasGrade : false;
 
   return {
     ...updatedErpProd,
     ...existingDbProd,
-    // Garante dados protegidos contra sobrescrita
+    // Dados protegidos contra sobrescrita (cadastrados pelo lojista)
     name: protectedName,
     descricao: protectedName,
     description: protectedDescription,
@@ -617,14 +605,32 @@ export const mergeErpSyncWithExistingDbProduct = (
     foto_uri: protectedFotoUri,
     colorImageMap: protectedColorImageMap,
     colorImages: protectedColorImages,
-    // Atualiza preço, estoque e saldo em tempo real do ERP
+
+    // Atualização integral de Preços (Tabela, Vista, Cartão e Promoção)
     price: livePrice,
     preco_venda: livePrice,
+    precoVista: livePrecoVista,
+    preco_vista: livePrecoVista,
+    precoCartao: livePrecoCartao,
+    preco_cartao: livePrecoCartao,
+    preco_promocao: livePrecoPromo > 0 ? livePrecoPromo : undefined,
+
+    // Atualização integral de Estoque Real
     stock: liveStock,
     saldo_loja: liveStock,
     saldos_lojas: updatedErpProd.saldos_lojas || existingDbProd.saldos_lojas,
-    visible: liveStock <= 0 ? false : (existingDbProd.visible !== undefined ? existingDbProd.visible : true),
-    lastMoblinkSync: new Date().toISOString()
+
+    // Atualização integral de Grade & Tamanhos
+    tamanhos: liveSizes,
+    sizes: liveSizes,
+    hasGrade: liveHasGrade,
+    id_grade: liveIdGrade,
+    gradeId: liveIdGrade,
+
+    // Visibilidade em tempo real na vitrine
+    visible: isVisibleInStore,
+    lastMoblinkSync: new Date().toISOString(),
+    moblinkSyncStatus: 'synced',
   };
 };
 
