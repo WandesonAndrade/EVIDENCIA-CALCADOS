@@ -433,7 +433,15 @@ export const moblinkCategoriesService = {
           },
           { merge: true },
         );
-      } catch (err) {
+      } catch (err: any) {
+        if (
+          err?.code === "permission-denied" ||
+          err?.message?.includes("permission") ||
+          err?.message?.includes("permissions")
+        ) {
+          // Ignora silenciosamente erros de permissão de escrita em sincronizações automáticas em segundo plano
+          continue;
+        }
         console.warn(
           `Erro ao sincronizar categoria ${cat.name} (${cat.id}) no Firestore:`,
           err,

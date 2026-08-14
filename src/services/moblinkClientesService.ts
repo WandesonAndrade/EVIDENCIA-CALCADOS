@@ -106,56 +106,14 @@ export const moblinkClientesService = {
         const json: MoblinkClientesPageResponse = await response.json();
         if (json && json.data && json.data.length > 0) {
           const rawClient = json.data[0];
-          return moblinkClientesService.mapRawClientToUserProfile(rawClient);
+          return await moblinkClientesService.saveSingleClientToFirestore(rawClient);
         }
       }
-    } catch {
-      // Silencioso se houver restrição
+    } catch (err) {
+      console.warn("📌 Erro ao consultar cliente por CPF na API MobLink:", err);
     }
 
     return null;
-  },
-
-  /**
-   * Mapeia em memória um cliente do ERP MobLink para o formato UserProfile (sem escrita no Firestore)
-   */
-  mapRawClientToUserProfile(client: MoblinkRawClient): UserProfile {
-    const rawCpf = client.cpf_cnpj ? client.cpf_cnpj.replace(/\D/g, "") : "";
-    const docId = rawCpf.length === 11 ? `erp_cpf_${rawCpf}` : `moblink_client_${client.id}`;
-
-    const hasCreditApproved = Boolean(
-      (client.sit_cred &&
-        (client.sit_cred === "A" ||
-          client.sit_cred === "L" ||
-          client.sit_cred === "N")) ||
-      (client.limite_cred && client.limite_cred > 0),
-    );
-
-    return {
-      uid: docId,
-      moblinkId: String(client.id),
-      name: client.nome || "Cliente Evidência",
-      email: (client.email || "").toLowerCase().trim(),
-      cpf: rawCpf,
-      rg: client.rg || "",
-      telefone: client.celular || client.telefone || "",
-      endereco: client.endereco || "",
-      numero: client.numero_end || "",
-      bairro: client.bairro || "",
-      cidade: client.cidade || "Caxias",
-      uf: (client.uf || "MA").toUpperCase(),
-      cep: client.cep || "",
-      dataNascimento: client.data_nasc || "",
-      role: "customer",
-      isErpCustomer: true,
-      isProfileComplete: true,
-      sit_cred: client.sit_cred || "N",
-      limite_cred: client.limite_cred || 0,
-      valor_vencido: client.valor_vencido || 0,
-      valor_vencer: client.valor_vencer || 0,
-      solicitarCrediario: hasCreditApproved,
-      createdAt: new Date().toISOString(),
-    };
   },
 
   /**

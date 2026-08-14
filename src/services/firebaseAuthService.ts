@@ -110,6 +110,31 @@ export const firebaseAuthService = {
           }
         }
       }
+
+      // 3. VINCULAÇÃO E PREVENÇÃO DE CADASTRO DUPLICADO COM O MOBLINK ERP (por CPF ou E-mail Sintético)
+      if (!existingProfile || !existingProfile.moblinkId) {
+        let cpfToSearch = existingProfile?.cpf || "";
+        if (!cpfToSearch && email && email.endsWith("@evidencia.com")) {
+          const rawCpf = email.split("@")[0].replace(/\D/g, "");
+          if (rawCpf.length === 11) cpfToSearch = rawCpf;
+        }
+
+        if (cpfToSearch) {
+          const erpMatch = await moblinkClientesService.findClientByCpf(cpfToSearch);
+          if (erpMatch) {
+            existingProfile = {
+              ...erpMatch,
+              ...(existingProfile || {}),
+              uid,
+              moblinkId: erpMatch.moblinkId || (erpMatch as any).id || (erpMatch as any).id_cliente,
+              cpf: erpMatch.cpf || cpfToSearch,
+              isErpCustomer: true,
+              name: existingProfile?.name || erpMatch.name || name,
+              email: existingProfile?.email || erpMatch.email || email,
+            };
+          }
+        }
+      }
     } catch (err) {
       console.warn(
         "📌 Aviso ao verificar perfil no Firestore (fallback ativo):",
@@ -429,82 +454,13 @@ export const firebaseAuthService = {
   },
 
   /**
-   * Verifica o status de um CPF no sistema:
-   * 1. Verifica se já possui conta ativa no Firebase Auth / Firestore com senha definida.
-   * 2. Verifica se o cliente já consta no cadastro do MobLink ERP.
-   */
-  async checkCpfStatus(cpfInput: string): Promise<{
-    hasFirebaseAccount: boolean;
-    existsInErp: boolean;
-    erpClientData?: UserProfile | null;
-    existingProfile?: UserProfile | null;
-  }> {
-    const cleanCpf = cpfInput.replace(/\D/g, "");
-    if (!cleanCpf || cleanCpf.length !== 11) {
-      return { hasFirebaseAccount: false, existsInErp: false };
-    }
-
-    const syntheticEmail = `${cleanCpf}@evidencia.com`;
-
-    let hasFirebaseAccount = false;
-    let existingProfile: UserProfile | null = null;
-
-    try {
-      const q = query(
-        collection(db, "users"),
-        where("email", "==", syntheticEmail)
-      );
-      const snap = await getDocs(q);
-      if (!snap.empty) {
-        existingProfile = snap.docs[0].data() as UserProfile;
-        hasFirebaseAccount = true;
-      } else {
-        const qCpf = query(
-          collection(db, "users"),
-          where("cpf", "==", cleanCpf)
-        );
-        const snapCpf = await getDocs(qCpf);
-        if (!snapCpf.empty) {
-          existingProfile = snapCpf.docs[0].data() as UserProfile;
-          if (existingProfile.email === syntheticEmail || (existingProfile.uid && existingProfile.uid.length > 20)) {
-            hasFirebaseAccount = true;
-          }
-        }
-      }
-    } catch {
-      // Ignora restrições de leitura no Firestore quando o visitante ainda não está logado
-    }
-
-    let erpClientData: UserProfile | null = null;
-    let existsInErp = false;
-
-    try {
-      const moblinkResult = await moblinkClientesService.fetchClienteByCpfDirectly(cleanCpf);
-      if (moblinkResult) {
-        existsInErp = true;
-        erpClientData = moblinkResult;
-      }
-    } catch (err) {
-      console.warn("📌 Erro ao consultar cliente por CPF no ERP:", err);
-    }
-
-    return {
-      hasFirebaseAccount,
-      existsInErp,
-      erpClientData,
-      existingProfile,
-    };
-  },
-
-  /**
    * Cadastra um novo cliente via CPF, Senha, Nome e Telefone utilizando e-mail sintético (@evidencia.com)
    */
   async cadastrarComCpf(
     cpf: string,
     senha: string,
     name: string,
-    telefone?: string,
-    erpData?: Partial<UserProfile>
+    telefone?: string
   ): Promise<UserProfile> {
     const emailSintetico = gerarEmailDoCpf(cpf);
     const cpfLimpo = cpf.replace(/\D/g, "");
@@ -517,30 +473,45 @@ export const firebaseAuthService = {
       throw new Error("A senha deve conter no mínimo 6 caracteres.");
     }
 
+    // 1. VERIFICA E PREVINE CADASTRO DUPLICADO: Busca se o cliente já existe no MobLink ERP ou Firestore por CPF
+    let existingMoblinkProfile: UserProfile | null = null;
+    try {
+      existingMoblinkProfile = await moblinkClientesService.findClientByCpf(cpfLimpo);
+    } catch {
+      // Falha silenciosa de busca prévia
+    }
+
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, emailSintetico, senha);
       const user = userCredential.user;
 
-      const userProfile: UserProfile = {
-        ...(erpData || {}),
+      // 2. MONTA PERFIL UNIFICADO VINCULADO AO AUTENTICADOR E AO MOBLINK ERP
+      const unifiedProfile: UserProfile = {
+        ...(existingMoblinkProfile || {}),
         uid: user.uid,
-        name: name.trim(),
+        name: existingMoblinkProfile?.name || name.trim(),
         email: emailSintetico,
         cpf: cpfLimpo,
-        telefone: telefone ? telefone.trim() : (erpData?.telefone || ""),
-        role: "customer",
-        createdAt: new Date().toISOString(),
+        telefone: telefone ? telefone.trim() : (existingMoblinkProfile?.telefone || ""),
+        role: existingMoblinkProfile?.role || "customer",
+        isErpCustomer: existingMoblinkProfile?.isErpCustomer ?? Boolean(existingMoblinkProfile?.moblinkId),
+        moblinkId: existingMoblinkProfile?.moblinkId || (existingMoblinkProfile as any)?.id,
+        createdAt: existingMoblinkProfile?.createdAt || new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
 
+      // 3. SALVA O PERFIL UNIFICADO NO FIRESTORE COM CHAVE DE UID E CHAVE DE CPF
       const userRef = doc(db, "users", user.uid);
-      await setDoc(userRef, cleanUndefinedProperties(userProfile), { merge: true });
+      await setDoc(userRef, cleanUndefinedProperties(unifiedProfile), { merge: true });
 
-      return userProfile;
+      const erpCpfRef = doc(db, "users", `erp_cpf_${cpfLimpo}`);
+      await setDoc(erpCpfRef, cleanUndefinedProperties({ ...unifiedProfile, linkedUid: user.uid }), { merge: true });
+
+      return unifiedProfile;
     } catch (error: any) {
       console.error("Erro no cadastro com CPF:", error);
       if (error.code === "auth/email-already-in-use") {
-        throw new Error("Este CPF já está cadastrado com uma senha no sistema. Faça o login com sua senha.");
+        throw new Error("Este CPF já está cadastrado no sistema. Faça o login digitando sua senha.");
       }
       if (error.code === "auth/weak-password") {
         throw new Error("Sua senha é muito fraca. Digite uma senha com no mínimo 6 caracteres.");

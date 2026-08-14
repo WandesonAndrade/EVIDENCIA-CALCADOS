@@ -16,7 +16,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
     loginWithCpf, 
     registerWithCpf, 
     loginWithGoogle, 
-    checkCpfStatus,
     logout, 
     setCurrentView, 
     theme 
@@ -43,11 +42,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  // States de verificação automática do CPF no ERP MobLink
-  const [isCheckingCpf, setIsCheckingCpf] = useState(false);
-  const [erpCustomerFound, setErpCustomerFound] = useState<UserProfile | null>(null);
-  const [isDefinePasswordOnly, setIsDefinePasswordOnly] = useState(false);
-
   const [errorMessage, setErrorMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -66,51 +60,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
     if (digits.length <= 2) return digits;
     if (digits.length <= 7) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
     return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
-  };
-
-  // Verificação em tempo real do CPF no ERP MobLink e Firebase Auth
-  const handleCpfInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const formatted = formatCPF(e.target.value);
-    setCpf(formatted);
-    const cleanDigits = formatted.replace(/\D/g, '');
-
-    if (cleanDigits.length === 11) {
-      verifyCpfOnErp(cleanDigits);
-    } else {
-      setErpCustomerFound(null);
-      setIsDefinePasswordOnly(false);
-    }
-  };
-
-  const verifyCpfOnErp = async (cleanCpf: string) => {
-    setIsCheckingCpf(true);
-    setErrorMessage('');
-    try {
-      const status = await checkCpfStatus(cleanCpf);
-      if (status.hasFirebaseAccount) {
-        // Já possui conta com senha definida no Firebase
-        setIsDefinePasswordOnly(false);
-        setErpCustomerFound(null);
-        setAuthTab('login');
-      } else if (status.existsInErp && status.erpClientData) {
-        // Cliente existe no ERP MobLink mas AINDA NÃO tem senha definida!
-        setErpCustomerFound(status.erpClientData);
-        setIsDefinePasswordOnly(true);
-        setAuthTab('register');
-        setName(status.erpClientData.name || '');
-        if (status.erpClientData.telefone) {
-          setTelefone(formatPhone(status.erpClientData.telefone));
-        }
-      } else {
-        // Cliente novo em ambos os sistemas
-        setIsDefinePasswordOnly(false);
-        setErpCustomerFound(null);
-      }
-    } catch (err) {
-      console.warn('📌 Erro ao verificar CPF:', err);
-    } finally {
-      setIsCheckingCpf(false);
-    }
   };
 
   const processPostAuth = (user: UserProfile | null) => {
@@ -141,7 +90,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
       setIsLoading(true);
       let loggedUser: UserProfile;
 
-      if (authTab === 'register' || isDefinePasswordOnly) {
+      if (authTab === 'register') {
         if (!name || name.trim().length < 2) {
           setErrorMessage('Por favor, informe seu nome completo para criar a conta.');
           setIsLoading(false);
@@ -152,7 +101,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
           setIsLoading(false);
           return;
         }
-        loggedUser = await registerWithCpf(cpfLimpo, senha, name, telefone, erpCustomerFound || undefined);
+        loggedUser = await registerWithCpf(cpfLimpo, senha, name, telefone);
       } else {
         loggedUser = await loginWithCpf(cpfLimpo, senha);
       }
@@ -381,16 +330,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
           </button>
         </div>
 
-        {/* Banner Informativo quando o Cliente já existe no ERP MobLink */}
-        {isDefinePasswordOnly && erpCustomerFound && (
-          <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-500 dark:text-amber-300 text-xs font-semibold text-center space-y-1 animate-fade-in">
-            <p className="font-black text-sm">✨ Olá, {erpCustomerFound.name}!</p>
-            <p className="text-[11px] leading-relaxed">
-              Identificamos o seu cadastro de cliente na <strong>Evidência Calçados</strong>! Crie e confirme sua senha abaixo para acessar sua conta.
-            </p>
-          </div>
-        )}
-
         {/* Mensagem de Erro */}
         {errorMessage && (
           <div className="p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-semibold text-center animate-fade-in">
@@ -412,16 +351,13 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
                 <input
                   type="text"
                   required
-                  readOnly={isDefinePasswordOnly}
                   placeholder="Seu nome completo"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   className={`w-full pl-10 pr-4 py-3 rounded-2xl border text-xs font-semibold transition-all outline-none ${
-                    isDefinePasswordOnly
-                      ? isDark ? 'bg-slate-900 border-amber-400/30 text-amber-300' : 'bg-amber-50/50 border-amber-200 text-amber-900 font-bold'
-                      : isDark 
-                        ? 'bg-slate-950/80 border-slate-700 text-white focus:border-amber-400' 
-                        : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-slate-400'
+                    isDark 
+                      ? 'bg-slate-950/80 border-slate-700 text-white focus:border-amber-400' 
+                      : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-slate-400'
                   }`}
                 />
               </div>
@@ -441,18 +377,13 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
                 maxLength={14}
                 placeholder="000.000.000-00"
                 value={cpf}
-                onChange={handleCpfInputChange}
-                className={`w-full pl-10 pr-10 py-3 rounded-2xl border text-xs font-semibold transition-all outline-none font-mono ${
+                onChange={(e) => setCpf(formatCPF(e.target.value))}
+                className={`w-full pl-10 pr-4 py-3 rounded-2xl border text-xs font-semibold transition-all outline-none font-mono ${
                   isDark 
                     ? 'bg-slate-950/80 border-slate-700 text-white focus:border-amber-400' 
                     : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-slate-400'
                 }`}
               />
-              {isCheckingCpf && (
-                <div className="absolute right-3.5 top-1/2 -translate-y-1/2">
-                  <div className="w-4 h-4 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
-                </div>
-              )}
             </div>
           </div>
 

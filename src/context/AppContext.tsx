@@ -34,8 +34,7 @@ interface AppContextProps {
   registerUser: (name: string, email: string, role: UserRole) => Promise<UserProfile>;
   loginUser: (email: string) => Promise<UserProfile | null>;
   loginWithCpf: (cpf: string, senha: string) => Promise<UserProfile>;
-  registerWithCpf: (cpf: string, senha: string, name: string, telefone?: string, erpData?: Partial<UserProfile>) => Promise<UserProfile>;
-  checkCpfStatus: (cpf: string) => Promise<{ hasFirebaseAccount: boolean; existsInErp: boolean; erpClientData?: UserProfile | null; existingProfile?: UserProfile | null }>;
+  registerWithCpf: (cpf: string, senha: string, name: string, telefone?: string) => Promise<UserProfile>;
   loginAdmin: (email: string, password?: string) => Promise<UserProfile>;
   registerTeamMember: (name: string, email: string, role: UserRole, tempPassword?: string) => Promise<UserProfile>;
   changeAdminPassword: (newPassword: string, activeProfile: UserProfile) => Promise<UserProfile>;
@@ -760,11 +759,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         for (const item of itemsToSync) {
           const mobId = String(item.id);
           const prod = crossedMap.get(mobId);
-          // Produtos com 0 ou menos de saldo não são gravados no Firebase
           if (prod && (prod.stock > 0 || (prod.saldo_loja ?? 0) > 0)) {
-            const docRef = doc(db, 'products', prod.id);
-            const sanitized = sanitizeProductForFirestore(prod);
-            await setDoc(docRef, sanitized, { merge: true });
+            try {
+              const docRef = doc(db, 'products', prod.id);
+              const sanitized = sanitizeProductForFirestore(prod);
+              await setDoc(docRef, sanitized, { merge: true });
+            } catch (syncErr: any) {
+              if (
+                syncErr?.code !== "permission-denied" &&
+                !syncErr?.message?.includes("permission")
+              ) {
+                console.warn(`Erro ao atualizar produto ${prod.id}:`, syncErr);
+              }
+            }
           }
         }
       }
@@ -1055,15 +1062,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return profile;
   };
 
-  const registerWithCpf = async (cpf: string, senha: string, name: string, telefone?: string, erpData?: Partial<UserProfile>): Promise<UserProfile> => {
-    const profile = await firebaseAuthService.cadastrarComCpf(cpf, senha, name, telefone, erpData);
+  const registerWithCpf = async (cpf: string, senha: string, name: string, telefone?: string): Promise<UserProfile> => {
+    const profile = await firebaseAuthService.cadastrarComCpf(cpf, senha, name, telefone);
     setCurrentUser(profile);
     localStorage.setItem('evidencia_user', JSON.stringify(profile));
     return profile;
-  };
-
-  const checkCpfStatus = async (cpf: string) => {
-    return await firebaseAuthService.checkCpfStatus(cpf);
   };
 
   const loginAdmin = async (email: string, password?: string): Promise<UserProfile> => {
@@ -1885,7 +1888,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         loginUser,
         loginWithCpf,
         registerWithCpf,
-        checkCpfStatus,
         loginAdmin,
         registerTeamMember,
         changeAdminPassword,
