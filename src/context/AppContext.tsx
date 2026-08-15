@@ -269,11 +269,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [favorites, setFavorites] = useState<string[]>([]);
-  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('evidencia_user');
+      if (saved) {
+        try { return JSON.parse(saved) as UserProfile; } catch (e) {}
+      }
+    }
+    return null;
+  });
   const [currentAdminUser, setCurrentAdminUser] = useState<UserProfile | null>(() => {
-    const saved = localStorage.getItem('evidencia_admin_user');
-    if (saved) {
-      try { return JSON.parse(saved); } catch (e) {}
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('evidencia_admin_user');
+      if (saved) {
+        try { return JSON.parse(saved) as UserProfile; } catch (e) {}
+      }
     }
     return null;
   });
@@ -289,8 +299,71 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setSelectedSubcategory('TODAS');
   }, []);
   const [selectedMenuTab, setSelectedMenuTab] = useState('lançamentos');
-  const [currentView, setCurrentView] = useState<ViewMode>('home');
+  
+  const [currentView, setCurrentViewState] = useState<ViewMode>(() => {
+    if (typeof window !== 'undefined') {
+      const validViews: ViewMode[] = [
+        'home', 'cart', 'admin', 'admin-login', 'login', 'orders', 
+        'product-detail', 'portfolio-case', 'category-page', 'about', 
+        'support', 'favorites', 'meu-crediario'
+      ];
+      // 1. Prioridade ao hash da URL se presente (#admin, #meu-crediario)
+      const hashView = window.location.hash.replace('#', '').trim() as ViewMode;
+      if (hashView && validViews.includes(hashView)) {
+        return hashView;
+      }
+      // 2. Fallback para a última tela salva na sessão do navegador
+      const savedView = (sessionStorage.getItem('evidencia_current_view') || localStorage.getItem('evidencia_current_view')) as ViewMode;
+      if (savedView && validViews.includes(savedView)) {
+        return savedView;
+      }
+    }
+    return 'home';
+  });
+
+  const setCurrentView = useCallback((view: ViewMode) => {
+    setCurrentViewState(view);
+    if (typeof window !== 'undefined') {
+      try {
+        sessionStorage.setItem('evidencia_current_view', view);
+        localStorage.setItem('evidencia_current_view', view);
+        if (['admin', 'meu-crediario', 'cart', 'orders', 'favorites', 'about', 'support', 'portfolio-case', 'category-page'].includes(view)) {
+          window.history.replaceState(null, '', `#${view}`);
+        } else if (view === 'home') {
+          window.history.replaceState(null, '', window.location.pathname + window.location.search);
+        }
+      } catch (e) {
+        console.warn("Falha ao persistir a visualização atual:", e);
+      }
+    }
+  }, []);
+
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+
+  // Sincronização do estado de rotas com a barra de navegação e botões voltar/avançar
+  useEffect(() => {
+    const handleHashChange = () => {
+      const validViews: ViewMode[] = [
+        'home', 'cart', 'admin', 'admin-login', 'login', 'orders', 
+        'product-detail', 'portfolio-case', 'category-page', 'about', 
+        'support', 'favorites', 'meu-crediario'
+      ];
+      const hashView = window.location.hash.replace('#', '').trim() as ViewMode;
+      if (hashView && validViews.includes(hashView)) {
+        setCurrentViewState(hashView);
+        sessionStorage.setItem('evidencia_current_view', hashView);
+        localStorage.setItem('evidencia_current_view', hashView);
+      } else if (!hashView) {
+        setCurrentViewState('home');
+        sessionStorage.setItem('evidencia_current_view', 'home');
+        localStorage.setItem('evidencia_current_view', 'home');
+      }
+    };
+
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     const saved = localStorage.getItem('evidencia_theme');
     return (saved === 'dark' || saved === 'light') ? saved : 'light';
@@ -1094,6 +1167,39 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const logoutAdmin = () => {
     setCurrentAdminUser(null);
     localStorage.removeItem('evidencia_admin_user');
+    sessionStorage.removeItem('evidencia_current_view');
+    localStorage.removeItem('evidencia_current_view');
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    }
+    setCurrentView('home');
+  };
+
+  const logout = () => {
+    const activeUid = currentUser?.uid;
+    restoredUidRef.current = null;
+    setCurrentUser(null);
+    setCurrentAdminUser(null);
+    setOrders([]);
+    setCart([]);
+    setFavorites([]);
+
+    // Limpeza estrita de chaves de navegação e credenciais no storage local e de sessão
+    sessionStorage.removeItem('evidencia_current_view');
+    localStorage.removeItem('evidencia_current_view');
+    localStorage.removeItem('evidencia_admin_user');
+    localStorage.removeItem('evidencia_user');
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    }
+
+    // Limpeza atômica de localStorage por UID e deslogamento no Firebase Auth
+    userDataService.clearAllLocalUserData(activeUid);
+    firebaseAuthService.logout().catch(err => {
+      console.warn("SignOut Firebase error:", err);
+    });
+
+    setCurrentView('home');
   };
 
 
@@ -1181,23 +1287,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     return updatedProfile;
-  };
-
-  const logout = () => {
-    const activeUid = currentUser?.uid;
-    restoredUidRef.current = null;
-    setCurrentUser(null);
-    setOrders([]);
-    setCart([]);
-    setFavorites([]);
-
-    // Limpeza atômica de localStorage por UID e deslogamento no Firebase Auth
-    userDataService.clearAllLocalUserData(activeUid);
-    firebaseAuthService.logout().catch(err => {
-      console.warn("SignOut Firebase error:", err);
-    });
-
-    setCurrentView('home');
   };
 
 

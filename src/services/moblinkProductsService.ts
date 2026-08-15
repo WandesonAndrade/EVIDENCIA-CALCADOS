@@ -144,7 +144,21 @@ export const hasProductValidGrade = (item: any): boolean => {
   const saldosLojaGrade = Array.isArray(item.saldos_lojas_grade) ? item.saldos_lojas_grade : [];
   if (saldosLojaGrade.length > 0) return true;
 
-  // Se o produto não possui numerações/tamanhos ou variações de grade reais, retorna false
+  // 5. Se o objeto não especifica nenhuma propriedade de grade, considera-se elegível por padrão (ex: produto simples ou mock)
+  const hasAnyGradeProperty = 
+    item.tamanhos !== undefined || 
+    item.sizes !== undefined || 
+    item.grade !== undefined || 
+    item.grades !== undefined || 
+    item.variacoes !== undefined || 
+    item.grade_items !== undefined || 
+    item.stockBySize !== undefined || 
+    item.sizeStockMap !== undefined || 
+    item.saldos_lojas_grade !== undefined ||
+    item.hasGrade !== undefined;
+
+  if (!hasAnyGradeProperty) return true;
+
   return false;
 };
 
@@ -647,14 +661,15 @@ export const sanitizeProductForFirestore = (
   ).trim();
 
   const name = String(
-    product.name || product.descricao || (product as any).nome || "",
+    product.name || product.descricao || (product as any).nome || "Produto Sem Nome",
   ).trim();
-  const description = String(
+  const descriptionRaw = String(
     product.description ||
       product.descricao_completa ||
       (product as any).compl_descr ||
       "",
   ).trim();
+  const description = descriptionRaw.length > 0 ? descriptionRaw : name;
 
   let imageUrl = "";
   if (
@@ -672,6 +687,9 @@ export const sanitizeProductForFirestore = (
   } else if (product.foto_uri && typeof product.foto_uri === "string") {
     imageUrl = product.foto_uri.trim();
   }
+
+  const defaultPlaceholderImg = "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=800";
+  const effectiveImg = imageUrl || defaultPlaceholderImg;
 
   // Chave mestra numérica 'classificacao'
   const rawClass = String(
@@ -694,14 +712,18 @@ export const sanitizeProductForFirestore = (
 
   const rawPromo =
     (product as any).promoPrice ??
-    product.originalPrice ??
-    precoVistaVal;
+    (product as any).preco_promocao;
   const promoPrice =
     typeof rawPromo === "number" &&
     !isNaN(rawPromo) &&
     rawPromo > 0 &&
     rawPromo < price
       ? rawPromo
+      : null;
+
+  const originalPrice =
+    product.originalPrice !== undefined && product.originalPrice !== null
+      ? Number(product.originalPrice)
       : null;
 
   // Estoque único
@@ -732,17 +754,18 @@ export const sanitizeProductForFirestore = (
 
   const finalImagesList = (Array.isArray(product.images) && product.images.length > 0)
     ? product.images
-    : (imageUrl ? [imageUrl] : []);
+    : [effectiveImg];
 
   // Contrato Oficial Limpo para o Firestore
   const cleanPayload: Record<string, any> = {
     id,
     name,
     description,
-    imageUrl: finalImagesList.length > 0 ? finalImagesList[0] : imageUrl,
+    imageUrl: finalImagesList[0],
     classificacao: cleanClassificacao,
     price,
     promoPrice,
+    originalPrice,
     stock,
     visible,
     hasGrade,
@@ -751,7 +774,7 @@ export const sanitizeProductForFirestore = (
     category: catInfo.category,
     subcategory: catInfo.subcategory,
     images: finalImagesList,
-    foto_uri: finalImagesList.length > 0 ? finalImagesList[0] : imageUrl,
+    foto_uri: finalImagesList[0],
     preco_venda: price,
     precoVista: precoVistaVal,
     preco_vista: precoVistaVal,
@@ -1191,21 +1214,19 @@ export const hasProductChanged = (
   const existingPrice = existing.price ?? existing.preco_venda ?? 0;
   if (Math.abs(freshPrice - existingPrice) > 0.01) return true;
 
-  // 2. Preço à Vista (PIX / Dinheiro)
-  const freshVista =
-    (fresh as any).precoVista ??
-    (fresh as any).preco_vista ??
-    extractPrecoVistaMoblink(fresh);
-  const existingVista = existing.precoVista ?? existing.preco_vista ?? 0;
-  if (Math.abs(freshVista - existingVista) > 0.01) return true;
+  // 2. Preço à Vista (PIX / Dinheiro) - Apenas se ambos definirem o preço à vista
+  const freshVistaRaw = (fresh as any).precoVista ?? (fresh as any).preco_vista;
+  const existingVistaRaw = existing.precoVista ?? existing.preco_vista;
+  if (freshVistaRaw !== undefined && existingVistaRaw !== undefined) {
+    if (Math.abs(Number(freshVistaRaw) - Number(existingVistaRaw)) > 0.01) return true;
+  }
 
-  // 2b. Preço de Cartão
-  const freshCartao =
-    (fresh as any).precoCartao ??
-    (fresh as any).preco_cartao ??
-    extractPrecoCartaoMoblink(fresh);
-  const existingCartao = existing.precoCartao ?? existing.preco_cartao ?? 0;
-  if (Math.abs(freshCartao - existingCartao) > 0.01) return true;
+  // 2b. Preço de Cartão - Apenas se ambos definirem o preço de cartão
+  const freshCartaoRaw = (fresh as any).precoCartao ?? (fresh as any).preco_cartao;
+  const existingCartaoRaw = existing.precoCartao ?? existing.preco_cartao;
+  if (freshCartaoRaw !== undefined && existingCartaoRaw !== undefined) {
+    if (Math.abs(Number(freshCartaoRaw) - Number(existingCartaoRaw)) > 0.01) return true;
+  }
 
   // 3. Preço Promocional
   const freshPromo = (fresh as any).promoPrice ?? (fresh as any).preco_promocao ?? 0;

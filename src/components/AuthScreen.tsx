@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { User, Shield, Lock, Phone, UserCheck, Eye, EyeOff, ChevronRight, ShoppingBag, LogOut } from 'lucide-react';
 import { BrandLogo } from './BrandLogo';
-import { AdminLogin } from './AdminLogin';
 import { UserProfile } from '../types';
 
 interface AuthScreenProps {
@@ -258,12 +257,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
     );
   }
 
-  // --- INTERFACE DE LOGIN ADMINISTRATIVO ---
-  if (mode === 'admin') {
-    return <AdminLogin />;
-  }
-
-  // --- INTERFACE DE LOGIN DO CLIENTE (CPF E SENHA + OPÇÃO GOOGLE) ---
+// --- INTERFACE UNIFICADA DE LOGIN DO SISTEMA (CPF E SENHA + CONTA GOOGLE) ---
   return (
     <div id="customer-auth-page" className="max-w-md mx-auto px-4 py-8 sm:py-12">
       <div className={`rounded-3xl border backdrop-blur-2xl shadow-2xl p-6 sm:p-8 space-y-6 ${

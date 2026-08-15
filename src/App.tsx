@@ -3,25 +3,29 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, Suspense, lazy } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
 import { Header } from './components/Header';
 import { Hero } from './components/Hero';
 import { ProductList } from './components/ProductList';
 import { ProductDetail } from './components/ProductDetail';
 import { Cart } from './components/Cart';
-import { OrderHistory } from './components/OrderHistory';
-import { AdminPanel } from './components/AdminPanel';
 import { AuthScreen } from './components/AuthScreen';
 import { Footer } from './components/Footer';
-import { PortfolioCase } from './components/PortfolioCase';
 import { CategoryPage } from './components/CategoryPage';
 import { CompleteProfileModal } from './components/CompleteProfileModal';
-import { AboutUs } from './components/AboutUs';
-import { SupportPage } from './components/SupportPage';
 import { FavoritesList } from './components/FavoritesList';
 import { FloatingAssistant } from './components/FloatingAssistant';
-import { MeuCrediario } from './components/MeuCrediario';
+import { LoadingSpinner } from './components/common/LoadingSpinner';
+
+// Dynamic imports (Code Splitting) para views pesadas / secundárias
+const AdminPanel = lazy(() => import('./components/AdminPanel').then(m => ({ default: m.AdminPanel })));
+const MeuCrediario = lazy(() => import('./components/MeuCrediario').then(m => ({ default: m.MeuCrediario })));
+const PortfolioCase = lazy(() => import('./components/PortfolioCase').then(m => ({ default: m.PortfolioCase })));
+const AboutUs = lazy(() => import('./components/AboutUs').then(m => ({ default: m.AboutUs })));
+const SupportPage = lazy(() => import('./components/SupportPage').then(m => ({ default: m.SupportPage })));
+const OrderHistory = lazy(() => import('./components/OrderHistory').then(m => ({ default: m.OrderHistory })));
+
 
 export const checkIsProfileComplete = (user: any): boolean => {
   if (!user) return false;
@@ -29,25 +33,26 @@ export const checkIsProfileComplete = (user: any): boolean => {
   // 1. Flag de conclusão explícita gravada no documento do Firestore
   if (user.isProfileComplete === true) return true;
 
-  // 2. Extração dos campos obrigatórios padrão (Nome Completo, CPF e Telefone)
+  // 2. Extração dos campos obrigatórios padrão (Nome Completo e CPF/Documento)
   const name = String(user.name || user.nome || user.email || '').trim();
   const cpf = String(user.cpf || user.documento || user.rg || '').trim();
-  const phone = String(user.telefone || user.phone || user.whatsapp || user.celular || '').trim();
 
-  const hasStandardRequired = name.length > 0 && cpf.length > 0 && phone.length > 0;
+  const hasBasicRequired = name.length > 0 && cpf.length > 0;
+  if (!hasBasicRequired) return false;
 
   // 3. Se o cliente optou por solicitar Crediário da Loja, valida os dados adicionais de análise de crédito
   if (user.solicitarCrediario === true || user.crediarioStatus === 'EmAnalise' || user.crediarioStatus === 'Aprovado') {
     const birthDate = String(user.dataNascimento || user.birthDate || user.nascimento || '').trim();
     const rg = String(user.rg || '').trim();
     const address = String(user.endereco || user.address || (user.cidade && user.bairro) || '').trim();
-    const hasCrediarioFields = birthDate.length > 0 && rg.length > 0 && address.length > 0;
+    const phone = String(user.telefone || user.phone || user.whatsapp || user.celular || '').trim();
+    const hasCrediarioFields = birthDate.length > 0 && rg.length > 0 && address.length > 0 && phone.length > 0;
     
-    return hasStandardRequired && hasCrediarioFields;
+    return hasCrediarioFields;
   }
 
   // Cadastro comum padrão
-  return hasStandardRequired;
+  return true;
 };
 
 export const isProfileIncomplete = (user: any): boolean => {
@@ -79,6 +84,8 @@ const AppContent: React.FC = () => {
     }
   }, [currentView]);
 
+
+
   const renderActiveView = () => {
     switch (currentView) {
       case 'cart':
@@ -88,6 +95,9 @@ const AppContent: React.FC = () => {
       case 'category-page':
         return <CategoryPage />;
       case 'orders':
+        if (!currentUser) {
+          return <AuthScreen mode="customer" />;
+        }
         return <OrderHistory />;
       case 'portfolio-case':
         return <PortfolioCase />;
@@ -98,6 +108,9 @@ const AppContent: React.FC = () => {
       case 'favorites':
         return <FavoritesList />;
       case 'meu-crediario':
+        if (!currentUser) {
+          return <AuthScreen mode="customer" />;
+        }
         return <MeuCrediario />;
       case 'login':
         return <AuthScreen mode="customer" />;
@@ -129,7 +142,9 @@ const AppContent: React.FC = () => {
           ? 'bg-[#0d0d0e] text-slate-100 dark' 
           : 'bg-slate-50 text-slate-800'
       }`}>
-        <AdminPanel />
+        <Suspense fallback={<LoadingSpinner fullScreen message="Carregando Painel Administrativo..." />}>
+          <AdminPanel />
+        </Suspense>
       </div>
     );
   }
@@ -172,9 +187,12 @@ const AppContent: React.FC = () => {
         )}
 
         <main className="pb-12 animate-fade-in">
-          {renderActiveView()}
+          <Suspense fallback={<LoadingSpinner fullScreen />}>
+            {renderActiveView()}
+          </Suspense>
         </main>
       </div>
+
       <Footer />
       
       {/* Official Floating Assistant Widget */}
