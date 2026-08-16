@@ -27,9 +27,47 @@ function parseJwtExpClient(token: string): number {
   } catch {}
   return Date.now() + 60 * 60 * 1_000;
 }
+const getStaticFallbackToken = (): string => {
+  if (typeof import.meta !== 'undefined' && (import.meta as any).env) {
+    const envVar = (import.meta as any).env.VITE_EVIDENCIA_API_TOKEN || (import.meta as any).env.VITE_API_TOKEN;
+    if (envVar) return String(envVar).replace(/['"]/g, '').trim();
+  }
+  return '';
+};
+
+const renewTokenViaDirectLogin = async (): Promise<string> => {
+  try {
+    const user = (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_EVIDENCIA_API_USER) || 'site';
+    const pass = (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_EVIDENCIA_API_PASSWORD) || '987654';
+    const loja = (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_EVIDENCIA_API_LOJA) || '0';
+
+    const loginUrl = `${API_BASE_URL.replace(/\/$/, '')}/login`;
+    const res = await fetch(loginUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify({ usuario: user, senha: pass, loja }),
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      if (data.token) {
+        console.log('✅ [evidenciaAuthService] Token renovado com sucesso via Login Direto na API do ERP!');
+        inMemoryToken = data.token;
+        tokenExpiresAt = parseJwtExpClient(data.token);
+        return data.token;
+      }
+    }
+  } catch (e) {
+    console.warn('[evidenciaAuthService] Falha na renovação via Login Direto:', e);
+  }
+  return '';
+};
 
 export const evidenciaAuthService = {
-  /** Retrieves a valid token from backend Node memory without exposing passwords to the client. */
+  /** Retrieves a valid token from backend Node memory or auto-renews via direct ERP login if expired. */
   async getToken(forceRefresh = false): Promise<string> {
     const now = Date.now();
 
@@ -51,8 +89,13 @@ export const evidenciaAuthService = {
         let res = await fetch(`/api/auth-token${forceRefresh ? '?force=true' : ''}`);
         let contentType = res.headers.get('content-type') || '';
 
-        // Se a resposta for HTML ou status de erro (ex: servidor Vite sem proxy configurado), tenta a porta 3000 diretamente
-        if (!res.ok || !contentType.includes('application/json')) {
+        // Tenta porta 3000 apenas se estiver rodando localmente (evita erro de CORS em produção)
+        const isLocalhost = typeof window !== 'undefined' && (
+          window.location.hostname === 'localhost' || 
+          window.location.hostname === '127.0.0.1'
+        );
+
+        if ((!res.ok || !contentType.includes('application/json')) && isLocalhost) {
           try {
             const directRes = await fetch(`http://localhost:3000/api/auth-token${forceRefresh ? '?force=true' : ''}`);
             if (directRes.ok && (directRes.headers.get('content-type') || '').includes('application/json')) {
@@ -70,12 +113,28 @@ export const evidenciaAuthService = {
             return data.token;
           }
         }
+
+        // Tenta o login direto com as credenciais da loja caso o token estático esteja ausente ou expirado
+        const freshToken = await renewTokenViaDirectLogin();
+        if (freshToken) {
+          return freshToken;
+        }
+
+        // Fallback de contingência final
+        const fallbackToken = getStaticFallbackToken();
+        if (fallbackToken) {
+          inMemoryToken = fallbackToken;
+          tokenExpiresAt = parseJwtExpClient(fallbackToken);
+          return fallbackToken;
+        }
       } catch (err) {
         console.warn('[evidenciaAuthService] Erro ao obter token do backend:', err);
       } finally {
         clientPendingPromise = null;
       }
-      return inMemoryToken || '';
+
+      const finalFallback = getStaticFallbackToken();
+      return inMemoryToken || finalFallback || '';
     })();
 
     return clientPendingPromise;
@@ -133,7 +192,7 @@ export const evidenciaAuthService = {
         }
       }
 
-      // Se a API remota responder erro HTTP (401, 500, etc.) em requisição direta, tenta o proxy backend local (/api/v1/...)
+      // Se a API remota responder erro HTTP (401, 500, etc.) em requisição direta, tenta o proxy backend local (/api/v1/...) se for JSON
       if (!response.ok && url.startsWith(apiOrigin)) {
         const proxyUrl = url.replace(apiOrigin, '');
         console.warn(`[evidenciaAuthService] Fallback de proxy ativado (HTTP ${response.status}): ${url} -> ${proxyUrl}`);
@@ -141,21 +200,30 @@ export const evidenciaAuthService = {
           const proxyHeaders = new Headers(options.headers || {});
           proxyHeaders.set('Accept', 'application/json');
           const proxyResp = await fetch(proxyUrl, { ...options, headers: proxyHeaders });
-          if (proxyResp.ok) return proxyResp;
+          const proxyContentType = proxyResp.headers.get('content-type') || '';
+          if (proxyResp.ok && proxyContentType.includes('application/json')) {
+            return proxyResp;
+          }
         } catch {
-          // Mantém a resposta original
+          // Mantém a resposta original de erro 401/500
         }
       }
 
       return response;
     } catch (netErr) {
-      // Se for uma requisição direta para apiOrigin e falhar (ex: CORS ou erro de rede), redireciona suavemente para o proxy do backend
+      // Se for uma requisição direta para apiOrigin e falhar (ex: CORS ou erro de rede), tenta o proxy apenas se responder JSON
       if (url.startsWith(apiOrigin)) {
         const proxyUrl = url.replace(apiOrigin, '');
         console.warn(`[evidenciaAuthService] Requisição direta falhou (${(netErr as Error).message}). Redirecionando para o proxy backend: ${proxyUrl}`);
-        const proxyHeaders = new Headers(options.headers || {});
-        proxyHeaders.set('Accept', 'application/json');
-        return fetch(proxyUrl, { ...options, headers: proxyHeaders });
+        try {
+          const proxyHeaders = new Headers(options.headers || {});
+          proxyHeaders.set('Accept', 'application/json');
+          const proxyResp = await fetch(proxyUrl, { ...options, headers: proxyHeaders });
+          const proxyContentType = proxyResp.headers.get('content-type') || '';
+          if (proxyResp.ok && proxyContentType.includes('application/json')) {
+            return proxyResp;
+          }
+        } catch {}
       }
       throw netErr;
     }

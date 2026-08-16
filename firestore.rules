@@ -34,12 +34,8 @@ service cloud.firestore {
     }
 
     // Regra para Usuários e suas subcoleções (carrinho, favoritos, etc.)
-    match /users/{userId} {
+    match /users/{document=**} {
       allow read, write: if true;
-      
-      match /{subcollection}/{document=**} {
-        allow read, write: if true;
-      }
     }
 
 
