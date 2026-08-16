@@ -89,11 +89,12 @@ export const evidenciaAuthService = {
         let res = await fetch(`/api/auth-token${forceRefresh ? '?force=true' : ''}`);
         let contentType = res.headers.get('content-type') || '';
 
-        // Tenta porta 3000 apenas se estiver rodando localmente (evita erro de CORS em produção)
-        const isLocalhost = typeof window !== 'undefined' && (
-          window.location.hostname === 'localhost' || 
-          window.location.hostname === '127.0.0.1'
-        );
+        // Tenta porta 3000 apenas se estiver rodando em HTTP local (evita erro de CORS em produção HTTPS)
+        const isLocalhost = typeof window !== 'undefined' && 
+          window.location.protocol !== 'https:' && (
+            window.location.hostname === 'localhost' || 
+            window.location.hostname === '127.0.0.1'
+          );
 
         if ((!res.ok || !contentType.includes('application/json')) && isLocalhost) {
           try {
