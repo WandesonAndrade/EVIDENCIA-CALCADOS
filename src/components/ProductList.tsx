@@ -407,21 +407,24 @@ export const ProductList: React.FC = () => {
     >
       {/* 1. SEÇÃO COMPRE POR CATEGORIA (CARROSSEL DESLIZANTE DE SUBCATEGORIAS EM ESTOQUE) */}
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 border-b pb-3 border-blue-900/10 dark:border-white/10">
           <div>
-            <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight text-white drop-shadow-xs">
+            <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-widest bg-[#DDF1FF] text-[#003B73] dark:bg-blue-900/30 dark:text-blue-200 border border-[#006EDB]/20 mb-1.5">
+              Navegação Rápida
+            </span>
+            <h2 className={`text-2xl sm:text-3xl font-black tracking-tight ${isDark ? "text-white" : "text-[#003B73]"}`}>
               Compre por Categoria
             </h2>
-            <p className="text-xs text-blue-100 font-medium mt-0.5">
-              Subcategorias disponíveis com produtos em estoque pronto para envio.
+            <p className={`text-xs sm:text-sm font-medium mt-0.5 ${isDark ? "text-slate-400" : "text-[#52708F]"}`}>
+              Subcategorias com modelos em estoque pronto para entrega imediata.
             </p>
           </div>
 
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 shrink-0">
             <button
               onClick={() => scrollSubcatCarousel('left')}
-              className={`p-2 rounded-full border transition-all cursor-pointer ${
-                isDark ? 'bg-slate-900 border-slate-800 text-white hover:bg-slate-800' : 'bg-white/20 border-white/30 text-white hover:bg-white/30 shadow-xs'
+              className={`p-2.5 rounded-full border transition-all cursor-pointer ${
+                isDark ? 'bg-slate-900 border-slate-800 text-white hover:bg-slate-800' : 'bg-white border-blue-900/15 text-[#003B73] hover:bg-[#DDF1FF] shadow-xs'
               }`}
               title="Anterior"
             >
@@ -429,8 +432,8 @@ export const ProductList: React.FC = () => {
             </button>
             <button
               onClick={() => scrollSubcatCarousel('right')}
-              className={`p-2 rounded-full border transition-all cursor-pointer ${
-                isDark ? 'bg-slate-900 border-slate-800 text-white hover:bg-slate-800' : 'bg-white/20 border-white/30 text-white hover:bg-white/30 shadow-xs'
+              className={`p-2.5 rounded-full border transition-all cursor-pointer ${
+                isDark ? 'bg-slate-900 border-slate-800 text-white hover:bg-slate-800' : 'bg-white border-blue-900/15 text-[#003B73] hover:bg-[#DDF1FF] shadow-xs'
               }`}
               title="Próximo"
             >
@@ -483,19 +486,27 @@ export const ProductList: React.FC = () => {
 
       {/* 2. SEÇÃO NOVIDADES */}
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight text-white drop-shadow-xs">
-            Novidades
-          </h2>
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 border-b pb-3 border-blue-900/10 dark:border-white/10">
+          <div>
+            <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-widest bg-[#DDF1FF] text-[#003B73] dark:bg-blue-900/30 dark:text-blue-200 border border-[#006EDB]/20 mb-1.5">
+              Lançamentos Recentes
+            </span>
+            <h2 className={`text-2xl sm:text-3xl font-black tracking-tight ${isDark ? "text-white" : "text-[#003B73]"}`}>
+              Novidades da Estação
+            </h2>
+            <p className={`text-xs sm:text-sm font-medium mt-0.5 ${isDark ? "text-slate-400" : "text-[#52708F]"}`}>
+              As últimas tendências que acabaram de chegar às nossas prateleiras.
+            </p>
+          </div>
           <button 
             onClick={() => {
               if (setSelectedSubcategory) setSelectedSubcategory('TODAS');
               if (setSelectedCategory) setSelectedCategory('NOVIDADES');
               if (setCurrentView) setCurrentView('category-page');
             }}
-            className="text-xs font-bold text-amber-300 hover:text-white transition-colors cursor-pointer"
+            className="text-xs font-extrabold text-[#006EDB] hover:text-[#00509E] dark:text-amber-300 dark:hover:text-white transition-colors cursor-pointer shrink-0"
           >
-            Ver todas →
+            Ver todas as novidades →
           </button>
         </div>
 
@@ -646,22 +657,21 @@ export const ProductList: React.FC = () => {
       {/* 4. SEÇÃO COLEÇÃO CALÇADOS */}
       {calcadosProducts.length > 0 && (
         <div className="space-y-6">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 border-b pb-3 border-blue-900/10 dark:border-white/10">
             <div>
-              <h2 className={`text-xl sm:text-2xl font-extrabold tracking-tight ${
-                isDark ? "text-white" : "text-[#00285a]"
-              }`}>
+              <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-widest bg-[#DDF1FF] text-[#003B73] dark:bg-blue-900/30 dark:text-blue-200 border border-[#006EDB]/20 mb-1.5">
+                Destaques da Marca
+              </span>
+              <h2 className={`text-2xl sm:text-3xl font-black tracking-tight ${isDark ? "text-white" : "text-[#003B73]"}`}>
                 Coleção Calçados
               </h2>
-              <p className={`text-xs font-medium mt-0.5 ${
-                isDark ? "text-slate-400" : "text-slate-600"
-              }`}>
-                Modelos exclusivos com design contemporâneo e máximo conforto.
+              <p className={`text-xs sm:text-sm font-medium mt-0.5 ${isDark ? "text-slate-400" : "text-[#52708F]"}`}>
+                Modelos exclusivos com conforto anatômico e acabamento impecável.
               </p>
             </div>
             <button 
               onClick={() => handleSelectCategory('CALÇADOS')}
-              className="text-xs font-extrabold text-[#003e92] hover:text-[#00224d] dark:text-amber-300 dark:hover:text-white transition-colors cursor-pointer"
+              className="text-xs font-extrabold text-[#006EDB] hover:text-[#00509E] dark:text-amber-300 dark:hover:text-white transition-colors cursor-pointer shrink-0"
             >
               Ver todos os calçados →
             </button>
@@ -685,15 +695,21 @@ export const ProductList: React.FC = () => {
 
       {/* 5. CREDIÁRIO & FACILIDADES */}
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h2 className={`text-xl sm:text-2xl font-extrabold tracking-tight ${
-            isDark ? "text-white" : "text-[#00285a]"
-          }`}>
-            Crediário & Facilidades
-          </h2>
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 border-b pb-3 border-blue-900/10 dark:border-white/10">
+          <div>
+            <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-widest bg-[#DDF1FF] text-[#003B73] dark:bg-blue-900/30 dark:text-blue-200 border border-[#006EDB]/20 mb-1.5">
+              Soluções Financeiras
+            </span>
+            <h2 className={`text-2xl sm:text-3xl font-black tracking-tight ${isDark ? "text-white" : "text-[#003B73]"}`}>
+              Crediário & Facilidades
+            </h2>
+            <p className={`text-xs sm:text-sm font-medium mt-0.5 ${isDark ? "text-slate-400" : "text-[#52708F]"}`}>
+              Parcelamento facilitation e consulta de faturas com baixa via PIX.
+            </p>
+          </div>
           <button 
             onClick={() => setCurrentView('meu-crediario')}
-            className="text-xs font-extrabold text-[#003e92] hover:text-[#00224d] dark:text-amber-300 dark:hover:text-white transition-colors cursor-pointer"
+            className="text-xs font-extrabold text-[#006EDB] hover:text-[#00509E] dark:text-amber-300 dark:hover:text-white transition-colors cursor-pointer shrink-0"
           >
             Acessar crediário →
           </button>
@@ -773,18 +789,21 @@ export const ProductList: React.FC = () => {
       {/* 6. SEÇÃO CONFECÇÕES & MODA */}
       {confeccoesProducts.length > 0 && (
         <div className="space-y-6">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 border-b pb-3 border-blue-900/10 dark:border-white/10">
             <div>
-              <h2 className={`text-xl sm:text-2xl font-extrabold tracking-tight ${isDark ? "text-white" : "text-[#111111]"}`}>
+              <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-widest bg-[#DDF1FF] text-[#003B73] dark:bg-blue-900/30 dark:text-blue-200 border border-[#006EDB]/20 mb-1.5">
+                Vestuário & Estilo
+              </span>
+              <h2 className={`text-2xl sm:text-3xl font-black tracking-tight ${isDark ? "text-white" : "text-[#003B73]"}`}>
                 Confecções & Moda
               </h2>
-              <p className="text-xs text-neutral-500 font-medium mt-0.5">
-                Peças exclusivas e vestuário contemporâneo para compor o seu look.
+              <p className={`text-xs sm:text-sm font-medium mt-0.5 ${isDark ? "text-slate-400" : "text-[#52708F]"}`}>
+                Peças exclusivas e vestuário contemporâneo para renovar o seu visual.
               </p>
             </div>
             <button 
               onClick={() => handleSelectCategory('CONFECÇÕES')}
-              className="text-xs font-semibold text-neutral-600 hover:text-black dark:text-neutral-300 dark:hover:text-white transition-colors cursor-pointer"
+              className="text-xs font-extrabold text-[#006EDB] hover:text-[#00509E] dark:text-amber-300 dark:hover:text-white transition-colors cursor-pointer shrink-0"
             >
               Ver todas as confecções →
             </button>
@@ -809,18 +828,21 @@ export const ProductList: React.FC = () => {
       {/* 7. SEÇÃO BOLSAS & ACESSÓRIOS */}
       {acessoriosProducts.length > 0 && (
         <div className="space-y-6">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 border-b pb-3 border-blue-900/10 dark:border-white/10">
             <div>
-              <h2 className={`text-xl sm:text-2xl font-extrabold tracking-tight ${isDark ? "text-white" : "text-[#111111]"}`}>
+              <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-widest bg-[#DDF1FF] text-[#003B73] dark:bg-blue-900/30 dark:text-blue-200 border border-[#006EDB]/20 mb-1.5">
+                Complementos Essenciais
+              </span>
+              <h2 className={`text-2xl sm:text-3xl font-black tracking-tight ${isDark ? "text-white" : "text-[#003B73]"}`}>
                 Bolsas & Acessórios
               </h2>
-              <p className="text-xs text-neutral-500 font-medium mt-0.5">
-                Bolsas, cintos, carteiras e acessórios para complementar seu estilo.
+              <p className={`text-xs sm:text-sm font-medium mt-0.5 ${isDark ? "text-slate-400" : "text-[#52708F]"}`}>
+                Bolsas, cintos, carteiras e utilitários elegantes para finalizar seu look.
               </p>
             </div>
             <button 
               onClick={() => handleSelectCategory('ACESSÓRIOS')}
-              className="text-xs font-semibold text-neutral-600 hover:text-black dark:text-neutral-300 dark:hover:text-white transition-colors cursor-pointer"
+              className="text-xs font-extrabold text-[#006EDB] hover:text-[#00509E] dark:text-amber-300 dark:hover:text-white transition-colors cursor-pointer shrink-0"
             >
               Ver todos os acessórios →
             </button>

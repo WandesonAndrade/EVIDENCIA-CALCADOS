@@ -18,6 +18,8 @@ import { FavoritesList } from './components/FavoritesList';
 import { FloatingAssistant } from './components/FloatingAssistant';
 import { LoadingSpinner } from './components/common/LoadingSpinner';
 
+import { MeusDados } from './components/MeusDados';
+
 // Dynamic imports (Code Splitting) para views pesadas / secundárias
 const AdminPanel = lazy(() => import('./components/AdminPanel').then(m => ({ default: m.AdminPanel })));
 const MeuCrediario = lazy(() => import('./components/MeuCrediario').then(m => ({ default: m.MeuCrediario })));
@@ -79,7 +81,7 @@ const AppContent: React.FC = () => {
   }, []);
 
   React.useEffect(() => {
-    if (['product-detail', 'cart', 'orders', 'about', 'support', 'favorites', 'admin', 'meu-crediario'].includes(currentView)) {
+    if (['product-detail', 'cart', 'orders', 'about', 'support', 'favorites', 'admin', 'meu-crediario', 'meus-dados'].includes(currentView)) {
       window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
     }
   }, [currentView]);
@@ -112,6 +114,11 @@ const AppContent: React.FC = () => {
           return <AuthScreen mode="customer" />;
         }
         return <MeuCrediario />;
+      case 'meus-dados':
+        if (!currentUser) {
+          return <AuthScreen mode="customer" />;
+        }
+        return <MeusDados />;
       case 'login':
         return <AuthScreen mode="customer" />;
       case 'admin-login':

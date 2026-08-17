@@ -23,6 +23,7 @@ import {
   CreditCard,
   User,
   Smartphone,
+  Sparkles,
 } from 'lucide-react';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -131,7 +132,7 @@ export const MeuCrediario: React.FC = () => {
       return;
     }
 
-    // Security check: CPF must match the logged-in user's CPF (if set)
+    // Checagem de segurança: CPF deve corresponder ao usuário logado
     if (activeUser) {
       const userCpf = cleanCpf(activeUser.cpf || (activeUser as any).documento || '');
       if (userCpf && userCpf !== raw) {
@@ -186,7 +187,7 @@ export const MeuCrediario: React.FC = () => {
         console.warn('Falha ao sincronizar Pix aprovados do Firestore:', err);
       }
 
-      // Auto-expand first sale
+      // Auto-expande a primeira compra
       if (data.length > 0) {
         const firstKey = String(data[0].id_venda ?? data[0].documento ?? 'other');
         setExpandedSales(new Set([firstKey]));
@@ -202,7 +203,7 @@ export const MeuCrediario: React.FC = () => {
     if (e.key === 'Enter') handleVerify();
   };
 
-  // ── Group invoices by sale ──
+  // ── Agrupamento por Compra ──
   const groupedSales = useMemo((): SaleGroup[] => {
     const map = new Map<string, MoblinkContaReceber[]>();
 
@@ -244,7 +245,7 @@ export const MeuCrediario: React.FC = () => {
   const totalPendingAll = groupedSales.reduce((s, g) => s + g.totalPending, 0);
   const hasAnyOverdue = groupedSales.some((g) => g.hasOverdue);
 
-  // ── Handle Pix Payment Success ──
+  // ── Confirmação de Pagamento Pix ──
   const handlePaymentSuccess = useCallback((paymentId: number) => {
     if (pixSelectedParcel) {
       const key = pixSelectedParcel.parcelId;
@@ -266,51 +267,48 @@ export const MeuCrediario: React.FC = () => {
     });
   };
 
-  // ─── Shared style tokens ──────────────────────────────────────────────────
+  // ─── Estilos Base Apple Store ──────────────────────────────────────────────
   const cardBase = isDark
-    ? 'bg-slate-900 border border-slate-800 rounded-xl'
-    : 'bg-white border border-slate-200 rounded-xl shadow-sm';
+    ? 'bg-slate-900/90 border border-slate-800 rounded-3xl shadow-lg backdrop-blur-md'
+    : 'bg-white/95 border border-blue-900/10 rounded-3xl shadow-md backdrop-blur-md';
 
-  // ─── Render ───────────────────────────────────────────────────────────────
   return (
-    <div className={`min-h-screen py-8 px-4 sm:px-6 lg:px-8 ${isDark ? 'bg-[#0B0F19]' : 'bg-slate-50'}`}>
-      <div className="max-w-2xl mx-auto">
+    <div className={`min-h-screen py-8 px-4 sm:px-6 lg:px-8 ${isDark ? 'bg-[#0B0F19]' : 'bg-[#EAF5FF]'}`}>
+      <div className="max-w-3xl mx-auto space-y-6">
 
-        {/* Back Button */}
+        {/* Botão de Voltar */}
         <motion.button
           initial={{ opacity: 0, x: -10 }}
           animate={{ opacity: 1, x: 0 }}
           onClick={() => setCurrentView('home')}
-          className={`flex items-center space-x-2 text-xs font-bold mb-6 transition-colors cursor-pointer ${
-            isDark ? 'text-slate-400 hover:text-amber-400' : 'text-slate-500 hover:text-slate-900'
-          }`}
+          className="flex items-center space-x-2 text-xs font-extrabold uppercase tracking-wider transition-colors cursor-pointer text-white hover:text-white/80 drop-shadow-xs"
         >
-          <ArrowLeft className="h-4 w-4" />
-          <span>Voltar à loja</span>
+          <ArrowLeft className="h-4 w-4 text-white" />
+          <span className="text-white">Voltar à loja</span>
         </motion.button>
 
-        {/* Page Title */}
+        {/* Cabeçalho da Página no Estilo Apple Crediário */}
         <motion.div
           initial={{ opacity: 0, y: -12 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-8"
+          className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b pb-6 border-white/20"
         >
-          <div className="flex items-center space-x-3 mb-1">
-            <div className={`p-2.5 rounded-xl ${isDark ? 'bg-amber-400/10 border border-amber-400/20' : 'bg-amber-50 border border-amber-200'}`}>
-              <CreditCard className={`h-5 w-5 ${isDark ? 'text-amber-400' : 'text-amber-600'}`} />
+          <div className="flex items-center space-x-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-white/20 text-white border border-white/30 backdrop-blur-md flex items-center justify-center shadow-lg">
+              <CreditCard className="h-6 w-6" />
             </div>
             <div>
-              <h1 className={`text-xl font-black leading-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                Meu Crediário
+              <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white drop-shadow-sm">
+                Meu Crediário Evidência
               </h1>
-              <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                Consulte suas faturas e parcelas em aberto
+              <p className="text-xs sm:text-sm font-bold mt-0.5 text-[#DDF1FF] drop-shadow-xs">
+                Consulte carnês, parcelas em aberto e efetue pagamentos instantâneos via PIX
               </p>
             </div>
           </div>
         </motion.div>
 
-        {/* ── CPF FORM ── */}
+        {/* ── FORMULÁRIO DE CONSULTA CPF (ESTILO APPLE CARD) ── */}
         <AnimatePresence mode="wait">
           {viewState === 'cpf-form' && (
             <motion.div
@@ -319,151 +317,141 @@ export const MeuCrediario: React.FC = () => {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -16 }}
               transition={{ duration: 0.2 }}
-              className={`${cardBase} p-6`}
+              className={`${cardBase} p-6 sm:p-8 space-y-6`}
             >
-              <div className="flex items-center space-x-2 mb-5">
-                <ShieldCheck className={`h-5 w-5 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
-                <p className={`text-sm font-bold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
-                  Verificação de Identidade
-                </p>
+              <div className="flex items-center space-x-2.5">
+                <ShieldCheck className="h-6 w-6 text-[#006EDB]" />
+                <h3 className={`text-base font-extrabold tracking-tight ${isDark ? 'text-white' : 'text-[#003B73]'}`}>
+                  Autenticação do Carnê Crediário
+                </h3>
               </div>
 
-              <p className={`text-xs mb-6 leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                Para acessar suas faturas com segurança, confirme seu <strong>CPF</strong>.
-                Ele será cruzado com o cadastro da sua conta para garantir que apenas você veja seus dados.
+              <p className={`text-xs leading-relaxed font-medium ${isDark ? 'text-slate-400' : 'text-[#52708F]'}`}>
+                Informe o seu <strong>CPF</strong> cadastrado na loja para visualizar o extrato detalhado de faturas e efetuar a quitação via PIX com baixa automática.
               </p>
 
-              <label className={`block text-[11px] font-black uppercase tracking-wider mb-2 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                CPF
-              </label>
-              <input
-                type="text"
-                inputMode="numeric"
-                value={cpfInput}
-                onChange={handleCpfChange}
-                onKeyDown={handleKeyDown}
-                maxLength={14}
-                placeholder="000.000.000-00"
-                autoFocus
-                className={`w-full px-4 py-3 rounded-xl border text-sm font-mono font-bold tracking-widest focus:outline-none transition-all ${
-                  isDark
-                    ? 'bg-slate-950 border-slate-700 text-white placeholder-slate-600 focus:border-amber-400 focus:shadow-[0_0_0_3px_rgba(245,158,11,0.15)]'
-                    : 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:border-slate-600 focus:shadow-[0_0_0_3px_rgba(0,0,0,0.07)]'
-                }`}
-              />
+              <div className="space-y-2">
+                <label className={`block text-[11px] font-extrabold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-[#003B73]'}`}>
+                  Número do CPF
+                </label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={cpfInput}
+                  onChange={handleCpfChange}
+                  onKeyDown={handleKeyDown}
+                  maxLength={14}
+                  placeholder="000.000.000-00"
+                  autoFocus
+                  className={`w-full px-4 py-3.5 rounded-2xl border text-sm font-mono font-bold tracking-widest focus:outline-none transition-all ${
+                    isDark
+                      ? 'bg-slate-950 border-slate-700 text-white placeholder-slate-600 focus:border-[#006EDB] focus:ring-4 focus:ring-[#006EDB]/20'
+                      : 'bg-white border-blue-900/15 text-[#003B73] placeholder-slate-400 focus:border-[#006EDB] focus:ring-4 focus:ring-[#DDF1FF]'
+                  }`}
+                />
+              </div>
 
               {errorMsg && (
                 <motion.div
                   initial={{ opacity: 0, y: 4 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="flex items-center space-x-2 mt-3"
+                  className="flex items-center space-x-2 text-xs font-bold text-rose-600 bg-rose-50 border border-rose-200 p-3 rounded-xl"
                 >
-                  <AlertTriangle className="h-3.5 w-3.5 text-rose-500 shrink-0" />
-                  <p className="text-xs font-semibold text-rose-500">{errorMsg}</p>
+                  <AlertTriangle className="h-4 w-4 shrink-0" />
+                  <span>{errorMsg}</span>
                 </motion.div>
               )}
 
               <motion.button
-                whileTap={{ scale: 0.97 }}
+                whileTap={{ scale: 0.98 }}
                 onClick={handleVerify}
                 disabled={cleanCpf(cpfInput).length < 11}
-                className={`mt-5 w-full py-3 rounded-xl text-sm font-black transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
-                  isDark
-                    ? 'bg-amber-400 text-slate-950 hover:bg-amber-300 shadow-[0_0_20px_rgba(245,158,11,0.25)]'
-                    : 'bg-slate-900 text-white hover:bg-slate-800'
-                }`}
+                className="w-full py-3.5 rounded-full text-xs font-extrabold tracking-wider uppercase bg-[#006EDB] hover:bg-[#00509E] text-white transition-all shadow-md cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Consultar Faturas
+                Consultar Faturas do Crediário
               </motion.button>
 
               {!activeUser && (
-                <p className={`text-[10px] mt-4 text-center ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                  Você precisa estar logado para consultar faturas.{' '}
+                <p className={`text-[11px] text-center font-medium ${isDark ? 'text-slate-500' : 'text-[#52708F]'}`}>
+                  Você precisa estar logado para consultar suas faturas.{' '}
                   <button
                     onClick={() => setCurrentView('login')}
-                    className={`font-bold underline cursor-pointer ${isDark ? 'text-amber-400' : 'text-slate-700'}`}
+                    className="font-bold underline cursor-pointer text-[#006EDB]"
                   >
-                    Entrar
+                    Entrar na minha conta
                   </button>
                 </p>
               )}
             </motion.div>
           )}
 
-          {/* ── LOADING ── */}
+          {/* ── CARREGAMENTO (SKELETON APPLE) ── */}
           {viewState === 'loading' && (
             <motion.div
               key="loading"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className={`${cardBase} p-10 flex flex-col items-center space-y-4`}
+              className={`${cardBase} p-12 flex flex-col items-center justify-center space-y-4 text-center`}
             >
-              <Loader2 className={`h-8 w-8 animate-spin ${isDark ? 'text-amber-400' : 'text-slate-600'}`} />
-              <p className={`text-sm font-bold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                Consultando faturas...
+              <Loader2 className="h-9 w-9 animate-spin text-[#006EDB]" />
+              <p className={`text-sm font-extrabold ${isDark ? 'text-white' : 'text-[#003B73]'}`}>
+                Consultando o MobLink ERP...
               </p>
-              <p className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                Aguarde enquanto buscamos seus dados no servidor.
+              <p className={`text-xs font-medium ${isDark ? 'text-slate-400' : 'text-[#52708F]'}`}>
+                Buscando suas faturas e saldo atualizado do crediário.
               </p>
             </motion.div>
           )}
 
-          {/* ── NOT FOUND ── */}
+          {/* ── NÃO ENCONTRADO ── */}
           {viewState === 'not-found' && (
             <motion.div
               key="not-found"
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
-              className={`${cardBase} p-8 flex flex-col items-center space-y-4 text-center`}
+              className={`${cardBase} p-8 flex flex-col items-center space-y-5 text-center`}
             >
-              <div className={`p-3 rounded-full ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
-                <User className={`h-7 w-7 ${isDark ? 'text-slate-400' : 'text-slate-500'}`} />
+              <div className="w-16 h-16 rounded-full bg-[#EEF8FF] border border-blue-900/10 flex items-center justify-center">
+                <User className="h-8 w-8 text-[#006EDB]" />
               </div>
-              <div>
-                <p className={`text-sm font-black mb-1 ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                  CPF não encontrado
-                </p>
-                <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                  Não encontramos nenhum crediário vinculado ao CPF informado. Se você possui crediário conosco, entre em contato com nossa equipe.
+              <div className="space-y-1.5 max-w-md">
+                <h3 className={`text-base font-extrabold ${isDark ? 'text-white' : 'text-[#003B73]'}`}>
+                  CPF Não Localizado no Sistema
+                </h3>
+                <p className={`text-xs font-medium leading-relaxed ${isDark ? 'text-slate-400' : 'text-[#52708F]'}`}>
+                  Não identificamos nenhuma compra no crediário vinculada ao CPF informado. Caso tenha efetuado o cadastro recentemente, entre em contato com o atendimento.
                 </p>
               </div>
-              <motion.button
-                whileTap={{ scale: 0.97 }}
+              <button
                 onClick={() => { setViewState('cpf-form'); setCpfInput(''); }}
-                className={`px-6 py-2.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
-                  isDark
-                    ? 'bg-slate-800 text-slate-200 hover:bg-slate-700'
-                    : 'bg-slate-100 text-slate-800 hover:bg-slate-200'
-                }`}
+                className="px-6 py-2.5 rounded-full text-xs font-extrabold uppercase bg-[#006EDB] hover:bg-[#00509E] text-white transition-all shadow-md cursor-pointer"
               >
-                Tentar outro CPF
-              </motion.button>
+                Tentar Outro CPF
+              </button>
             </motion.div>
           )}
 
-          {/* ── INVOICES ── */}
+          {/* ── LISTA DE FATURAS E PAINEL DO CREDIÁRIO ── */}
           {viewState === 'invoices' && (
             <motion.div
               key="invoices"
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
-              className="space-y-4"
+              className="space-y-5"
             >
-              {/* Summary Header */}
+              {/* Alerta de Sucesso no Pagamento */}
               {paymentSuccessToast && (
                 <motion.div
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className={`p-4 rounded-xl border flex items-center justify-between shadow-sm ${
-                    isDark ? 'bg-emerald-950/60 border-emerald-500/40 text-emerald-300' : 'bg-emerald-50 border-emerald-300 text-emerald-800'
-                  }`}
+                  className="p-4 rounded-2xl border flex items-center justify-between shadow-sm bg-emerald-50 border-emerald-300 text-emerald-900"
                 >
                   <div className="flex items-center space-x-2.5">
-                    <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-500" />
-                    <p className="text-xs font-bold">{paymentSuccessToast}</p>
+                    <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" />
+                    <p className="text-xs font-extrabold">{paymentSuccessToast}</p>
                   </div>
                   <button
                     onClick={() => setPaymentSuccessToast(null)}
@@ -474,60 +462,73 @@ export const MeuCrediario: React.FC = () => {
                 </motion.div>
               )}
 
-              <div className={`${cardBase} p-5`}>
-                <div className="flex items-center justify-between flex-wrap gap-3">
+              {/* Card Resumo do Cliente (Estilo Apple Wallet Header) */}
+              <div className={`${cardBase} p-6 space-y-4`}>
+                <div className="flex items-center justify-between flex-wrap gap-4 border-b pb-4 border-blue-900/10">
                   <div>
-                    <p className={`text-[10px] font-black uppercase tracking-wider mb-0.5 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
-                      Extrato de Crediário
-                    </p>
-                    <p className={`text-base font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#52708F] block">
+                      Titular do Crediário
+                    </span>
+                    <h2 className={`text-lg font-black tracking-tight ${isDark ? 'text-white' : 'text-[#003B73]'}`}>
                       {verifiedClientName}
-                    </p>
-                    <p className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                      ID MobLink #{verifiedMoblinkId} · {groupedSales.length} compra(s) · {invoices.length} parcela(s)
-                    </p>
+                    </h2>
+                    <div className="flex items-center space-x-2 mt-1">
+                      <span className="px-2.5 py-0.5 rounded-md bg-[#DDF1FF] text-[#003B73] text-[10px] font-bold">
+                        ID MobLink #{verifiedMoblinkId}
+                      </span>
+                      <span className="text-[11px] text-[#52708F] font-medium">
+                        {groupedSales.length} carnê(s) · {invoices.length} parcela(s)
+                      </span>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className={`text-[10px] font-black uppercase tracking-wider mb-0.5 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
-                      Saldo Pendente
-                    </p>
-                    <p className={`text-xl font-black font-mono ${
+
+                  <div className="text-left sm:text-right">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#52708F] block">
+                      Total Pendente
+                    </span>
+                    <p className={`text-2xl font-black font-mono tracking-tight ${
                       hasAnyOverdue
-                        ? (isDark ? 'text-rose-400' : 'text-rose-600')
-                        : (isDark ? 'text-amber-400' : 'text-amber-700')
+                        ? 'text-rose-600'
+                        : 'text-[#003B73] dark:text-white'
                     }`}>
                       {formatCurrency(totalPendingAll)}
                     </p>
                     {hasAnyOverdue && (
-                      <span className="text-[9px] font-black uppercase text-rose-500 tracking-wider">
-                        ⚠ Parcela(s) em atraso
+                      <span className="text-[10px] font-extrabold uppercase text-rose-600 tracking-wider block mt-0.5">
+                        ⚠ Há parcelas vencidas
                       </span>
                     )}
                   </div>
                 </div>
 
-                <button
-                  onClick={() => { setViewState('cpf-form'); setCpfInput(''); setInvoices([]); }}
-                  className={`mt-3 text-[11px] font-bold underline cursor-pointer ${isDark ? 'text-slate-500 hover:text-slate-300' : 'text-slate-400 hover:text-slate-600'}`}
-                >
-                  ← Nova consulta
-                </button>
+                <div className="flex items-center justify-between pt-1">
+                  <button
+                    onClick={() => { setViewState('cpf-form'); setCpfInput(''); setInvoices([]); }}
+                    className="text-xs font-extrabold text-[#006EDB] hover:underline cursor-pointer flex items-center space-x-1"
+                  >
+                    <span>← Consultar outro CPF</span>
+                  </button>
+
+                  <span className="text-[10px] text-[#52708F] font-medium hidden sm:inline">
+                    Pagamento via PIX 24h com aprovação imediata
+                  </span>
+                </div>
               </div>
 
-              {/* No invoices case */}
+              {/* Caso Sem Faturas */}
               {groupedSales.length === 0 && (
-                <div className={`${cardBase} p-8 flex flex-col items-center space-y-3 text-center`}>
-                  <CheckCircle2 className={`h-8 w-8 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
-                  <p className={`text-sm font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                    Nenhuma fatura em aberto
-                  </p>
-                  <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                    Parabéns! Você está com o crediário em dia.
+                <div className={`${cardBase} p-10 flex flex-col items-center space-y-3 text-center`}>
+                  <CheckCircle2 className="h-10 w-10 text-emerald-600" />
+                  <h3 className={`text-base font-black ${isDark ? 'text-white' : 'text-[#003B73]'}`}>
+                    Parabéns! Crediário 100% Quitado
+                  </h3>
+                  <p className="text-xs text-[#52708F] font-medium max-w-sm">
+                    Você não possui nenhuma parcela pendente no momento. Obrigado por manter sua conta em dia!
                   </p>
                 </div>
               )}
 
-              {/* Sale Groups Accordion */}
+              {/* Lista de Carnês / Compras em Acordeão */}
               {groupedSales.map((group, gIdx) => {
                 const isExpanded = expandedSales.has(group.saleKey);
                 const pendingCount = group.items.filter((i) => {
@@ -543,60 +544,50 @@ export const MeuCrediario: React.FC = () => {
                     transition={{ delay: gIdx * 0.05 }}
                     className={cardBase}
                   >
-                    {/* Sale Header (Accordion Toggle) */}
+                    {/* Cabeçalho do Carnê (Toggle) */}
                     <button
                       onClick={() => toggleSale(group.saleKey)}
-                      className={`w-full flex items-center justify-between p-4 cursor-pointer rounded-xl transition-colors ${
-                        isDark ? 'hover:bg-slate-800/50' : 'hover:bg-slate-50'
+                      className={`w-full flex items-center justify-between p-5 cursor-pointer rounded-3xl transition-colors ${
+                        isDark ? 'hover:bg-slate-800/40' : 'hover:bg-[#EEF8FF]/50'
                       }`}
                     >
-                      <div className="flex items-center space-x-3 text-left">
-                        <div className={`p-2 rounded-lg ${
+                      <div className="flex items-center space-x-3.5 text-left">
+                        <div className={`p-2.5 rounded-2xl ${
                           group.hasOverdue
-                            ? (isDark ? 'bg-rose-500/15 border border-rose-500/30' : 'bg-rose-50 border border-rose-200')
-                            : (isDark ? 'bg-slate-800 border border-slate-700' : 'bg-slate-100 border border-slate-200')
+                            ? 'bg-rose-50 border border-rose-200 text-rose-600'
+                            : 'bg-[#EEF8FF] border border-blue-900/10 text-[#003B73]'
                         }`}>
-                          <FileText className={`h-4 w-4 ${
-                            group.hasOverdue
-                              ? (isDark ? 'text-rose-400' : 'text-rose-600')
-                              : (isDark ? 'text-slate-400' : 'text-slate-600')
-                          }`} />
+                          <FileText className="h-5 w-5" />
                         </div>
                         <div>
-                          <p className={`text-xs font-black leading-none ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                            Compra / Venda #{group.saleKey}
+                          <p className={`text-sm font-black leading-snug ${isDark ? 'text-white' : 'text-[#003B73]'}`}>
+                            Carnê de Compra #{group.saleKey}
                           </p>
-                          <p className={`text-[10px] mt-0.5 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
-                            {group.items.length} parcela(s) · {pendingCount > 0 ? `${pendingCount} pendente(s)` : 'Todas pagas'}
+                          <p className="text-[11px] text-[#52708F] font-medium mt-0.5">
+                            {group.items.length} parcela(s) · {pendingCount > 0 ? `${pendingCount} a pagar` : 'Totalmente pago'}
                           </p>
                         </div>
                       </div>
 
-                      <div className="flex items-center space-x-3 shrink-0">
+                      <div className="flex items-center space-x-4 shrink-0">
                         <div className="text-right">
-                          {group.totalPending > 0 && (
-                            <p className={`text-sm font-black font-mono leading-none ${
-                              group.hasOverdue
-                                ? (isDark ? 'text-rose-400' : 'text-rose-600')
-                                : (isDark ? 'text-amber-400' : 'text-amber-700')
+                          {group.totalPending > 0 ? (
+                            <p className={`text-base font-black font-mono ${
+                              group.hasOverdue ? 'text-rose-600' : 'text-[#003B73] dark:text-white'
                             }`}>
                               {formatCurrency(group.totalPending)}
                             </p>
-                          )}
-                          {group.totalPending === 0 && (
-                            <p className={`text-xs font-black ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
+                          ) : (
+                            <span className="text-xs font-extrabold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
                               Quitado
-                            </p>
+                            </span>
                           )}
                         </div>
-                        {isExpanded
-                          ? <ChevronUp className={`h-4 w-4 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
-                          : <ChevronDown className={`h-4 w-4 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
-                        }
+                        {isExpanded ? <ChevronUp className="h-5 w-5 text-[#52708F]" /> : <ChevronDown className="h-5 w-5 text-[#52708F]" />}
                       </div>
                     </button>
 
-                    {/* Parcelas Accordion Body */}
+                    {/* Lista das Parcelas do Carnê */}
                     <AnimatePresence>
                       {isExpanded && (
                         <motion.div
@@ -606,8 +597,8 @@ export const MeuCrediario: React.FC = () => {
                           transition={{ duration: 0.2 }}
                           className="overflow-hidden"
                         >
-                          <div className={`px-4 pb-4 pt-1 border-t ${isDark ? 'border-slate-800' : 'border-slate-100'}`}>
-                            <div className="space-y-2.5 mt-3">
+                          <div className={`px-5 pb-5 pt-2 border-t ${isDark ? 'border-slate-800' : 'border-blue-900/10'}`}>
+                            <div className="space-y-3 mt-2">
                               {group.items.map((inv, idx) => {
                                 const parcNum = inv.parcela || `${idx + 1}/${group.items.length}`;
                                 const dtVenc = formatDate(inv.data_vencimento || inv.vencimento);
@@ -621,97 +612,79 @@ export const MeuCrediario: React.FC = () => {
                                 return (
                                   <div
                                     key={inv.id || idx}
-                                    className={`flex items-center justify-between p-3.5 rounded-xl border transition-all ${
+                                    className={`flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-2xl border gap-3 transition-all ${
                                       isPaid
-                                        ? (isDark ? 'bg-emerald-950/30 border-emerald-500/30' : 'bg-emerald-50 border-emerald-300')
+                                        ? 'bg-emerald-50/50 border-emerald-200'
                                         : isOverdue
-                                          ? (isDark ? 'bg-rose-950/40 border-rose-500/50' : 'bg-rose-50 border-rose-400')
-                                          : (isDark ? 'bg-slate-950/60 border-slate-800' : 'bg-slate-50 border-slate-200')
+                                          ? 'bg-rose-50/60 border-rose-300'
+                                          : 'bg-white border-blue-900/10 shadow-2xs'
                                     }`}
                                   >
-                                    {/* Left: status icon + parcel info */}
-                                    <div className="flex items-center space-x-3">
+                                    {/* Lado Esquerdo: Ícone + Info da Parcela */}
+                                    <div className="flex items-center space-x-3.5">
                                       <div className="shrink-0">
-                                        {isPaid
-                                          ? <CheckCircle2 className={`h-4 w-4 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
-                                          : isOverdue
-                                            ? <XCircle className={`h-4 w-4 ${isDark ? 'text-rose-400' : 'text-rose-600'}`} />
-                                            : <Clock className={`h-4 w-4 ${isDark ? 'text-sky-400' : 'text-sky-600'}`} />
-                                        }
+                                        {isPaid ? (
+                                          <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                                        ) : isOverdue ? (
+                                          <XCircle className="h-5 w-5 text-rose-600" />
+                                        ) : (
+                                          <Clock className="h-5 w-5 text-[#006EDB]" />
+                                        )}
                                       </div>
                                       <div className="space-y-0.5">
-                                        <div className="flex items-center space-x-1.5 flex-wrap">
-                                          <p className={`text-sm font-black leading-none ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                        <div className="flex items-center space-x-2 flex-wrap">
+                                          <p className={`text-sm font-extrabold ${isDark ? 'text-white' : 'text-[#003B73]'}`}>
                                             Parcela {parcNum}
                                           </p>
                                           {amountInfo.hasInterest && (
-                                            <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/40" title={`Inclui ${formatCurrency(amountInfo.interestAmount)} de juros/encargos do ERP`}>
+                                            <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300">
                                               + Juros ERP
                                             </span>
                                           )}
                                         </div>
-                                        <p className={`text-xs font-bold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                                          Venc.{' '}
-                                          <span className={`font-mono font-extrabold ${
-                                            isOverdue
-                                              ? (isDark ? 'text-rose-400' : 'text-rose-600')
-                                              : (isDark ? 'text-amber-300' : 'text-amber-700')
-                                          }`}>
+                                        <p className="text-xs text-[#52708F] font-medium">
+                                          Vencimento:{' '}
+                                          <span className={`font-mono font-extrabold ${isOverdue ? 'text-rose-700' : 'text-[#003B73]'}`}>
                                             {dtVenc}
                                           </span>
                                         </p>
                                       </div>
                                     </div>
 
-                                    {/* Right: status badge + value + pay button */}
-                                    <div className="flex items-center space-x-2 sm:space-x-3 shrink-0">
+                                    {/* Lado Direito: Status + Valor + Botão Pagar */}
+                                    <div className="flex items-center justify-between sm:justify-end space-x-4 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-blue-900/10">
                                       <div>
-                                        {isPaidByPix ? (
-                                          <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-1 rounded-full ${
-                                            isDark ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-emerald-100 text-emerald-700 border border-emerald-300'
-                                          }`}>
-                                            ✓ Pago via Pix
-                                          </span>
-                                        ) : isPaid ? (
-                                          <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-1 rounded-full ${
-                                            isDark ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-emerald-100 text-emerald-700 border border-emerald-300'
-                                          }`}>
-                                            Paga
+                                        {isPaidByPix || isPaid ? (
+                                          <span className="text-[10px] font-extrabold uppercase tracking-wider px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                            ✓ Paga
                                           </span>
                                         ) : isOverdue ? (
-                                          <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-1 rounded-full ${
-                                            isDark ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40' : 'bg-rose-100 text-rose-700 border border-rose-300'
-                                          }`}>
-                                            Atrasada
+                                          <span className="text-[10px] font-extrabold uppercase tracking-wider px-3 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200">
+                                            Vencida
                                           </span>
                                         ) : (
-                                          <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-1 rounded-full ${
-                                            isDark ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40' : 'bg-sky-100 text-sky-700 border border-sky-300'
-                                          }`}>
+                                          <span className="text-[10px] font-extrabold uppercase tracking-wider px-3 py-1 rounded-full bg-[#DDF1FF] text-[#003B73] border border-[#006EDB]/30">
                                             A Vencer
                                           </span>
                                         )}
                                       </div>
+
                                       <div className="text-right">
-                                        <p className={`text-sm font-black font-mono tabular-nums leading-none ${
+                                        <p className={`text-base font-black font-mono tabular-nums leading-none ${
                                           isPaid
-                                            ? (isDark ? 'text-slate-500 line-through' : 'text-slate-400 line-through')
+                                            ? 'text-slate-400 line-through'
                                             : isOverdue
-                                              ? (isDark ? 'text-rose-400' : 'text-rose-600')
-                                              : (isDark ? 'text-emerald-400' : 'text-emerald-700')
+                                              ? 'text-rose-600'
+                                              : 'text-[#003B73] dark:text-white'
                                         }`}>
                                           {formatCurrency(amountInfo.displayAmount)}
                                         </p>
-                                        {amountInfo.hasInterest && (
-                                          <span className={`text-[9px] font-bold block mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                                            Orig.: {formatCurrency(amountInfo.originalAmount)}
-                                          </span>
-                                        )}
                                       </div>
-                                      {/* Pagar Agora Button (only for unpaid) */}
+
+                                      {/* Botão Pagar com PIX (Apenas para parcelas não pagas) */}
                                       {!isPaid && (
                                         <motion.button
-                                          whileTap={{ scale: 0.93 }}
+                                          whileTap={{ scale: 0.95 }}
                                           onClick={(e) => {
                                             e.stopPropagation();
                                             const exactParcelId = String(inv.id || getParcelId(inv) || '').trim();
@@ -721,17 +694,13 @@ export const MeuCrediario: React.FC = () => {
                                               saleKey: exactSaleId,
                                               parcNum: String(parcNum),
                                               value: amountInfo.displayAmount,
-                                              description: `Parcela ${parcNum} – Venda #${exactSaleId}`,
+                                              description: `Parcela ${parcNum} – Carnê #${exactSaleId}`,
                                             });
                                             setPixModalOpen(true);
                                           }}
-                                          className={`flex items-center space-x-1 px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
-                                            isDark
-                                              ? 'bg-[#0a84ff] hover:bg-[#409cff] text-white shadow-[0_0_16px_rgba(10,132,255,0.3)]'
-                                              : 'bg-[#007aff] hover:bg-[#0066d6] text-white shadow-sm'
-                                          }`}
+                                          className="flex items-center space-x-1.5 px-4 py-2 rounded-full text-xs font-extrabold uppercase tracking-wider bg-[#006EDB] hover:bg-[#00509E] text-white transition-all shadow-md cursor-pointer"
                                         >
-                                          <Smartphone className="h-3 w-3" />
+                                          <Smartphone className="h-3.5 w-3.5" />
                                           <span>Pagar</span>
                                         </motion.button>
                                       )}
@@ -748,15 +717,14 @@ export const MeuCrediario: React.FC = () => {
                 );
               })}
 
-              {/* Footer Note */}
-              <p className={`text-[10px] text-center pb-4 ${isDark ? 'text-slate-600' : 'text-slate-400'}`}>
-                Dados sincronizados com o sistema da loja (MobLink ERP). Em caso de dúvidas, entre em contato com nossa equipe.
+              <p className="text-[10px] text-center text-[#52708F] font-medium pt-2 pb-6">
+                Informações integradas ao sistema de gestão MobLink ERP. Dúvidas sobre boletos ou liquidações? Fale conosco no WhatsApp.
               </p>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* Pix Payment Modal */}
+        {/* Modal de Pagamento via Pix */}
         <PixPaymentModal
           isOpen={pixModalOpen}
           onClose={() => { setPixModalOpen(false); setPixSelectedParcel(null); }}
@@ -775,3 +743,4 @@ export const MeuCrediario: React.FC = () => {
     </div>
   );
 };
+

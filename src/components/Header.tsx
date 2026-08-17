@@ -27,7 +27,7 @@ import { CompleteProfileModal } from "./CompleteProfileModal";
 import { CategorySandwichMenu } from "./CategorySandwichMenu";
 import { checkIsProfileComplete } from "../App";
 import { scrollToSectionWithOffset } from "../lib/scrollUtils";
-import { normalizeCategoryName } from "../services/moblinkCategoriesService";
+import { normalizeCategoryName, normalizeSubcategoryName } from "../services/moblinkCategoriesService";
 
 export const Header: React.FC = () => {
   const {
@@ -43,11 +43,13 @@ export const Header: React.FC = () => {
     setSelectedMenuTab,
     selectedCategory,
     setSelectedCategory,
+    selectedSubcategory = "TODAS",
     setSelectedSubcategory,
     favorites = [],
     theme,
     toggleTheme,
     categories = [],
+    products = [],
   } = useApp();
 
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -65,61 +67,90 @@ export const Header: React.FC = () => {
 
   const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
 
-  const handleDeptFilter = (categoryName: string) => {
-    const catUpper = categoryName.toUpperCase();
-    setSelectedCategory(catUpper);
-    if (setSelectedMenuTab) setSelectedMenuTab(categoryName.toLowerCase());
-    if (setSelectedSubcategory) setSelectedSubcategory("TODAS");
+  const handleSubcategoryFilter = (subName: string, isPromo?: boolean) => {
+    if (isPromo) {
+      setSelectedCategory("PROMOÇÕES");
+      if (setSelectedMenuTab) setSelectedMenuTab("promoções");
+      if (setSelectedSubcategory) setSelectedSubcategory("TODAS");
+    } else {
+      setSelectedCategory("CALÇADOS");
+      if (setSelectedMenuTab) setSelectedMenuTab("calçados");
+      if (setSelectedSubcategory) setSelectedSubcategory(subName);
+    }
     setCurrentView("category-page");
     setTimeout(() => {
       scrollToSectionWithOffset("category-all-items-section");
     }, 100);
   };
 
+  // Subcategorias focadas estritamente em CALÇADOS que possuem produtos ativos disponíveis
   const navCategories = React.useMemo(() => {
-    const defaultNavs = [
-      { name: "Diversos", key: "DIVERSOS" },
-      { name: "Calçados", key: "CALÇADOS" },
-      { name: "Acessórios", key: "ACESSÓRIOS" },
-      { name: "Novidades", key: "NOVIDADES" },
-      { name: "Confecções", key: "CONFECÇÕES" },
-      { name: "Promoções", key: "PROMOÇÕES", isPromo: true },
+    const activeProducts = (products || []).filter(p => p.visible !== false);
+    const subsWithProducts = new Set<string>();
+
+    // 1. Subcategorias candidatas padrão de Calçados
+    const defaultFootwear = [
+      "Feminino",
+      "Masculino",
+      "Infantil",
+      "Sandálias",
+      "Tênis",
+      "Rasteiras",
+      "Saltos",
+      "Sapatilhas",
+      "Botas",
+      "Chuteiras",
+      "Mocassim"
     ];
 
-    if (!categories || categories.length === 0) return defaultNavs;
+    // 2. Registra subcategorias com produtos ativos reais no catálogo
+    activeProducts.forEach((p) => {
+      if (!p.category) return;
+      const catNorm = p.category.trim().toUpperCase();
+      const isFootwear = catNorm.includes("CALÇADO") || catNorm.includes("CALCADO") || catNorm.includes("SAPATO");
 
-    const seenKeys = new Set<string>();
-    const uniqueNavs: { name: string; key: string; isPromo?: boolean }[] = [];
-
-    categories.forEach((cat) => {
-      if (cat.visible === false || cat.active === false) return;
-      const catName = normalizeCategoryName(cat.name || "Geral");
-      const cleanKey = catName.trim().toUpperCase();
-      if (!seenKeys.has(cleanKey)) {
-        seenKeys.add(cleanKey);
-        uniqueNavs.push({
-          name: catName,
-          key: cleanKey,
-          isPromo: cleanKey.includes("PROMO") || cleanKey.includes("OFERTA"),
-        });
-      }
-    });
-
-    // Garante que as categorias essenciais estejam sempre na barra sem duplicatas
-    defaultNavs.forEach((nav) => {
-      const cleanNavKey = nav.key.trim().toUpperCase();
-      if (!seenKeys.has(cleanNavKey)) {
-        seenKeys.add(cleanNavKey);
-        if (nav.isPromo) {
-          uniqueNavs.push(nav);
-        } else {
-          uniqueNavs.splice(Math.max(0, uniqueNavs.length - 1), 0, nav);
+      if (isFootwear && p.subcategory) {
+        const subNorm = normalizeSubcategoryName(p.subcategory);
+        if (subNorm && subNorm.toUpperCase() !== "TODAS") {
+          subsWithProducts.add(subNorm);
         }
       }
     });
 
+    // 3. Valida subcategorias candidatas contra produtos ativos (ou por nome/descrição se categoria for calçados)
+    defaultFootwear.forEach((cand) => {
+      const candUpper = cand.toUpperCase();
+      const hasMatchingProduct = activeProducts.some((p) => {
+        const pCat = (p.category || "").toUpperCase();
+        const pSub = (p.subcategory || "").toUpperCase();
+        const pName = (p.name || "").toUpperCase();
+        const isFootwear = pCat === "" || pCat.includes("CALÇADO") || pCat.includes("CALCADO") || pCat.includes("SAPATO");
+        return isFootwear && (pSub.includes(candUpper) || pName.includes(candUpper));
+      });
+
+      if (hasMatchingProduct) {
+        subsWithProducts.add(cand);
+      }
+    });
+
+    // Fallback prudente: se a lista de produtos ainda estiver carregando, exibe as subcategorias principais
+    const finalSubs = (activeProducts.length > 0 && subsWithProducts.size > 0)
+      ? Array.from(subsWithProducts)
+      : defaultFootwear;
+
+    const uniqueNavs: { name: string; key: string; isPromo?: boolean }[] = finalSubs.map(name => ({
+      name,
+      key: name.toUpperCase(),
+    }));
+
+    // Verifica se existem produtos em promoção disponíveis no catálogo
+    const hasPromoProducts = activeProducts.some(p => p.originalPrice && p.originalPrice > p.price);
+    if (hasPromoProducts || activeProducts.length === 0) {
+      uniqueNavs.push({ name: "Promoções", key: "PROMOÇÕES", isPromo: true });
+    }
+
     return uniqueNavs;
-  }, [categories]);
+  }, [categories, products]);
 
   return (
     <header
@@ -373,7 +404,7 @@ export const Header: React.FC = () => {
 
                             <button
                               onClick={() => {
-                                setIsProfileModalOpen(true);
+                                setCurrentView("meus-dados");
                                 setIsDropdownOpen(false);
                               }}
                               className={`w-full text-left px-4 py-2 text-xs font-medium transition-colors flex items-center space-x-2 cursor-pointer ${
@@ -503,14 +534,17 @@ export const Header: React.FC = () => {
                   <ChevronDown className="h-3.5 w-3.5 text-white/80" />
                 </button>
 
-                {/* Links de Categorias com Indicador de Ativo da Imagem de Referência */}
+                {/* Links de Subcategorias de Calçados com Indicador de Ativo */}
                 <div className="flex items-center space-x-6 sm:space-x-8 overflow-x-auto no-scrollbar flex-1">
                   {navCategories.map((item) => {
-                    const isActive = selectedCategory.toUpperCase() === item.key;
+                    const isActive = item.isPromo
+                      ? selectedCategory.toUpperCase() === "PROMOÇÕES"
+                      : selectedCategory.toUpperCase() === "CALÇADOS" && selectedSubcategory.toUpperCase() === item.key;
+
                     return (
                       <button
                         key={item.key}
-                        onClick={() => handleDeptFilter(item.name)}
+                        onClick={() => handleSubcategoryFilter(item.name, item.isPromo)}
                         className={`py-1.5 transition-all cursor-pointer flex items-center space-x-1.5 ${
                           item.isPromo
                             ? "text-rose-600 font-extrabold hover:text-rose-700"

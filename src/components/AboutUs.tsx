@@ -17,32 +17,22 @@ export const AboutUs: React.FC = () => {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 md:py-16 space-y-16">
       
-      {/* Hero Header Estilo Apple Studio */}
-      <div className="text-center max-w-3xl mx-auto space-y-4">
-        <span className={`inline-flex items-center space-x-2 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider ${
-          isDark 
-            ? 'bg-amber-400/10 text-amber-400 border border-amber-400/20' 
-            : 'bg-[#0071e3]/10 text-[#0071e3] border border-[#0071e3]/20'
-        }`}>
-          <Calendar className="h-3.5 w-3.5" />
-          <span>Empresa Fundada em 09/09/2025</span>
+      {/* Hero Header Estilo Apple Studio Padronizado com Alto Contraste */}
+      <div className="text-center max-w-3xl mx-auto space-y-3.5">
+        <span className="inline-flex items-center space-x-2 px-3.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-widest bg-white/20 text-white border border-white/30 backdrop-blur-md shadow-xs">
+          <Calendar className="h-3.5 w-3.5 text-white" />
+          <span className="text-white">Empresa Fundada em 09/09/2025</span>
         </span>
 
-        <h1 className={`text-3xl md:text-5xl font-extrabold tracking-tight ${
-          isDark ? 'text-white' : 'text-[#1d1d1f]'
-        }`}>
+        <h1 className="text-3xl md:text-5xl font-black tracking-tight text-white drop-shadow-sm">
           Evidência Calçados
         </h1>
 
-        <p className={`text-base md:text-lg font-medium ${
-          isDark ? 'text-amber-400' : 'text-[#0071e3]'
-        }`}>
+        <p className="text-base md:text-lg font-black text-white drop-shadow-xs">
           Tradição, Qualidade e Inovação para Acompanhar os Seus Pés
         </p>
 
-        <p className={`text-sm md:text-base leading-relaxed font-normal ${
-          isDark ? 'text-[#86868b]' : 'text-[#515154]'
-        }`}>
+        <p className="text-xs sm:text-sm leading-relaxed font-bold text-[#DDF1FF] drop-shadow-xs">
           Localizada no coração de Caxias, Maranhão, a Evidência Calçados combina estilo, conforto e facilidade para que você expresse sua melhor versão a cada passo.
         </p>
       </div>

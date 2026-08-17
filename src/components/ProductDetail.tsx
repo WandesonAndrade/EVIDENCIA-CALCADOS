@@ -521,46 +521,46 @@ export const ProductDetail: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-6 items-start">
         
         {/* ESQUERDA: CARD PRINCIPAL DO PRODUTO (COMPACTO COM ALTURA LIMITADA) */}
-        <div className={`lg:col-span-7 p-4 sm:p-5 rounded-2xl border space-y-4 shadow-xs ${
-          isDark ? 'bg-[#161617] border-white/10' : 'bg-white border-black/5'
+        <div className={`lg:col-span-7 p-4 sm:p-6 rounded-3xl border space-y-4 shadow-md backdrop-blur-md ${
+          isDark ? 'bg-slate-900/90 border-slate-800 text-white' : 'bg-white border-blue-900/10 text-[#003B73]'
         }`}>
           {/* Cabeçalho do Produto: Categoria + Avaliação + Título */}
-          <div className="space-y-1">
+          <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wide uppercase border ${
-                isDark ? 'bg-white/10 text-white border-white/20' : 'bg-slate-100 text-slate-700 border-slate-200'
+              <span className={`px-3 py-1 rounded-full text-[10px] font-extrabold tracking-wider uppercase border ${
+                isDark ? 'bg-blue-900/30 text-blue-200 border-blue-800' : 'bg-[#DDF1FF] text-[#003B73] border-[#006EDB]/20'
               }`}>
                 {p.category}
               </span>
 
               {/* Avaliação Estilo Magalu (⭐ 5.0 (novo)) */}
-              <div className="flex items-center space-x-1 text-xs font-medium text-amber-500">
+              <div className="flex items-center space-x-1 text-xs font-bold text-amber-500 bg-amber-50 dark:bg-amber-950/40 px-2.5 py-0.5 rounded-full border border-amber-200 dark:border-amber-900/30">
                 <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
-                <span className="font-bold text-slate-800 dark:text-slate-200">5.0</span>
-                <span className="text-[#86868b] text-[11px]">(novo)</span>
+                <span className="font-extrabold text-slate-800 dark:text-slate-200">5.0</span>
+                <span className="text-[#52708F] text-[11px]">(novo)</span>
               </div>
             </div>
 
-            <h1 className={`text-lg sm:text-xl lg:text-2xl font-extrabold tracking-tight leading-snug ${
-              isDark ? 'text-white' : 'text-[#1d1d1f]'
+            <h1 className={`text-xl sm:text-2xl lg:text-3xl font-black tracking-tight leading-snug ${
+              isDark ? 'text-white' : 'text-[#003B73]'
             }`}>
               {p.name}
             </h1>
 
             {/* Código de Referência e Vendedor */}
-            <div className="flex flex-wrap items-center gap-2 text-[11px] text-[#86868b]">
+            <div className="flex flex-wrap items-center gap-2 text-[11px] text-[#52708F]">
               {(p.referencia || p.referenceCode) && (
-                <span>Ref: <strong className="font-mono text-slate-700 dark:text-slate-300">{p.referencia || p.referenceCode}</strong></span>
+                <span>Ref: <strong className="font-mono text-[#003B73] dark:text-slate-200 font-black">{p.referencia || p.referenceCode}</strong></span>
               )}
               <span>•</span>
-              <span>Vendido por <strong className="text-[#0071e3]">Evidência Calçados</strong></span>
+              <span>Vendido e entregue por <strong className="text-[#006EDB] font-extrabold">Evidência Calçados</strong></span>
             </div>
           </div>
 
           {/* GALERIA DE FOTOS COM ALTURA FIXA E PROPORCIONAL (ENCAIXA NA TELA SEM SCROLL) */}
           <div className="relative space-y-2">
-            <div className={`relative h-[260px] sm:h-[320px] lg:h-[340px] rounded-xl overflow-hidden border p-4 flex items-center justify-center transition-all ${
-              isDark ? 'bg-[#1d1d1f] border-white/10' : 'bg-[#f8f8fa] border-black/5'
+            <div className={`relative h-[260px] sm:h-[320px] lg:h-[340px] rounded-2xl overflow-hidden border p-4 flex items-center justify-center transition-all ${
+              isDark ? 'bg-slate-950 border-slate-800' : 'bg-[#EEF8FF] border-blue-900/10'
             }`}>
               <motion.img
                 key={activeImageIndex}
@@ -574,7 +574,7 @@ export const ProductDetail: React.FC = () => {
 
               {/* Desconto Badge */}
               {discountPercent > 0 && (
-                <span className="absolute top-2.5 left-2.5 bg-rose-600 text-white font-extrabold text-[11px] px-2.5 py-0.5 rounded-full shadow-xs">
+                <span className="absolute top-3 left-3 bg-rose-600 text-white font-extrabold text-[11px] px-3 py-1 rounded-full shadow-md">
                   -{discountPercent}% OFF
                 </span>
               )}
@@ -582,10 +582,10 @@ export const ProductDetail: React.FC = () => {
               {/* Botão Flutuante FAVORITO Topo-Direito */}
               <button
                 onClick={() => toggleFavorite(p.id)}
-                className={`absolute top-2.5 right-2.5 p-2.5 rounded-full backdrop-blur-md transition-all cursor-pointer shadow-xs ${
+                className={`absolute top-3 right-3 p-2.5 rounded-full backdrop-blur-md transition-all cursor-pointer shadow-md ${
                   isFavorite
                     ? 'bg-rose-500 text-white scale-105'
-                    : isDark ? 'bg-black/50 text-white/80 hover:text-rose-400' : 'bg-white/90 text-sky-600 hover:bg-white shadow-sm'
+                    : isDark ? 'bg-black/50 text-white/80 hover:text-rose-400' : 'bg-white text-[#003B73] hover:bg-[#DDF1FF]'
                 }`}
                 title={isFavorite ? 'Remover dos Favoritos' : 'Salvar nos Favoritos'}
               >
@@ -595,23 +595,23 @@ export const ProductDetail: React.FC = () => {
               {/* Botão Flutuante COMPARTILHAR Canto-Inferior-Direito */}
               <button
                 onClick={handleShareProduct}
-                className={`absolute bottom-2.5 right-2.5 p-2.5 rounded-full backdrop-blur-md transition-all cursor-pointer shadow-xs ${
-                  isDark ? 'bg-black/50 text-white/80 hover:text-white' : 'bg-white/90 text-sky-600 hover:bg-white shadow-sm'
+                className={`absolute bottom-3 right-3 p-2.5 rounded-full backdrop-blur-md transition-all cursor-pointer shadow-md ${
+                  isDark ? 'bg-black/50 text-white/80 hover:text-white' : 'bg-white text-[#003B73] hover:bg-[#DDF1FF]'
                 }`}
                 title="Compartilhar"
               >
-                {copied ? <Check className="h-4 w-4 text-emerald-500" /> : <Share2 className="h-4 w-4" />}
+                {copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Share2 className="h-4 w-4" />}
               </button>
 
               {/* Paginação em Pontos (Dots) */}
               {productImages.length > 1 && (
-                <div className="absolute bottom-2.5 left-1/2 -translate-x-1/2 flex items-center space-x-1 bg-black/20 dark:bg-black/40 backdrop-blur-md px-2.5 py-1 rounded-full">
+                <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center space-x-1.5 bg-black/20 dark:bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full">
                   {productImages.map((_, idx) => (
                     <button
                       key={idx}
                       onClick={() => setActiveImageIndex(idx)}
                       className={`h-1.5 rounded-full transition-all cursor-pointer ${
-                        activeImageIndex === idx ? 'w-4 bg-[#0071e3]' : 'w-1.5 bg-white/60 hover:bg-white'
+                        activeImageIndex === idx ? 'w-4 bg-[#006EDB]' : 'w-1.5 bg-white/60 hover:bg-white'
                       }`}
                     />
                   ))}
@@ -621,15 +621,15 @@ export const ProductDetail: React.FC = () => {
 
             {/* Carrossel de Miniaturas de Fotos (Compacto) */}
             {productImages.length > 1 && (
-              <div className="flex items-center space-x-2 overflow-x-auto pb-1">
+              <div className="flex items-center space-x-2.5 overflow-x-auto pb-1">
                 {productImages.map((imgUrl, idx) => (
                   <button
                     key={idx}
                     onClick={() => setActiveImageIndex(idx)}
-                    className={`w-12 h-12 sm:w-14 sm:h-14 rounded-lg overflow-hidden border-2 transition-all cursor-pointer shrink-0 p-0.5 bg-white dark:bg-[#1d1d1f] ${
+                    className={`w-14 h-14 sm:w-16 sm:h-16 rounded-xl overflow-hidden border-2 transition-all cursor-pointer shrink-0 p-1 bg-white dark:bg-slate-900 ${
                       activeImageIndex === idx
-                        ? 'border-[#0071e3] scale-105 shadow-xs'
-                        : isDark ? 'border-white/10 opacity-60 hover:opacity-100' : 'border-slate-200 opacity-70 hover:opacity-100'
+                        ? 'border-[#006EDB] scale-105 shadow-md ring-2 ring-[#006EDB]/20'
+                        : isDark ? 'border-slate-800 opacity-60 hover:opacity-100' : 'border-blue-900/10 opacity-70 hover:opacity-100'
                     }`}
                   >
                     <img src={imgUrl} alt={`${p.name} thumb ${idx}`} className="w-full h-full object-contain" />
@@ -641,14 +641,14 @@ export const ProductDetail: React.FC = () => {
 
           {/* SELETOR DE CORES COM MOSTRUÁRIO DE FOTOS (SWATCHES COMPACTOS) */}
           {colunaOptions.length > 0 && (
-            <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-white/10">
+            <div className="space-y-2 pt-3 border-t border-blue-900/10 dark:border-slate-800">
               <div className="flex items-center justify-between text-xs">
-                <span className={`font-bold ${isDark ? 'text-white' : 'text-[#1d1d1f]'}`}>
-                  Cor: <span className="font-semibold text-[#0071e3]">{selectedColunaOption || 'Selecione a cor'}</span>
+                <span className={`font-extrabold ${isDark ? 'text-white' : 'text-[#003B73]'}`}>
+                  Cor selecionada: <span className="font-black text-[#006EDB]">{selectedColunaOption || 'Selecione a cor'}</span>
                 </span>
               </div>
 
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2.5">
                 {colunaOptions.map((colorOpt) => {
                   const isSelected = selectedColunaOption === colorOpt;
                   const colorPhotosList = p?.colorImages?.[colorOpt] || p?.colorImages?.[colorOpt.toUpperCase()] || [];
@@ -663,27 +663,27 @@ export const ProductDetail: React.FC = () => {
                       whileHover={{ scale: 1.04 }}
                       whileTap={{ scale: 0.96 }}
                       onClick={() => handleSelectColorOption(colorOpt)}
-                      className={`relative group rounded-lg border-2 p-0.5 transition-all cursor-pointer flex flex-col items-center justify-center bg-white dark:bg-[#1d1d1f] ${
+                      className={`relative group rounded-xl border-2 p-1 transition-all cursor-pointer flex flex-col items-center justify-center bg-white dark:bg-slate-900 ${
                         isSelected
-                          ? 'border-[#0071e3] ring-2 ring-[#0071e3]/20 shadow-xs'
-                          : isDark ? 'border-white/10 hover:border-white/30' : 'border-slate-200 hover:border-slate-400'
+                          ? 'border-[#006EDB] ring-4 ring-[#DDF1FF] shadow-sm'
+                          : isDark ? 'border-slate-800 hover:border-slate-700' : 'border-blue-900/10 hover:border-blue-900/30'
                       }`}
                       title={`Selecionar cor ${colorOpt}`}
                     >
                       {photoCount > 1 && (
-                        <span className="absolute -top-1 -right-1 bg-[#0071e3] text-white text-[8px] font-black px-1 py-0.2 rounded-full shadow-xs z-10">
+                        <span className="absolute -top-1 -right-1 bg-[#006EDB] text-white text-[8px] font-black px-1.5 py-0.2 rounded-full shadow-xs z-10">
                           {photoCount}
                         </span>
                       )}
-                      <div className="w-10 h-12 sm:w-12 sm:h-14 rounded-md overflow-hidden flex items-center justify-center bg-slate-50 dark:bg-slate-800">
+                      <div className="w-11 h-13 sm:w-13 sm:h-15 rounded-lg overflow-hidden flex items-center justify-center bg-[#EEF8FF] dark:bg-slate-800">
                         {colorPhoto ? (
-                          <img src={colorPhoto} alt={colorOpt} className="w-full h-full object-contain" />
+                          <img src={colorPhoto} alt={colorOpt} className="w-full h-full object-contain p-0.5" />
                         ) : (
-                          <span className="w-3.5 h-3.5 rounded-full bg-[#0071e3]" />
+                          <span className="w-4 h-4 rounded-full bg-[#006EDB]" />
                         )}
                       </div>
-                      <span className={`text-[9px] font-bold mt-0.5 px-0.5 truncate max-w-[54px] ${
-                        isSelected ? 'text-[#0071e3]' : isDark ? 'text-slate-300' : 'text-slate-700'
+                      <span className={`text-[10px] font-extrabold mt-1 px-0.5 truncate max-w-[58px] ${
+                        isSelected ? 'text-[#006EDB]' : isDark ? 'text-slate-300' : 'text-[#003B73]'
                       }`}>
                         {colorOpt}
                       </span>
@@ -695,53 +695,53 @@ export const ProductDetail: React.FC = () => {
           )}
 
           {/* Descrição Detalhada & Especificações */}
-          <div className="space-y-1.5 pt-3 border-t border-slate-100 dark:border-white/10">
-            <h4 className={`text-[11px] font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-              Detalhes & Especificações
+          <div className="space-y-2 pt-3 border-t border-blue-900/10 dark:border-slate-800">
+            <h4 className="text-[11px] font-extrabold uppercase tracking-wider text-[#006EDB]">
+              Detalhes & Especificações do Modelo
             </h4>
-            <div className={`text-xs leading-relaxed whitespace-pre-line ${isDark ? 'text-slate-300' : 'text-[#515154]'}`}>
+            <div className={`text-xs leading-relaxed whitespace-pre-line font-medium ${isDark ? 'text-slate-300' : 'text-[#52708F]'}`}>
               {p.description || p.descricao || p.descricao_completa}
             </div>
           </div>
         </div>
 
         {/* DIREITA: PAINEL FIXO COMPACTO DE PREÇO, REGIONALIZAÇÃO E COMPRA (VISIBLE ABOVE THE FOLD) */}
-        <div className="lg:col-span-5 space-y-3.5 lg:sticky lg:top-20">
+        <div className="lg:col-span-5 space-y-4 lg:sticky lg:top-20">
 
           {/* CARD UNIFICADO DE COMPRA & PREÇO (ENCAIXA PERFEITAMENTE NA TELA) */}
-          <div className={`p-4 sm:p-5 rounded-2xl border space-y-4 shadow-xs ${
-            isDark ? 'bg-[#161617] border-white/10' : 'bg-white border-black/5'
+          <div className={`p-5 sm:p-6 rounded-3xl border space-y-5 shadow-md backdrop-blur-md ${
+            isDark ? 'bg-slate-900/90 border-slate-800 text-white' : 'bg-white border-blue-900/10 text-[#003B73]'
           }`}>
             {/* PAINEL DE PREÇO */}
-            <div className="space-y-2">
+            <div className="space-y-2.5">
               <div className="flex items-baseline space-x-2 flex-wrap">
-                <span className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-emerald-600 dark:text-emerald-400">
+                <span className="text-3xl sm:text-4xl lg:text-4xl font-black tracking-tight text-[#003B73] dark:text-white">
                   R$ {precoVistaCalculado.toFixed(2).replace('.', ',')}
                 </span>
                 {precoVistaCalculado < p.price ? (
-                  <span className="text-[11px] font-extrabold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/80 px-2 py-0.5 rounded-md">
-                    À Vista (Pix / Dinheiro)
+                  <span className="text-[11px] font-extrabold text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/80 px-2.5 py-1 rounded-full border border-emerald-200">
+                    À Vista (Pix / 10% OFF)
                   </span>
                 ) : (
-                  <span className="text-[11px] font-extrabold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md">
-                    Preço de Venda
+                  <span className="text-[11px] font-extrabold text-[#003B73] dark:text-slate-300 bg-[#DDF1FF] dark:bg-slate-800 px-2.5 py-1 rounded-full border border-[#006EDB]/20">
+                    Preço de Tabela
                   </span>
                 )}
               </div>
 
               {p.originalPrice && p.originalPrice > p.price && (
-                <div className="text-xs line-through text-[#86868b]">
+                <div className="text-xs line-through text-[#52708F]">
                   De: R$ {p.originalPrice.toFixed(2).replace('.', ',')}
                 </div>
               )}
 
               {/* Tabela Resumo de Pagamento */}
-              <div className="text-xs space-y-1 text-[#86868b] border-t pt-2 border-slate-100 dark:border-white/5">
+              <div className="text-xs space-y-1.5 text-[#52708F] dark:text-slate-400 border-t pt-2.5 border-blue-900/10 dark:border-slate-800">
                 <div>
-                  • <strong>Cartão de Crédito:</strong> <span className="font-bold text-slate-800 dark:text-slate-200">R$ {precoCartaoCalculado.toFixed(2).replace('.', ',')}</span> (em até 10x sem juros)
+                  • <strong>Cartão de Crédito:</strong> <span className="font-bold text-[#003B73] dark:text-slate-200">R$ {precoCartaoCalculado.toFixed(2).replace('.', ',')}</span> (em até 10x sem juros)
                 </div>
                 <div>
-                  • <strong>Crediário da Loja:</strong> <span className="font-bold text-slate-800 dark:text-slate-200">R$ {precoCrediarioCalculado.toFixed(2).replace('.', ',')}</span> (em até 6x sem juros)
+                  • <strong>Crediário da Loja:</strong> <span className="font-bold text-[#003B73] dark:text-slate-200">R$ {precoCrediarioCalculado.toFixed(2).replace('.', ',')}</span> (em até 6x sem juros no Carnê)
                 </div>
               </div>
             </div>
@@ -749,76 +749,64 @@ export const ProductDetail: React.FC = () => {
             {/* CAIXA DE REGIONALIZAÇÃO E ENTREGA COM DESIGN ELEGANTE & BADGE DESTACADO */}
             <div 
               onClick={() => setIsDeliveryModalOpen(true)}
-              className={`p-3.5 rounded-2xl border text-xs space-y-2 transition-all cursor-pointer group shadow-xs ${
+              className={`p-4 rounded-2xl border text-xs space-y-2 transition-all cursor-pointer group shadow-2xs ${
                 selectedDeliveryType === 'Entrega para Outras Cidades'
-                  ? isDark 
-                    ? 'bg-emerald-950/20 border-emerald-500/30 hover:border-emerald-500/50' 
-                    : 'bg-emerald-50/60 border-emerald-200/80 hover:border-emerald-300'
+                  ? 'bg-emerald-50/70 border-emerald-300 dark:bg-emerald-950/20 dark:border-emerald-500/30'
                   : selectedDeliveryType === 'Retirada na Loja'
-                  ? isDark 
-                    ? 'bg-sky-950/20 border-sky-500/30 hover:border-sky-500/50' 
-                    : 'bg-sky-50/60 border-sky-200/80 hover:border-sky-300'
-                  : isDark 
-                    ? 'bg-[#1d1d1f] border-white/10 hover:border-white/20' 
-                    : 'bg-slate-50 border-slate-200/80 hover:border-slate-300'
+                  ? 'bg-sky-50/70 border-sky-300 dark:bg-sky-950/20 dark:border-sky-500/30'
+                  : 'bg-[#EEF8FF] border-blue-900/10 dark:bg-slate-950 dark:border-slate-800'
               }`}
             >
               <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2 font-extrabold text-slate-800 dark:text-slate-100">
-                  <MapPin className={`h-4 w-4 shrink-0 ${
-                    selectedDeliveryType === 'Entrega para Outras Cidades' 
-                      ? 'text-emerald-500' 
-                      : selectedDeliveryType === 'Retirada na Loja'
-                      ? 'text-sky-500'
-                      : 'text-[#0071e3]'
-                  }`} />
+                <div className="flex items-center space-x-2 font-extrabold text-[#003B73] dark:text-slate-100">
+                  <MapPin className="h-4 w-4 shrink-0 text-[#006EDB]" />
                   <span className="text-xs">
                     {selectedDeliveryType === 'Retirada na Loja'
-                      ? 'Retirada na Loja (Caxias - MA)'
+                      ? 'Retirada na Loja Física (Caxias - MA)'
                       : selectedDeliveryType === 'Entrega para Outras Cidades'
                       ? (shippingInfo?.city 
                           ? `Envio para ${shippingInfo.city}${shippingInfo.uf ? ` / ${shippingInfo.uf}` : ''}` 
                           : 'Outras Cidades (Envio Nacional)')
-                      : 'Região de Caxias / MA'}
+                      : 'Entrega na Zona Urbana de Caxias - MA'}
                   </span>
                 </div>
                 <button 
                   type="button"
                   onClick={(e) => { e.stopPropagation(); setIsDeliveryModalOpen(true); }}
-                  className="text-[11px] font-black text-[#0071e3] group-hover:underline cursor-pointer"
+                  className="text-[11px] font-black text-[#006EDB] hover:underline cursor-pointer"
                 >
                   Alterar
                 </button>
               </div>
 
-              <div className="flex items-center justify-between text-[11px] font-semibold pt-1 border-t border-slate-200/60 dark:border-white/10">
+              <div className="flex items-center justify-between text-[11px] font-semibold pt-1 border-t border-blue-900/10 dark:border-slate-800">
                 {selectedDeliveryType === 'Retirada na Loja' ? (
                   <>
-                    <span className="text-slate-600 dark:text-slate-300 flex items-center gap-1.5 truncate">
+                    <span className="text-[#52708F] dark:text-slate-300 flex items-center gap-1.5 truncate">
                       <MapPin className="h-3.5 w-3.5 text-sky-500 shrink-0" />
                       Retire no Centro (Rua Afonso Pena, 295)
                     </span>
-                    <span className="px-2 py-0.5 rounded-md font-bold text-sky-700 bg-sky-100 dark:bg-sky-950 dark:text-sky-300 shrink-0 ml-2">
+                    <span className="px-2.5 py-0.5 rounded-full font-extrabold text-sky-800 bg-sky-100 dark:bg-sky-950 dark:text-sky-300 shrink-0 ml-2">
                       Frete GRÁTIS
                     </span>
                   </>
                 ) : selectedDeliveryType === 'Entrega para Outras Cidades' ? (
                   <>
-                    <span className="text-slate-600 dark:text-slate-300 flex items-center gap-1.5 truncate">
+                    <span className="text-[#52708F] dark:text-slate-300 flex items-center gap-1.5 truncate">
                       <Package className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
                       {shippingInfo?.city ? `Envio para ${shippingInfo.city}` : 'Envio para todo o Brasil'}
                     </span>
-                    <span className="px-2 py-0.5 rounded-md font-bold text-emerald-700 bg-emerald-100 dark:bg-emerald-950 dark:text-emerald-300 shrink-0 ml-2">
+                    <span className="px-2.5 py-0.5 rounded-full font-extrabold text-emerald-800 bg-emerald-100 dark:bg-emerald-950 dark:text-emerald-300 shrink-0 ml-2">
                       Frete a Combinar
                     </span>
                   </>
                 ) : (
                   <>
-                    <span className="text-slate-600 dark:text-slate-300 flex items-center gap-1.5 truncate">
-                      <Truck className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                    <span className="text-[#52708F] dark:text-slate-300 flex items-center gap-1.5 truncate">
+                      <Truck className="h-3.5 w-3.5 text-[#006EDB] shrink-0" />
                       Receba em Caxias/MA
                     </span>
-                    <span className="px-2 py-0.5 rounded-md font-bold text-emerald-700 bg-emerald-100 dark:bg-emerald-950 dark:text-emerald-300 shrink-0 ml-2">
+                    <span className="px-2.5 py-0.5 rounded-full font-extrabold text-emerald-800 bg-emerald-100 dark:bg-emerald-950 dark:text-emerald-300 shrink-0 ml-2">
                       Frete GRÁTIS
                     </span>
                   </>
@@ -827,19 +815,19 @@ export const ProductDetail: React.FC = () => {
             </div>
 
             {/* SELETOR DE TAMANHOS */}
-            <div className="space-y-2 pt-1 border-t border-slate-100 dark:border-white/10">
+            <div className="space-y-2.5 pt-1 border-t border-blue-900/10 dark:border-slate-800">
               <div className="flex justify-between items-center text-xs">
-                <label className={`font-bold ${isDark ? 'text-white' : 'text-[#1d1d1f]'}`}>
-                  Selecione o Tamanho:
+                <label className={`font-extrabold ${isDark ? 'text-white' : 'text-[#003B73]'}`}>
+                  Selecione a Numeração / Tamanho:
                 </label>
                 {selectedLinhaOption && (
-                  <span className="text-xs text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
+                  <span className="text-xs text-emerald-700 dark:text-emerald-400 font-extrabold flex items-center gap-1">
                     <CheckCircle2 className="h-3.5 w-3.5" /> Tamanho {selectedLinhaOption}
                   </span>
                 )}
               </div>
 
-              <div className="grid grid-cols-4 sm:grid-cols-5 gap-1.5">
+              <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
                 {linhaOptions.map((sizeOpt) => {
                   const isSelected = selectedLinhaOption === sizeOpt;
 
@@ -849,12 +837,12 @@ export const ProductDetail: React.FC = () => {
                       whileHover={{ scale: 1.03 }}
                       whileTap={{ scale: 0.97 }}
                       onClick={() => setSelectedLinhaOption(sizeOpt)}
-                      className={`h-9 rounded-lg border text-xs font-bold transition-all cursor-pointer flex items-center justify-center ${
+                      className={`h-10 rounded-xl border text-xs font-black transition-all cursor-pointer flex items-center justify-center ${
                         isSelected
-                          ? 'bg-[#0071e3] border-[#0071e3] text-white shadow-xs'
+                          ? 'bg-[#003B73] border-[#003B73] text-white shadow-md'
                           : isDark
-                          ? 'border-white/10 text-slate-300 bg-[#1d1d1f] hover:border-white/20'
-                          : 'border-slate-200 text-[#1d1d1f] bg-slate-50 hover:border-slate-300'
+                          ? 'border-slate-800 text-slate-300 bg-slate-950 hover:border-slate-700'
+                          : 'border-blue-900/15 text-[#003B73] bg-white hover:bg-[#EEF8FF]'
                       }`}
                     >
                       <span>{sizeOpt}</span>
@@ -871,10 +859,10 @@ export const ProductDetail: React.FC = () => {
                   initial={{ opacity: 0, y: -4 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0 }}
-                  className={`p-2.5 rounded-xl text-xs font-bold text-center ${
+                  className={`p-3 rounded-2xl text-xs font-extrabold text-center ${
                     message.includes('sucesso') || message.includes('adicionado')
-                      ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
-                      : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20'
+                      ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                      : 'bg-rose-50 text-rose-700 border border-rose-200'
                   }`}
                 >
                   {message}
@@ -882,36 +870,30 @@ export const ProductDetail: React.FC = () => {
               )}
             </AnimatePresence>
 
-            {/* BOTÕES DE AÇÃO DESTACADOS E COMPACTOS (VISÍVEIS NA PRIMEIRA TELA DENTRO DO FOLD) */}
-            <div className="space-y-2 pt-1">
+            {/* BOTÕES DE AÇÃO DESTACADOS E COMPACTOS (ESTILO PÍLULA APPLE) */}
+            <div className="space-y-2.5 pt-2">
               <button
                 onClick={handleAddToCart}
-                className="w-full flex items-center justify-center space-x-2 py-3.5 px-5 bg-[#00a650] hover:bg-[#009146] active:scale-98 text-white font-extrabold text-sm rounded-xl shadow-sm transition-all cursor-pointer"
+                className="w-full flex items-center justify-center space-x-2 py-3.5 px-6 bg-[#006EDB] hover:bg-[#00509E] active:scale-98 text-white font-black text-xs uppercase tracking-wider rounded-full shadow-md transition-all cursor-pointer"
               >
                 <ShoppingBag className="h-4 w-4 stroke-[2.5]" />
-                <span>Adicionar à sacola</span>
+                <span>Adicionar à Sacola</span>
               </button>
 
               <button
                 onClick={handleWhatsAppInstantBuy}
-                className={`w-full flex items-center justify-center space-x-2 py-2.5 px-5 rounded-xl border-2 font-bold text-xs transition-all cursor-pointer ${
-                  isDark 
-                    ? 'border-emerald-500 text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20' 
-                    : 'border-[#00a650] text-[#00a650] bg-emerald-50 hover:bg-emerald-100'
-                }`}
+                className="w-full flex items-center justify-center space-x-2 py-3.5 px-6 bg-[#003B73] hover:bg-[#00509E] active:scale-98 text-white font-black text-xs uppercase tracking-wider rounded-full shadow-md transition-all cursor-pointer"
               >
-                <span>Comprar agora</span>
-                <ArrowRight className="w-3.5 h-3.5 stroke-[2.5]" />
+                <span>Comprar Agora no WhatsApp</span>
+                <ArrowRight className="w-4 h-4 stroke-[2.5]" />
               </button>
 
               {p.crediarioProprio && (
                 <button
                   onClick={() => setCurrentView('meu-crediario')}
-                  className={`w-full py-1.5 px-3 text-center text-[11px] font-bold transition-colors cursor-pointer ${
-                    isDark ? 'text-amber-400 hover:underline' : 'text-amber-700 hover:underline'
-                  }`}
+                  className="w-full py-2 px-3 text-center text-[11px] font-extrabold text-[#006EDB] hover:underline cursor-pointer block"
                 >
-                  Simular aprovação de Crediário Próprio (Carnê) →
+                  Simular Crediário Próprio em até 6x no Carnê →
                 </button>
               )}
             </div>

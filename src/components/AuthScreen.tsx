@@ -271,10 +271,10 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
           </div>
 
           <div className="space-y-1">
-            <h2 className={`text-2xl sm:text-3xl font-black tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
-              {authTab === 'login' ? 'Acesse sua Conta' : 'Criar Nova Conta'}
+            <h2 className={`text-2xl sm:text-3xl font-black tracking-tight ${isDark ? 'text-white' : 'text-[#003B73]'}`}>
+              {authTab === 'login' ? 'Acesse sua Conta Evidência' : 'Criar Nova Conta Evidência'}
             </h2>
-            <p className={`text-xs sm:text-sm max-w-xs mx-auto leading-relaxed font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+            <p className={`text-xs sm:text-sm max-w-xs mx-auto leading-relaxed font-medium ${isDark ? 'text-slate-400' : 'text-[#52708F]'}`}>
               {authTab === 'login' 
                 ? 'Digite seu CPF e senha para acompanhar seus pedidos e acessar seu Crediário.'
                 : 'Preencha seus dados com CPF e crie uma senha para acessar a loja.'}

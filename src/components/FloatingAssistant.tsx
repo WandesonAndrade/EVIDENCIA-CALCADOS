@@ -1,69 +1,89 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useApp } from '../context/AppContext';
+import { MessageSquare, X } from 'lucide-react';
+
+export const OFFICIAL_WHATSAPP_NUMBER = "5599984684867";
 
 export const FloatingAssistant: React.FC = () => {
   const { theme } = useApp();
   const isDark = theme === 'dark';
-  const [isHovered, setIsHovered] = useState(false);
+  const [isDismissed, setIsDismissed] = useState(false);
 
   const handleOpenWhatsApp = () => {
-    const phoneNumber = "5599981423405";
-    const text = encodeURIComponent("Olá! Gostaria de tirar dúvidas e receber atendimento personalizado para compras na Evidência Calçados Caxias - MA.");
-    window.open(`https://wa.me/${phoneNumber}?text=${text}`, '_blank');
+    const text = encodeURIComponent("Olá! Gostaria de tirar dúvidas e receber atendimento personalizado para compras na Evidência Calçados.");
+    window.open(`https://wa.me/${OFFICIAL_WHATSAPP_NUMBER}?text=${text}`, '_blank');
   };
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 flex items-center space-x-3 select-none">
-      {/* Balão de Fala Moderno Interativo */}
+    <div className="fixed bottom-5 right-5 sm:bottom-6 sm:right-6 z-50 flex items-center space-x-3 select-none">
+      {/* Balão de Atendimento Evidência Style Apple */}
       <AnimatePresence>
-        {isHovered && (
+        {!isDismissed && (
           <motion.div
-            initial={{ opacity: 0, x: 15, scale: 0.9 }}
-            animate={{ opacity: 1, x: 0, scale: 1 }}
-            exit={{ opacity: 0, x: 15, scale: 0.9 }}
-            transition={{ duration: 0.2 }}
-            className={`hidden sm:flex flex-col p-3 px-4 rounded-2xl border shadow-2xl backdrop-blur-xl max-w-xs ${
+            initial={{ opacity: 0, scale: 0.9, x: 20 }}
+            animate={{ opacity: 1, scale: 1, x: 0 }}
+            exit={{ opacity: 0, scale: 0.9, x: 20 }}
+            transition={{ duration: 0.25 }}
+            onClick={handleOpenWhatsApp}
+            className={`hidden sm:flex items-center space-x-3 p-3.5 pl-4 pr-5 rounded-3xl border shadow-2xl backdrop-blur-xl cursor-pointer transition-all hover:scale-[1.02] group ${
               isDark 
-                ? 'bg-slate-900/95 border-amber-400/40 text-white shadow-black/70' 
-                : 'bg-white/95 border-slate-300 text-slate-800 shadow-xl'
+                ? 'bg-slate-900/95 border-blue-800 text-white shadow-black/80' 
+                : 'bg-white/95 border-blue-900/15 text-[#003B73] shadow-2xl'
             }`}
           >
-            <div className="flex items-center space-x-1.5 text-[10px] font-black text-amber-400 uppercase tracking-widest mb-0.5">
-              <span>ATENDIMENTO EVIDÊNCIA</span>
+            <div className="relative shrink-0">
+              <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping absolute inset-0 opacity-75" />
+              <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 border border-white dark:border-slate-900" />
             </div>
-            <p className="text-xs font-bold leading-snug">
-              Olá, como posso ajudar? 👋
-            </p>
+
+            <div className="text-left leading-tight">
+              <div className="flex items-center justify-between space-x-2">
+                <span className="text-[10px] font-black uppercase tracking-widest text-[#006EDB] dark:text-blue-400">
+                  ATENDIMENTO EVIDÊNCIA
+                </span>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsDismissed(true);
+                  }}
+                  className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-white rounded-full transition-colors cursor-pointer"
+                  title="Fechar mensagem"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+              <p className="text-xs font-black text-[#003B73] dark:text-white mt-0.5 group-hover:text-[#006EDB] transition-colors">
+                Olá, como posso ajudar? 👋
+              </p>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Botão Flutuante Circular da Atendente Oficial */}
+      {/* Botão Flutuante Circular da Atendente com Borda em Azul e Selo Oficial do WhatsApp */}
       <motion.button
         whileHover={{ scale: 1.08 }}
         whileTap={{ scale: 0.92 }}
         onClick={handleOpenWhatsApp}
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
-        className="relative group cursor-pointer focus:outline-none"
-        title="Atendimento WhatsApp Evidência Calçados"
+        className="relative group cursor-pointer focus:outline-none shrink-0"
+        title="Falar no WhatsApp da Evidência Calçados: (99) 98468-4867"
       >
-        {/* Anel de Iluminação Reluzente */}
-        <div className="absolute -inset-1 bg-gradient-to-r from-emerald-400 via-amber-400 to-amber-500 rounded-full blur-md opacity-80 group-hover:opacity-100 transition-opacity animate-pulse" />
+        {/* Anel de Brilho da Marca */}
+        <div className="absolute -inset-1 bg-gradient-to-r from-[#006EDB] via-[#003B73] to-[#25D366] rounded-full blur-md opacity-80 group-hover:opacity-100 transition-opacity animate-pulse" />
 
         {/* Recipiente Circular do Avatar */}
         <div className={`relative h-14 w-14 sm:h-16 sm:w-16 rounded-full overflow-hidden border-2 flex items-end justify-center shadow-2xl ${
-          isDark ? 'bg-slate-900 border-amber-400' : 'bg-slate-100 border-slate-900'
+          isDark ? 'bg-slate-900 border-[#006EDB]' : 'bg-slate-50 border-[#003B73]'
         }`}>
           <img 
             src="/evidencia-character-cutout.png" 
-            alt="Atendente Oficial Evidência EC" 
+            alt="Atendente Oficial Evidência Calçados" 
             className="h-full w-auto object-cover object-top filter drop-shadow-xs transition-transform duration-300 group-hover:scale-110"
           />
 
-          {/* Selo do Ícone Oficial do WhatsApp no Canto Inferior Direito */}
-          <div className="absolute -bottom-0.5 -right-0.5 bg-[#25D366] text-white p-1.5 rounded-full shadow-lg border-2 border-slate-950 flex items-center justify-center">
+          {/* Selo Verde Oficial do WhatsApp no Canto Inferior */}
+          <div className="absolute -bottom-0.5 -right-0.5 bg-[#25D366] text-white p-1.5 rounded-full shadow-lg border-2 border-white dark:border-slate-900 flex items-center justify-center">
             <svg className="w-3.5 h-3.5 fill-current text-white" viewBox="0 0 24 24">
               <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/>
             </svg>

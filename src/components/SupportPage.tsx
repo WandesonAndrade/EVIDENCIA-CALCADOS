@@ -71,22 +71,16 @@ export const SupportPage: React.FC = () => {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 md:py-16">
       
-      {/* Header section */}
-      <div className="text-center max-w-3xl mx-auto space-y-4 mb-12">
-        <span className={`inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider ${
-          theme === 'dark' ? 'bg-amber-400/10 text-amber-300' : 'bg-primary/10 text-primary'
-        }`}>
-          <HelpCircle className="h-3.5 w-3.5" />
-          <span>Central de Ajuda</span>
+      {/* Header section padronizado com Alto Contraste */}
+      <div className="text-center max-w-3xl mx-auto space-y-3.5 mb-12">
+        <span className="inline-flex items-center space-x-1.5 px-3.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-widest bg-white/20 text-white border border-white/30 backdrop-blur-md shadow-xs">
+          <HelpCircle className="h-3.5 w-3.5 text-white" />
+          <span className="text-white">Central de Ajuda Evidência</span>
         </span>
-        <h1 className={`text-3xl md:text-5xl font-extrabold tracking-tight font-sans ${
-          theme === 'dark' ? 'text-slate-100' : 'text-slate-900'
-        }`}>
+        <h1 className="text-3xl md:text-5xl font-black tracking-tight text-white drop-shadow-sm">
           Como podemos ajudar você?
         </h1>
-        <p className={`text-sm md:text-base leading-relaxed font-light ${
-          theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
-        }`}>
+        <p className="text-xs sm:text-sm leading-relaxed font-bold text-[#DDF1FF] drop-shadow-xs">
           Seja para tirar dúvidas sobre o seu Crediário Próprio, solicitar uma troca, localizar nossa loja ou falar com um consultor pelo WhatsApp, estamos à sua inteira disposição.
         </p>
       </div>

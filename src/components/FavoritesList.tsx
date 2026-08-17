@@ -25,25 +25,23 @@ export const FavoritesList: React.FC = () => {
       {/* Header back navigation */}
       <button
         onClick={() => setCurrentView('home')}
-        className={`flex items-center space-x-2 transition-colors text-xs font-bold mb-6 cursor-pointer ${
-          theme === 'dark' ? 'text-slate-400 hover:text-amber-400' : 'text-slate-500 hover:text-primary'
-        }`}
+        className="flex items-center space-x-2 transition-colors text-xs font-extrabold uppercase tracking-wider mb-6 cursor-pointer text-white hover:text-white/80 drop-shadow-xs"
       >
-        <ArrowLeft className="h-4 w-4" />
-        <span>Voltar para a Vitrine</span>
+        <ArrowLeft className="h-4 w-4 text-white" />
+        <span className="text-white">Voltar para a Vitrine</span>
       </button>
 
       {/* Page Title */}
-      <div className="flex items-center space-x-3 mb-8">
-        <div className={`p-2.5 rounded-xl border ${
-          theme === 'dark' ? 'bg-red-950/20 border-red-550/15 text-red-400' : 'bg-red-50 text-red-500 border-red-100'
-        }`}>
+      <div className="flex items-center space-x-3.5 mb-8 border-b pb-6 border-white/20">
+        <div className="w-12 h-12 rounded-2xl bg-rose-500 text-white flex items-center justify-center shadow-lg border border-white/20">
           <Heart className="h-6 w-6 fill-current" />
         </div>
         <div>
-          <h1 className={`text-2xl font-extrabold tracking-tight ${theme === 'dark' ? 'text-slate-100' : 'text-slate-900'}`}>Meus Favoritos</h1>
-          <p className={`text-xs sm:text-sm font-light mt-0.5 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>
-            Calçados e acessórios salvos na sua lista de desejos.
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white drop-shadow-sm">
+            Meus Favoritos
+          </h1>
+          <p className="text-xs sm:text-sm font-bold mt-0.5 text-[#DDF1FF] drop-shadow-xs">
+            Calçados, bolsas e acessórios salvos na sua lista de desejos
           </p>
         </div>
       </div>

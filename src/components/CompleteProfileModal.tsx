@@ -404,24 +404,24 @@ export const CompleteProfileModal: React.FC<CompleteProfileModalProps> = ({
       {/* Background overlay click */}
       <div className="fixed inset-0" onClick={onClose} />
 
-      {/* Modal Box */}
-      <div className="relative bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-100 animate-in zoom-in-95 duration-200 z-10 my-8">
-        {/* Banner header decor */}
-        <div className="bg-gradient-to-r from-primary to-secondary px-6 py-5 text-white flex items-center justify-between">
+      {/* Modal Box estilo Apple Card */}
+      <div className="relative bg-white dark:bg-slate-900 rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden border border-blue-900/10 dark:border-slate-800 animate-in zoom-in-95 duration-200 z-10 my-8">
+        {/* Banner Header em Azul Institucional #003B73 */}
+        <div className="bg-gradient-to-r from-[#003B73] to-[#00509E] px-6 py-5 text-white flex items-center justify-between shadow-md">
           <div className="space-y-1">
             <div className="flex items-center space-x-2">
-              <ShieldCheck className="h-5 w-5 text-accent-blue" />
-              <h3 className="text-base font-extrabold tracking-tight">
-                Completar Cadastro
+              <ShieldCheck className="h-5 w-5 text-[#DDF1FF]" />
+              <h3 className="text-base font-black tracking-tight">
+                Meu Perfil & Cadastro
               </h3>
             </div>
-            <p className="text-[10px] text-slate-100 font-light tracking-wide uppercase">
-              Evidência Calçados • Ambiente Seguro
+            <p className="text-[10px] text-[#DDF1FF] font-extrabold tracking-widest uppercase">
+              Evidência Calçados • Ambiente Seguro Apple-Grade
             </p>
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-full hover:bg-white/10 text-white transition-colors cursor-pointer"
+            className="p-2 rounded-full hover:bg-white/10 text-white transition-colors cursor-pointer"
             title="Fechar"
           >
             <X className="h-5 w-5" />
@@ -430,15 +430,14 @@ export const CompleteProfileModal: React.FC<CompleteProfileModalProps> = ({
 
         {success ? (
           <div className="p-8 text-center space-y-4">
-            <div className="w-16 h-16 bg-green-50 rounded-full flex items-center justify-center mx-auto border border-green-100 text-green-500">
+            <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto border border-emerald-200 text-emerald-600">
               <ShieldCheck className="h-10 w-10 animate-bounce" />
             </div>
-            <h4 className="text-lg font-bold text-slate-800">
-              Cadastro Atualizado!
+            <h4 className="text-lg font-black text-[#003B73] dark:text-white">
+              Perfil Atualizado com Sucesso!
             </h4>
-            <p className="text-xs text-slate-500 leading-relaxed max-w-xs mx-auto">
-              Seus dados foram salvos com sucesso e sua conta agora está
-              totalmente verificada para compras e crediário.
+            <p className="text-xs text-[#52708F] dark:text-slate-400 leading-relaxed max-w-xs mx-auto font-medium">
+              Seus dados cadastrais foram salvos no sistema e sua conta está pronta para realizar compras e operar o Crediário.
             </p>
           </div>
         ) : (
@@ -446,19 +445,10 @@ export const CompleteProfileModal: React.FC<CompleteProfileModalProps> = ({
             onSubmit={handleSubmit}
             className="p-6 space-y-4 max-h-[80vh] overflow-y-auto"
           >
-            <div className="flex items-start space-x-2.5 p-3 bg-blue-50/55 rounded-xl border border-blue-100/60">
-              <Sparkles className="h-4 w-4 text-primary mt-0.5 shrink-0" />
-              <p className="text-[11px] text-slate-600 leading-normal font-light">
-                Olá,{" "}
-                <span className="font-bold text-primary">
-                  {currentUser.name}
-                </span>
-                ! Atualize os seus dados de cadastro. Defina se deseja solicitar
-                o{" "}
-                <span className="font-bold text-secondary">
-                  Crediário Próprio Evidência
-                </span>
-                :
+            <div className="flex items-start space-x-3 p-3.5 bg-[#EEF8FF] dark:bg-slate-800/80 rounded-2xl border border-blue-900/10">
+              <Sparkles className="h-4 w-4 text-[#006EDB] mt-0.5 shrink-0" />
+              <p className="text-xs text-[#003B73] dark:text-slate-200 leading-normal font-medium">
+                Olá, <span className="font-black text-[#006EDB]">{currentUser.name}</span>! Mantenha seus dados atualizados para facilitar entregas e a aprovação do <span className="font-black text-[#003B73]">Crediário Próprio</span>:
               </p>
             </div>
 
@@ -466,7 +456,7 @@ export const CompleteProfileModal: React.FC<CompleteProfileModalProps> = ({
             <div
               className={`p-4 rounded-2xl border transition-all ${
                 solicitarCrediario
-                  ? "bg-amber-50 border-amber-300 text-amber-900 shadow-sm"
+                  ? "bg-[#DDF1FF]/70 border-[#006EDB]/30 text-[#003B73] shadow-xs"
                   : "bg-slate-50 border-slate-200 text-slate-700"
               }`}
             >
@@ -475,16 +465,16 @@ export const CompleteProfileModal: React.FC<CompleteProfileModalProps> = ({
                   type="checkbox"
                   checked={solicitarCrediario}
                   onChange={(e) => setSolicitarCrediario(e.target.checked)}
-                  className="w-5 h-5 accent-amber-500 rounded cursor-pointer mt-0.5"
+                  className="w-5 h-5 accent-[#006EDB] rounded cursor-pointer mt-0.5"
                 />
                 <div>
-                  <span className="text-xs font-black flex items-center space-x-1.5 text-amber-700">
-                    <CreditCard className="h-4 w-4" />
+                  <span className="text-xs font-black flex items-center space-x-1.5 text-[#003B73]">
+                    <CreditCard className="h-4 w-4 text-[#006EDB]" />
                     <span>
                       Solicitar Crediário da Loja (Carnê Próprio Evidência)
                     </span>
                   </span>
-                  <p className="text-[11px] text-slate-600 leading-snug mt-0.5 font-medium">
+                  <p className="text-[11px] text-[#52708F] leading-snug mt-0.5 font-medium">
                     {solicitarCrediario
                       ? "⚠️ Opção Marcada: Os dados adicionais (RG, Nascimento, Mãe, Endereço Completo e Profissão) tornam-se obrigatórios para análise e concessão de crédito."
                       : "Cadastro Padrão: Apenas Nome, CPF e Telefone (WhatsApp) são obrigatórios."}
@@ -495,10 +485,10 @@ export const CompleteProfileModal: React.FC<CompleteProfileModalProps> = ({
 
             {/* Banner de Cliente Reconhecido no ERP */}
             {matchedErpClient && (
-              <div className="p-3.5 rounded-xl border border-emerald-300 bg-emerald-50 text-emerald-950 flex items-start space-x-3 shadow-xs animate-in fade-in zoom-in-95">
+              <div className="p-3.5 rounded-2xl border border-emerald-300 bg-emerald-50 text-emerald-950 flex items-start space-x-3 shadow-xs animate-in fade-in zoom-in-95">
                 <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
                 <div className="text-xs space-y-0.5">
-                  <p className="font-bold text-emerald-950 flex items-center space-x-1.5">
+                  <p className="font-black text-emerald-950 flex items-center space-x-1.5">
                     <span>🎉 Cliente Reconhecido no ERP Evidência!</span>
                   </p>
                   <p className="text-slate-700 leading-snug font-medium">

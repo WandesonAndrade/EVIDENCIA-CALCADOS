@@ -761,13 +761,18 @@ export const CategoryPage: React.FC = () => {
 
       {/* SEÇÃO PRINCIPAL DE PRODUTOS COM FILTROS LATERAIS (DESKTOP E MOBILE) */}
       <div id="category-all-items-section" ref={gridSectionRef} className="space-y-6 pt-2">
-        {/* Cabeçalho da Seção */}
-        <div className="border-b border-blue-900/15 pb-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight text-[#003B73]">
+        {/* Cabeçalho da Seção Padronizado */}
+        <div className="border-b border-blue-900/10 pb-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <span className={`inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-widest ${
+              isDark ? 'bg-blue-900/30 text-blue-200 border border-blue-800' : 'bg-[#DDF1FF] text-[#003B73] border border-[#006EDB]/20'
+            }`}>
+              {config.badgeText || 'VITRINE DE PRODUTOS'}
+            </span>
+            <h2 className={`text-2xl sm:text-3xl font-black tracking-tight ${isDark ? 'text-white' : 'text-[#003B73]'}`}>
               {config.title}
             </h2>
-            <p className="text-xs font-medium mt-0.5 text-[#52708F]">
+            <p className={`text-xs sm:text-sm font-medium ${isDark ? 'text-slate-400' : 'text-[#52708F]'}`}>
               {config.subtitle}
             </p>
           </div>
