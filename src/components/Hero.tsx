@@ -107,35 +107,31 @@ export const Hero: React.FC = () => {
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
     >
-      {/* Apple-style background canvas */}
+      {/* Fundo Azul Vibrante #006EDB */}
       <div className={`absolute inset-0 transition-colors duration-500 ${
         isDark 
-          ? 'bg-gradient-to-br from-[#0B0F19] via-[#111827] to-[#030712]' 
-          : 'bg-gradient-to-br from-[#fbfbfd] via-[#f5f5f7] to-[#e8e8ed]'
+          ? 'bg-gradient-to-br from-[#020610] via-[#003B73] to-[#00509E]' 
+          : 'bg-gradient-to-br from-[#003B73] via-[#006EDB] to-[#008CFF]'
       }`} />
 
       <div className="relative grid grid-cols-1 lg:grid-cols-12 h-full w-full z-10 min-h-[500px] lg:min-h-[560px]">
         
-        {/* Esquerda: Tipografia Apple - Título limpo, tag elegante e botões pílula */}
+        {/* Esquerda: Tipografia e Botões de Alto Contraste */}
         <div className="lg:col-span-6 flex flex-col justify-between p-8 sm:p-12 lg:p-14 z-20">
           <div className="space-y-6 max-w-xl my-auto">
-            {/* Tag de Coleção Apple Pill */}
+            {/* Tag de Coleção */}
             <motion.div 
               key={`tag-${currentSlide}`}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               className="inline-flex items-center space-x-2"
             >
-              <span className={`text-[11px] font-semibold tracking-wider uppercase px-3.5 py-1 rounded-full border backdrop-blur-md ${
-                isDark 
-                  ? 'bg-white/10 text-white/90 border-white/20' 
-                  : 'bg-black/5 text-neutral-800 border-black/10'
-              }`}>
+              <span className="text-[11px] font-bold tracking-wider uppercase px-3.5 py-1 rounded-full border bg-white/20 text-[#DDF1FF] border-white/30 backdrop-blur-md">
                 {currentBanner.collectionTag}
               </span>
             </motion.div>
 
-            {/* Título Principal estilo Apple */}
+            {/* Título Principal #FFFFFF e Descrição #DDF1FF */}
             <AnimatePresence mode="wait">
               <motion.div
                 key={`content-${currentSlide}`}
@@ -145,23 +141,19 @@ export const Hero: React.FC = () => {
                 transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
                 className="space-y-4"
               >
-                <h1 className={`text-3xl sm:text-5xl lg:text-6xl font-black tracking-tight leading-[1.05] ${
-                  isDark ? 'text-white' : 'text-[#1d1d1f]'
-                }`}>
+                <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black tracking-tight leading-[1.05] text-white drop-shadow-xs">
                   {currentBanner.title}
                 </h1>
 
-                <p className={`text-base sm:text-lg font-normal leading-relaxed ${
-                  isDark ? 'text-slate-300' : 'text-[#86868b]'
-                }`}>
+                <p className="text-base sm:text-lg font-medium leading-relaxed text-[#DDF1FF]">
                   {currentBanner.description}
                 </p>
 
-                {/* Botões de Ação estilo Apple Pill */}
+                {/* Botão Principal: Fundo #FFFFFF com Texto #00509E */}
                 <div className="pt-4 flex flex-wrap items-center gap-3">
                   <button
                     onClick={() => handleAction(currentBanner.categoryFilter)}
-                    className="inline-flex items-center justify-center text-sm font-semibold px-6 py-3 rounded-full bg-[#0071e3] text-white hover:bg-[#0077ed] active:scale-95 transition-all shadow-sm cursor-pointer space-x-2"
+                    className="inline-flex items-center justify-center text-sm font-extrabold px-6 py-3.5 rounded-full bg-white text-[#00509E] hover:bg-[#DDF1FF] hover:text-[#003B73] active:scale-95 transition-all shadow-md cursor-pointer space-x-2"
                   >
                     <span>{currentBanner.buttonText}</span>
                     <ArrowRight className="w-4 h-4 stroke-[2.5]" />
@@ -169,11 +161,7 @@ export const Hero: React.FC = () => {
 
                   <button
                     onClick={() => handleAction('TODOS')}
-                    className={`inline-flex items-center justify-center text-sm font-medium px-6 py-3 rounded-full border transition-all cursor-pointer ${
-                      isDark
-                        ? 'border-white/20 text-white hover:bg-white/10'
-                        : 'border-black/15 text-[#1d1d1f] hover:bg-black/5'
-                    }`}
+                    className="inline-flex items-center justify-center text-sm font-bold px-6 py-3.5 rounded-full border border-white/30 text-white hover:bg-white/10 transition-all cursor-pointer"
                   >
                     Ver Catálogo Completo
                   </button>

@@ -46,16 +46,16 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
       transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
       className={`group relative flex flex-col justify-between h-full rounded-3xl border transition-all duration-300 overflow-hidden cursor-pointer ${
         isDark
-          ? "bg-[#161617] border-white/12 text-white hover:border-white/30 hover:shadow-2xl hover:shadow-black/80"
-          : "bg-white border-black/10 text-[#1d1d1f] shadow-xs hover:border-black/20 hover:shadow-xl hover:shadow-black/10"
+          ? "bg-[#101828]/90 border-white/12 text-white hover:border-blue-400/40 hover:shadow-2xl hover:shadow-blue-950/80 backdrop-blur-md"
+          : "bg-white border border-blue-900/10 text-[#003B73] shadow-md shadow-blue-900/5 hover:border-[#006EDB] hover:shadow-xl hover:shadow-blue-900/15"
       }`}
       onClick={() => onViewDetails(product)}
     >
-      {/* Moldura da Foto do Calçado com Contraste Destacado */}
+      {/* Moldura da Foto do Calçado */}
       <div className={`relative aspect-square w-full overflow-hidden p-6 flex items-center justify-center border-b transition-colors ${
         isDark 
-          ? "bg-[#242426] border-white/5" 
-          : "bg-[#fafafa] border-black/5 group-hover:bg-[#f3f3f5]"
+          ? "bg-[#18233a] border-white/5" 
+          : "bg-[#EEF8FF] border-blue-900/5 group-hover:bg-[#DDF1FF]"
       }`}>
         <img
           src={
@@ -69,20 +69,20 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
           decoding="async"
         />
 
-        {/* Badges Estilo Apple no Canto Superior Esquerdo */}
+        {/* Badges no Canto Superior Esquerdo */}
         <div className="absolute top-3.5 left-3.5 flex flex-col gap-1 z-10">
           {discountPercent > 0 ? (
             <span className="px-2.5 py-0.5 text-[10px] font-bold text-white bg-[#e30000] rounded-full shadow-xs uppercase tracking-wider">
               -{discountPercent}% OFF
             </span>
           ) : (
-            <span className="px-2.5 py-0.5 text-[10px] font-bold text-white bg-[#0071e3] rounded-full shadow-xs uppercase tracking-wider">
+            <span className="px-2.5 py-0.5 text-[10px] font-bold text-white bg-[#006EDB] rounded-full shadow-xs uppercase tracking-wider">
               Novo
             </span>
           )}
         </div>
 
-        {/* Botão Favoritos no Canto Superior Direito */}
+        {/* Botão Favoritos */}
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -91,7 +91,7 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
           className={`absolute top-3.5 right-3.5 p-2 rounded-full backdrop-blur-md transition-all z-20 ${
             isDark
               ? "bg-black/60 text-white/80 hover:text-rose-500 hover:bg-black/80 border border-white/10"
-              : "bg-white/90 text-neutral-700 hover:text-rose-600 hover:bg-white shadow-xs border border-black/5"
+              : "bg-white/90 text-[#00509E] hover:text-rose-600 hover:bg-white shadow-xs border border-black/5"
           }`}
           title={isFavorite ? "Remover dos favoritos" : "Adicionar aos favoritos"}
         >
@@ -99,40 +99,42 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
         </button>
       </div>
 
-      {/* Detalhes do Produto & Tipografia Apple */}
+      {/* Detalhes do Produto */}
       <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
         <div className="space-y-2">
-          {/* Categoria / Marca em Tag discreta */}
+          {/* Categoria / Marca */}
           {(product.category || product.nome_grupo) && (
-            <span className="text-[10px] font-bold uppercase tracking-wider text-[#86868b] block">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-[#52708F] block">
               {product.category || product.nome_grupo}
             </span>
           )}
 
-          <h3 className={`text-sm font-semibold tracking-tight line-clamp-2 min-h-[40px] leading-snug ${
-            isDark ? "text-slate-100" : "text-[#1d1d1f]"
+          {/* Título: Azul Escuro #00509E */}
+          <h3 className={`text-sm font-bold tracking-tight line-clamp-2 min-h-[40px] leading-snug ${
+            isDark ? "text-slate-100" : "text-[#00509E]"
           }`}>
             {product.name}
           </h3>
 
-          {/* Matriz de Preços Estúdio */}
+          {/* Matriz de Preços: Azul Forte #003B73 */}
           <div className="space-y-1 pt-1">
             <div className="flex items-baseline space-x-2">
-              <span className={`text-lg sm:text-xl font-bold tracking-tight ${isDark ? "text-white" : "text-[#1d1d1f]"}`}>
+              <span className={`text-lg sm:text-xl font-black tracking-tight ${isDark ? "text-white" : "text-[#003B73]"}`}>
                 R$ {mainPrice.toFixed(2).replace(".", ",")}
               </span>
               {originalPrice && (
-                <span className="text-xs line-through text-[#86868b]">
+                <span className="text-xs line-through text-[#52708F]">
                   R$ {originalPrice.toFixed(2).replace(".", ",")}
                 </span>
               )}
             </div>
 
-            <p className="text-xs text-[#86868b] font-medium">
-              em até <strong className={isDark ? "text-slate-200" : "text-[#1d1d1f]"}>{parcelas}x de R$ {valorParcela}</strong> sem juros
+            {/* Texto secundário #52708F */}
+            <p className="text-xs text-[#52708F] font-medium">
+              em até <strong className={isDark ? "text-slate-200" : "text-[#003B73]"}>{parcelas}x de R$ {valorParcela}</strong> sem juros
             </p>
 
-            {/* Selo PIX com 10% OFF */}
+            {/* Selo PIX */}
             <div className="pt-1">
               <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md border inline-flex items-center space-x-1 ${
                 isDark 
@@ -145,9 +147,9 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
           </div>
         </div>
 
-        {/* Botão Pílula Apple */}
+        {/* Botão Comprar: Principal #006EDB hover #00509E */}
         <div className="pt-1">
-          <button className="w-full py-2.5 px-4 rounded-full bg-[#0071e3] hover:bg-[#0077ed] active:scale-[0.98] text-white text-xs font-semibold tracking-wide transition-all shadow-xs flex items-center justify-center space-x-1.5 cursor-pointer">
+          <button className="w-full py-2.5 px-4 rounded-full bg-[#006EDB] hover:bg-[#00509E] active:scale-[0.98] text-white text-xs font-extrabold tracking-wide transition-all shadow-xs flex items-center justify-center space-x-1.5 cursor-pointer">
             <span>Comprar</span>
             <ArrowRight className="w-3.5 h-3.5 stroke-[2.5]" />
           </button>
@@ -407,10 +409,10 @@ export const ProductList: React.FC = () => {
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className={`text-xl sm:text-2xl font-extrabold tracking-tight ${isDark ? "text-white" : "text-[#111111]"}`}>
+            <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight text-white drop-shadow-xs">
               Compre por Categoria
             </h2>
-            <p className="text-xs text-neutral-500 font-medium mt-0.5">
+            <p className="text-xs text-blue-100 font-medium mt-0.5">
               Subcategorias disponíveis com produtos em estoque pronto para envio.
             </p>
           </div>
@@ -419,7 +421,7 @@ export const ProductList: React.FC = () => {
             <button
               onClick={() => scrollSubcatCarousel('left')}
               className={`p-2 rounded-full border transition-all cursor-pointer ${
-                isDark ? 'bg-slate-900 border-slate-800 text-white hover:bg-slate-800' : 'bg-white border-neutral-200 text-black hover:bg-neutral-100 shadow-2xs'
+                isDark ? 'bg-slate-900 border-slate-800 text-white hover:bg-slate-800' : 'bg-white/20 border-white/30 text-white hover:bg-white/30 shadow-xs'
               }`}
               title="Anterior"
             >
@@ -428,7 +430,7 @@ export const ProductList: React.FC = () => {
             <button
               onClick={() => scrollSubcatCarousel('right')}
               className={`p-2 rounded-full border transition-all cursor-pointer ${
-                isDark ? 'bg-slate-900 border-slate-800 text-white hover:bg-slate-800' : 'bg-white border-neutral-200 text-black hover:bg-neutral-100 shadow-2xs'
+                isDark ? 'bg-slate-900 border-slate-800 text-white hover:bg-slate-800' : 'bg-white/20 border-white/30 text-white hover:bg-white/30 shadow-xs'
               }`}
               title="Próximo"
             >
@@ -442,18 +444,18 @@ export const ProductList: React.FC = () => {
           ref={subcatCarouselRef}
           className="flex items-center space-x-3.5 sm:space-x-4 overflow-x-auto no-scrollbar scroll-smooth py-2 px-0.5"
         >
-          {/* Subcategorias Dinâmicas em Estoque */}
+          {/* Subcategorias Dinâmicas em Estoque (Item 5 Especificação) */}
           {activeSubcategoriesInStock.map((sub) => (
             <div
               key={sub.id}
               onClick={() => handleSelectSubcategoryItem(sub.name)}
               className={`group flex-shrink-0 min-w-[130px] sm:min-w-[150px] max-w-[170px] flex flex-col items-center p-3.5 rounded-2xl border transition-all duration-300 cursor-pointer text-center select-none ${
                 isDark
-                  ? 'bg-[#161617] border-white/10 hover:border-white/25 hover:shadow-lg'
-                  : 'bg-white border-black/10 shadow-xs hover:border-black/20 hover:shadow-md'
+                  ? 'bg-[#101828]/90 border-white/10 text-white hover:bg-[#006EDB] hover:border-[#006EDB] hover:shadow-lg backdrop-blur-md'
+                  : 'bg-white border-blue-900/10 text-[#003B73] shadow-md hover:bg-[#006EDB] hover:text-white hover:border-[#006EDB] hover:shadow-xl'
               }`}
             >
-              <div className="w-16 h-16 sm:w-20 sm:h-20 mb-2 overflow-hidden flex items-center justify-center rounded-xl p-1 bg-[#f5f5f7] dark:bg-[#242426]">
+              <div className="w-16 h-16 sm:w-20 sm:h-20 mb-2 overflow-hidden flex items-center justify-center rounded-xl p-1 bg-[#EEF8FF] group-hover:bg-white/20 transition-colors">
                 <img
                   src={sub.image}
                   alt={sub.name}
@@ -462,14 +464,14 @@ export const ProductList: React.FC = () => {
                 />
               </div>
               
-              <span className={`text-xs font-bold line-clamp-1 ${
-                isDark ? 'text-slate-200' : 'text-neutral-900'
+              <span className={`text-xs font-bold line-clamp-1 transition-colors ${
+                isDark ? 'text-slate-200 group-hover:text-white' : 'text-[#003B73] group-hover:text-white'
               }`}>
                 {normalizeSubcategoryName(sub.name) || normalizeCategoryName(sub.name)}
               </span>
 
-              <span className={`text-[10px] font-semibold mt-0.5 ${
-                isDark ? 'text-slate-400' : 'text-neutral-500'
+              <span className={`text-[10px] font-semibold mt-0.5 transition-colors ${
+                isDark ? 'text-slate-400 group-hover:text-blue-100' : 'text-[#52708F] group-hover:text-[#DDF1FF]'
               }`}>
                 {sub.itemCount} {sub.itemCount === 1 ? 'modelo' : 'modelos'}
               </span>
@@ -479,10 +481,10 @@ export const ProductList: React.FC = () => {
       </div>
 
 
-      {/* 2. SEÇÃO NOVIDADES (EXIBE EXCLUSIVAMENTE PRODUTOS MARCADOS COMO LANÇAMENTO / NOVIDADE) */}
+      {/* 2. SEÇÃO NOVIDADES */}
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <h2 className={`text-xl sm:text-2xl font-extrabold tracking-tight ${isDark ? "text-white" : "text-[#111111]"}`}>
+          <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight text-white drop-shadow-xs">
             Novidades
           </h2>
           <button 
@@ -491,9 +493,9 @@ export const ProductList: React.FC = () => {
               if (setSelectedCategory) setSelectedCategory('NOVIDADES');
               if (setCurrentView) setCurrentView('category-page');
             }}
-            className="text-xs font-semibold text-neutral-600 hover:text-black dark:text-neutral-300 dark:hover:text-white transition-colors cursor-pointer"
+            className="text-xs font-bold text-amber-300 hover:text-white transition-colors cursor-pointer"
           >
-            Ver todas
+            Ver todas →
           </button>
         </div>
 
@@ -517,27 +519,27 @@ export const ProductList: React.FC = () => {
         {/* Banner Esquerdo Grande (Lançamentos / Novidades) */}
         <div 
           onClick={() => handleSelectCategory('NOVIDADES')}
-          className={`lg:col-span-6 rounded-3xl p-8 sm:p-10 flex items-center justify-between relative overflow-hidden transition-all min-h-[340px] border cursor-pointer group ${
-            isDark ? 'bg-[#161617] border-white/10 text-white hover:border-white/20' : 'bg-[#eae6df] border-black/5 text-[#111111] hover:border-black/15'
+          className={`lg:col-span-6 rounded-3xl p-8 sm:p-10 flex items-center justify-between relative overflow-hidden transition-all min-h-[340px] border cursor-pointer group shadow-xl ${
+            isDark ? 'bg-[#101828] border-white/10 text-white hover:border-white/20' : 'bg-gradient-to-br from-[#ffffff] via-[#f4f8fe] to-[#e8f1fc] border-white/40 text-slate-900 hover:shadow-2xl'
           }`}
         >
           <div className="space-y-3 z-20 w-full sm:w-[58%] pr-2">
             <span className={`inline-block text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-1 rounded-full border ${
-              isDark ? 'text-blue-400 bg-blue-400/10 border-blue-400/20' : 'text-neutral-800 bg-white/60 border-black/10'
+              isDark ? 'text-blue-400 bg-blue-400/10 border-blue-400/20' : 'text-[#003e92] bg-blue-50 border-blue-200'
             }`}>
               Coleção 2025
             </span>
             <h3 className="text-2xl sm:text-3xl font-black tracking-tight leading-tight">
               Novos modelos todas as semanas
             </h3>
-            <p className={`text-xs sm:text-sm font-medium leading-relaxed ${isDark ? 'text-slate-300' : 'text-neutral-700'}`}>
+            <p className={`text-xs sm:text-sm font-medium leading-relaxed ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
               As maiores tendências e lançamentos em calçados, sempre em primeira mão.
             </p>
             <div className="pt-2">
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); handleSelectCategory('NOVIDADES'); }}
-                className="bg-[#0071e3] text-white hover:bg-[#0077ed] text-xs font-extrabold tracking-wider px-6 py-3 rounded-full uppercase transition-all cursor-pointer shadow-xs"
+                className="bg-[#003e92] text-white hover:bg-[#002b66] text-xs font-extrabold tracking-wider px-6 py-3 rounded-full uppercase transition-all cursor-pointer shadow-xs"
               >
                 VER NOVIDADES
               </button>
@@ -545,7 +547,7 @@ export const ProductList: React.FC = () => {
           </div>
           <div className="absolute right-0 top-0 bottom-0 w-[45%] overflow-hidden">
             <div className={`absolute inset-0 z-10 bg-gradient-to-r ${
-              isDark ? 'from-[#161617] via-[#161617]/60 to-transparent' : 'from-[#eae6df] via-[#eae6df]/60 to-transparent'
+              isDark ? 'from-[#101828] via-[#101828]/60 to-transparent' : 'from-[#ffffff] via-[#ffffff]/60 to-transparent'
             }`} />
             <img 
               src="https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?q=80&w=800&auto=format&fit=crop" 
@@ -560,20 +562,20 @@ export const ProductList: React.FC = () => {
           {/* Top Card (Linha Sapatos / Calçados) */}
           <div 
             onClick={() => handleSelectCategory('CALÇADOS')}
-            className={`rounded-3xl p-7 sm:p-8 flex items-center justify-between relative overflow-hidden transition-all min-h-[160px] border cursor-pointer group ${
-              isDark ? 'bg-[#161617] border-white/10 text-white hover:border-white/20' : 'bg-[#f0eee9] border-black/5 text-[#111111] hover:border-black/15'
+            className={`rounded-3xl p-7 sm:p-8 flex items-center justify-between relative overflow-hidden transition-all min-h-[160px] border cursor-pointer group shadow-xl ${
+              isDark ? 'bg-[#101828] border-white/10 text-white hover:border-white/20' : 'bg-gradient-to-br from-[#ffffff] via-[#f4f8fe] to-[#e8f1fc] border-white/40 text-slate-900 hover:shadow-2xl'
             }`}
           >
             <div className="space-y-2 z-20 w-full sm:w-[58%] pr-2">
               <span className={`inline-block text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full ${
-                isDark ? 'text-emerald-400 bg-emerald-400/10' : 'text-emerald-800 bg-emerald-900/10'
+                isDark ? 'text-emerald-400 bg-emerald-400/10' : 'text-emerald-800 bg-emerald-100'
               }`}>
                 Linha Sapatos
               </span>
               <h3 className="text-lg sm:text-xl font-bold tracking-tight">
                 Para todos os seus momentos
               </h3>
-              <p className={`text-xs font-medium ${isDark ? 'text-slate-300' : 'text-neutral-600'}`}>
+              <p className={`text-xs font-medium ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
                 Desempenho, amortecimento e estilo para ir mais longe.
               </p>
               <div className="pt-1">
@@ -588,7 +590,7 @@ export const ProductList: React.FC = () => {
             </div>
             <div className="absolute right-0 top-0 bottom-0 w-[42%] overflow-hidden">
               <div className={`absolute inset-0 z-10 bg-gradient-to-r ${
-                isDark ? 'from-[#161617] via-[#161617]/70 to-transparent' : 'from-[#f0eee9] via-[#f0eee9]/70 to-transparent'
+                isDark ? 'from-[#101828] via-[#101828]/70 to-transparent' : 'from-[#ffffff] via-[#ffffff]/70 to-transparent'
               }`} />
               <img 
                 src="https://images.unsplash.com/photo-1542291026-7eec264c27ff?q=80&w=600&auto=format&fit=crop" 
@@ -601,20 +603,20 @@ export const ProductList: React.FC = () => {
           {/* Bottom Card (Bolsas & Acessórios) */}
           <div 
             onClick={() => handleSelectCategory('ACESSÓRIOS')}
-            className={`rounded-3xl p-7 sm:p-8 flex items-center justify-between relative overflow-hidden transition-all min-h-[160px] border cursor-pointer group ${
-              isDark ? 'bg-[#161617] border-white/10 text-white hover:border-white/20' : 'bg-[#eee8df] border-black/5 text-[#111111] hover:border-black/15'
+            className={`rounded-3xl p-7 sm:p-8 flex items-center justify-between relative overflow-hidden transition-all min-h-[160px] border cursor-pointer group shadow-xl ${
+              isDark ? 'bg-[#101828] border-white/10 text-white hover:border-white/20' : 'bg-gradient-to-br from-[#ffffff] via-[#f4f8fe] to-[#e8f1fc] border-white/40 text-slate-900 hover:shadow-2xl'
             }`}
           >
             <div className="space-y-2 z-20 w-full sm:w-[58%] pr-2">
               <span className={`inline-block text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full ${
-                isDark ? 'text-purple-400 bg-purple-400/10' : 'text-purple-800 bg-purple-900/10'
+                isDark ? 'text-purple-400 bg-purple-400/10' : 'text-purple-800 bg-purple-100'
               }`}>
                 Acessórios & Bolsas
               </span>
               <h3 className="text-lg sm:text-xl font-bold tracking-tight">
                 Bolsas que completam você
               </h3>
-              <p className={`text-xs font-medium ${isDark ? 'text-slate-300' : 'text-neutral-600'}`}>
+              <p className={`text-xs font-medium ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
                 Design contemporâneo e praticidade para todos os momentos.
               </p>
               <div className="pt-1">
@@ -629,7 +631,7 @@ export const ProductList: React.FC = () => {
             </div>
             <div className="absolute right-0 top-0 bottom-0 w-[42%] overflow-hidden">
               <div className={`absolute inset-0 z-10 bg-gradient-to-r ${
-                isDark ? 'from-[#161617] via-[#161617]/70 to-transparent' : 'from-[#eee8df] via-[#eee8df]/70 to-transparent'
+                isDark ? 'from-[#101828] via-[#101828]/70 to-transparent' : 'from-[#ffffff] via-[#ffffff]/70 to-transparent'
               }`} />
               <img 
                 src="https://images.unsplash.com/photo-1584917865442-de89df76afd3?q=80&w=600&auto=format&fit=crop" 
@@ -646,16 +648,20 @@ export const ProductList: React.FC = () => {
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className={`text-xl sm:text-2xl font-extrabold tracking-tight ${isDark ? "text-white" : "text-[#111111]"}`}>
+              <h2 className={`text-xl sm:text-2xl font-extrabold tracking-tight ${
+                isDark ? "text-white" : "text-[#00285a]"
+              }`}>
                 Coleção Calçados
               </h2>
-              <p className="text-xs text-neutral-500 font-medium mt-0.5">
+              <p className={`text-xs font-medium mt-0.5 ${
+                isDark ? "text-slate-400" : "text-slate-600"
+              }`}>
                 Modelos exclusivos com design contemporâneo e máximo conforto.
               </p>
             </div>
             <button 
               onClick={() => handleSelectCategory('CALÇADOS')}
-              className="text-xs font-semibold text-neutral-600 hover:text-black dark:text-neutral-300 dark:hover:text-white transition-colors cursor-pointer"
+              className="text-xs font-extrabold text-[#003e92] hover:text-[#00224d] dark:text-amber-300 dark:hover:text-white transition-colors cursor-pointer"
             >
               Ver todos os calçados →
             </button>
@@ -680,12 +686,14 @@ export const ProductList: React.FC = () => {
       {/* 5. CREDIÁRIO & FACILIDADES */}
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <h2 className={`text-xl sm:text-2xl font-extrabold tracking-tight ${isDark ? "text-white" : "text-[#111111]"}`}>
+          <h2 className={`text-xl sm:text-2xl font-extrabold tracking-tight ${
+            isDark ? "text-white" : "text-[#00285a]"
+          }`}>
             Crediário & Facilidades
           </h2>
           <button 
             onClick={() => setCurrentView('meu-crediario')}
-            className="text-xs font-semibold text-neutral-600 hover:text-black dark:text-neutral-300 dark:hover:text-white transition-colors cursor-pointer"
+            className="text-xs font-extrabold text-[#003e92] hover:text-[#00224d] dark:text-amber-300 dark:hover:text-white transition-colors cursor-pointer"
           >
             Acessar crediário →
           </button>
@@ -693,7 +701,7 @@ export const ProductList: React.FC = () => {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Banner Meu Crediário / Faturas (Escuro) */}
-          <div className="bg-[#1a1a1a] text-white rounded-3xl p-7 sm:p-9 flex items-center justify-between relative overflow-hidden shadow-xs border border-white/5 min-h-[260px]">
+          <div className="bg-gradient-to-br from-[#040c1a] via-[#09162e] to-[#0e2145] text-white rounded-3xl p-7 sm:p-9 flex items-center justify-between relative overflow-hidden shadow-2xl border border-white/20 min-h-[260px]">
             <div className="space-y-3 z-20 w-full sm:w-[58%] pr-2">
               <span className="inline-block text-[10px] font-extrabold uppercase tracking-wider text-amber-400 bg-amber-400/10 px-2.5 py-1 rounded-full border border-amber-400/20">
                 Consulta & Pagamento PIX
@@ -701,7 +709,7 @@ export const ProductList: React.FC = () => {
               <h3 className="text-xl sm:text-2xl font-black tracking-tight leading-tight">
                 Meu Crediário & Faturas
               </h3>
-              <p className="text-xs text-neutral-300 font-medium leading-relaxed">
+              <p className="text-xs text-slate-300 font-medium leading-relaxed">
                 Acompanhe suas parcelas, consulte seu limite e pague suas faturas via PIX a qualquer momento.
               </p>
               <div className="pt-2">
@@ -714,7 +722,7 @@ export const ProductList: React.FC = () => {
               </div>
             </div>
             <div className="absolute right-0 top-0 bottom-0 w-[45%] overflow-hidden">
-              <div className="absolute inset-0 z-10 bg-gradient-to-r from-[#1a1a1a] via-[#1a1a1a]/70 to-transparent" />
+              <div className="absolute inset-0 z-10 bg-gradient-to-r from-[#040c1a] via-[#040c1a]/70 to-transparent" />
               <img 
                 src="https://images.unsplash.com/photo-1563013544-824ae1b704d3?q=80&w=600&auto=format&fit=crop" 
                 alt="Meu Crediário Faturas" 
@@ -724,25 +732,25 @@ export const ProductList: React.FC = () => {
           </div>
 
           {/* Banner Crediário da Loja (Carnê Evidência) */}
-          <div className={`rounded-3xl p-7 sm:p-9 flex items-center justify-between relative overflow-hidden transition-all min-h-[260px] ${
-            isDark ? 'bg-amber-950/30 border border-amber-500/20 text-white' : 'bg-[#eee7dd] text-[#111111] border border-black/5'
+          <div className={`rounded-3xl p-7 sm:p-9 flex items-center justify-between relative overflow-hidden transition-all min-h-[260px] shadow-xl ${
+            isDark ? 'bg-amber-950/30 border border-amber-500/20 text-white' : 'bg-gradient-to-br from-[#ffffff] via-[#f4f8fe] to-[#e8f1fc] text-slate-900 border border-white/40'
           }`}>
             <div className="space-y-3 z-20 w-full sm:w-[58%] pr-2">
               <span className={`inline-block text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-1 rounded-full border ${
-                isDark ? 'text-amber-400 bg-amber-400/10 border-amber-400/20' : 'text-amber-800 bg-amber-900/10 border-amber-900/20'
+                isDark ? 'text-amber-400 bg-amber-400/10 border-amber-400/20' : 'text-[#003e92] bg-blue-50 border-blue-200'
               }`}>
                 Facilidade de Pagamento
               </span>
               <h3 className="text-xl sm:text-2xl font-black tracking-tight leading-tight">
                 Crediário da Loja
               </h3>
-              <p className={`text-xs font-medium leading-relaxed ${isDark ? 'text-slate-300' : 'text-neutral-700'}`}>
-                Parcele suas compras em até <strong className="font-extrabold text-black dark:text-white">6x sem juros</strong> no Carnê Evidência, sem burocracia.
+              <p className={`text-xs font-medium leading-relaxed ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                Parcele suas compras em até <strong className="font-extrabold text-slate-950 dark:text-white">6x sem juros</strong> no Carnê Evidência, sem burocracia.
               </p>
               <div className="pt-2">
                 <button
                   onClick={() => setCurrentView('meu-crediario')}
-                  className="bg-black text-white hover:bg-neutral-800 dark:bg-amber-400 dark:text-slate-950 dark:hover:bg-amber-300 text-xs font-extrabold tracking-wider px-5 py-2.5 rounded-full uppercase transition-all cursor-pointer shadow-xs"
+                  className="bg-[#003e92] text-white hover:bg-[#002b66] dark:bg-amber-400 dark:text-slate-950 dark:hover:bg-amber-300 text-xs font-extrabold tracking-wider px-5 py-2.5 rounded-full uppercase transition-all cursor-pointer shadow-xs"
                 >
                   SIMULAR CREDIÁRIO
                 </button>
@@ -750,7 +758,7 @@ export const ProductList: React.FC = () => {
             </div>
             <div className="absolute right-0 top-0 bottom-0 w-[45%] overflow-hidden">
               <div className={`absolute inset-0 z-10 bg-gradient-to-r ${
-                isDark ? 'from-[#1c150c] via-[#1c150c]/70 to-transparent' : 'from-[#eee7dd] via-[#eee7dd]/70 to-transparent'
+                isDark ? 'from-[#1c150c] via-[#1c150c]/70 to-transparent' : 'from-[#ffffff] via-[#ffffff]/70 to-transparent'
               }`} />
               <img 
                 src="https://images.unsplash.com/photo-1559526324-4b87b5e36e44?q=80&w=600&auto=format&fit=crop" 

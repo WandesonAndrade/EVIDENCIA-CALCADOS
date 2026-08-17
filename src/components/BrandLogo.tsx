@@ -5,11 +5,13 @@ import { useApp } from '../context/AppContext';
 interface BrandLogoProps {
   className?: string;
   size?: 'sm' | 'md' | 'lg';
+  variant?: 'default' | 'white';
 }
 
-export const BrandLogo: React.FC<BrandLogoProps> = ({ className = '', size = 'md' }) => {
+export const BrandLogo: React.FC<BrandLogoProps> = ({ className = '', size = 'md', variant = 'default' }) => {
   const { setCurrentView, theme } = useApp();
   const isDark = theme === 'dark';
+  const isWhiteLogo = variant === 'white' || isDark;
 
   const titleSizeClass = size === 'sm' 
     ? 'text-xl sm:text-2xl' 
@@ -38,12 +40,12 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({ className = '', size = 'md
       {/* Linha 1: Nome da Marca */}
       <div className="flex items-baseline leading-none">
         <span className={`font-black tracking-tight transition-colors ${titleSizeClass} ${
-          isDark ? 'text-white' : 'text-[#1b648c]'
+          isWhiteLogo ? 'text-white drop-shadow-xs' : 'text-[#003e92]'
         }`}>
           Evidência
         </span>
         <span className={`font-light uppercase tracking-widest ml-1.5 transition-colors ${subtitleSizeClass} ${
-          isDark ? 'text-slate-300' : 'text-[#1b648c]'
+          isWhiteLogo ? 'text-white/95 drop-shadow-xs' : 'text-[#003e92]'
         }`}>
           CALÇADOS
         </span>
@@ -51,8 +53,8 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({ className = '', size = 'md
 
       {/* Linha 2: Tagline em estilo Fita/Retângulo Achatado */}
       <div className="-mt-1 sm:-mt-1.5 flex items-center">
-        <span className={`inline-block text-white font-normal leading-tight rounded-xs tracking-normal shadow-xs transition-colors ${taglineSizeClass} ${
-          isDark ? 'bg-white/20 text-slate-100 backdrop-blur-md' : 'bg-[#1b648c]'
+        <span className={`inline-block font-normal leading-tight rounded-xs tracking-normal shadow-xs transition-colors ${taglineSizeClass} ${
+          isWhiteLogo ? 'bg-white/20 text-white backdrop-blur-md border border-white/25' : 'bg-[#003e92] text-white'
         }`}>
           Com você no seu dia a dia
         </span>

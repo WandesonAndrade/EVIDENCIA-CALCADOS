@@ -153,13 +153,13 @@ const AppContent: React.FC = () => {
   return (
     <div className={`min-h-screen transition-colors duration-300 font-sans flex flex-col justify-between selection:bg-[#0071e3] selection:text-white relative ${
       theme === 'dark' 
-        ? 'bg-[#000000] text-slate-100 dark' 
-        : 'bg-[#f5f5f7] text-[#1d1d1f] antialiased'
+        ? 'bg-[#050b18] text-slate-100 dark' 
+        : 'bg-transparent text-slate-900 antialiased'
     }`}>
-      {/* Luz ambiente de estúdio sutil para o fundo da parte clara */}
+      {/* Luz ambiente de estúdio sutil para o topo do projeto */}
       {theme !== 'dark' && !isAdminView && (
         <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
-          <div className="absolute -top-40 left-1/2 -translate-x-1/2 w-[1200px] h-[600px] bg-gradient-to-b from-[#0071e3]/[0.025] via-[#0071e3]/[0.008] to-transparent rounded-full blur-3xl" />
+          <div className="absolute -top-40 left-1/2 -translate-x-1/2 w-[1400px] h-[700px] bg-gradient-to-b from-[#0056b3]/15 via-[#003e92]/5 to-transparent rounded-full blur-3xl" />
         </div>
       )}
       <div className="relative z-10">

@@ -5,25 +5,33 @@
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-heading: "Manrope", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
-  --color-corp-blue: #005696;
-  --color-primary: #005696;
-  --color-secondary: #003e6d;
-  --color-accent-blue: #60a5fa;
-  --color-highlight-red: #ba1a1a;
-  --color-sand-bg: #eae6df;
-  --color-card-bg: #f7f5f3;
+  --color-corp-blue: #003B73;
+  --color-dark-blue: #00509E;
+  --color-primary-blue: #006EDB;
+  --color-vibrant-blue: #008CFF;
+  --color-light-blue: #DDF1FF;
+  --color-very-light-blue: #EEF8FF;
+  --color-bg-blue: #EAF5FF;
+  --color-text-primary: #003B73;
+  --color-text-secondary: #52708F;
+  --color-offer-gold: #FFC928;
+  --color-success-green: #16A34A;
 }
 
 body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: #f5f5f7;
-  color: #1d1d1f;
+  background-color: #EAF5FF;
+  background-image: linear-gradient(180deg, #003B73 0px, #006EDB 160px, #1685E8 400px, #DDF1FF 900px, #EAF5FF 1400px);
+  background-repeat: no-repeat;
+  color: #003B73;
 }
 
 html.dark body {
-  background-color: #000000;
+  background-color: #050b18;
+  background-image: linear-gradient(180deg, #020610 0px, #003B73 250px, #00509E 700px, #050b18 1400px);
+  background-repeat: no-repeat;
   color: #f1f5f9;
 }
 

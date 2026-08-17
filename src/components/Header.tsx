@@ -126,12 +126,14 @@ export const Header: React.FC = () => {
       id="store-header"
       className="sticky top-0 z-40 w-full transition-all duration-300"
     >
-      {/* 1. TOP ANNOUNCEMENT BAR (Faixa Azul Escura de Benefícios com Crediário e WhatsApp Oficial) */}
-      <div className="bg-[#003e92] text-white py-2 px-4 text-xs font-semibold shadow-xs">
+      {/* 1. TOP ANNOUNCEMENT BAR (Faixa Azul Escura de Benefícios) */}
+      <div className={`py-2 px-4 text-xs font-semibold shadow-xs border-b ${
+        isDark ? "bg-slate-950 text-white border-slate-800" : "bg-[#002850] text-[#DDF1FF] border-white/10"
+      }`}>
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
           {/* Esquerda: Crediário Próprio */}
           <div className="flex items-center space-x-2">
-            <CreditCard className="h-4 w-4 text-white shrink-0" />
+            <CreditCard className="h-4 w-4 text-[#FFC928] shrink-0" />
             <span>
               <strong>Crediário Próprio</strong> em até 6x sem juros
             </span>
@@ -139,7 +141,7 @@ export const Header: React.FC = () => {
 
           {/* Centro: Parcelamento Cartão */}
           <div className="hidden md:flex items-center space-x-2">
-            <ShieldCheck className="h-4 w-4 text-white shrink-0" />
+            <ShieldCheck className="h-4 w-4 text-[#DDF1FF] shrink-0" />
             <span>
               <strong>Até 10x sem juros</strong> no cartão
             </span>
@@ -150,7 +152,7 @@ export const Header: React.FC = () => {
             href="https://wa.me/5599984684867"
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center space-x-2 hover:text-emerald-300 transition-colors cursor-pointer"
+            className="flex items-center space-x-2 hover:text-[#FFC928] transition-colors cursor-pointer"
             title="Falar no WhatsApp da Evidência Calçados"
           >
             <MessageSquare className="h-4 w-4 text-emerald-400 shrink-0" />
@@ -161,17 +163,17 @@ export const Header: React.FC = () => {
         </div>
       </div>
 
-      {/* 2. MAIN HEADER BAR (Logo Oficial + Busca + Ações Verticais) */}
+      {/* 2. MAIN HEADER BAR (Azul Bem Forte Âncora Visual #003B73) */}
       <div
-        className={`border-b transition-all duration-300 ${
+        className={`transition-all duration-300 ${
           isDark
-            ? "bg-slate-950 border-slate-800 text-white"
-            : "bg-white border-neutral-100 text-[#1d1d1f]"
+            ? "bg-slate-950 border-b border-slate-800 text-white"
+            : "bg-[#003B73] text-white shadow-md border-b border-white/10"
         }`}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-20 gap-6">
-            {/* Logo Oficial Evidência Calçados */}
+            {/* Logo Oficial Evidência Calçados (Branca) */}
             <div className="flex items-center space-x-3 shrink-0">
               <button
                 id="sandwich-menu-button-main"
@@ -179,16 +181,16 @@ export const Header: React.FC = () => {
                 className={`p-2 rounded-xl border transition-all cursor-pointer flex items-center justify-center sm:hidden ${
                   isDark
                     ? "bg-slate-900 border-slate-800 text-amber-400"
-                    : "bg-neutral-100 border-neutral-200 text-slate-800"
+                    : "bg-white/20 border-white/30 text-white hover:bg-white/30"
                 }`}
                 title="Abrir Menu de Departamentos"
               >
                 <Menu className="h-5 w-5" />
               </button>
-              <BrandLogo size="md" />
+              <BrandLogo size="md" variant="white" />
             </div>
 
-            {/* Barra de Pesquisa em Formato Pílula Padrão da Imagem (Centro) */}
+            {/* Barra de Pesquisa em Formato Pílula Translucida */}
             <div className="flex-1 max-w-xl mx-2 hidden sm:block">
               <div className="relative w-full">
                 <input
@@ -199,14 +201,16 @@ export const Header: React.FC = () => {
                   className={`w-full pl-6 pr-12 py-3 text-xs sm:text-sm rounded-full focus:outline-none transition-all border ${
                     isDark
                       ? "bg-slate-900 border-slate-800 text-slate-100 placeholder-slate-400 focus:border-amber-400"
-                      : "bg-[#f4f4f5] border-transparent focus:border-neutral-300 focus:bg-white text-neutral-900 placeholder-neutral-400"
+                      : "bg-white/15 border-white/25 text-white placeholder-white/75 focus:bg-white focus:text-neutral-900 focus:placeholder-neutral-400 focus:border-white shadow-inner"
                   }`}
                 />
-                <Search className="absolute right-4 top-3.5 h-4 w-4 text-neutral-500" />
+                <Search className={`absolute right-4 top-3.5 h-4 w-4 ${
+                  isDark ? "text-slate-400" : "text-white/80"
+                }`} />
               </div>
             </div>
 
-            {/* Ícones de Utilidade & Conta Formatados Verticalmente (Direita) */}
+            {/* Ícones de Utilidade & Conta (Direita) */}
             <div className="flex items-center space-x-6 shrink-0">
               {/* Botão Meus Favoritos */}
               <button
@@ -214,10 +218,10 @@ export const Header: React.FC = () => {
                 onClick={() => setCurrentView("favorites")}
                 className={`flex flex-col items-center justify-center text-[11px] font-medium transition-all cursor-pointer group ${
                   currentView === "favorites"
-                    ? "text-[#003e92] dark:text-amber-400 font-bold"
+                    ? "text-amber-300 font-bold"
                     : isDark
                       ? "text-slate-300 hover:text-white"
-                      : "text-neutral-700 hover:text-black"
+                      : "text-white/90 hover:text-white"
                 }`}
                 title="Meus Favoritos"
               >
@@ -226,7 +230,7 @@ export const Header: React.FC = () => {
                     className={`h-6 w-6 transition-transform group-hover:scale-110 ${
                       favorites.length > 0
                         ? "fill-rose-500 text-rose-500"
-                        : "text-neutral-700 dark:text-slate-200"
+                        : isDark ? "text-slate-200" : "text-white"
                     }`}
                   />
                   {favorites.length > 0 && (
@@ -244,15 +248,19 @@ export const Header: React.FC = () => {
                 onClick={() => setCurrentView("cart")}
                 className={`flex flex-col items-center justify-center text-[11px] font-medium transition-all cursor-pointer group ${
                   currentView === "cart"
-                    ? "text-[#003e92] dark:text-amber-400 font-bold"
+                    ? "text-amber-300 font-bold"
                     : isDark
                       ? "text-slate-300 hover:text-white"
-                      : "text-neutral-700 hover:text-black"
+                      : "text-white/90 hover:text-white"
                 }`}
               >
                 <div className="relative mb-1">
-                  <ShoppingBag className="h-6 w-6 text-neutral-700 dark:text-slate-200 transition-transform group-hover:scale-110" />
-                  <span className="absolute -top-1.5 -right-2 bg-[#003e92] dark:bg-amber-400 text-white dark:text-black text-[10px] font-black w-4.5 h-4.5 flex items-center justify-center rounded-full shadow-xs">
+                  <ShoppingBag className={`h-6 w-6 transition-transform group-hover:scale-110 ${
+                    isDark ? "text-slate-200" : "text-white"
+                  }`} />
+                  <span className={`absolute -top-1.5 -right-2 text-[10px] font-black w-4.5 h-4.5 flex items-center justify-center rounded-full shadow-xs ${
+                    isDark ? "bg-amber-400 text-black" : "bg-white text-[#003e92]"
+                  }`}>
                     {totalItems}
                   </span>
                 </div>
@@ -266,7 +274,7 @@ export const Header: React.FC = () => {
                 className={`p-2 rounded-full transition-all cursor-pointer ${
                   isDark
                     ? "text-amber-400 hover:bg-slate-800"
-                    : "text-neutral-600 hover:bg-neutral-100"
+                    : "text-white hover:bg-white/15"
                 }`}
                 title={isDark ? "Modo Claro" : "Modo Escuro"}
               >
@@ -440,10 +448,12 @@ export const Header: React.FC = () => {
                   onClick={() => setCurrentView("login")}
                   className="flex items-center space-x-2.5 cursor-pointer group text-left"
                 >
-                  <User className="h-6 w-6 text-neutral-700 dark:text-slate-200 transition-transform group-hover:scale-110 shrink-0" />
+                  <User className={`h-6 w-6 transition-transform group-hover:scale-110 shrink-0 ${
+                    isDark ? "text-slate-200" : "text-white"
+                  }`} />
                   <div className="text-[11px] font-medium leading-tight">
-                    <span className="block font-semibold">Entrar</span>
-                    <span className="block text-neutral-500 dark:text-slate-400 text-[10px]">
+                    <span className={`block font-semibold ${isDark ? "text-slate-100" : "text-white"}`}>Entrar</span>
+                    <span className={`block text-[10px] ${isDark ? "text-slate-400" : "text-white/80"}`}>
                       Minha conta
                     </span>
                   </div>
@@ -463,20 +473,22 @@ export const Header: React.FC = () => {
                 className={`w-full pl-4 pr-9 py-2 text-xs border rounded-full focus:outline-none transition-all ${
                   isDark
                     ? "bg-slate-900 border-slate-800 text-slate-100 placeholder-slate-500"
-                    : "bg-[#f4f4f5] border-transparent text-neutral-800 placeholder-neutral-400"
+                    : "bg-white/15 border-white/25 text-white placeholder-white/75 focus:bg-white focus:text-neutral-900 focus:placeholder-neutral-400"
                 }`}
               />
-              <Search className="absolute right-3 top-2.5 h-3.5 w-3.5 text-neutral-400" />
+              <Search className={`absolute right-3 top-2.5 h-3.5 w-3.5 ${
+                isDark ? "text-neutral-400" : "text-white/80"
+              }`} />
             </div>
           </div>
 
-          {/* 3. CATEGORY NAVIGATION CARD (Card com Sombra exatamente igual à imagem de referência) */}
+          {/* 3. CATEGORY NAVIGATION CARD */}
           <div className="py-2.5 pb-4">
             <div
-              className={`rounded-2xl border px-4 py-2 flex items-center justify-between overflow-x-auto no-scrollbar shadow-xs ${
+              className={`rounded-2xl border px-4 py-2 flex items-center justify-between overflow-x-auto no-scrollbar transition-all ${
                 isDark
                   ? "bg-slate-900/90 border-slate-800 shadow-slate-950/50"
-                  : "bg-white border-neutral-200/80 shadow-sm"
+                  : "bg-white/95 backdrop-blur-md border-white/40 shadow-md text-neutral-800"
               }`}
             >
               <nav className="flex items-center space-x-6 sm:space-x-8 text-xs font-semibold tracking-tight whitespace-nowrap w-full">

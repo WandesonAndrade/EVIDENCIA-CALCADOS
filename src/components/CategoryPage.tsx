@@ -445,15 +445,17 @@ export const CategoryPage: React.FC = () => {
 
       <div id="category-all-items-section" ref={gridSectionRef} className="space-y-12 pt-4">
         <div className={`border-b pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2 ${
-          theme === 'dark' ? 'border-slate-800' : 'border-neutral-200'
+          theme === 'dark' ? 'border-slate-800' : 'border-white/20'
         }`}>
           <div>
             <h2 className={`text-xl sm:text-2xl font-extrabold tracking-tight ${
-              theme === 'dark' ? 'text-slate-100' : 'text-[#111111]'
+              theme === 'dark' ? 'text-slate-100' : 'text-white drop-shadow-xs'
             }`}>
               {config.title}
             </h2>
-            <p className="text-xs text-neutral-500 font-medium mt-0.5">
+            <p className={`text-xs font-medium mt-0.5 ${
+              theme === 'dark' ? 'text-slate-400' : 'text-blue-100'
+            }`}>
               {config.subtitle}
             </p>
           </div>
@@ -462,13 +464,13 @@ export const CategoryPage: React.FC = () => {
             {activeSubcategory && (
               <button
                 onClick={() => setSelectedSubcategory('TODAS')}
-                className="text-xs font-bold text-neutral-700 hover:text-black dark:text-slate-300 underline cursor-pointer mr-2"
+                className="text-xs font-bold text-amber-300 hover:text-white underline cursor-pointer mr-2"
               >
                 Ver todas as subcategorias
               </button>
             )}
             <span className={`text-xs font-bold px-3.5 py-1.5 rounded-full border ${
-              theme === 'dark' ? 'bg-slate-900 border-slate-800 text-slate-300' : 'bg-[#f7f5f3] border-neutral-200 text-neutral-800'
+              theme === 'dark' ? 'bg-slate-900 border-slate-800 text-slate-300' : 'bg-white/20 border-white/30 text-white shadow-xs'
             }`}>
               {allItems.length} {allItems.length === 1 ? 'modelo disponível' : 'modelos disponíveis'}
             </span>
@@ -477,14 +479,14 @@ export const CategoryPage: React.FC = () => {
 
         {allItems.length === 0 ? (
           <div className={`py-16 text-center border rounded-2xl space-y-4 ${
-            theme === 'dark' ? 'bg-[#0f172a] border-slate-800' : 'bg-[#f7f5f3] border-neutral-200'
+            theme === 'dark' ? 'bg-[#0f172a] border-slate-800' : 'bg-white/90 border-white/40 text-slate-900 shadow-xl'
           }`}>
-            <p className={`text-sm font-medium ${theme === 'dark' ? 'text-slate-400' : 'text-neutral-600'}`}>
+            <p className={`text-sm font-medium ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
               Nenhum produto disponível nesta categoria no momento.
             </p>
             <button 
               onClick={() => setCurrentView('home')}
-              className="bg-[#111111] text-white text-xs font-bold px-6 py-3 uppercase tracking-wider hover:bg-neutral-800 transition-all cursor-pointer rounded-xs"
+              className="bg-[#003e92] text-white text-xs font-extrabold px-6 py-3 uppercase tracking-wider hover:bg-[#002b66] transition-all cursor-pointer rounded-full shadow-xs"
             >
               Voltar para a Página Inicial
             </button>
@@ -509,25 +511,23 @@ export const CategoryPage: React.FC = () => {
             {itemsBySubcategory.map(({ subName, products: subProducts }) => (
               <div key={subName} className="space-y-6">
                 <div className={`flex items-center justify-between pb-3 border-b ${
-                  theme === 'dark' ? 'border-slate-800' : 'border-neutral-200/80'
+                  theme === 'dark' ? 'border-slate-800' : 'border-white/20'
                 }`}>
                   <div className="flex items-center space-x-3">
-                    <span className={`w-2.5 h-6 rounded-full ${
-                      theme === 'dark' ? 'bg-amber-400' : 'bg-[#111111]'
-                    }`} />
+                    <span className="w-2.5 h-6 rounded-full bg-amber-400" />
                     <h3 className={`text-lg sm:text-xl font-extrabold tracking-tight ${
-                      theme === 'dark' ? 'text-white' : 'text-[#111111]'
+                      theme === 'dark' ? 'text-white' : 'text-white drop-shadow-xs'
                     }`}>
                       {subName}
                     </h3>
-                    <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-neutral-100 text-neutral-600 dark:bg-slate-800 dark:text-slate-300">
+                    <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-white/20 text-white border border-white/30">
                       {subProducts.length} {subProducts.length === 1 ? 'modelo' : 'modelos'}
                     </span>
                   </div>
 
                   <button
                     onClick={() => handleViewAllSubcategory(subName)}
-                    className="text-xs font-bold text-neutral-700 hover:text-black dark:text-slate-300 dark:hover:text-white flex items-center space-x-1 cursor-pointer transition-colors"
+                    className="text-xs font-bold text-amber-300 hover:text-white flex items-center space-x-1 cursor-pointer transition-colors"
                     title={`Ver todos os ${subProducts.length} modelos de ${subName}`}
                   >
                     <span>Ver todos</span>
