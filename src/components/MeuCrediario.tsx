@@ -276,32 +276,36 @@ export const MeuCrediario: React.FC = () => {
     <div className={`min-h-screen py-8 px-4 sm:px-6 lg:px-8 ${isDark ? 'bg-[#0B0F19]' : 'bg-[#EAF5FF]'}`}>
       <div className="max-w-3xl mx-auto space-y-6">
 
-        {/* Botão de Voltar */}
+        {/* Botão de Voltar com Alto Contraste */}
         <motion.button
           initial={{ opacity: 0, x: -10 }}
           animate={{ opacity: 1, x: 0 }}
           onClick={() => setCurrentView('home')}
-          className="flex items-center space-x-2 text-xs font-extrabold uppercase tracking-wider transition-colors cursor-pointer text-white hover:text-white/80 drop-shadow-xs"
+          className={`flex items-center space-x-2 text-xs font-extrabold uppercase tracking-wider transition-colors cursor-pointer ${
+            isDark ? 'text-slate-400 hover:text-white' : 'text-[#52708F] hover:text-[#003B73]'
+          }`}
         >
-          <ArrowLeft className="h-4 w-4 text-white" />
-          <span className="text-white">Voltar à loja</span>
+          <ArrowLeft className="h-4 w-4" />
+          <span>Voltar à loja</span>
         </motion.button>
 
-        {/* Cabeçalho da Página no Estilo Apple Crediário */}
+        {/* Cabeçalho da Página com Alto Contraste */}
         <motion.div
           initial={{ opacity: 0, y: -12 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b pb-6 border-white/20"
+          className={`flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b pb-6 ${
+            isDark ? 'border-slate-800' : 'border-blue-900/15'
+          }`}
         >
           <div className="flex items-center space-x-3.5">
-            <div className="w-12 h-12 rounded-2xl bg-white/20 text-white border border-white/30 backdrop-blur-md flex items-center justify-center shadow-lg">
+            <div className="w-12 h-12 rounded-2xl bg-[#003B73] text-white flex items-center justify-center shadow-md">
               <CreditCard className="h-6 w-6" />
             </div>
             <div>
-              <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white drop-shadow-sm">
+              <h1 className={`text-2xl sm:text-3xl font-black tracking-tight ${isDark ? 'text-white' : 'text-[#003B73]'}`}>
                 Meu Crediário Evidência
               </h1>
-              <p className="text-xs sm:text-sm font-bold mt-0.5 text-[#DDF1FF] drop-shadow-xs">
+              <p className={`text-xs sm:text-sm font-bold mt-0.5 ${isDark ? 'text-slate-400' : 'text-[#52708F]'}`}>
                 Consulte carnês, parcelas em aberto e efetue pagamentos instantâneos via PIX
               </p>
             </div>
@@ -346,7 +350,7 @@ export const MeuCrediario: React.FC = () => {
                   className={`w-full px-4 py-3.5 rounded-2xl border text-sm font-mono font-bold tracking-widest focus:outline-none transition-all ${
                     isDark
                       ? 'bg-slate-950 border-slate-700 text-white placeholder-slate-600 focus:border-[#006EDB] focus:ring-4 focus:ring-[#006EDB]/20'
-                      : 'bg-white border-blue-900/15 text-[#003B73] placeholder-slate-400 focus:border-[#006EDB] focus:ring-4 focus:ring-[#DDF1FF]'
+                      : 'bg-white border-blue-900/20 text-[#003B73] placeholder-slate-400 focus:border-[#006EDB] focus:ring-4 focus:ring-[#DDF1FF]'
                   }`}
                 />
               </div>
@@ -366,7 +370,7 @@ export const MeuCrediario: React.FC = () => {
                 whileTap={{ scale: 0.98 }}
                 onClick={handleVerify}
                 disabled={cleanCpf(cpfInput).length < 11}
-                className="w-full py-3.5 rounded-full text-xs font-extrabold tracking-wider uppercase bg-[#006EDB] hover:bg-[#00509E] text-white transition-all shadow-md cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full py-3.5 rounded-full text-xs font-extrabold tracking-wider uppercase transition-all shadow-md cursor-pointer bg-[#006EDB] hover:bg-[#00509E] text-white disabled:bg-slate-200 disabled:text-slate-400 dark:disabled:bg-slate-800 dark:disabled:text-slate-600 disabled:shadow-none disabled:cursor-not-allowed"
               >
                 Consultar Faturas do Crediário
               </motion.button>

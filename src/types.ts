@@ -194,7 +194,7 @@ export interface MoblinkSyncLogItem {
   message?: string;
 }
 
-export type ViewMode = 'home' | 'cart' | 'admin' | 'admin-login' | 'login' | 'orders' | 'product-detail' | 'portfolio-case' | 'category-page' | 'about' | 'support' | 'favorites' | 'meu-crediario' | 'meus-dados';
+export type ViewMode = 'home' | 'cart' | 'admin' | 'admin-login' | 'login' | 'orders' | 'product-detail' | 'portfolio-case' | 'category-page' | 'about' | 'support' | 'favorites' | 'meu-crediario' | 'meus-dados' | 'bio-links';
 
 export interface MoblinkSyncLog {
   id: string;

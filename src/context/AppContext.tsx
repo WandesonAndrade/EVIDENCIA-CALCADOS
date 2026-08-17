@@ -969,7 +969,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [currentUser]);
 
 
-  // Synchronize product detail view with URL search params to support sharing links
+  // Detecção de parâmetros de URL para compartilhar links (Produtos e Link da Bio Instagram)
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const viewParam = urlParams.get('view') || urlParams.get('b');
+    if (viewParam === 'bio' || viewParam === 'bio-links' || urlParams.has('bio')) {
+      setCurrentView('bio-links');
+    }
+  }, []);
+
   useEffect(() => {
     if (products.length > 0) {
       const urlParams = new URLSearchParams(window.location.search);

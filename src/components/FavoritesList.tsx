@@ -25,22 +25,26 @@ export const FavoritesList: React.FC = () => {
       {/* Header back navigation */}
       <button
         onClick={() => setCurrentView('home')}
-        className="flex items-center space-x-2 transition-colors text-xs font-extrabold uppercase tracking-wider mb-6 cursor-pointer text-white hover:text-white/80 drop-shadow-xs"
+        className={`flex items-center space-x-2 transition-colors text-xs font-extrabold uppercase tracking-wider mb-6 cursor-pointer ${
+          theme === 'dark' ? 'text-slate-400 hover:text-white' : 'text-[#52708F] hover:text-[#003B73]'
+        }`}
       >
-        <ArrowLeft className="h-4 w-4 text-white" />
-        <span className="text-white">Voltar para a Vitrine</span>
+        <ArrowLeft className="h-4 w-4" />
+        <span>Voltar para a Vitrine</span>
       </button>
 
       {/* Page Title */}
-      <div className="flex items-center space-x-3.5 mb-8 border-b pb-6 border-white/20">
-        <div className="w-12 h-12 rounded-2xl bg-rose-500 text-white flex items-center justify-center shadow-lg border border-white/20">
+      <div className={`flex items-center space-x-3.5 mb-8 border-b pb-6 ${
+        theme === 'dark' ? 'border-slate-800' : 'border-blue-900/15'
+      }`}>
+        <div className="w-12 h-12 rounded-2xl bg-rose-500 text-white flex items-center justify-center shadow-md">
           <Heart className="h-6 w-6 fill-current" />
         </div>
         <div>
-          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white drop-shadow-sm">
+          <h1 className={`text-2xl sm:text-3xl font-black tracking-tight ${theme === 'dark' ? 'text-white' : 'text-[#003B73]'}`}>
             Meus Favoritos
           </h1>
-          <p className="text-xs sm:text-sm font-bold mt-0.5 text-[#DDF1FF] drop-shadow-xs">
+          <p className={`text-xs sm:text-sm font-bold mt-0.5 ${theme === 'dark' ? 'text-slate-400' : 'text-[#52708F]'}`}>
             Calçados, bolsas e acessórios salvos na sua lista de desejos
           </p>
         </div>

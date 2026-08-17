@@ -348,25 +348,31 @@ export const MeusDados: React.FC = () => {
       {/* Botão de Retorno */}
       <button
         onClick={() => setCurrentView('home')}
-        className="flex items-center space-x-2 transition-colors text-xs font-extrabold uppercase tracking-wider mb-2 cursor-pointer text-white hover:text-white/80 drop-shadow-xs"
+        className={`flex items-center space-x-2 transition-colors text-xs font-extrabold uppercase tracking-wider mb-2 cursor-pointer ${
+          isDark ? 'text-slate-400 hover:text-white' : 'text-[#52708F] hover:text-[#003B73]'
+        }`}
       >
-        <ArrowLeft className="h-4 w-4 text-white" />
-        <span className="text-white">Voltar para a Vitrine</span>
+        <ArrowLeft className="h-4 w-4" />
+        <span>Voltar para a Vitrine</span>
       </button>
 
       {/* Cabeçalho da Página Padronizado */}
-      <div className="flex items-center space-x-4 border-b pb-6 border-white/20">
-        <div className="w-14 h-14 rounded-2xl bg-white/20 text-white border border-white/30 backdrop-blur-md flex items-center justify-center shadow-lg">
+      <div className={`flex items-center space-x-4 border-b pb-6 ${
+        isDark ? 'border-slate-800' : 'border-blue-900/15'
+      }`}>
+        <div className="w-14 h-14 rounded-2xl bg-[#003B73] text-white flex items-center justify-center shadow-md">
           <User className="h-7 w-7" />
         </div>
         <div>
-          <span className="inline-flex items-center space-x-1.5 px-3.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-widest bg-white/20 text-white border border-white/30 backdrop-blur-md shadow-xs">
+          <span className={`inline-flex items-center space-x-1.5 px-3.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-widest ${
+            isDark ? 'bg-blue-900/30 text-blue-200 border border-blue-800' : 'bg-[#DDF1FF] text-[#003B73] border border-[#006EDB]/20'
+          }`}>
             MINHA CONTA EVIDÊNCIA
           </span>
-          <h1 className="text-2xl sm:text-3xl font-black tracking-tight mt-1.5 text-white drop-shadow-sm">
+          <h1 className={`text-2xl sm:text-3xl font-black tracking-tight mt-1.5 ${isDark ? 'text-white' : 'text-[#003B73]'}`}>
             Meus Dados Cadastrais
           </h1>
-          <p className="text-xs sm:text-sm font-bold text-[#DDF1FF] drop-shadow-xs">
+          <p className={`text-xs sm:text-sm font-bold ${isDark ? 'text-slate-400' : 'text-[#52708F]'}`}>
             Gerencie seu CPF, endereço de entrega e opção de Crediário Próprio
           </p>
         </div>

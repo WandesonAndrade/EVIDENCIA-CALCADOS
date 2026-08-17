@@ -110,25 +110,31 @@ export const OrderHistory: React.FC = () => {
   return (
     <div id="order-history-page" className="max-w-5xl mx-auto px-4 py-8 space-y-8">
       
-      {/* Cabeçalho da Página no estilo Apple Store Purchase History com Alto Contraste */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b pb-6 border-white/20">
+      {/* Cabeçalho da Página no estilo Apple Store Purchase History */}
+      <div className={`flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b pb-6 ${
+        isDark ? 'border-slate-800' : 'border-blue-900/15'
+      }`}>
         <div className="flex items-center space-x-3.5">
-          <div className="w-12 h-12 rounded-2xl bg-white/20 text-white border border-white/30 backdrop-blur-md flex items-center justify-center shadow-lg">
+          <div className="w-12 h-12 rounded-2xl bg-[#003B73] text-white flex items-center justify-center shadow-md">
             <ReceiptText className="h-6 w-6" />
           </div>
           <div>
-            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white drop-shadow-sm">
+            <h1 className={`text-2xl sm:text-3xl font-black tracking-tight ${isDark ? 'text-white' : 'text-[#003B73]'}`}>
               Meus Pedidos
             </h1>
-            <p className="text-xs sm:text-sm font-bold mt-0.5 text-[#DDF1FF] drop-shadow-xs">
+            <p className={`text-xs sm:text-sm font-bold mt-0.5 ${isDark ? 'text-slate-400' : 'text-[#52708F]'}`}>
               Histórico de compras, rastreamento de entregas e notas do crediário
             </p>
           </div>
         </div>
 
         {orders.length > 0 && (
-          <span className="px-4 py-2 rounded-full text-xs font-bold border border-white/30 bg-white/20 text-white backdrop-blur-md shadow-xs">
-            Total de Pedidos: <strong className="text-white font-black">{orders.length}</strong>
+          <span className={`px-4 py-2 rounded-full text-xs font-bold border shadow-xs ${
+            isDark 
+              ? 'bg-slate-900 text-slate-300 border-slate-800' 
+              : 'bg-white text-[#003B73] border-blue-900/15'
+          }`}>
+            Total de Pedidos: <strong className="text-[#006EDB] font-black">{orders.length}</strong>
           </span>
         )}
       </div>

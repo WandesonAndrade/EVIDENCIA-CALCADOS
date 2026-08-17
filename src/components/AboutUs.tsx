@@ -17,22 +17,32 @@ export const AboutUs: React.FC = () => {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 md:py-16 space-y-16">
       
-      {/* Hero Header Estilo Apple Studio Padronizado com Alto Contraste */}
+      {/* Hero Header Estilo Apple Studio Padronizado */}
       <div className="text-center max-w-3xl mx-auto space-y-3.5">
-        <span className="inline-flex items-center space-x-2 px-3.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-widest bg-white/20 text-white border border-white/30 backdrop-blur-md shadow-xs">
-          <Calendar className="h-3.5 w-3.5 text-white" />
-          <span className="text-white">Empresa Fundada em 09/09/2025</span>
+        <span className={`inline-flex items-center space-x-2 px-3.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-widest ${
+          isDark 
+            ? 'bg-blue-900/30 text-blue-200 border border-blue-800' 
+            : 'bg-[#DDF1FF] text-[#003B73] border border-[#006EDB]/20'
+        }`}>
+          <Calendar className="h-3.5 w-3.5" />
+          <span>Empresa Fundada em 09/09/2025</span>
         </span>
 
-        <h1 className="text-3xl md:text-5xl font-black tracking-tight text-white drop-shadow-sm">
+        <h1 className={`text-3xl md:text-5xl font-black tracking-tight ${
+          isDark ? 'text-white' : 'text-[#003B73]'
+        }`}>
           Evidência Calçados
         </h1>
 
-        <p className="text-base md:text-lg font-black text-white drop-shadow-xs">
+        <p className={`text-base md:text-lg font-extrabold ${
+          isDark ? 'text-blue-300' : 'text-[#006EDB]'
+        }`}>
           Tradição, Qualidade e Inovação para Acompanhar os Seus Pés
         </p>
 
-        <p className="text-xs sm:text-sm leading-relaxed font-bold text-[#DDF1FF] drop-shadow-xs">
+        <p className={`text-xs sm:text-sm leading-relaxed font-bold ${
+          isDark ? 'text-slate-400' : 'text-[#52708F]'
+        }`}>
           Localizada no coração de Caxias, Maranhão, a Evidência Calçados combina estilo, conforto e facilidade para que você expresse sua melhor versão a cada passo.
         </p>
       </div>

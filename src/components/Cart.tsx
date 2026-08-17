@@ -182,16 +182,18 @@ export const Cart: React.FC = () => {
       id="cart-page" 
       className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8"
     >
-      {/* Cabeçalho Padronizado do Carrinho com Alto Contraste */}
-      <div className="flex items-center space-x-3.5 border-b pb-6 border-white/20">
-        <div className="w-12 h-12 rounded-2xl bg-white/20 text-white border border-white/30 backdrop-blur-md flex items-center justify-center shadow-lg">
+      {/* Cabeçalho Padronizado do Carrinho */}
+      <div className={`flex items-center space-x-3.5 border-b pb-6 ${
+        isDark ? 'border-slate-800' : 'border-blue-900/15'
+      }`}>
+        <div className="w-12 h-12 rounded-2xl bg-[#003B73] text-white flex items-center justify-center shadow-md">
           <ShoppingBag className="h-6 w-6" />
         </div>
         <div>
-          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white drop-shadow-sm">
+          <h1 className={`text-2xl sm:text-3xl font-black tracking-tight ${isDark ? 'text-white' : 'text-[#003B73]'}`}>
             Seu Carrinho de Compras
           </h1>
-          <p className="text-xs flex items-center space-x-1.5 font-bold mt-0.5 text-[#DDF1FF] drop-shadow-xs">
+          <p className={`text-xs flex items-center space-x-1.5 font-extrabold mt-0.5 ${isDark ? 'text-sky-400' : 'text-[#006EDB]'}`}>
             <MapPin className="h-3.5 w-3.5" />
             <span>Entrega em Caxias - MA ou Retirada na Loja Evidência</span>
           </p>

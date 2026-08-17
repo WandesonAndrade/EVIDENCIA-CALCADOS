@@ -157,8 +157,8 @@ export const Header: React.FC = () => {
       id="store-header"
       className="sticky top-0 z-40 w-full transition-all duration-300"
     >
-      {/* 1. TOP ANNOUNCEMENT BAR (Faixa Azul Escura de Benefícios) */}
-      <div className={`py-2 px-4 text-xs font-semibold shadow-xs border-b ${
+      {/* 1. TOP ANNOUNCEMENT BAR (Faixa Azul Escura de Benefícios - Oculta no Mobile 'hidden sm:block') */}
+      <div className={`hidden sm:block py-2 px-4 text-xs font-semibold shadow-xs border-b ${
         isDark ? "bg-slate-950 text-white border-slate-800" : "bg-[#002850] text-[#DDF1FF] border-white/10"
       }`}>
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
@@ -241,8 +241,8 @@ export const Header: React.FC = () => {
               </div>
             </div>
 
-            {/* Ícones de Utilidade & Conta (Direita) */}
-            <div className="flex items-center space-x-6 shrink-0">
+            {/* Ícones de Utilidade & Conta (Direita) - Ajustado para Perfeita Leitura no Mobile */}
+            <div className="flex items-center space-x-2.5 sm:space-x-6 shrink-0">
               {/* Botão Meus Favoritos */}
               <button
                 id="favorites-button"
@@ -256,9 +256,9 @@ export const Header: React.FC = () => {
                 }`}
                 title="Meus Favoritos"
               >
-                <div className="relative mb-1">
+                <div className="relative mb-0.5">
                   <Heart
-                    className={`h-6 w-6 transition-transform group-hover:scale-110 ${
+                    className={`h-5.5 w-5.5 sm:h-6 sm:w-6 transition-transform group-hover:scale-110 ${
                       favorites.length > 0
                         ? "fill-rose-500 text-rose-500"
                         : isDark ? "text-slate-200" : "text-white"
@@ -270,10 +270,10 @@ export const Header: React.FC = () => {
                     </span>
                   )}
                 </div>
-                <span>Favoritos</span>
+                <span className="hidden sm:inline">Favoritos</span>
               </button>
 
-              {/* Botão Carrinho de Compras */}
+              {/* Botão Carrinho de Compras (Garantido Visível em Telas Mobile) */}
               <button
                 id="cart-button"
                 onClick={() => setCurrentView("cart")}
@@ -284,9 +284,10 @@ export const Header: React.FC = () => {
                       ? "text-slate-300 hover:text-white"
                       : "text-white/90 hover:text-white"
                 }`}
+                title="Meu Carrinho de Compras"
               >
-                <div className="relative mb-1">
-                  <ShoppingBag className={`h-6 w-6 transition-transform group-hover:scale-110 ${
+                <div className="relative mb-0.5">
+                  <ShoppingBag className={`h-5.5 w-5.5 sm:h-6 sm:w-6 transition-transform group-hover:scale-110 ${
                     isDark ? "text-slate-200" : "text-white"
                   }`} />
                   <span className={`absolute -top-1.5 -right-2 text-[10px] font-black w-4.5 h-4.5 flex items-center justify-center rounded-full shadow-xs ${
@@ -295,14 +296,14 @@ export const Header: React.FC = () => {
                     {totalItems}
                   </span>
                 </div>
-                <span>Carrinho</span>
+                <span className="hidden sm:inline">Carrinho</span>
               </button>
 
               {/* Alternador de Tema Escuro/Claro */}
               <button
                 id="theme-toggle-button"
                 onClick={toggleTheme}
-                className={`p-2 rounded-full transition-all cursor-pointer ${
+                className={`p-1.5 rounded-full transition-all cursor-pointer ${
                   isDark
                     ? "text-amber-400 hover:bg-slate-800"
                     : "text-white hover:bg-white/15"
@@ -316,25 +317,26 @@ export const Header: React.FC = () => {
                 )}
               </button>
 
-              {/* Entrar / Minha Conta */}
+              {/* Entrar / Minha Conta (Garantido Visível em Telas Mobile) */}
               {activeUser ? (
                 <div className="relative">
                   <button
                     id="user-profile-menu-button"
                     onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                    className="flex items-center space-x-2 text-left cursor-pointer group"
+                    className="flex items-center space-x-1.5 text-left cursor-pointer group"
+                    title="Minha Conta"
                   >
                     <div className="p-1 rounded-full border border-neutral-200 dark:border-slate-800">
                       {activeUser.photoURL ? (
                         <img
                           src={activeUser.photoURL}
                           alt={activeUser.name || "Usuário"}
-                          className="w-7 h-7 rounded-full object-cover"
+                          className="w-6 h-6 sm:w-7 sm:h-7 rounded-full object-cover"
                           referrerPolicy="no-referrer"
                         />
                       ) : (
                         <div
-                          className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
+                          className={`w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center text-xs font-bold ${
                             isDark
                               ? "bg-slate-800 text-amber-400"
                               : "bg-neutral-200 text-neutral-800"
@@ -346,15 +348,15 @@ export const Header: React.FC = () => {
                         </div>
                       )}
                     </div>
-                    <div className="hidden lg:block text-left leading-tight">
+                    <div className="hidden sm:block text-left leading-tight">
                       <span className="text-[10px] text-neutral-400 block font-medium">
                         Olá,
                       </span>
-                      <span className="text-[11px] font-bold block truncate max-w-[100px]">
+                      <span className="text-[11px] font-bold block truncate max-w-[90px]">
                         {activeUser.name ? activeUser.name.split(" ")[0] : "Minha conta"}
                       </span>
                     </div>
-                    <ChevronDown className="h-3.5 w-3.5 text-neutral-400" />
+                    <ChevronDown className="h-3.5 w-3.5 text-neutral-400 hidden sm:block" />
                   </button>
 
                   <AnimatePresence>
@@ -476,18 +478,23 @@ export const Header: React.FC = () => {
                 </div>
               ) : (
                 <button
+                  id="user-login-button"
                   onClick={() => setCurrentView("login")}
-                  className="flex items-center space-x-2.5 cursor-pointer group text-left"
+                  className={`flex flex-col items-center justify-center text-[11px] font-medium transition-all cursor-pointer group ${
+                    currentView === "login"
+                      ? "text-amber-300 font-bold"
+                      : isDark
+                        ? "text-slate-300 hover:text-white"
+                        : "text-white/90 hover:text-white"
+                  }`}
+                  title="Entrar ou Criar Conta"
                 >
-                  <User className={`h-6 w-6 transition-transform group-hover:scale-110 shrink-0 ${
-                    isDark ? "text-slate-200" : "text-white"
-                  }`} />
-                  <div className="text-[11px] font-medium leading-tight">
-                    <span className={`block font-semibold ${isDark ? "text-slate-100" : "text-white"}`}>Entrar</span>
-                    <span className={`block text-[10px] ${isDark ? "text-slate-400" : "text-white/80"}`}>
-                      Minha conta
-                    </span>
+                  <div className="relative mb-0.5">
+                    <User className={`h-5.5 w-5.5 sm:h-6 sm:w-6 transition-transform group-hover:scale-110 ${
+                      isDark ? "text-slate-200" : "text-white"
+                    }`} />
                   </div>
+                  <span className="hidden sm:inline">Entrar</span>
                 </button>
               )}
             </div>
@@ -522,12 +529,12 @@ export const Header: React.FC = () => {
                   : "bg-white/95 backdrop-blur-md border-white/40 shadow-md text-neutral-800"
               }`}
             >
-              <nav className="flex items-center space-x-6 sm:space-x-8 text-xs font-semibold tracking-tight whitespace-nowrap w-full">
-                {/* Botão Azul com Hambúrguer + Setinha para Baixo: [ ☰ Todas as Categorias ˅ ] */}
+              <nav className="flex items-center space-x-4 sm:space-x-8 text-xs font-semibold tracking-tight whitespace-nowrap w-full">
+                {/* Botão Azul com Hambúrguer + Setinha para Baixo (Visível apenas em Desktop sm:flex para evitar duplicidade de menu sanduíche no mobile) */}
                 <button
                   id="sandwich-menu-trigger-nav"
                   onClick={() => setIsSandwichMenuOpen(true)}
-                  className="bg-[#003e92] hover:bg-[#003175] text-white font-extrabold text-xs px-4 py-2.5 rounded-xl flex items-center space-x-2.5 cursor-pointer transition-all shadow-xs shrink-0"
+                  className="hidden sm:flex bg-[#003e92] hover:bg-[#003175] text-white font-extrabold text-xs px-4 py-2.5 rounded-xl items-center space-x-2.5 cursor-pointer transition-all shadow-xs shrink-0"
                 >
                   <Menu className="h-4 w-4 text-white" />
                   <span>Todas as Categorias</span>

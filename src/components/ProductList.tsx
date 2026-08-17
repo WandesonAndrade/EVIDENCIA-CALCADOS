@@ -116,34 +116,31 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
             {product.name}
           </h3>
 
-          {/* Matriz de Preços: Azul Forte #003B73 */}
+          {/* Matriz de Preços: Preço à vista no PIX em Grande Destaque */}
           <div className="space-y-1 pt-1">
-            <div className="flex items-baseline space-x-2">
-              <span className={`text-lg sm:text-xl font-black tracking-tight ${isDark ? "text-white" : "text-[#003B73]"}`}>
-                R$ {mainPrice.toFixed(2).replace(".", ",")}
-              </span>
-              {originalPrice && (
-                <span className="text-xs line-through text-[#52708F]">
-                  R$ {originalPrice.toFixed(2).replace(".", ",")}
+            {/* Preço À Vista no PIX em Destaque Principal */}
+            <div className="space-y-0.5">
+              <div className="flex items-center space-x-1.5 flex-wrap">
+                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/80 px-2 py-0.5 rounded-md border border-emerald-300/50">
+                  À Vista no PIX (-10%)
                 </span>
-              )}
+                {originalPrice && (
+                  <span className="text-xs line-through text-[#52708F]">
+                    R$ {originalPrice.toFixed(2).replace(".", ",")}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-baseline space-x-1.5">
+                <span className={`text-2xl sm:text-3xl font-black tracking-tight ${isDark ? "text-white" : "text-[#003B73]"}`}>
+                  R$ {pixPrice}
+                </span>
+              </div>
             </div>
 
-            {/* Texto secundário #52708F */}
-            <p className="text-xs text-[#52708F] font-medium">
-              em até <strong className={isDark ? "text-slate-200" : "text-[#003B73]"}>{parcelas}x de R$ {valorParcela}</strong> sem juros
+            {/* Preço Parcelado / Regular Secundário */}
+            <p className="text-xs text-[#52708F] font-medium pt-0.5">
+              ou <strong className={isDark ? "text-slate-200" : "text-[#003B73]"}>R$ {mainPrice.toFixed(2).replace(".", ",")}</strong> em até <strong className={isDark ? "text-slate-200" : "text-[#003B73]"}>{parcelas}x de R$ {valorParcela}</strong> s/ juros
             </p>
-
-            {/* Selo PIX */}
-            <div className="pt-1">
-              <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md border inline-flex items-center space-x-1 ${
-                isDark 
-                  ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" 
-                  : "bg-emerald-50 text-emerald-700 border-emerald-200"
-              }`}>
-                <span>R$ {pixPrice} à vista no PIX (10% OFF)</span>
-              </span>
-            </div>
           </div>
         </div>
 
@@ -525,34 +522,37 @@ export const ProductList: React.FC = () => {
         </div>
       </div>
 
-      {/* 3. BENTO GRID (BANNERS DE DESTAQUE STUDIO APPLE) */}
+      {/* 3. BENTO GRID (BANNERS DE DESTAQUE PADRONIZADOS COM A MARCA EVIDÊNCIA) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Banner Esquerdo Grande (Lançamentos / Novidades) */}
         <div 
           onClick={() => handleSelectCategory('NOVIDADES')}
           className={`lg:col-span-6 rounded-3xl p-8 sm:p-10 flex items-center justify-between relative overflow-hidden transition-all min-h-[340px] border cursor-pointer group shadow-xl ${
-            isDark ? 'bg-[#101828] border-white/10 text-white hover:border-white/20' : 'bg-gradient-to-br from-[#ffffff] via-[#f4f8fe] to-[#e8f1fc] border-white/40 text-slate-900 hover:shadow-2xl'
+            isDark ? 'bg-[#101828] border-white/10 text-white hover:border-white/20' : 'bg-gradient-to-br from-[#ffffff] via-[#f4f8fe] to-[#e8f1fc] border-blue-900/10 text-[#003B73] hover:shadow-2xl'
           }`}
         >
           <div className="space-y-3 z-20 w-full sm:w-[58%] pr-2">
-            <span className={`inline-block text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-1 rounded-full border ${
-              isDark ? 'text-blue-400 bg-blue-400/10 border-blue-400/20' : 'text-[#003e92] bg-blue-50 border-blue-200'
+            <span className={`inline-block text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full border ${
+              isDark ? 'text-blue-200 bg-blue-900/40 border-blue-800' : 'text-[#003B73] bg-[#DDF1FF] border-[#006EDB]/20'
             }`}>
               Coleção 2025
             </span>
-            <h3 className="text-2xl sm:text-3xl font-black tracking-tight leading-tight">
+            <h3 className={`text-2xl sm:text-3xl font-black tracking-tight leading-tight ${
+              isDark ? 'text-white' : 'text-[#003B73]'
+            }`}>
               Novos modelos todas as semanas
             </h3>
-            <p className={`text-xs sm:text-sm font-medium leading-relaxed ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+            <p className={`text-xs sm:text-sm font-medium leading-relaxed ${isDark ? 'text-slate-300' : 'text-[#52708F]'}`}>
               As maiores tendências e lançamentos em calçados, sempre em primeira mão.
             </p>
             <div className="pt-2">
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); handleSelectCategory('NOVIDADES'); }}
-                className="bg-[#003e92] text-white hover:bg-[#002b66] text-xs font-extrabold tracking-wider px-6 py-3 rounded-full uppercase transition-all cursor-pointer shadow-xs"
+                className="bg-[#006EDB] hover:bg-[#00509E] text-white text-xs font-extrabold tracking-wider px-6 py-3 rounded-full uppercase transition-all cursor-pointer shadow-md flex items-center space-x-2"
               >
-                VER NOVIDADES
+                <span>VER NOVIDADES</span>
+                <ArrowRight className="w-3.5 h-3.5 stroke-[2.5]" />
               </button>
             </div>
           </div>
@@ -574,28 +574,31 @@ export const ProductList: React.FC = () => {
           <div 
             onClick={() => handleSelectCategory('CALÇADOS')}
             className={`rounded-3xl p-7 sm:p-8 flex items-center justify-between relative overflow-hidden transition-all min-h-[160px] border cursor-pointer group shadow-xl ${
-              isDark ? 'bg-[#101828] border-white/10 text-white hover:border-white/20' : 'bg-gradient-to-br from-[#ffffff] via-[#f4f8fe] to-[#e8f1fc] border-white/40 text-slate-900 hover:shadow-2xl'
+              isDark ? 'bg-[#101828] border-white/10 text-white hover:border-white/20' : 'bg-gradient-to-br from-[#ffffff] via-[#f4f8fe] to-[#e8f1fc] border-blue-900/10 text-[#003B73] hover:shadow-2xl'
             }`}
           >
             <div className="space-y-2 z-20 w-full sm:w-[58%] pr-2">
-              <span className={`inline-block text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full ${
-                isDark ? 'text-emerald-400 bg-emerald-400/10' : 'text-emerald-800 bg-emerald-100'
+              <span className={`inline-block text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full border ${
+                isDark ? 'text-blue-200 bg-blue-900/40 border-blue-800' : 'text-[#003B73] bg-[#DDF1FF] border-[#006EDB]/20'
               }`}>
                 Linha Sapatos
               </span>
-              <h3 className="text-lg sm:text-xl font-bold tracking-tight">
+              <h3 className={`text-lg sm:text-xl font-black tracking-tight ${
+                isDark ? 'text-white' : 'text-[#003B73]'
+              }`}>
                 Para todos os seus momentos
               </h3>
-              <p className={`text-xs font-medium ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+              <p className={`text-xs font-medium ${isDark ? 'text-slate-300' : 'text-[#52708F]'}`}>
                 Desempenho, amortecimento e estilo para ir mais longe.
               </p>
               <div className="pt-1">
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); handleSelectCategory('CALÇADOS'); }}
-                  className="bg-black text-white hover:bg-neutral-800 dark:bg-white dark:text-black dark:hover:bg-neutral-200 text-[11px] font-extrabold tracking-wider px-5 py-2.5 rounded-full uppercase transition-all cursor-pointer shadow-xs"
+                  className="bg-[#006EDB] hover:bg-[#00509E] text-white text-[11px] font-extrabold tracking-wider px-5 py-2.5 rounded-full uppercase transition-all cursor-pointer shadow-md flex items-center space-x-1.5"
                 >
-                  VER SAPATOS
+                  <span>VER SAPATOS</span>
+                  <ArrowRight className="w-3.5 h-3.5 stroke-[2.5]" />
                 </button>
               </div>
             </div>
@@ -615,28 +618,31 @@ export const ProductList: React.FC = () => {
           <div 
             onClick={() => handleSelectCategory('ACESSÓRIOS')}
             className={`rounded-3xl p-7 sm:p-8 flex items-center justify-between relative overflow-hidden transition-all min-h-[160px] border cursor-pointer group shadow-xl ${
-              isDark ? 'bg-[#101828] border-white/10 text-white hover:border-white/20' : 'bg-gradient-to-br from-[#ffffff] via-[#f4f8fe] to-[#e8f1fc] border-white/40 text-slate-900 hover:shadow-2xl'
+              isDark ? 'bg-[#101828] border-white/10 text-white hover:border-white/20' : 'bg-gradient-to-br from-[#ffffff] via-[#f4f8fe] to-[#e8f1fc] border-blue-900/10 text-[#003B73] hover:shadow-2xl'
             }`}
           >
             <div className="space-y-2 z-20 w-full sm:w-[58%] pr-2">
-              <span className={`inline-block text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full ${
-                isDark ? 'text-purple-400 bg-purple-400/10' : 'text-purple-800 bg-purple-100'
+              <span className={`inline-block text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full border ${
+                isDark ? 'text-blue-200 bg-blue-900/40 border-blue-800' : 'text-[#003B73] bg-[#DDF1FF] border-[#006EDB]/20'
               }`}>
                 Acessórios & Bolsas
               </span>
-              <h3 className="text-lg sm:text-xl font-bold tracking-tight">
+              <h3 className={`text-lg sm:text-xl font-black tracking-tight ${
+                isDark ? 'text-white' : 'text-[#003B73]'
+              }`}>
                 Bolsas que completam você
               </h3>
-              <p className={`text-xs font-medium ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+              <p className={`text-xs font-medium ${isDark ? 'text-slate-300' : 'text-[#52708F]'}`}>
                 Design contemporâneo e praticidade para todos os momentos.
               </p>
               <div className="pt-1">
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); handleSelectCategory('ACESSÓRIOS'); }}
-                  className="bg-black text-white hover:bg-neutral-800 dark:bg-white dark:text-black dark:hover:bg-neutral-200 text-[11px] font-extrabold tracking-wider px-5 py-2.5 rounded-full uppercase transition-all cursor-pointer shadow-xs"
+                  className="bg-[#006EDB] hover:bg-[#00509E] text-white text-[11px] font-extrabold tracking-wider px-5 py-2.5 rounded-full uppercase transition-all cursor-pointer shadow-md flex items-center space-x-1.5"
                 >
-                  VER ACESSÓRIOS
+                  <span>VER ACESSÓRIOS</span>
+                  <ArrowRight className="w-3.5 h-3.5 stroke-[2.5]" />
                 </button>
               </div>
             </div>
@@ -646,7 +652,7 @@ export const ProductList: React.FC = () => {
               }`} />
               <img 
                 src="https://images.unsplash.com/photo-1584917865442-de89df76afd3?q=80&w=600&auto=format&fit=crop" 
-                alt="Acessórios" 
+                alt="Acessórios e Bolsas" 
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
               />
             </div>
@@ -716,13 +722,16 @@ export const ProductList: React.FC = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Banner Meu Crediário / Faturas (Escuro) */}
-          <div className="bg-gradient-to-br from-[#040c1a] via-[#09162e] to-[#0e2145] text-white rounded-3xl p-7 sm:p-9 flex items-center justify-between relative overflow-hidden shadow-2xl border border-white/20 min-h-[260px]">
+          {/* Banner Meu Crediário / Faturas (Escuro com Animação Hover) */}
+          <div 
+            onClick={() => setCurrentView('meu-crediario')}
+            className="group bg-gradient-to-br from-[#040c1a] via-[#09162e] to-[#0e2145] text-white rounded-3xl p-7 sm:p-9 flex items-center justify-between relative overflow-hidden shadow-xl hover:shadow-2xl border border-white/20 hover:border-amber-400/50 min-h-[260px] cursor-pointer transition-all duration-300 transform hover:-translate-y-1.5"
+          >
             <div className="space-y-3 z-20 w-full sm:w-[58%] pr-2">
-              <span className="inline-block text-[10px] font-extrabold uppercase tracking-wider text-amber-400 bg-amber-400/10 px-2.5 py-1 rounded-full border border-amber-400/20">
+              <span className="inline-block text-[10px] font-black uppercase tracking-wider text-amber-300 bg-amber-400/10 px-3 py-1 rounded-full border border-amber-400/30 shadow-xs">
                 Consulta & Pagamento PIX
               </span>
-              <h3 className="text-xl sm:text-2xl font-black tracking-tight leading-tight">
+              <h3 className="text-xl sm:text-2xl font-black tracking-tight leading-tight group-hover:text-amber-300 transition-colors">
                 Meu Crediário & Faturas
               </h3>
               <p className="text-xs text-slate-300 font-medium leading-relaxed">
@@ -730,10 +739,12 @@ export const ProductList: React.FC = () => {
               </p>
               <div className="pt-2">
                 <button
-                  onClick={() => setCurrentView('meu-crediario')}
-                  className="bg-amber-400 text-slate-950 hover:bg-amber-300 text-xs font-extrabold tracking-wider px-5 py-2.5 rounded-full uppercase transition-all cursor-pointer shadow-xs"
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setCurrentView('meu-crediario'); }}
+                  className="bg-amber-400 text-slate-950 hover:bg-amber-300 text-xs font-black tracking-wider px-5 py-2.5 rounded-full uppercase transition-all cursor-pointer shadow-md group-hover:scale-105 flex items-center space-x-1.5"
                 >
-                  VER MINHAS FATURAS
+                  <span>VER MINHAS FATURAS</span>
+                  <ArrowRight className="w-3.5 h-3.5 stroke-[2.5] group-hover:translate-x-1 transition-transform" />
                 </button>
               </div>
             </div>
@@ -742,33 +753,40 @@ export const ProductList: React.FC = () => {
               <img 
                 src="https://images.unsplash.com/photo-1563013544-824ae1b704d3?q=80&w=600&auto=format&fit=crop" 
                 alt="Meu Crediário Faturas" 
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500 ease-out"
               />
             </div>
           </div>
 
-          {/* Banner Crediário da Loja (Carnê Evidência) */}
-          <div className={`rounded-3xl p-7 sm:p-9 flex items-center justify-between relative overflow-hidden transition-all min-h-[260px] shadow-xl ${
-            isDark ? 'bg-amber-950/30 border border-amber-500/20 text-white' : 'bg-gradient-to-br from-[#ffffff] via-[#f4f8fe] to-[#e8f1fc] text-slate-900 border border-white/40'
-          }`}>
+          {/* Banner Crediário da Loja (Carnê Evidência com Animação Hover) */}
+          <div 
+            onClick={() => setCurrentView('meu-crediario')}
+            className={`group rounded-3xl p-7 sm:p-9 flex items-center justify-between relative overflow-hidden transition-all duration-300 transform hover:-translate-y-1.5 min-h-[260px] shadow-xl hover:shadow-2xl cursor-pointer border ${
+              isDark ? 'bg-amber-950/30 border-amber-500/20 text-white hover:border-amber-400/40' : 'bg-gradient-to-br from-[#ffffff] via-[#f4f8fe] to-[#e8f1fc] text-[#003B73] border-blue-900/10 hover:border-[#006EDB]/40'
+            }`}
+          >
             <div className="space-y-3 z-20 w-full sm:w-[58%] pr-2">
-              <span className={`inline-block text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-1 rounded-full border ${
-                isDark ? 'text-amber-400 bg-amber-400/10 border-amber-400/20' : 'text-[#003e92] bg-blue-50 border-blue-200'
+              <span className={`inline-block text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full border ${
+                isDark ? 'text-blue-200 bg-blue-900/40 border-blue-800' : 'text-[#003B73] bg-[#DDF1FF] border-[#006EDB]/20'
               }`}>
                 Facilidade de Pagamento
               </span>
-              <h3 className="text-xl sm:text-2xl font-black tracking-tight leading-tight">
+              <h3 className={`text-xl sm:text-2xl font-black tracking-tight leading-tight group-hover:text-[#006EDB] dark:group-hover:text-amber-300 transition-colors ${
+                isDark ? 'text-white' : 'text-[#003B73]'
+              }`}>
                 Crediário da Loja
               </h3>
-              <p className={`text-xs font-medium leading-relaxed ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                Parcele suas compras em até <strong className="font-extrabold text-slate-950 dark:text-white">6x sem juros</strong> no Carnê Evidência, sem burocracia.
+              <p className={`text-xs font-medium leading-relaxed ${isDark ? 'text-slate-300' : 'text-[#52708F]'}`}>
+                Parcele suas compras em até <strong className="font-black text-[#003B73] dark:text-white">6x sem juros</strong> no Carnê Evidência, sem burocracia.
               </p>
               <div className="pt-2">
                 <button
-                  onClick={() => setCurrentView('meu-crediario')}
-                  className="bg-[#003e92] text-white hover:bg-[#002b66] dark:bg-amber-400 dark:text-slate-950 dark:hover:bg-amber-300 text-xs font-extrabold tracking-wider px-5 py-2.5 rounded-full uppercase transition-all cursor-pointer shadow-xs"
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setCurrentView('meu-crediario'); }}
+                  className="bg-[#006EDB] hover:bg-[#00509E] text-white text-xs font-black tracking-wider px-5 py-2.5 rounded-full uppercase transition-all cursor-pointer shadow-md group-hover:scale-105 flex items-center space-x-1.5"
                 >
-                  SIMULAR CREDIÁRIO
+                  <span>SIMULAR CREDIÁRIO</span>
+                  <ArrowRight className="w-3.5 h-3.5 stroke-[2.5] group-hover:translate-x-1 transition-transform" />
                 </button>
               </div>
             </div>
@@ -779,7 +797,7 @@ export const ProductList: React.FC = () => {
               <img 
                 src="https://images.unsplash.com/photo-1559526324-4b87b5e36e44?q=80&w=600&auto=format&fit=crop" 
                 alt="Crediário Evidência" 
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500 ease-out"
               />
             </div>
           </div>

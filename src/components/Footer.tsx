@@ -98,6 +98,14 @@ export const Footer: React.FC = () => {
               </li>
               <li>
                 <button
+                  onClick={() => setCurrentView("bio-links")}
+                  className="hover:text-amber-300 transition-colors cursor-pointer text-left font-bold text-amber-400"
+                >
+                  Links
+                </button>
+              </li>
+              <li>
+                <button
                   onClick={() => setCurrentView("support")}
                   className="hover:text-amber-300 transition-colors cursor-pointer text-left"
                 >

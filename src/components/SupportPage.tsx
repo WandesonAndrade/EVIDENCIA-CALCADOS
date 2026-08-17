@@ -71,16 +71,22 @@ export const SupportPage: React.FC = () => {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 md:py-16">
       
-      {/* Header section padronizado com Alto Contraste */}
+      {/* Header section padronizado */}
       <div className="text-center max-w-3xl mx-auto space-y-3.5 mb-12">
-        <span className="inline-flex items-center space-x-1.5 px-3.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-widest bg-white/20 text-white border border-white/30 backdrop-blur-md shadow-xs">
-          <HelpCircle className="h-3.5 w-3.5 text-white" />
-          <span className="text-white">Central de Ajuda Evidência</span>
+        <span className={`inline-flex items-center space-x-1.5 px-3.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-widest ${
+          theme === 'dark' ? 'bg-blue-900/30 text-blue-200 border border-blue-800' : 'bg-[#DDF1FF] text-[#003B73] border border-[#006EDB]/20'
+        }`}>
+          <HelpCircle className="h-3.5 w-3.5" />
+          <span>Central de Ajuda Evidência</span>
         </span>
-        <h1 className="text-3xl md:text-5xl font-black tracking-tight text-white drop-shadow-sm">
+        <h1 className={`text-3xl md:text-5xl font-black tracking-tight ${
+          theme === 'dark' ? 'text-white' : 'text-[#003B73]'
+        }`}>
           Como podemos ajudar você?
         </h1>
-        <p className="text-xs sm:text-sm leading-relaxed font-bold text-[#DDF1FF] drop-shadow-xs">
+        <p className={`text-xs sm:text-sm leading-relaxed font-bold ${
+          theme === 'dark' ? 'text-slate-400' : 'text-[#52708F]'
+        }`}>
           Seja para tirar dúvidas sobre o seu Crediário Próprio, solicitar uma troca, localizar nossa loja ou falar com um consultor pelo WhatsApp, estamos à sua inteira disposição.
         </p>
       </div>

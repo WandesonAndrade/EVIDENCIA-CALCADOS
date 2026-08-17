@@ -19,6 +19,7 @@ import { FloatingAssistant } from './components/FloatingAssistant';
 import { LoadingSpinner } from './components/common/LoadingSpinner';
 
 import { MeusDados } from './components/MeusDados';
+import { BioLinksPage } from './components/BioLinksPage';
 
 // Dynamic imports (Code Splitting) para views pesadas / secundárias
 const AdminPanel = lazy(() => import('./components/AdminPanel').then(m => ({ default: m.AdminPanel })));
@@ -119,6 +120,8 @@ const AppContent: React.FC = () => {
           return <AuthScreen mode="customer" />;
         }
         return <MeusDados />;
+      case 'bio-links':
+        return <BioLinksPage />;
       case 'login':
         return <AuthScreen mode="customer" />;
       case 'admin-login':
@@ -141,6 +144,17 @@ const AppContent: React.FC = () => {
 
   const showIncompleteWarning = isProfileIncomplete(currentUser);
   const isAdminView = currentView === 'admin';
+  const isBioView = currentView === 'bio-links';
+
+  if (isBioView) {
+    return (
+      <div className={`min-h-screen transition-colors duration-300 font-sans ${
+        theme === 'dark' ? 'bg-[#0B0F19] text-slate-100 dark' : 'bg-[#EAF5FF] text-slate-900'
+      }`}>
+        <BioLinksPage />
+      </div>
+    );
+  }
 
   if (isAdminView && hasAdminAccess) {
     return (
