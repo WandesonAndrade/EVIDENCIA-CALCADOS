@@ -234,13 +234,28 @@ export const ProductDetail: React.FC = () => {
     ? Array.from(new Set((p as any).variacoes.map((v: any) => String(v.tamanho || v.size || '').trim()).filter(Boolean)))
     : [];
 
-  const availableCoresForSelectedSize = selectedLinhaOption && validVariacoes.length > 0
-    ? Array.from(new Set(validVariacoes.filter(v => v.tamanho === String(selectedLinhaOption)).map(v => v.cor)))
+  const colorMapKeys = [
+    ...Object.keys(p?.colorImages || {}),
+    ...Object.keys(p?.colorImageMap || {}),
+  ].map(k => k.trim()).filter(Boolean);
+
+  const fallbackCores = Array.from(new Set([
+    ...colorMapKeys,
+    p?.color,
+    (p as any)?.cor,
+    (p as any)?.cor_nome,
+    p?.material,
+  ])).filter((val): val is string => Boolean(val && typeof val === 'string' && val.trim() !== ''));
+
+  const availableCoresForSelectedSize = (selectedLinhaOption && validVariacoes.length > 0)
+    ? Array.from(new Set(validVariacoes.filter(v => v.tamanho === String(selectedLinhaOption)).map(v => v.cor).filter(Boolean)))
     : (productGradeData?.cores && productGradeData.cores.length > 0)
     ? productGradeData.cores
-    : [p.color, (p as any).cor, (p as any).cor_nome, p.material].filter((val, index, self): val is string => Boolean(val && typeof val === 'string' && val.trim() !== '' && self.indexOf(val) === index));
+    : fallbackCores;
 
-  const colunaOptions = availableCoresForSelectedSize;
+  const colunaOptions = availableCoresForSelectedSize.length > 0
+    ? availableCoresForSelectedSize
+    : fallbackCores;
 
   // 3. Auto-seleção inicial de Tamanho Único e Cor da Foto Capa
   useEffect(() => {
@@ -313,29 +328,45 @@ export const ProductDetail: React.FC = () => {
     const cleanColor = selectedColunaOption.trim().toLowerCase();
 
     // 1. Mapeamento de Múltiplas Fotos Por Cor (colorImages)
-    if (p?.colorImages) {
+    if (p?.colorImages && typeof p.colorImages === 'object') {
       const matchedKey = Object.keys(p.colorImages).find(k => k.trim().toLowerCase() === cleanColor);
       if (matchedKey && Array.isArray(p.colorImages[matchedKey]) && p.colorImages[matchedKey].length > 0) {
-        const colorSpecificPhotos = p.colorImages[matchedKey].filter(u => u && allProductImages.includes(u));
+        const colorSpecificPhotos = p.colorImages[matchedKey].filter(u => u && typeof u === 'string');
         if (colorSpecificPhotos.length > 0) return colorSpecificPhotos;
       }
     }
 
     // 2. Mapeamento de Foto Capa Por Cor (colorImageMap)
-    if (p?.colorImageMap) {
+    if (p?.colorImageMap && typeof p.colorImageMap === 'object') {
       const matchedKey = Object.keys(p.colorImageMap).find(k => k.trim().toLowerCase() === cleanColor);
       if (matchedKey && p.colorImageMap[matchedKey]) {
         const coverUrl = p.colorImageMap[matchedKey];
-        if (allProductImages.includes(coverUrl)) return [coverUrl];
+        if (typeof coverUrl === 'string') return [coverUrl];
       }
     }
 
-    // 3. Variações de foto do ERP MobLink
+    // 3. Variações de foto do ERP MobLink (validVariacoes)
     if (validVariacoes && validVariacoes.length > 0) {
-      const matchingVar = validVariacoes.find(v => v.cor && v.cor.trim().toLowerCase() === cleanColor && ((v as any).foto_uri || (v as any).foto_url));
-      if (matchingVar) {
-        const varUri = (matchingVar as any).foto_uri || (matchingVar as any).foto_url;
-        if (varUri && allProductImages.includes(varUri)) return [varUri];
+      const matchingVars = validVariacoes.filter(v => v.cor && v.cor.trim().toLowerCase() === cleanColor);
+      const varPhotos = matchingVars
+        .map(v => (v as any).foto_uri || (v as any).foto_url)
+        .filter((u): u is string => Boolean(u && typeof u === 'string'));
+      if (varPhotos.length > 0) {
+        return Array.from(new Set(varPhotos));
+      }
+    }
+
+    // 4. Filtragem inteligente por palavra-chave na URL/filename da imagem
+    if (allProductImages.length > 1 && cleanColor) {
+      const colorKeywordMatches = allProductImages.filter(imgUrl => {
+        if (!imgUrl || typeof imgUrl !== 'string') return false;
+        const lowerUrl = imgUrl.toLowerCase();
+        return lowerUrl.includes(cleanColor) || 
+               (cleanColor === 'preto' && (lowerUrl.includes('black') || lowerUrl.includes('pret'))) ||
+               (cleanColor === 'rosa' && (lowerUrl.includes('pink') || lowerUrl.includes('ros')));
+      });
+      if (colorKeywordMatches.length > 0) {
+        return colorKeywordMatches;
       }
     }
 
@@ -676,11 +707,44 @@ export const ProductDetail: React.FC = () => {
               <div className="flex flex-wrap gap-2.5">
                 {colunaOptions.map((colorOpt) => {
                   const isSelected = selectedColunaOption === colorOpt;
-                  const colorPhotosList = p?.colorImages?.[colorOpt] || p?.colorImages?.[colorOpt.toUpperCase()] || [];
-                  const colorPhoto = colorPhotosList.length > 0 
-                    ? colorPhotosList[0] 
-                    : (p?.colorImageMap?.[colorOpt] || p?.colorImageMap?.[colorOpt.toUpperCase()]);
-                  const photoCount = colorPhotosList.length;
+                  const cleanOpt = colorOpt.trim().toLowerCase();
+
+                  let colorPhotosList: string[] = [];
+                  if (p?.colorImages && typeof p.colorImages === 'object') {
+                    const matchedKey = Object.keys(p.colorImages).find(k => k.trim().toLowerCase() === cleanOpt);
+                    if (matchedKey && Array.isArray(p.colorImages[matchedKey])) {
+                      colorPhotosList = p.colorImages[matchedKey];
+                    }
+                  }
+
+                  let colorPhoto = colorPhotosList.length > 0 ? colorPhotosList[0] : null;
+                  if (!colorPhoto && p?.colorImageMap && typeof p.colorImageMap === 'object') {
+                    const matchedKey = Object.keys(p.colorImageMap).find(k => k.trim().toLowerCase() === cleanOpt);
+                    if (matchedKey && p.colorImageMap[matchedKey]) {
+                      colorPhoto = p.colorImageMap[matchedKey];
+                    }
+                  }
+                  if (!colorPhoto && validVariacoes.length > 0) {
+                    const matchedVar = validVariacoes.find(v => v.cor && v.cor.trim().toLowerCase() === cleanOpt && ((v as any).foto_uri || (v as any).foto_url));
+                    if (matchedVar) {
+                      colorPhoto = (matchedVar as any).foto_uri || (matchedVar as any).foto_url;
+                    }
+                  }
+                  if (!colorPhoto && allProductImages.length > 0) {
+                    colorPhoto = allProductImages.find(u => u && typeof u === 'string' && u.toLowerCase().includes(cleanOpt)) || allProductImages[0];
+                  }
+
+                  const keywordMatchesCount = allProductImages.filter(imgUrl => {
+                    if (!imgUrl || typeof imgUrl !== 'string') return false;
+                    const lowerUrl = imgUrl.toLowerCase();
+                    return lowerUrl.includes(cleanOpt) || 
+                           (cleanOpt === 'preto' && (lowerUrl.includes('black') || lowerUrl.includes('pret'))) ||
+                           (cleanOpt === 'rosa' && (lowerUrl.includes('pink') || lowerUrl.includes('ros')));
+                  }).length;
+
+                  const photoCount = colorPhotosList.length > 0
+                    ? colorPhotosList.length
+                    : (keywordMatchesCount > 0 ? keywordMatchesCount : (colorPhoto ? 1 : 0));
 
                   return (
                     <motion.button
