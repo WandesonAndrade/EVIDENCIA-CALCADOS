@@ -8,7 +8,7 @@ import { firebaseAuthService } from '../services/firebaseAuthService';
 import { userDataService } from '../services/userDataService';
 import { orderService } from '../services/orderService';
 import { getProdutosMoblink, extractPrecoTabelaMoblink, extractPrecoVistaMoblink, extractPrecoCartaoMoblink, parseValor, extractSaldoLojaMoblink, sanitizeProductForFirestore, cleanUndefinedFields, filterProductsRequiringSync, hasProductChanged, extractClassificacaoCategoria } from '../services/moblinkProductsService';
-import { moblinkCategoriesService } from '../services/moblinkCategoriesService';
+import { moblinkCategoriesService, normalizeCategoryName } from '../services/moblinkCategoriesService';
 import { cleanUndefinedProperties } from '../utils/cleanObject';
 import { API_ENDPOINTS } from '../services/api';
 
@@ -721,7 +721,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       const liveSku = item.codigo || item.sku || dbRecord?.sku || mobId;
       const catInfo = extractClassificacaoCategoria(item);
-      const liveCategory = catInfo.category || item.categoria || item.category || (dbRecord?.category && dbRecord.category !== 'Geral' ? dbRecord.category : 'Geral');
+      const liveCategory = (catInfo.category && catInfo.category !== 'Geral') 
+        ? catInfo.category 
+        : (item.categoria && item.categoria !== 'Geral')
+        ? normalizeCategoryName(item.categoria)
+        : (dbRecord?.category && dbRecord.category !== 'Geral')
+        ? normalizeCategoryName(dbRecord.category)
+        : 'Calçados';
       const liveSubcategory = catInfo.subcategory || item.subcategoria || item.subcategory || dbRecord?.subcategory;
       const liveBarcode = item.codigoBarras || item.barcode || item.codigo || dbRecord?.barcode;
       const liveBrand = item.marca || dbRecord?.brand || 'Evidência';

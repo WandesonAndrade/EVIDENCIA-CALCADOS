@@ -13,6 +13,7 @@ import {
   extractBaseNameAndVariant,
   hasProductChanged,
   hasProductValidGrade,
+  extractClassificacaoCategoria,
   saveMoblinkCache,
   loadMoblinkCache
 } from '../services/moblinkProductsService';
@@ -592,7 +593,7 @@ export const MoblinkProductsManager: React.FC = () => {
             preco_venda: precoTabela,
             precoVista: precoVista,
             preco_vista: precoVista,
-            category: (item.categoria && item.categoria !== 'Geral') ? item.categoria : (existingDb?.category || 'Geral'),
+            category: (item.categoria && item.categoria !== 'Geral') ? normalizeCategoryName(item.categoria) : (existingDb?.category && existingDb.category !== 'Geral' ? existingDb.category : extractClassificacaoCategoria(item).category || 'Calçados'),
             subcategory: item.subcategoria || existingDb?.subcategory || '',
             foto_uri: item.foto_uri || existingDb?.foto_uri,
             images: (existingDb?.images && existingDb.images.length > 0) ? existingDb.images : (item.foto_uri ? [item.foto_uri] : []),
@@ -666,7 +667,7 @@ export const MoblinkProductsManager: React.FC = () => {
     // Preço à vista como originalPrice (referência de desconto)
     const initialOrigPrice = existing?.originalPrice ?? item.precoOriginal ?? '';
     const initialStock = existing?.stock ?? extractSaldoLojaMoblink(item) ?? 0;
-    const initialCategory = existing?.category || item.categoria || item.category || 'Geral';
+    const initialCategory = (existing?.category && existing.category !== 'Geral') ? existing.category : (item.categoria && item.categoria !== 'Geral' ? normalizeCategoryName(item.categoria) : extractClassificacaoCategoria(item).category || 'Calçados');
     const initialVisible = existing?.visible !== undefined ? (initialStock <= 0 ? false : existing.visible) : initialStock > 0;
     const initialSizes = existing?.sizes && Array.isArray(existing.sizes) && existing.sizes.length > 0
       ? existing.sizes.join(', ')

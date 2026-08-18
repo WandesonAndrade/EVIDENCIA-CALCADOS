@@ -20,7 +20,7 @@ export interface MoblinkGrupoRaw {
 export const DEFAULT_CATEGORY_TREE: Category[] = [];
 
 export function normalizeCategoryName(raw: string): string {
-  if (!raw) return "Geral";
+  if (!raw || raw.trim().toUpperCase() === "GERAL") return "Calçados";
   const clean = raw.trim().toUpperCase();
 
   // Dicionário de Correção Gramatical para Categorias do ERP / Banco de Dados
@@ -178,6 +178,29 @@ export const classificacaoIndex = new Map<
   }
 >();
 
+// Mapeamento pré-populado para códigos numéricos de classificação do ERP MobLink
+const defaultClassificacaoEntries: [string, { category: string; subcategory: string; nome_grupo: string; nome_subgrupo: string }][] = [
+  ["001", { category: "Calçados", subcategory: "", nome_grupo: "Calçados", nome_subgrupo: "" }],
+  ["001.001", { category: "Calçados", subcategory: "Masculino", nome_grupo: "Calçados", nome_subgrupo: "Masculino" }],
+  ["001.002", { category: "Calçados", subcategory: "Feminino", nome_grupo: "Calçados", nome_subgrupo: "Feminino" }],
+  ["001.003", { category: "Calçados", subcategory: "Infantil", nome_grupo: "Calçados", nome_subgrupo: "Infantil" }],
+  ["002", { category: "Calçados", subcategory: "", nome_grupo: "Calçados", nome_subgrupo: "" }],
+  ["002.001", { category: "Calçados", subcategory: "Masculino", nome_grupo: "Calçados", nome_subgrupo: "Masculino" }],
+  ["002.002", { category: "Calçados", subcategory: "Feminino", nome_grupo: "Calçados", nome_subgrupo: "Feminino" }],
+  ["002.003", { category: "Calçados", subcategory: "Infantil", nome_grupo: "Calçados", nome_subgrupo: "Infantil" }],
+  ["002.004", { category: "Calçados", subcategory: "Bebê", nome_grupo: "Calçados", nome_subgrupo: "Bebê" }],
+  ["003", { category: "Confecções", subcategory: "", nome_grupo: "Confecções", nome_subgrupo: "" }],
+  ["003.001", { category: "Confecções", subcategory: "Masculino", nome_grupo: "Confecções", nome_subgrupo: "Masculino" }],
+  ["003.002", { category: "Confecções", subcategory: "Feminino", nome_grupo: "Confecções", nome_subgrupo: "Feminino" }],
+  ["003.003", { category: "Confecções", subcategory: "Infantil", nome_grupo: "Confecções", nome_subgrupo: "Infantil" }],
+  ["004", { category: "Acessórios", subcategory: "Bolsas & Acessórios", nome_grupo: "Acessórios", nome_subgrupo: "Bolsas & Acessórios" }],
+  ["004.001", { category: "Acessórios", subcategory: "Bolsas", nome_grupo: "Acessórios", nome_subgrupo: "Bolsas" }],
+  ["004.002", { category: "Acessórios", subcategory: "Cintos", nome_grupo: "Acessórios", nome_subgrupo: "Cintos" }],
+  ["004.003", { category: "Acessórios", subcategory: "Carteiras", nome_grupo: "Acessórios", nome_subgrupo: "Carteiras" }],
+];
+
+defaultClassificacaoEntries.forEach(([k, v]) => classificacaoIndex.set(k, v));
+
 export const moblinkCategoriesService = {
   async fetchMoblinkGruposApi(): Promise<MoblinkGrupoRaw[]> {
     try {
@@ -221,9 +244,9 @@ export const moblinkCategoriesService = {
   } {
     if (!code)
       return {
-        category: "Geral",
+        category: "Calçados",
         subcategory: "",
-        nome_grupo: "Geral",
+        nome_grupo: "Calçados",
         nome_subgrupo: "",
       };
     const key = String(code).trim();
@@ -232,7 +255,7 @@ export const moblinkCategoriesService = {
     if (classificacaoIndex.has(parentCode))
       return classificacaoIndex.get(parentCode)!;
     return {
-      category: "Geral",
+      category: "Calçados",
       subcategory: "",
       nome_grupo: key,
       nome_subgrupo: "",

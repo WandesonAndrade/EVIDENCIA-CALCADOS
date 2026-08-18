@@ -353,8 +353,33 @@ export const extractReferenciaMoblink = (item: any): string => {
 };
 
 /**
- * Extrai e normaliza a classificação numérica pura (chave mestra ex: "002.003"),
- * traduzindo dinamicamente a Categoria e Subcategoria através da tabela centralizada de categorias.
+ * Infere a categoria e subcategoria do produto com base nas palavras-chave contidas no nome/descrição.
+ * Garante que nenhum produto fique sem categoria válida (ex: "Geral").
+ */
+export function inferCategoryFromProductName(name: string): { category: string; subcategory: string } {
+  if (!name || typeof name !== "string") return { category: "Calçados", subcategory: "" };
+  const upper = name.toUpperCase();
+
+  if (upper.includes("SANDALIA") || upper.includes("SANDÁLIA")) return { category: "Calçados", subcategory: "Sandálias" };
+  if (upper.includes("RASTEIRA") || upper.includes("RASTEIRINHA")) return { category: "Calçados", subcategory: "Rasteiras" };
+  if (upper.includes("TENIS") || upper.includes("TÊNIS") || upper.includes("SNEAKER")) return { category: "Calçados", subcategory: "Tênis" };
+  if (upper.includes("SAPATILHA")) return { category: "Calçados", subcategory: "Sapatilhas" };
+  if (upper.includes("CHINELO") || upper.includes("HAVAIANAS") || upper.includes("SLIDE")) return { category: "Calçados", subcategory: "Chinelos" };
+  if (upper.includes("BOTA") || upper.includes("COTURNO") || upper.includes("CANO ALTO")) return { category: "Calçados", subcategory: "Botas" };
+  if (upper.includes("MOCASSIM") || upper.includes("MOCASSIN")) return { category: "Calçados", subcategory: "Mocassins" };
+  if (upper.includes("PAPETE")) return { category: "Calçados", subcategory: "Papetes" };
+  if (upper.includes("SCARPIN") || upper.includes("SALTO") || upper.includes("PEEP TOE")) return { category: "Calçados", subcategory: "Scarpins" };
+  if (upper.includes("SAPATO")) return { category: "Calçados", subcategory: "Sapatos" };
+  if (upper.includes("BOLSA") || upper.includes("MOCHILA") || upper.includes("CARTEIRA") || upper.includes("CINTO") || upper.includes("BONÉ") || upper.includes("BONE") || upper.includes("ÓCULOS") || upper.includes("OCULOS")) return { category: "Acessórios", subcategory: "Bolsas & Acessórios" };
+  if (upper.includes("CONFEC") || upper.includes("BLUSA") || upper.includes("CAMISA") || upper.includes("CALÇA") || upper.includes("SHORTS") || upper.includes("VESTIDO") || upper.includes("SAIA") || upper.includes("JAQUETA") || upper.includes("CASACO")) return { category: "Confecções", subcategory: "" };
+  if (upper.includes("PERFUM") || upper.includes("COLONIA") || upper.includes("COLÔNIA")) return { category: "Perfumes", subcategory: "" };
+  if (upper.includes("MALA") || upper.includes("RODINHA")) return { category: "Itens de Viagem", subcategory: "" };
+
+  return { category: "Calçados", subcategory: "" };
+}
+
+/**
+ * Extrai e padroniza os campos oficiais de Categoria, Subcategoria e Classificação do Produto.
  */
 export const extractClassificacaoCategoria = (
   item: any,
@@ -367,41 +392,33 @@ export const extractClassificacaoCategoria = (
 } => {
   if (!item || typeof item !== "object") {
     return {
-      category: "Geral",
+      category: "Calçados",
       subcategory: "",
-      nome_grupo: "Geral",
+      nome_grupo: "Calçados",
       nome_subgrupo: "",
       classificacao: "",
     };
   }
 
-  // 1. Extrair e limpar rigorosamente a chave mestra 'classificacao' (remove todos os espaços)
+  // 1. Extrair e limpar a chave mestra 'classificacao' (remove espaços)
   let rawClassificacao = "";
   if (typeof item.classificacao === "string") {
     rawClassificacao = item.classificacao.replace(/\s+/g, "").trim();
   } else if (typeof item.classificacao === "number") {
     rawClassificacao = String(item.classificacao).trim();
-  } else if (
-    typeof item.classificacao === "object" &&
-    item.classificacao?.nome
-  ) {
-    rawClassificacao = String(item.classificacao.nome)
-      .replace(/\s+/g, "")
-      .trim();
+  } else if (typeof item.classificacao === "object" && item.classificacao?.nome) {
+    rawClassificacao = String(item.classificacao.nome).replace(/\s+/g, "").trim();
   } else if (item.id_grupo) {
     const parent = String(item.id_grupo).trim();
     const sub = item.id_subgrupo ? String(item.id_subgrupo).trim() : "";
     rawClassificacao = sub ? `${parent}.${sub}` : parent;
   }
 
-  // 2. Extrair subclassificacao bruta de fallback
+  // 2. Extrair subclassificacao bruta
   let rawSubclassificacao = "";
   if (typeof item.subclassificacao === "string") {
     rawSubclassificacao = item.subclassificacao.trim();
-  } else if (
-    typeof item.subclassificacao === "object" &&
-    item.subclassificacao?.nome
-  ) {
+  } else if (typeof item.subclassificacao === "object" && item.subclassificacao?.nome) {
     rawSubclassificacao = String(item.subclassificacao.nome).trim();
   } else {
     rawSubclassificacao =
@@ -412,45 +429,65 @@ export const extractClassificacaoCategoria = (
       "";
   }
 
-  // 3. Tradução oficial dinâmica via tabela central de categorias (categories / classificacaoIndex)
+  // 3. Tradução oficial dinâmica via tabela central de categorias
   const isNumericCode = /^\d+(\.\d+)?$/.test(rawClassificacao);
-  let category = "Geral";
+  let category = "Calçados";
   let subcategory = normalizeSubcategoryName(rawSubclassificacao);
   let resolvedGrupo = rawClassificacao;
   let resolvedSubgrupo = rawSubclassificacao;
 
   if (isNumericCode) {
-    const resolved =
-      moblinkCategoriesService.resolveClassificacao(rawClassificacao);
-    if (resolved && resolved.category !== "Geral") {
+    const resolved = moblinkCategoriesService.resolveClassificacao(rawClassificacao);
+    if (resolved && resolved.category && resolved.category.toUpperCase() !== "GERAL") {
       category = resolved.category;
       subcategory = resolved.subcategory || subcategory;
       resolvedGrupo = resolved.nome_grupo || resolvedGrupo;
       resolvedSubgrupo = resolved.nome_subgrupo || resolvedSubgrupo;
     }
-  } else if (rawClassificacao && rawClassificacao !== "Geral") {
-    category = rawClassificacao;
+  } else if (rawClassificacao && rawClassificacao.toUpperCase() !== "GERAL") {
+    category = normalizeCategoryName(rawClassificacao);
   }
 
-  if (category === "Geral") {
-    const rawGroup = String(
-      item.nome_grupo ||
-        item.grupo ||
-        item.categoria ||
-        item.category ||
-        "",
-    ).trim();
-    if (rawGroup && rawGroup !== "Geral") {
-      category = normalizeCategoryName(rawGroup);
-      if (!resolvedGrupo) resolvedGrupo = rawGroup;
+  // 4. Verificação de grupo/categoria brutos do produto
+  const rawGroup = String(
+    item.nome_grupo ||
+      item.grupo ||
+      item.categoria ||
+      item.category ||
+      "",
+  ).trim();
+
+  if (rawGroup && rawGroup.toUpperCase() !== "GERAL") {
+    const normGroup = normalizeCategoryName(rawGroup);
+    if (normGroup && normGroup.toUpperCase() !== "GERAL") {
+      category = normGroup;
+      if (!resolvedGrupo || isNumericCode) resolvedGrupo = normGroup;
     }
   }
 
+  // 5. Inferência inteligente pelo Nome do Produto se a categoria for genérica
+  const prodName = String(item.descricao || item.nome || item.name || "").trim();
+  if (prodName) {
+    const inferred = inferCategoryFromProductName(prodName);
+    if (inferred.category) {
+      if (category === "Calçados" || category.toUpperCase() === "GERAL") {
+        category = inferred.category;
+      }
+      if (!subcategory && inferred.subcategory) {
+        subcategory = inferred.subcategory;
+      }
+    }
+  }
+
+  if (!category || category.toUpperCase() === "GERAL") {
+    category = "Calçados";
+  }
+
   return {
-    category,
-    subcategory,
-    nome_grupo: resolvedGrupo,
-    nome_subgrupo: resolvedSubgrupo,
+    category: normalizeCategoryName(category),
+    subcategory: subcategory ? normalizeSubcategoryName(subcategory) : "",
+    nome_grupo: resolvedGrupo || category,
+    nome_subgrupo: resolvedSubgrupo || subcategory,
     classificacao: rawClassificacao,
   };
 };
