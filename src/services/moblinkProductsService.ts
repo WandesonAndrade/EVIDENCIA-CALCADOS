@@ -144,7 +144,13 @@ export const hasProductValidGrade = (item: any): boolean => {
   const saldosLojaGrade = Array.isArray(item.saldos_lojas_grade) ? item.saldos_lojas_grade : [];
   if (saldosLojaGrade.length > 0) return true;
 
-  // 5. Se o objeto não especifica nenhuma propriedade de grade, considera-se elegível por padrão (ex: produto simples ou mock)
+  // 5. Se o produto possui id_grade / gradeId válido cadastrado no ERP
+  const idGrade = item.id_grade ?? item.gradeId;
+  if (idGrade !== undefined && idGrade !== null && idGrade !== '' && idGrade !== 0 && idGrade !== '0') {
+    return true;
+  }
+
+  // 6. Se o objeto não especifica nenhuma propriedade de grade, considera-se elegível por padrão (ex: produto simples ou mock)
   const hasAnyGradeProperty = 
     item.tamanhos !== undefined || 
     item.sizes !== undefined || 

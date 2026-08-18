@@ -159,6 +159,17 @@ export const getProdutoGradesFromApi = async (
     }
 
     if (!response.ok) {
+      // Fallback de contingência: consulta o próprio endpoint do produto caso a sub-rota /grades não exista
+      response = await evidenciaAuthService.fetchWithAuth(
+        API_ENDPOINTS.PRODUTO_SINGLE(productId),
+        {
+          method: 'GET',
+          headers: { Accept: 'application/json' },
+        }
+      );
+    }
+
+    if (!response.ok) {
       return emptyResult;
     }
 
@@ -189,7 +200,7 @@ export function parseAndFilterProdutoGrades(
 
   if (!rawData) return result;
 
-  const data = rawData.data || rawData.grade || rawData;
+  const data = rawData.data || rawData.grade || rawData.produto || rawData;
 
   if (data.descr_linha) result.descr_linha = data.descr_linha;
   if (data.descr_coluna) result.descr_coluna = data.descr_coluna;
@@ -236,11 +247,13 @@ export function parseAndFilterProdutoGrades(
     ? data.variacoes
     : Array.isArray(data.itens)
     ? data.itens
+    : Array.isArray(data.saldos_lojas_grade)
+    ? data.saldos_lojas_grade
     : [];
 
   if (directList.length > 0) {
     directList.forEach((item: any) => {
-      const tamanhoName = String(item.tamanho || item.tamanho_nome || item.size || item.linha || '').trim();
+      const tamanhoName = String(item.tamanho || item.tamanho_nome || item.size || item.linha || item.pos_grade || '').trim();
       const corName = String(item.cor || item.cor_nome || item.color || item.coluna || '').trim();
       const saldoVal = Number(
         item.saldo_loja ??
@@ -260,6 +273,27 @@ export function parseAndFilterProdutoGrades(
           saldo_loja: saldoVal,
           pos_grade: item.pos_grade || item.codigo_grade,
           cod_barras: item.cod_barras || item.barcode || item.codigo,
+        });
+      }
+    });
+  }
+
+  // Formato C: Lista simples de tamanhos / numerações (ex: tamanhos: ["34", "35", "36"])
+  const directSizes = Array.isArray(data.tamanhos)
+    ? data.tamanhos
+    : Array.isArray(data.sizes)
+    ? data.sizes
+    : [];
+
+  if (directSizes.length > 0 && variacoes.length === 0) {
+    directSizes.forEach((sz: any) => {
+      const szStr = String(sz || '').trim();
+      if (szStr && szStr !== '0') {
+        variacoes.push({
+          id: szStr,
+          tamanho: szStr,
+          cor: '',
+          saldo_loja: 1,
         });
       }
     });

@@ -228,13 +228,17 @@ export const ProductDetail: React.FC = () => {
     ? productGradeData.tamanhos
     : (p.sizes && p.sizes.length > 0)
     ? p.sizes.map(String)
+    : ((p as any).tamanhos && Array.isArray((p as any).tamanhos) && (p as any).tamanhos.length > 0)
+    ? (p as any).tamanhos.map(String)
+    : ((p as any).variacoes && Array.isArray((p as any).variacoes) && (p as any).variacoes.length > 0)
+    ? Array.from(new Set((p as any).variacoes.map((v: any) => String(v.tamanho || v.size || '').trim()).filter(Boolean)))
     : [];
 
   const availableCoresForSelectedSize = selectedLinhaOption && validVariacoes.length > 0
     ? Array.from(new Set(validVariacoes.filter(v => v.tamanho === String(selectedLinhaOption)).map(v => v.cor)))
     : (productGradeData?.cores && productGradeData.cores.length > 0)
     ? productGradeData.cores
-    : [p.color, p.material].filter((val, index, self): val is string => Boolean(val && self.indexOf(val) === index));
+    : [p.color, (p as any).cor, (p as any).cor_nome, p.material].filter((val, index, self): val is string => Boolean(val && typeof val === 'string' && val.trim() !== '' && self.indexOf(val) === index));
 
   const colunaOptions = availableCoresForSelectedSize;
 
@@ -245,38 +249,59 @@ export const ProductDetail: React.FC = () => {
       setSelectedLinhaOption(String(linhaOptions[0]));
     }
 
-    // 3.2. Auto-seleção de Cor inicial da foto capa quando nenhuma cor foi selecionada ainda
-    if (colunaOptions.length > 0 && !selectedColunaOption) {
-      const coverPhoto = allProductImages[0];
-      let initialColor: string | null = null;
+    // 3.2. Auto-seleção de Cor inicial (priorizando a cor da foto capa ou a cor principal do produto)
+    if (colunaOptions.length > 0) {
+      if (!selectedColunaOption) {
+        const coverPhoto = allProductImages[0];
+        let initialColor: string | null = null;
 
-      // Procura qual cor tem a foto capa no colorImages
-      if (p?.colorImages) {
-        const found = Object.keys(p.colorImages).find(cKey => 
-          Array.isArray(p.colorImages?.[cKey]) && p.colorImages[cKey].includes(coverPhoto)
-        );
-        if (found) {
-          const matchInOptions = colunaOptions.find(opt => opt.trim().toLowerCase() === found.trim().toLowerCase());
-          if (matchInOptions) initialColor = matchInOptions;
+        // Procura no colorImages qual cor contém a foto capa
+        if (p?.colorImages && typeof p.colorImages === 'object') {
+          const found = Object.keys(p.colorImages).find(cKey => {
+            const imgs = p.colorImages?.[cKey];
+            return Array.isArray(imgs) && imgs.some(img => img === coverPhoto || (typeof coverPhoto === 'string' && coverPhoto.includes(img)));
+          });
+          if (found) {
+            const matchInOptions = colunaOptions.find(opt => opt.trim().toLowerCase() === found.trim().toLowerCase());
+            if (matchInOptions) initialColor = matchInOptions;
+          }
         }
-      }
 
-      // Procura no colorImageMap se não achou no colorImages
-      if (!initialColor && p?.colorImageMap) {
-        const found = Object.keys(p.colorImageMap).find(cKey => p.colorImageMap?.[cKey] === coverPhoto);
-        if (found) {
-          const matchInOptions = colunaOptions.find(opt => opt.trim().toLowerCase() === found.trim().toLowerCase());
-          if (matchInOptions) initialColor = matchInOptions;
+        // Procura no colorImageMap se não achou no colorImages
+        if (!initialColor && p?.colorImageMap && typeof p.colorImageMap === 'object') {
+          const found = Object.keys(p.colorImageMap).find(cKey => {
+            const img = p.colorImageMap?.[cKey];
+            return img && (img === coverPhoto || (typeof coverPhoto === 'string' && coverPhoto.includes(img)));
+          });
+          if (found) {
+            const matchInOptions = colunaOptions.find(opt => opt.trim().toLowerCase() === found.trim().toLowerCase());
+            if (matchInOptions) initialColor = matchInOptions;
+          }
         }
-      }
 
-      // Se ainda não achou, pega a 1ª opção de cor disponível
-      if (!initialColor && colunaOptions.length > 0) {
-        initialColor = colunaOptions[0];
-      }
+        // Procura pela cor definida no produto p.color / p.cor / p.cor_nome
+        if (!initialColor) {
+          const pColorName = String((p as any).cor || p.color || (p as any).cor_nome || '').trim();
+          if (pColorName) {
+            const matchInOptions = colunaOptions.find(opt => opt.trim().toLowerCase() === pColorName.toLowerCase());
+            if (matchInOptions) initialColor = matchInOptions;
+          }
+        }
 
-      if (initialColor) {
-        setSelectedColunaOption(initialColor);
+        // Se ainda não achou, pega a 1ª opção de cor disponível
+        if (!initialColor && colunaOptions.length > 0) {
+          initialColor = colunaOptions[0];
+        }
+
+        if (initialColor) {
+          setSelectedColunaOption(initialColor);
+        }
+      } else {
+        // Se a cor selecionada atualmente não existir mais entre as opções válidas (ex: ao trocar de tamanho), reajusta para a 1ª válida
+        const isCurrentStillValid = colunaOptions.some(opt => opt.trim().toLowerCase() === selectedColunaOption.trim().toLowerCase());
+        if (!isCurrentStillValid) {
+          setSelectedColunaOption(colunaOptions[0]);
+        }
       }
     }
   }, [linhaOptions, colunaOptions, selectedLinhaOption, selectedColunaOption, allProductImages, p]);
