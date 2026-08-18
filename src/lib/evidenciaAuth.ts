@@ -196,7 +196,9 @@ export const evidenciaAuthService = {
       // Se a API remota responder erro HTTP (401, 500, etc.) em requisição direta, tenta o proxy backend local (/api/v1/...) se for JSON
       if (!response.ok && url.startsWith(apiOrigin)) {
         const proxyUrl = url.replace(apiOrigin, '');
-        console.warn(`[evidenciaAuthService] Fallback de proxy ativado (HTTP ${response.status}): ${url} -> ${proxyUrl}`);
+        if (!url.includes('/grades')) {
+          console.warn(`[evidenciaAuthService] Fallback de proxy ativado (HTTP ${response.status}): ${url} -> ${proxyUrl}`);
+        }
         try {
           const proxyHeaders = new Headers(options.headers || {});
           proxyHeaders.set('Accept', 'application/json');

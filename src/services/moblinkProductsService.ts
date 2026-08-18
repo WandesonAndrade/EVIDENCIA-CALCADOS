@@ -105,6 +105,9 @@ export const extractBaseNameAndVariant = (
 export const hasProductValidGrade = (item: any): boolean => {
   if (!item || typeof item !== "object") return false;
 
+  // Se o objeto explicitamente define a flag hasGrade como false, não tem grade ativa
+  if (item.hasGrade === false) return false;
+
   // 1. Array de tamanhos/sizes com tamanhos/numerações válidas
   const sizesList = Array.isArray(item.tamanhos)
     ? item.tamanhos
@@ -144,28 +147,57 @@ export const hasProductValidGrade = (item: any): boolean => {
   const saldosLojaGrade = Array.isArray(item.saldos_lojas_grade) ? item.saldos_lojas_grade : [];
   if (saldosLojaGrade.length > 0) return true;
 
-  // 5. Se o produto possui id_grade / gradeId válido cadastrado no ERP
+  // 5. Se o produto possui id_grade / gradeId válido cadastrado no ERP ou flag explicitada hasGrade: true
   const idGrade = item.id_grade ?? item.gradeId;
   if (idGrade !== undefined && idGrade !== null && idGrade !== '' && idGrade !== 0 && idGrade !== '0') {
     return true;
   }
+  if (item.hasGrade === true) return true;
 
-  // 6. Se o objeto não especifica nenhuma propriedade de grade, considera-se elegível por padrão (ex: produto simples ou mock)
-  const hasAnyGradeProperty = 
-    item.tamanhos !== undefined || 
-    item.sizes !== undefined || 
-    item.grade !== undefined || 
-    item.grades !== undefined || 
-    item.variacoes !== undefined || 
-    item.grade_items !== undefined || 
-    item.stockBySize !== undefined || 
-    item.sizeStockMap !== undefined || 
-    item.saldos_lojas_grade !== undefined ||
-    item.hasGrade !== undefined;
-
-  if (!hasAnyGradeProperty) return true;
-
+  // REGRA UNIVERSAL: Se o produto (de QUALQUER categoria) não possui desmembramento de grade cadastrado no ERP, ele NÃO tem grade ativa (retorna false)
   return false;
+};
+
+export const isNonFootwearProduct = (item: any): boolean => {
+  if (!item || typeof item !== "object") return false;
+  const rawCat = (item.categoria || item.category || item.nome_grupo || '').toString().toUpperCase();
+  const rawName = (item.nome || item.name || item.descricao || '').toString().toUpperCase();
+
+  return (
+    rawCat.includes("BOLSA") || 
+    rawCat.includes("ACESSÓR") || 
+    rawCat.includes("ACESSOR") || 
+    rawCat.includes("CARTEIR") || 
+    rawCat.includes("CINTO") || 
+    rawCat.includes("PERFUM") || 
+    rawCat.includes("COSMET") || 
+    rawCat.includes("COSMÉT") || 
+    rawCat.includes("CREME") || 
+    rawCat.includes("CREAM") || 
+    rawCat.includes("VIAGEM") ||
+    rawCat.includes("CONFEC") ||
+    rawName.includes("BOLSA") || 
+    rawName.includes("CARTEIRA") || 
+    rawName.includes("CINTO") || 
+    rawName.includes("PERFUME") || 
+    rawName.includes("CREAM") || 
+    rawName.includes("CREME") || 
+    rawName.includes("COSMET") || 
+    rawName.includes("COSMÉT") || 
+    rawName.includes("LOCAO") || 
+    rawName.includes("LOÇÃO") || 
+    rawName.includes("BODY") || 
+    rawName.includes("SPLASH") || 
+    rawName.includes("BATOM") || 
+    rawName.includes("HIDRAT") || 
+    rawName.includes("MALA") || 
+    rawName.includes("MOCHILA") || 
+    rawName.includes("BONÉ") || 
+    rawName.includes("BONE") || 
+    rawName.includes("ÓCULOS") || 
+    rawName.includes("OCULOS") || 
+    rawName.includes("CHAVEIRO")
+  );
 };
 
 /**
