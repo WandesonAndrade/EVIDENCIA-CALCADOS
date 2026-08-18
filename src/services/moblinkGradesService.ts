@@ -140,17 +140,19 @@ export const getProdutoGradesFromApi = async (
   if (!productId) return emptyResult;
 
   try {
+    // 1. Tenta a rota direta oficial do MobLink ERP com token Bearer
     let response: Response = await evidenciaAuthService.fetchWithAuth(
-      `/api/v1/produtos/${productId}/grades`,
+      API_ENDPOINTS.PRODUTO_GRADES(productId),
       {
         method: 'GET',
         headers: { Accept: 'application/json' },
       }
     );
 
+    // 2. Se a chamada direta falhar, tenta a rota proxy backend local /api/v1/...
     if (!response.ok) {
       response = await evidenciaAuthService.fetchWithAuth(
-        API_ENDPOINTS.PRODUTO_GRADES(productId),
+        `/api/v1/produtos/${productId}/grades`,
         {
           method: 'GET',
           headers: { Accept: 'application/json' },
@@ -158,8 +160,8 @@ export const getProdutoGradesFromApi = async (
       );
     }
 
+    // 3. Fallback adicional: consulta o próprio produto no ERP caso a sub-rota de grades retorne 404
     if (!response.ok) {
-      // Fallback de contingência: consulta o próprio endpoint do produto caso a sub-rota /grades não exista
       response = await evidenciaAuthService.fetchWithAuth(
         API_ENDPOINTS.PRODUTO_SINGLE(productId),
         {

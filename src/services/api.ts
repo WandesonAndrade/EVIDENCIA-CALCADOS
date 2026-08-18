@@ -19,8 +19,8 @@ const getEnvApiUrl = (): string => {
     return envUrl.trim().replace(/\/$/, "");
   }
 
-  // Base URL padrão oficial do projeto Evidência Calçados
-  return "";
+  // Base URL padrão oficial do projeto Evidência Calçados MobLink ERP
+  return "https://api.evidenciacalcados.com.br/api/v1";
 };
 
 /**
