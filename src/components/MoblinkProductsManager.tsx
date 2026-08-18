@@ -822,6 +822,17 @@ export const MoblinkProductsManager: React.FC = () => {
 
         setSelectedProduct(merged);
 
+        // Atualiza a lista local no estado reativamente para atualizar a listagem e o modal imediatamente
+        setMoblinkList(prev => prev.map(item => {
+          const itemMobId = String(item.id || item.moblinkId || '');
+          if (itemMobId === targetId) {
+            return { ...item, ...merged };
+          }
+          return item;
+        }));
+
+        updateProduct(String(sanitized.id), sanitized as Product);
+
         // 2. Recarrega as informações de grade em tempo real
         const updatedGrades = await getProdutoGradesFromApi(targetId);
         setSelectedProductGrade(updatedGrades);

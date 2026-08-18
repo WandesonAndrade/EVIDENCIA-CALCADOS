@@ -571,8 +571,9 @@ export const ProductDetail: React.FC = () => {
         </motion.button>
 
         {(() => {
-          const breadcrumbCategory = p.category && p.category.toUpperCase() !== 'GERAL' 
-            ? normalizeCategoryName(p.category) 
+          const rawCategory = p.category || (p as any).categoria || (p as any).nome_grupo;
+          const breadcrumbCategory = rawCategory && String(rawCategory).toUpperCase() !== 'GERAL' 
+            ? normalizeCategoryName(rawCategory) 
             : (inferCategoryFromProductName(p.name || '').category || 'Calçados');
 
           const rawSub = p.subcategory || (p as any).subcategoria || p.nome_subgrupo;

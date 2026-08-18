@@ -662,7 +662,24 @@ export const mergeErpSyncWithExistingDbProduct = (
   const protectedColorImageMap = existingDbProd.colorImageMap || updatedErpProd?.colorImageMap;
   const protectedColorImages = existingDbProd.colorImages || updatedErpProd?.colorImages;
 
-  // 4. ATUALIZAÇÃO COMPLETA EM TEMPO REAL A PARTIR DO ERP (Preços, Estoque e Grade)
+  // 4. ATUALIZAÇÃO COMPLETA EM TEMPO REAL A PARTIR DO ERP (Classificação, Categorias, Preços, Estoque e Grade)
+  const liveClassificacao = (updatedErpProd.classificacao && String(updatedErpProd.classificacao).trim() !== '')
+    ? updatedErpProd.classificacao
+    : (updatedErpProd.id_grupo ? `${updatedErpProd.id_grupo}.${updatedErpProd.id_subgrupo || ''}` : existingDbProd.classificacao);
+
+  const liveIdGrupo = updatedErpProd.id_grupo ?? existingDbProd.id_grupo;
+  const liveIdSubgrupo = updatedErpProd.id_subgrupo ?? existingDbProd.id_subgrupo;
+  const liveNomeGrupo = updatedErpProd.nome_grupo || updatedErpProd.categoria || existingDbProd.nome_grupo;
+  const liveNomeSubgrupo = updatedErpProd.nome_subgrupo || updatedErpProd.subcategoria || existingDbProd.nome_subgrupo;
+
+  const erpCatInfo = extractClassificacaoCategoria(updatedErpProd);
+  const liveCategory = (existingDbProd.isCategoryManuallySet && existingDbProd.category)
+    ? existingDbProd.category
+    : erpCatInfo.category;
+  const liveSubcategory = (existingDbProd.isSubcategoryManuallySet && existingDbProd.subcategory)
+    ? existingDbProd.subcategory
+    : erpCatInfo.subcategory;
+
   const livePrice = extractPrecoTabelaMoblink(updatedErpProd) || parseValor(updatedErpProd.price ?? existingDbProd.price);
   const livePrecoVista = extractPrecoVistaMoblink(updatedErpProd) || (livePrice > 0 ? Math.round(livePrice * 0.9 * 100) / 100 : 0);
   const livePrecoCartao = extractPrecoCartaoMoblink(updatedErpProd) || (livePrice > 0 ? Math.round(livePrice * 0.9 * 100) / 100 : 0);
@@ -676,15 +693,27 @@ export const mergeErpSyncWithExistingDbProduct = (
     ? updatedErpProd.sizes
     : (existingDbProd.sizes || []);
 
-  const liveHasGrade = hasProductValidGrade(updatedErpProd) || hasProductValidGrade(existingDbProd) || liveSizes.length > 0;
+  const liveHasGrade = hasProductValidGrade(updatedErpProd) || liveSizes.length > 0;
   const liveIdGrade = updatedErpProd.id_grade ?? updatedErpProd.gradeId ?? existingDbProd.id_grade ?? existingDbProd.gradeId ?? null;
 
   // Visibilidade: se o produto tem estoque > 0 e tem grade => visível na loja virtual
   const isVisibleInStore = liveStock > 0 ? liveHasGrade : false;
 
   return {
-    ...updatedErpProd,
     ...existingDbProd,
+    ...updatedErpProd,
+
+    // Classificação & Categorias ATUALIZADAS DO ERP
+    classificacao: liveClassificacao,
+    id_grupo: liveIdGrupo,
+    id_subgrupo: liveIdSubgrupo,
+    nome_grupo: liveNomeGrupo,
+    nome_subgrupo: liveNomeSubgrupo,
+    categoria: updatedErpProd.categoria || updatedErpProd.category || liveNomeGrupo,
+    subcategoria: updatedErpProd.subcategoria || updatedErpProd.subcategory || liveNomeSubgrupo,
+    category: liveCategory,
+    subcategory: liveSubcategory,
+
     // Dados protegidos contra sobrescrita (cadastrados pelo lojista)
     name: protectedName,
     descricao: protectedName,
@@ -823,13 +852,14 @@ export const sanitizeProductForFirestore = (
 
   const updatedAt = product.updatedAt || new Date().toISOString();
 
-  const catInfo = extractClassificacaoCategoria({
-    classificacao: cleanClassificacao,
-  });
+  const catInfo = extractClassificacaoCategoria(product);
 
   const finalImagesList = (Array.isArray(product.images) && product.images.length > 0)
     ? product.images
     : [effectiveImg];
+
+  const rawGrupo = (product as any).nome_grupo || (product as any).categoria || catInfo.nome_grupo || catInfo.category;
+  const rawSubgrupo = (product as any).nome_subgrupo || (product as any).subcategoria || catInfo.nome_subgrupo || catInfo.subcategory;
 
   // Contrato Oficial Limpo para o Firestore
   const cleanPayload: Record<string, any> = {
@@ -837,7 +867,15 @@ export const sanitizeProductForFirestore = (
     name,
     description,
     imageUrl: finalImagesList[0],
-    classificacao: cleanClassificacao,
+    classificacao: cleanClassificacao || catInfo.classificacao,
+    id_grupo: (product as any).id_grupo ?? (cleanClassificacao.split('.')[0] || ''),
+    id_subgrupo: (product as any).id_subgrupo ?? (cleanClassificacao.split('.')[1] || ''),
+    nome_grupo: rawGrupo,
+    nome_subgrupo: rawSubgrupo,
+    categoria: rawGrupo,
+    subcategoria: rawSubgrupo,
+    category: product.category || catInfo.category,
+    subcategory: product.subcategory || catInfo.subcategory,
     price,
     promoPrice,
     originalPrice,
@@ -845,9 +883,6 @@ export const sanitizeProductForFirestore = (
     visible,
     hasGrade,
     updatedAt,
-    // Aliases para exibição imediata em componentes legados
-    category: catInfo.category,
-    subcategory: catInfo.subcategory,
     images: finalImagesList,
     foto_uri: finalImagesList[0],
     preco_venda: price,
