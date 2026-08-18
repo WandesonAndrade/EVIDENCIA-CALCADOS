@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Product } from '../types';
 import { CompleteProfileModal } from './CompleteProfileModal';
 import { CheckoutConfirmationModal } from './CheckoutConfirmationModal';
+import { normalizeCategoryName } from '../services/moblinkCategoriesService';
 import { isProfileIncomplete } from '../App';
 
 export const Cart: React.FC = () => {
@@ -470,7 +471,7 @@ export const Cart: React.FC = () => {
                   />
                 </div>
                 <div className="space-y-1">
-                  <span className={`text-[9px] font-bold uppercase tracking-wider ${isDark ? 'text-amber-400' : 'text-slate-500'}`}>{p.category}</span>
+                  <span className={`text-[9px] font-bold uppercase tracking-wider ${isDark ? 'text-amber-400' : 'text-slate-500'}`}>{normalizeCategoryName(p.category)}</span>
                   <h4 className={`text-xs font-bold line-clamp-1 ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>{p.name}</h4>
                   <p className={`text-sm font-black ${isDark ? 'text-amber-400' : 'text-slate-900'}`}>R$ {p.price.toFixed(2).replace('.', ',')}</p>
                 </div>

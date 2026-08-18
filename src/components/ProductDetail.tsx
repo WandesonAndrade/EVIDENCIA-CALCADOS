@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { ShoppingCart, ShoppingBag, MapPin, Star, ChevronRight, ArrowLeft, Shield, Sparkles, Heart, Share2, Check, CreditCard, CheckCircle2, AlertCircle, ArrowRight, Truck, RefreshCw, Package, MessageSquare, Search, Loader2, X } from 'lucide-react';
 import { getGradeProdutoById, getProdutoGradesFromApi } from '../services/moblinkGradesService';
-import { getSingleProdutoMoblinkFromApi, sanitizeProductForFirestore, mergeErpSyncWithExistingDbProduct } from '../services/moblinkProductsService';
+import { getSingleProdutoMoblinkFromApi, sanitizeProductForFirestore, mergeErpSyncWithExistingDbProduct, inferCategoryFromProductName } from '../services/moblinkProductsService';
+import { normalizeCategoryName, normalizeSubcategoryName } from '../services/moblinkCategoriesService';
 import { db } from '../lib/firebase';
 import { doc, setDoc } from 'firebase/firestore';
 import { GradeProduto, Product, ProdutoGradesResult } from '../types';
@@ -569,9 +570,28 @@ export const ProductDetail: React.FC = () => {
           <span>Voltar para a Vitrine</span>
         </motion.button>
 
-        <div className={`hidden sm:block text-xs font-normal ${isDark ? 'text-[#86868b]' : 'text-[#86868b]'}`}>
-          Calçados &gt; <span className={isDark ? 'text-slate-300' : 'text-slate-700'}>{p.category}</span> &gt; <span className={`font-semibold ${isDark ? 'text-white' : 'text-[#1d1d1f]'}`}>{p.name}</span>
-        </div>
+        {(() => {
+          const breadcrumbCategory = p.category && p.category.toUpperCase() !== 'GERAL' 
+            ? normalizeCategoryName(p.category) 
+            : (inferCategoryFromProductName(p.name || '').category || 'Calçados');
+
+          const rawSub = p.subcategory || (p as any).subcategoria || p.nome_subgrupo;
+          const inferredSub = inferCategoryFromProductName(p.name || '').subcategory;
+          
+          let breadcrumbSubcategory = rawSub && rawSub.trim() !== '' && rawSub.toLowerCase() !== breadcrumbCategory.toLowerCase()
+            ? normalizeSubcategoryName(rawSub)
+            : (inferredSub && inferredSub.toLowerCase() !== breadcrumbCategory.toLowerCase() ? inferredSub : '');
+
+          if (!breadcrumbSubcategory || breadcrumbSubcategory.toLowerCase() === breadcrumbCategory.toLowerCase()) {
+            breadcrumbSubcategory = 'Feminino';
+          }
+
+          return (
+            <div className={`hidden sm:block text-xs font-normal ${isDark ? 'text-[#86868b]' : 'text-[#86868b]'}`}>
+              <span className={isDark ? 'text-slate-300' : 'text-slate-700'}>{breadcrumbCategory}</span> &gt; <span className={isDark ? 'text-slate-300' : 'text-slate-700'}>{breadcrumbSubcategory}</span> &gt; <span className={`font-semibold ${isDark ? 'text-white' : 'text-[#1d1d1f]'}`}>{p.name}</span>
+            </div>
+          );
+        })()}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-6 items-start">
@@ -586,7 +606,9 @@ export const ProductDetail: React.FC = () => {
               <span className={`px-3 py-1 rounded-full text-[10px] font-extrabold tracking-wider uppercase border ${
                 isDark ? 'bg-blue-900/30 text-blue-200 border-blue-800' : 'bg-[#DDF1FF] text-[#003B73] border-[#006EDB]/20'
               }`}>
-                {p.category}
+                {(p.category && p.category.toUpperCase() !== 'GERAL')
+                  ? normalizeCategoryName(p.category)
+                  : (inferCategoryFromProductName(p.name || '').category || 'Calçados')}
               </span>
 
               {/* Avaliação Estilo Magalu (⭐ 5.0 (novo)) */}

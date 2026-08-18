@@ -877,21 +877,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const data = doc.data() as Product;
           const prod = { id: doc.id, ...data };
 
-          // Enriquece campos de categoria se estiverem ausentes ou genéricos
-          // Usa extractClassificacaoCategoria que consulta o classificacaoIndex já populado em memória
-          const needsEnrichment =
-            !prod.nome_grupo ||
-            prod.nome_grupo === 'Geral' ||
-            prod.nome_grupo === prod.classificacao;
-
-          if (needsEnrichment && prod.classificacao) {
-            const catInfo = extractClassificacaoCategoria(prod);
-            if (catInfo.category && catInfo.category !== 'Geral') {
-              prod.category = prod.category && prod.category !== 'Geral' ? prod.category : catInfo.category;
-              prod.subcategory = prod.subcategory || catInfo.subcategory;
-              prod.nome_grupo = catInfo.nome_grupo || prod.nome_grupo;
-              prod.nome_subgrupo = catInfo.nome_subgrupo || prod.nome_subgrupo || '';
-            }
+          // Enriquece e sanitiza campos de categoria se estiverem ausentes ou genéricos ("Geral")
+          const catInfo = extractClassificacaoCategoria(prod);
+          if (!prod.category || prod.category.toUpperCase() === 'GERAL') {
+            prod.category = catInfo.category || 'Calçados';
+          } else {
+            prod.category = normalizeCategoryName(prod.category);
+          }
+          if (!prod.subcategory) {
+            prod.subcategory = catInfo.subcategory;
+          }
+          if (!prod.nome_grupo || prod.nome_grupo.toUpperCase() === 'GERAL') {
+            prod.nome_grupo = catInfo.nome_grupo || prod.category;
           }
 
           prodList.push(prod);

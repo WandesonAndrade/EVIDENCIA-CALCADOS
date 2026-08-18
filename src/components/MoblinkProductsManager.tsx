@@ -185,6 +185,8 @@ export const MoblinkProductsManager: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('Todos');
   const [subcategoryFilter, setSubcategoryFilter] = useState('Todas');
+  const [classificacaoGrupoFilter, setClassificacaoGrupoFilter] = useState('');
+  const [classificacaoSubgrupoFilter, setClassificacaoSubgrupoFilter] = useState('');
   const [baseNameFilter, setBaseNameFilter] = useState('');
   const [viewMode, setViewMode] = useState<'list' | 'grouped'>('list');
   const [syncFilter, setSyncFilter] = useState<'todos' | 'erp' | 'manual'>('todos');
@@ -1477,7 +1479,44 @@ export const MoblinkProductsManager: React.FC = () => {
       const isErpItem = Boolean(item.moblinkId || String(item.id || '').startsWith('MOB-') || !item.isManual);
       const matchesSync = syncFilter === 'todos' || (syncFilter === 'erp' && isErpItem) || (syncFilter === 'manual' && !isErpItem);
 
-      return matchesSearch && matchesCategory && matchesSubcategory && matchesBaseName && matchesSync;
+      // Filtro por Classificação ERP (Grupo antes do "." e Subgrupo depois do ".")
+      let matchesClassificacao = true;
+      const gQuery = classificacaoGrupoFilter.trim();
+      const sQuery = classificacaoSubgrupoFilter.trim();
+
+      if (gQuery || sQuery) {
+        const catInfo = extractClassificacaoCategoria(item);
+        const rawClass = catInfo.classificacao || String(item.classificacao || (item as any).id_grupo || '').trim();
+        const parts = rawClass.split('.');
+        const itemGrupo = (parts[0] !== undefined && parts[0] !== '') ? parts[0].trim() : String((item as any).id_grupo || '').trim();
+        const itemSubgrupo = (parts[1] !== undefined && parts[1] !== '') ? parts[1].trim() : String((item as any).id_subgrupo || '').trim();
+
+        let matchesGrupo = true;
+        if (gQuery) {
+          const itemGNum = parseInt(itemGrupo, 10);
+          const qGNum = parseInt(gQuery, 10);
+          if (!isNaN(itemGNum) && !isNaN(qGNum)) {
+            matchesGrupo = itemGNum === qGNum;
+          } else {
+            matchesGrupo = itemGrupo.toLowerCase().includes(gQuery.toLowerCase());
+          }
+        }
+
+        let matchesSubgrupo = true;
+        if (sQuery) {
+          const itemSNum = parseInt(itemSubgrupo, 10);
+          const qSNum = parseInt(sQuery, 10);
+          if (!isNaN(itemSNum) && !isNaN(qSNum)) {
+            matchesSubgrupo = itemSNum === qSNum;
+          } else {
+            matchesSubgrupo = itemSubgrupo.toLowerCase().includes(sQuery.toLowerCase());
+          }
+        }
+
+        matchesClassificacao = matchesGrupo && matchesSubgrupo;
+      }
+
+      return matchesSearch && matchesCategory && matchesSubcategory && matchesBaseName && matchesSync && matchesClassificacao;
     });
 
     // Ordenação dinâmica da lista individual
@@ -1506,7 +1545,7 @@ export const MoblinkProductsManager: React.FC = () => {
     });
 
     return filtered;
-  }, [combinedCatalog, searchQuery, categoryFilter, subcategoryFilter, baseNameFilter, syncFilter, hideOutOfStock, hideNoGrade, gradeFilter, sortBy, dbProductsMap]);
+  }, [combinedCatalog, searchQuery, categoryFilter, subcategoryFilter, classificacaoGrupoFilter, classificacaoSubgrupoFilter, baseNameFilter, syncFilter, hideOutOfStock, hideNoGrade, gradeFilter, sortBy, dbProductsMap]);
 
   // Taxonomia oficial lida diretamente da coleção 'categories' do Firebase Firestore
   const storeCategoryTree = useMemo(() => {
@@ -1824,6 +1863,43 @@ export const MoblinkProductsManager: React.FC = () => {
               </select>
             </div>
 
+            {/* FILTRO POR CLASSIFICAÇÃO ERP (GRUPO . SUBGRUPO) */}
+            <div className="flex items-center space-x-1 shrink-0">
+              <span className="text-[10px] font-bold text-slate-400 uppercase shrink-0">Classificação:</span>
+              <div className="flex items-center space-x-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-1">
+                <input
+                  type="text"
+                  placeholder="002"
+                  value={classificacaoGrupoFilter}
+                  onChange={(e) => setClassificacaoGrupoFilter(e.target.value)}
+                  className="w-12 px-1 py-0.5 text-xs font-mono font-bold bg-transparent border-0 outline-none text-slate-800 dark:text-amber-400 placeholder:text-slate-400 placeholder:font-normal text-center"
+                  title="Código do Grupo (número antes do ponto '.')"
+                />
+                <span className="text-xs font-black text-amber-500 font-mono">.</span>
+                <input
+                  type="text"
+                  placeholder="001"
+                  value={classificacaoSubgrupoFilter}
+                  onChange={(e) => setClassificacaoSubgrupoFilter(e.target.value)}
+                  className="w-12 px-1 py-0.5 text-xs font-mono font-bold bg-transparent border-0 outline-none text-slate-800 dark:text-amber-400 placeholder:text-slate-400 placeholder:font-normal text-center"
+                  title="Código do Subgrupo (número depois do ponto '.')"
+                />
+                {(classificacaoGrupoFilter || classificacaoSubgrupoFilter) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setClassificacaoGrupoFilter('');
+                      setClassificacaoSubgrupoFilter('');
+                    }}
+                    className="p-1 text-slate-400 hover:text-rose-500 rounded cursor-pointer transition-colors"
+                    title="Limpar filtro de classificação"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
+
             {/* ORDENAÇÃO DE PRODUTOS */}
             <div className="flex items-center space-x-1.5">
               <Filter className="h-3.5 w-3.5 text-amber-500 shrink-0" />
@@ -2095,6 +2171,17 @@ export const MoblinkProductsManager: React.FC = () => {
                                     <span className="font-mono font-black text-[10px] px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-amber-400 rounded border border-slate-200 dark:border-slate-700">
                                       {mobId}
                                     </span>
+                                    {(() => {
+                                      const catInfo = extractClassificacaoCategoria(item);
+                                      const classCode = catInfo.classificacao || String(item.classificacao || (item as any).id_grupo || '').trim();
+                                      if (!classCode) return null;
+                                      return (
+                                        <span className="font-mono text-[9px] font-black px-1.5 py-0.5 bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded border border-blue-500/20 inline-flex items-center gap-1">
+                                          <Layers className="h-2.5 w-2.5 text-blue-500 shrink-0" />
+                                          <span>Classif: {classCode}</span>
+                                        </span>
+                                      );
+                                    })()}
                                     {itemRefCode && (
                                       <span className="font-mono text-[9px] font-black px-1.5 py-0.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded border border-amber-500/20">
                                         Ref Pai: {itemRefCode}
@@ -2269,6 +2356,17 @@ export const MoblinkProductsManager: React.FC = () => {
                           </p>
                           <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                             <span className="text-[10px] text-slate-400 font-mono">SKU: {item.sku || mobId}</span>
+                            {(() => {
+                              const catInfo = extractClassificacaoCategoria(item);
+                              const classCode = catInfo.classificacao || String(item.classificacao || (item as any).id_grupo || '').trim();
+                              if (!classCode) return null;
+                              return (
+                                <span className="text-[9px] font-mono font-black px-1.5 py-0.5 bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded border border-blue-500/20 inline-flex items-center gap-1">
+                                  <Layers className="h-2.5 w-2.5 text-blue-500 shrink-0" />
+                                  <span>Classif: {classCode}</span>
+                                </span>
+                              );
+                            })()}
                             {(existingDb?.modelCode || existingDb?.referenceCode) && (
                               <span className="text-[9px] px-1.5 py-0.2 bg-amber-500/10 text-amber-600 dark:text-amber-400 font-mono font-black rounded border border-amber-500/20">
                                 Ref Pai: {existingDb.modelCode || existingDb.referenceCode}
@@ -2464,6 +2562,17 @@ export const MoblinkProductsManager: React.FC = () => {
                   <span className="px-2.5 py-0.5 rounded-md bg-amber-500 text-slate-950 text-xs font-black font-mono">
                     ID Ref: {selectedProduct.id || selectedProduct.moblinkId}
                   </span>
+                  {(() => {
+                    const catInfo = extractClassificacaoCategoria(selectedProduct);
+                    const classCode = catInfo.classificacao || String(selectedProduct.classificacao || (selectedProduct as any).id_grupo || '').trim();
+                    if (!classCode) return null;
+                    return (
+                      <span className="px-2.5 py-0.5 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 text-xs font-black font-mono inline-flex items-center gap-1">
+                        <Layers className="h-3 w-3 text-blue-500 shrink-0" />
+                        <span>Classificação ERP: {classCode}</span>
+                      </span>
+                    );
+                  })()}
                   {(selectedProduct.referencia || selectedProduct.referenceCode) && (
                     <span className="px-2.5 py-0.5 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 text-xs font-black font-mono">
                       Ref ERP: {selectedProduct.referencia || selectedProduct.referenceCode}
