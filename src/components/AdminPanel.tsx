@@ -11,6 +11,7 @@ import { checkIsProfileComplete } from '../App';
 import { storage, db, auth, app } from '../lib/firebase';
 import { moblinkClientesService } from '../services/moblinkClientesService';
 import { FinancialDashboard } from './FinancialDashboard';
+import { uploadImageToSupabase } from '../services/supabaseStorageService';
 
 
 
@@ -734,46 +735,29 @@ export const AdminPanel: React.FC = () => {
     }
 
     setIsUploading(true);
-    setUploadFeedback('Enviando imagem...');
+    setUploadFeedback('Enviando imagem para o Supabase Storage...');
 
     try {
-      if (cloudinaryCloudName && cloudinaryUploadPreset) {
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('upload_preset', cloudinaryUploadPreset);
+      const folder = targetField === 'banner' ? 'banners' : targetField === 'about' ? 'sobre' : 'produtos';
+      const url = await uploadImageToSupabase(file, { folder });
 
-        const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudinaryCloudName}/image/upload`, {
-          method: 'POST',
-          body: formData
-        });
+      if (targetField === 'banner') setBannerImage(url);
+      else if (targetField === 'about') setAboutImage(url);
+      else setNewProdImages(prev => [...prev, url]);
 
-        if (res.ok) {
-          const data = await res.json();
-          const url = data.secure_url;
-          if (targetField === 'banner') setBannerImage(url);
-          else if (targetField === 'about') setAboutImage(url);
-          else setNewProdImages(prev => [...prev, url]);
-
-          setUploadFeedback('Imagem enviada com sucesso!');
-        } else {
-          throw new Error('Falha no upload via Cloudinary');
-        }
-      } else {
-        // Fallback: Storage / Base64 Data URL
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          const url = reader.result as string;
-          if (targetField === 'banner') setBannerImage(url);
-          else if (targetField === 'about') setAboutImage(url);
-          else setNewProdImages(prev => [...prev, url]);
-          setUploadFeedback('Imagem carregada com sucesso!');
-        };
-        reader.readAsDataURL(file);
-      }
+      setUploadFeedback('Imagem enviada com sucesso para o Supabase!');
+      addToast('Upload Concluído', 'Imagem armazenada no Supabase e vinculada.', 'success');
     } catch (err: any) {
-      console.error("Erro no envio de imagem:", err);
-      setUploadFeedback(`Erro no envio: ${err.message}`);
-      addToast('Erro no Upload', 'Não foi possível enviar a imagem. Tente novamente.', 'error');
+      console.error("Erro no envio para Supabase Storage:", err);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const url = reader.result as string;
+        if (targetField === 'banner') setBannerImage(url);
+        else if (targetField === 'about') setAboutImage(url);
+        else setNewProdImages(prev => [...prev, url]);
+        setUploadFeedback('Imagem carregada localmente.');
+      };
+      reader.readAsDataURL(file);
     } finally {
       setIsUploading(false);
       setTimeout(() => setUploadFeedback(''), 4000);

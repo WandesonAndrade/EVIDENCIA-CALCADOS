@@ -870,7 +870,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } catch (error) {
         console.warn("Seeding skipped or failed. Using local storage products fallback:", error);
       }
-      
+
+      // Auto-sincronização imediata da vitrine ao iniciar/recarregar a página
+      syncProductsFromMoblinkApi().catch(err => {
+        console.warn("Auto-sincronização da vitrine ao iniciar:", err);
+      });
+
       const unsubscribe = onSnapshot(collection(db, 'products'), (snapshot) => {
         const prodList: Product[] = [];
         snapshot.forEach((doc) => {

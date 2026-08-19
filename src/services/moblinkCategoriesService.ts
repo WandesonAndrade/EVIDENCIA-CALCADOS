@@ -20,7 +20,7 @@ export interface MoblinkGrupoRaw {
 export const DEFAULT_CATEGORY_TREE: Category[] = [];
 
 export function normalizeCategoryName(raw: string): string {
-  if (!raw || raw.trim().toUpperCase() === "GERAL") return "Calçados";
+  if (!raw || raw.trim() === '') return "Geral";
   const clean = raw.trim().toUpperCase();
 
   // Dicionário de Correção Gramatical para Categorias do ERP / Banco de Dados
@@ -32,7 +32,7 @@ export function normalizeCategoryName(raw: string): string {
   if (clean.includes("COSMET") || clean.includes("COSMÉT")) return "Cosméticos";
   if (clean.includes("PERFUM")) return "Perfumes";
   if (clean.includes("ESCOLAR") || clean.includes("ESCOLA")) return "Escolar";
-  if (clean.includes("VIAGEM") || clean.includes("VIAGENS")) return "Itens de Viagem";
+  if (clean.includes("VIAGEM") || clean.includes("VIAGENS") || clean.includes("MALA")) return "Itens de Viagem";
   if (clean.includes("DIVERSO")) return "Diversos";
   if (clean.includes("BOLSA")) return "Bolsas";
   if (clean.includes("CARTEIR")) return "Carteiras";
@@ -46,6 +46,8 @@ export function normalizeCategoryName(raw: string): string {
   if (clean.includes("SAPATO")) return "Sapatos";
   if (clean.includes("BOTA")) return "Botas";
   if (clean.includes("PAPETE")) return "Papetes";
+
+  if (clean === "GERAL") return "Geral";
 
   return raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase();
 }
@@ -128,30 +130,33 @@ export function isProductInCategory(prod: Product, targetCategory: string): bool
   }
 
   if (targetNorm === "CALÇADOS" || targetClean.includes("CALCAD")) {
-    const isBolsaOuAcessorio =
-      cat.includes("ACESSÓRIO") ||
-      cat.includes("BOLSA") ||
-      grupo.includes("ACESSÓRIO") ||
-      grupo.includes("BOLSA") ||
-      productType.includes("BOLSA") ||
-      cat.includes("CONFEC") ||
-      grupo.includes("CONFEC");
-    return !isBolsaOuAcessorio;
+    const isNonFootwear =
+      cat.includes("ACESSÓRIO") || cat.includes("ACESSORIO") ||
+      cat.includes("BOLSA") || cat.includes("VIAGEM") || cat.includes("MALA") ||
+      cat.includes("CONFEC") || cat.includes("ROUPA") || cat.includes("VESTU") ||
+      cat.includes("COSMET") || cat.includes("PERFUM") || cat.includes("ESCOLAR") ||
+      grupo.includes("ACESSÓRIO") || grupo.includes("ACESSORIO") ||
+      grupo.includes("BOLSA") || grupo.includes("VIAGEM") || grupo.includes("MALA") ||
+      grupo.includes("CONFEC") || grupo.includes("ROUPA") || grupo.includes("VESTU") ||
+      grupo.includes("COSMET") || grupo.includes("PERFUM") || grupo.includes("ESCOLAR") ||
+      productType.includes("BOLSA") || productType.includes("ROUPA") || productType.includes("VIAGEM") ||
+      rawCat.includes("VIAGEM") || rawGrupo.includes("VIAGEM") || rawSubgrupo.includes("VIAGEM") ||
+      rawCat.includes("MALA") || rawGrupo.includes("MALA") || rawSubgrupo.includes("MALA") ||
+      name.includes("MALA ") || name.startsWith("MALA ") || name.includes("FRASQUEIRA");
+    return !isNonFootwear;
   }
 
-  if (targetNorm === "ACESSÓRIOS" || targetClean.includes("ACESSOR") || targetClean.includes("BOLSA")) {
+  if (targetNorm === "ACESSÓRIOS" || targetClean.includes("ACESSOR") || targetClean.includes("BOLSA") || targetClean.includes("VIAGEM") || targetClean.includes("MALA")) {
     return (
-      cat.includes("ACESSÓRIO") ||
-      cat.includes("BOLSA") ||
-      grupo.includes("ACESSÓRIO") ||
-      grupo.includes("BOLSA") ||
-      subgrupo.includes("BOLSA") ||
-      subgrupo.includes("CINTO") ||
-      subgrupo.includes("CARTEIRA") ||
-      rawCat.includes("ACESSOR") ||
-      rawGrupo.includes("ACESSOR") ||
-      rawCat.includes("BOLSA") ||
-      rawGrupo.includes("BOLSA")
+      cat.includes("ACESSÓRIO") || cat.includes("ACESSORIO") ||
+      cat.includes("BOLSA") || cat.includes("VIAGEM") || cat.includes("MALA") ||
+      grupo.includes("ACESSÓRIO") || grupo.includes("ACESSORIO") ||
+      grupo.includes("BOLSA") || grupo.includes("VIAGEM") || grupo.includes("MALA") ||
+      subgrupo.includes("BOLSA") || subgrupo.includes("CINTO") || subgrupo.includes("CARTEIRA") || subgrupo.includes("VIAGEM") || subgrupo.includes("MALA") ||
+      rawCat.includes("ACESSOR") || rawGrupo.includes("ACESSOR") ||
+      rawCat.includes("BOLSA") || rawGrupo.includes("BOLSA") ||
+      rawCat.includes("VIAGEM") || rawGrupo.includes("VIAGEM") ||
+      name.includes("MALA ") || name.startsWith("MALA ")
     );
   }
 

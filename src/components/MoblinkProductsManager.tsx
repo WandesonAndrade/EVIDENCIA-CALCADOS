@@ -22,6 +22,7 @@ import { moblinkCategoriesService, normalizeCategoryName, normalizeSubcategoryNa
 import { getProdutoGradesFromApi } from '../services/moblinkGradesService';
 import { db } from '../lib/firebase';
 import { doc, setDoc } from 'firebase/firestore';
+import { uploadImageToSupabase, isSupabaseConfigured, deleteImageFromSupabase } from '../services/supabaseStorageService';
 import { 
   Package, 
   Search, 
@@ -764,19 +765,22 @@ export const MoblinkProductsManager: React.FC = () => {
     setEditColorImageMap(initialColorMap as Record<string, string>);
     setEditColorImages(initialColorImages);
 
+    const isPlaceholder = (url: string) => !url || url.includes('unsplash.com') || url.includes('placeholder');
     if (existing && Array.isArray(existing.images) && existing.images.length > 0) {
+      const realImgs = existing.images.filter(img => img && !isPlaceholder(img));
       const rawFoto = item.foto_uri || item.foto_url || item.foto || item.imagem || item.image;
-      if (rawFoto && typeof rawFoto === 'string' && !existing.images.includes(rawFoto)) {
-        setImages([rawFoto, ...existing.images]);
+      const initialImgs = realImgs.length > 0 ? realImgs : existing.images;
+      if (rawFoto && typeof rawFoto === 'string' && !isPlaceholder(rawFoto) && !initialImgs.includes(rawFoto)) {
+        setImages([rawFoto, ...initialImgs]);
       } else {
-        setImages(existing.images);
+        setImages(initialImgs);
       }
       setRichDescription(existing.description || item.compl_descr || item.descricaoMoblink || item.descricao || '');
     } else {
       const rawFoto = item.foto_uri || item.foto_url || item.foto || item.imagem || item.image;
       const complDescr = item.compl_descr || item.descr_compl || item.descricao_completa;
       const baseDescr = initialName || `Produto ${mobId}`;
-      setImages(rawFoto && typeof rawFoto === 'string' ? [rawFoto] : []);
+      setImages(rawFoto && typeof rawFoto === 'string' && !isPlaceholder(rawFoto) ? [rawFoto] : []);
       setRichDescription(
         complDescr 
           ? `<p><strong>${baseDescr}</strong></p>\n<p>${complDescr}</p>`
@@ -917,36 +921,85 @@ export const MoblinkProductsManager: React.FC = () => {
     });
   };
 
-  // Add Image URL manually
-  const handleAddImageUrl = () => {
+  // Persiste a lista de fotos no Firebase Firestore instantaneamente ao carregar/adicionar
+  // e remove automaticamente qualquer foto modelo padrão (Unsplash / Placeholder)
+  const syncImageUpdateToFirestore = async (rawImagesList: string[]) => {
+    if (!selectedProduct) return rawImagesList;
+
+    const isPlaceholder = (url: string) => !url || url.includes('unsplash.com') || url.includes('placeholder') || url.includes('via.placeholder');
+    
+    // Separa fotos reais de fotos modelos genéricas
+    const realPhotos = rawImagesList.filter(img => img && !isPlaceholder(img));
+    
+    // Se o usuário/ERP tiver fotos reais, exclui a foto padrão Unsplash
+    const finalImagesList = realPhotos.length > 0 ? realPhotos : rawImagesList;
+
+    setImages(finalImagesList);
+
+    const targetId = String(selectedProduct.id || selectedProduct.moblinkId);
+    const updatedProd: Partial<Product> = {
+      images: finalImagesList,
+      imageUrl: finalImagesList[0] || '',
+      foto_uri: finalImagesList[0] || '',
+      updatedAt: new Date().toISOString(),
+    };
+
+    // 1. Atualiza no contexto da aplicação
+    updateProduct(targetId, updatedProd);
+
+    // 2. Salva no Firestore instantaneamente no momento em que a foto é carregada/adicionada
+    try {
+      const docRef = doc(db, 'products', targetId);
+      await setDoc(docRef, updatedProd, { merge: true });
+      console.log(`[MoblinkProductsManager] Foto salva no Firebase Firestore instantaneamente para produto ${targetId}:`, finalImagesList);
+    } catch (err: any) {
+      console.warn(`[MoblinkProductsManager] Falha ao gravar foto no Firestore:`, err);
+    }
+
+    return finalImagesList;
+  };
+
+  // Add Image URL manualmente (salva no Firestore imediatamente e remove foto modelo padrão)
+  const handleAddImageUrl = async () => {
     const url = newImageUrl.trim();
     if (!url) return;
     if (images.includes(url)) {
       setFeedback({ success: false, message: 'Esta imagem já foi adicionada.' });
       return;
     }
-    setImages(prev => [...prev, url]);
+
+    const nextList = [...images, url];
     setNewImageUrl('');
-    setFeedback({ success: true, message: 'Imagem adicionada à galeria!' });
+    await syncImageUpdateToFirestore(nextList);
+
+    setFeedback({ success: true, message: 'Foto salva e vinculada no Firebase com sucesso!' });
     setTimeout(() => setFeedback(null), 3000);
   };
 
-  // Remove Image
-  const handleRemoveImage = (index: number) => {
-    setImages(prev => prev.filter((_, i) => i !== index));
+  // Remove Image (exclui no estado, salva no Firestore e remove do Supabase Storage se for do Supabase)
+  const handleRemoveImage = async (index: number) => {
+    const targetUrl = images[index];
+    const nextList = images.filter((_, i) => i !== index);
+    
+    await syncImageUpdateToFirestore(nextList);
+
+    if (targetUrl) {
+      deleteImageFromSupabase(targetUrl).catch(err => {
+        console.warn('Falha ao remover arquivo do Supabase Storage:', err);
+      });
+    }
   };
 
-  // Set image as main cover
-  const handleSetMainImage = (index: number) => {
+  // Set image as main cover (salva no Firestore imediatamente)
+  const handleSetMainImage = async (index: number) => {
     if (index === 0) return;
-    setImages(prev => {
-      const copy = [...prev];
-      const selected = copy.splice(index, 1)[0];
-      return [selected, ...copy];
-    });
+    const copy = [...images];
+    const selected = copy.splice(index, 1)[0];
+    const nextList = [selected, ...copy];
+    await syncImageUpdateToFirestore(nextList);
   };
 
-  // File Upload (Cloudinary / Base64 Data URL)
+  // File Upload (Upload no Supabase Storage -> Salva a URL pública no Firebase imediatamente)
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -955,37 +1008,29 @@ export const MoblinkProductsManager: React.FC = () => {
     setFeedback(null);
 
     try {
-      if (cloudName && uploadPreset) {
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('upload_preset', uploadPreset);
+      const publicUrl = await uploadImageToSupabase(file, {
+        folder: 'produtos',
+        customFileName: `produto_${selectedProduct?.id || 'new'}_${Date.now()}`
+      });
 
-        const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
-          method: 'POST',
-          body: formData
-        });
+      const nextList = [...images, publicUrl];
+      await syncImageUpdateToFirestore(nextList);
 
-        if (res.ok) {
-          const data = await res.json();
-          if (data.secure_url) {
-            setImages(prev => [...prev, data.secure_url]);
-            setFeedback({ success: true, message: 'Foto enviada com sucesso para o Cloudinary!' });
-          }
-        } else {
-          throw new Error('Falha no upload Cloudinary');
-        }
-      } else {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          if (typeof reader.result === 'string') {
-            setImages(prev => [...prev, reader.result as string]);
-            setFeedback({ success: true, message: 'Foto local carregada com sucesso!' });
-          }
-        };
-        reader.readAsDataURL(file);
-      }
+      setFeedback({ success: true, message: 'Foto enviada para o Supabase Storage e salva no Firebase com sucesso!' });
     } catch (err: any) {
-      setFeedback({ success: false, message: err.message || 'Erro ao carregar arquivo de imagem.' });
+      console.warn("Upload no Supabase falhou (RLS ou permissão):", err);
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        if (typeof reader.result === 'string') {
+          const nextList = [...images, reader.result as string];
+          await syncImageUpdateToFirestore(nextList);
+          setFeedback({ 
+            success: false, 
+            message: `Atenção: ${err.message || 'Erro no Supabase'}. A foto foi salva no Firebase.` 
+          });
+        }
+      };
+      reader.readAsDataURL(file);
     } finally {
       setIsUploading(false);
     }

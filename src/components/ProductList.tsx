@@ -5,6 +5,7 @@ import { Eye, Heart, ArrowRight, ArrowUpDown, Truck, CreditCard, RefreshCw, Shop
 import { motion, AnimatePresence } from "motion/react";
 import { scrollToSectionWithOffset } from "../lib/scrollUtils";
 import { normalizeCategoryName, normalizeSubcategoryName } from "../services/moblinkCategoriesService";
+import { hasProductValidGrade, extractClassificacaoCategoria } from "../services/moblinkProductsService";
 
 interface ProductCardProps {
   product: Product;
@@ -343,57 +344,82 @@ export const ProductList: React.FC = () => {
     if (setCurrentView) setCurrentView('category-page');
   };
 
-  // Produtos exibidos na Seção 'Novidades': EXCLUSIVAMENTE produtos marcados como Marcar como Lançamento / Novidade (newArrival === true)
+  // Produtos exibidos na Seção 'Novidades': EXCLUSIVAMENTE produtos marcados como Lançamento/Novidade, visíveis, com estoque e com grade ativa
   const novidadesProducts = useMemo(() => {
-    const onlyNewArrivals = products.filter(
-      (p) => p.visible && (p.newArrival === true || (p as any).novo === true) && (p.stock !== undefined ? p.stock > 0 : (p.saldo_loja ?? 0) > 0)
-    );
-
-    if (onlyNewArrivals.length > 0) return onlyNewArrivals;
-
-    return products
-      .filter((p) => p.visible && (p.stock !== undefined ? p.stock > 0 : (p.saldo_loja ?? 0) > 0))
-      .slice(0, 10);
+    return products.filter((p) => {
+      const isAvailable = (p.stock !== undefined ? p.stock > 0 : (p.saldo_loja ?? 0) > 0);
+      return p.visible && isAvailable && hasProductValidGrade(p) && (p.newArrival === true || (p as any).novo === true);
+    });
   }, [products]);
 
-  // Produtos exibidos na Seção 'Coleção Calçados'
+  // Produtos exibidos na Seção 'Coleção Calçados' (Exclui estritamente Confecções, Bolsas, Acessórios, Malas e Itens de Viagem)
   const calcadosProducts = useMemo(() => {
     return products.filter((prod) => {
       const isAvailable = (prod.stock !== undefined ? prod.stock > 0 : (prod.saldo_loja ?? 0) > 0);
-      if (!prod.visible || !isAvailable) return false;
-      const cat = (prod.category || prod.nome_grupo || '').toUpperCase();
-      const productType = (prod.productType || '').toUpperCase();
-      const isBolsaOuAcessorio = cat.includes('ACESSÓRIO') || cat.includes('BOLSA') || productType.includes('BOLSA') || cat.includes('CONFEC');
-      return !isBolsaOuAcessorio;
+      if (!prod.visible || !isAvailable || !hasProductValidGrade(prod)) return false;
+
+      const catInfo = extractClassificacaoCategoria(prod);
+      const catUpper = (catInfo.category || prod.category || prod.nome_grupo || (prod as any).categoria || '').toUpperCase();
+      const subUpper = (catInfo.subcategory || prod.subcategory || prod.nome_subgrupo || (prod as any).subcategoria || '').toUpperCase();
+      const nameUpper = (prod.name || '').toUpperCase();
+
+      const isNonFootwear = (
+        catUpper.includes('CONFEC') || catUpper.includes('ROUPA') || catUpper.includes('VESTU') ||
+        catUpper.includes('ACESSÓR') || catUpper.includes('ACESSOR') || catUpper.includes('BOLSA') ||
+        catUpper.includes('VIAGEM') || catUpper.includes('MALA') || catUpper.includes('CARTEIR') ||
+        catUpper.includes('CINTO') || catUpper.includes('PERFUM') || catUpper.includes('CREM') ||
+        catUpper.includes('ESCOLAR') || catUpper.includes('COSMET') || catUpper.includes('COSMÉT') ||
+        subUpper.includes('VIAGEM') || subUpper.includes('MALA') || subUpper.includes('BOLSA') ||
+        nameUpper.includes('MALA ') || nameUpper.startsWith('MALA ') || nameUpper.includes('FRASQUEIRA') ||
+        nameUpper.includes('CAMISA') || nameUpper.includes('BLUSA') || nameUpper.includes('CALÇA') ||
+        nameUpper.includes('VESTIDO') || nameUpper.includes('SHORT') || nameUpper.includes('JAQUETA') ||
+        nameUpper.includes('BOLSA') || nameUpper.includes('MOCHILA') || nameUpper.includes('CARTEIRA')
+      );
+
+      return !isNonFootwear;
     });
   }, [products]);
 
-  // Produtos exibidos na Seção 'Confecções'
+  // Produtos exibidos na Seção 'Confecções' (Strict Match Confecções / Vestuário com Grade Ativa)
   const confeccoesProducts = useMemo(() => {
-    const list = products.filter((prod) => {
+    return products.filter((prod) => {
       const isAvailable = (prod.stock !== undefined ? prod.stock > 0 : (prod.saldo_loja ?? 0) > 0);
-      if (!prod.visible || !isAvailable) return false;
-      const cat = (prod.category || prod.nome_grupo || prod.nome_subgrupo || prod.productType || '').toUpperCase();
-      return cat.includes('CONFEC') || cat.includes('ROUPA') || cat.includes('VESTU') || cat.includes('MODA') || cat.includes('CAMISA') || cat.includes('CALÇA');
+      if (!prod.visible || !isAvailable || !hasProductValidGrade(prod)) return false;
+
+      const catInfo = extractClassificacaoCategoria(prod);
+      const catUpper = (catInfo.category || prod.category || prod.nome_grupo || (prod as any).categoria || '').toUpperCase();
+      const subUpper = (catInfo.subcategory || prod.subcategory || prod.nome_subgrupo || (prod as any).subcategoria || '').toUpperCase();
+      const nameUpper = (prod.name || '').toUpperCase();
+
+      return catUpper.includes('CONFEC') || catUpper.includes('ROUPA') || catUpper.includes('VESTU') || catUpper.includes('MODA') || subUpper.includes('CONFEC') || subUpper.includes('ROUPA') || nameUpper.includes('CAMISA') || nameUpper.includes('CALÇA') || nameUpper.includes('VESTIDO') || nameUpper.includes('SHORT') || nameUpper.includes('BLUSA') || nameUpper.includes('JAQUETA');
     });
-
-    if (list.length > 0) return list;
-
-    return products.filter(p => p.visible && (p.stock !== undefined ? p.stock > 0 : (p.saldo_loja ?? 0) > 0)).slice(0, 5);
   }, [products]);
 
-  // Produtos exibidos na Seção 'Bolsas & Acessórios'
+  // Produtos exibidos na Seção 'Bolsas & Acessórios' (Inclui Bolsas, Acessórios, Malas & Itens de Viagem)
   const acessoriosProducts = useMemo(() => {
-    const list = products.filter((prod) => {
+    return products.filter((prod) => {
       const isAvailable = (prod.stock !== undefined ? prod.stock > 0 : (prod.saldo_loja ?? 0) > 0);
-      if (!prod.visible || !isAvailable) return false;
-      const cat = (prod.category || prod.nome_grupo || prod.nome_subgrupo || prod.productType || '').toUpperCase();
-      return cat.includes('ACESSÓRIO') || cat.includes('ACESSORIO') || cat.includes('BOLSA') || cat.includes('CARTEIRA') || cat.includes('CINTO') || cat.includes('MOCHILA');
+      if (!prod.visible || !isAvailable || !hasProductValidGrade(prod)) return false;
+
+      const catInfo = extractClassificacaoCategoria(prod);
+      const catUpper = (catInfo.category || prod.category || prod.nome_grupo || (prod as any).categoria || '').toUpperCase();
+      const subUpper = (catInfo.subcategory || prod.subcategory || prod.nome_subgrupo || (prod as any).subcategoria || '').toUpperCase();
+      const nameUpper = (prod.name || '').toUpperCase();
+
+      return (
+        catUpper.includes('ACESSÓR') || catUpper.includes('ACESSOR') ||
+        catUpper.includes('BOLSA') || catUpper.includes('CARTEIR') ||
+        catUpper.includes('CINTO') || catUpper.includes('MOCHILA') ||
+        catUpper.includes('VIAGEM') || catUpper.includes('MALA') ||
+        catUpper.includes('PERFUM') || catUpper.includes('CREM') ||
+        subUpper.includes('BOLSA') || subUpper.includes('ACESSÓR') ||
+        subUpper.includes('VIAGEM') || subUpper.includes('MALA') ||
+        nameUpper.includes('BOLSA') || nameUpper.includes('CARTEIRA') ||
+        nameUpper.includes('CINTO') || nameUpper.includes('MOCHILA') ||
+        nameUpper.includes('MALA') || nameUpper.includes('VIAGEM') ||
+        nameUpper.includes('FRASQUEIRA') || nameUpper.includes('CHAVEIRO')
+      );
     });
-
-    if (list.length > 0) return list;
-
-    return products.filter(p => p.visible && (p.stock !== undefined ? p.stock > 0 : (p.saldo_loja ?? 0) > 0)).slice(2, 7);
   }, [products]);
 
   return (
@@ -482,45 +508,47 @@ export const ProductList: React.FC = () => {
 
 
       {/* 2. SEÇÃO NOVIDADES */}
-      <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 border-b pb-3 border-blue-900/10 dark:border-white/10">
-          <div>
-            <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-widest bg-[#DDF1FF] text-[#003B73] dark:bg-blue-900/30 dark:text-blue-200 border border-[#006EDB]/20 mb-1.5">
-              Lançamentos Recentes
-            </span>
-            <h2 className={`text-2xl sm:text-3xl font-black tracking-tight ${isDark ? "text-white" : "text-[#003B73]"}`}>
-              Novidades da Estação
-            </h2>
-            <p className={`text-xs sm:text-sm font-medium mt-0.5 ${isDark ? "text-slate-400" : "text-[#52708F]"}`}>
-              As últimas tendências que acabaram de chegar às nossas prateleiras.
-            </p>
+      {novidadesProducts.length > 0 && (
+        <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 border-b pb-3 border-blue-900/10 dark:border-white/10">
+            <div>
+              <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-widest bg-[#DDF1FF] text-[#003B73] dark:bg-blue-900/30 dark:text-blue-200 border border-[#006EDB]/20 mb-1.5">
+                Lançamentos Recentes
+              </span>
+              <h2 className={`text-2xl sm:text-3xl font-black tracking-tight ${isDark ? "text-white" : "text-[#003B73]"}`}>
+                Novidades da Estação
+              </h2>
+              <p className={`text-xs sm:text-sm font-medium mt-0.5 ${isDark ? "text-slate-400" : "text-[#52708F]"}`}>
+                As últimas tendências que acabaram de chegar às nossas prateleiras.
+              </p>
+            </div>
+            <button 
+              onClick={() => {
+                if (setSelectedSubcategory) setSelectedSubcategory('TODAS');
+                if (setSelectedCategory) setSelectedCategory('NOVIDADES');
+                if (setCurrentView) setCurrentView('category-page');
+              }}
+              className="text-xs font-extrabold text-[#006EDB] hover:text-[#00509E] dark:text-amber-300 dark:hover:text-white transition-colors cursor-pointer shrink-0"
+            >
+              Ver todas as novidades →
+            </button>
           </div>
-          <button 
-            onClick={() => {
-              if (setSelectedSubcategory) setSelectedSubcategory('TODAS');
-              if (setSelectedCategory) setSelectedCategory('NOVIDADES');
-              if (setCurrentView) setCurrentView('category-page');
-            }}
-            className="text-xs font-extrabold text-[#006EDB] hover:text-[#00509E] dark:text-amber-300 dark:hover:text-white transition-colors cursor-pointer shrink-0"
-          >
-            Ver todas as novidades →
-          </button>
-        </div>
 
-        {/* Grid de 5 Colunas Conforme Referência */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-          {novidadesProducts.slice(0, 5).map((product) => (
-            <ProductCard
-              key={product.id}
-              product={product}
-              theme={theme}
-              isFavorite={favorites.includes(product.id)}
-              onToggleFavorite={toggleFavorite}
-              onViewDetails={handleVerDetalhes}
-            />
-          ))}
+          {/* Grid de 5 Colunas Conforme Referência */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+            {novidadesProducts.slice(0, 5).map((product) => (
+              <ProductCard
+                key={product.id}
+                product={product}
+                theme={theme}
+                isFavorite={favorites.includes(product.id)}
+                onToggleFavorite={toggleFavorite}
+                onViewDetails={handleVerDetalhes}
+              />
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* 3. BENTO GRID (BANNERS DE DESTAQUE PADRONIZADOS COM A MARCA EVIDÊNCIA) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
