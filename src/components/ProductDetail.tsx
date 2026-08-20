@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { ShoppingCart, ShoppingBag, MapPin, Star, ChevronRight, ArrowLeft, Shield, Sparkles, Heart, Share2, Check, CreditCard, CheckCircle2, AlertCircle, ArrowRight, Truck, RefreshCw, Package, MessageSquare, Search, Loader2, X } from 'lucide-react';
+import { ShoppingCart, ShoppingBag, MapPin, Star, ChevronRight, ArrowLeft, Shield, Sparkles, Heart, Share2, Check, CreditCard, CheckCircle2, AlertCircle, ArrowRight, Truck, RefreshCw, Package, MessageSquare, Search, Loader2, X, Tag } from 'lucide-react';
 import { getGradeProdutoById, getProdutoGradesFromApi } from '../services/moblinkGradesService';
 import { getSingleProdutoMoblinkFromApi, sanitizeProductForFirestore, mergeErpSyncWithExistingDbProduct, inferCategoryFromProductName } from '../services/moblinkProductsService';
 import { normalizeCategoryName, normalizeSubcategoryName } from '../services/moblinkCategoriesService';
+import { isSaldaoProduct, getSaldaoProductPrice } from '../services/saldaoService';
 import { db } from '../lib/firebase';
 import { doc, setDoc } from 'firebase/firestore';
 import { GradeProduto, Product, ProdutoGradesResult } from '../types';
@@ -24,7 +25,8 @@ export const ProductDetail: React.FC = () => {
     createOrder,
     favorites = [],
     toggleFavorite,
-    theme
+    theme,
+    saldaoConfig
   } = useApp();
 
   const [selectedLinhaOption, setSelectedLinhaOption] = useState<string | number | null>(null);
@@ -514,25 +516,34 @@ export const ProductDetail: React.FC = () => {
   };
 
   const isFavorite = favorites.includes(p.id);
-  const discountPercent = p.originalPrice && p.originalPrice > p.price
-    ? Math.round(((p.originalPrice - p.price) / p.originalPrice) * 100)
-    : 0;
 
-  // Regras de Preços por Modalidade:
-  // 1. O Preço de Venda padrão (p.price) é o preço de Tabela / Crediário da Loja.
-  const precoCrediarioCalculado = (p as any).precoCrediario || (p as any).preco_crediario || p.price;
+  // Integração com Saldão de Calçados
+  const saldaoCalc = getSaldaoProductPrice(p, saldaoConfig);
 
-  // 2. Preço À Vista (Pix / Dinheiro): Se tiver um preço à vista cadastrado usa ele; caso contrário, aplica 10% de desconto sobre o preço de tabela.
+  const discountPercent = saldaoCalc.isSaldao
+    ? saldaoCalc.discountPercent
+    : (p.originalPrice && p.originalPrice > p.price
+      ? Math.round(((p.originalPrice - p.price) / p.originalPrice) * 100)
+      : 0);
+
+  // Regras de Preços por Modalidade (Respeita o valor do Saldão se ativo):
+  const precoCrediarioCalculado = saldaoCalc.isSaldao
+    ? saldaoCalc.price
+    : ((p as any).precoCrediario || (p as any).preco_crediario || p.price);
+
   const precoVistaVal = (p as any).precoVista ?? (p as any).preco_vista ?? (p as any).precoAvista ?? (p as any).priceCash ?? (p as any).pricePix;
-  const precoVistaCalculado = (typeof precoVistaVal === 'number' && precoVistaVal > 0)
-    ? precoVistaVal
-    : (p.price > 0 ? Math.round(p.price * 0.9 * 100) / 100 : p.price);
+  const precoVistaCalculado = saldaoCalc.isSaldao
+    ? saldaoCalc.price
+    : ((typeof precoVistaVal === 'number' && precoVistaVal > 0)
+      ? precoVistaVal
+      : (p.price > 0 ? Math.round(p.price * 0.9 * 100) / 100 : p.price));
 
-  // 3. Preço no Cartão de Crédito: Se tiver um preço no cartão cadastrado usa ele; caso contrário, aplica 10% de desconto sobre o preço de tabela.
   const precoCartaoVal = (p as any).precoCartao ?? (p as any).preco_cartao ?? (p as any).priceCard;
-  const precoCartaoCalculado = (typeof precoCartaoVal === 'number' && precoCartaoVal > 0)
-    ? precoCartaoVal
-    : (p.price > 0 ? Math.round(p.price * 0.9 * 100) / 100 : p.price);
+  const precoCartaoCalculado = saldaoCalc.isSaldao
+    ? saldaoCalc.price
+    : ((typeof precoCartaoVal === 'number' && precoCartaoVal > 0)
+      ? precoCartaoVal
+      : (p.price > 0 ? Math.round(p.price * 0.9 * 100) / 100 : p.price));
 
   const relatedProducts = React.useMemo(() => {
     if (!products || products.length === 0 || !p) return [];
@@ -824,13 +835,37 @@ export const ProductDetail: React.FC = () => {
           <div className={`p-5 sm:p-6 rounded-3xl border space-y-5 shadow-md backdrop-blur-md ${
             isDark ? 'bg-slate-900/90 border-slate-800 text-white' : 'bg-white border-blue-900/10 text-[#003B73]'
           }`}>
+            {/* Banner Destacado do Saldão de Calçados */}
+            {saldaoCalc.isSaldao && (
+              <div className="p-3.5 rounded-2xl bg-gradient-to-r from-rose-500/15 via-amber-500/15 to-rose-500/15 border border-rose-500/30 text-rose-500 flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Tag className="h-5 w-5 text-rose-500 shrink-0" />
+                  <div>
+                    <div className="text-xs font-black uppercase tracking-wider text-rose-500">
+                      🔥 SALDÃO DE CALÇADOS - {saldaoCalc.discountPercent}% OFF
+                    </div>
+                    <div className="text-[10px] text-slate-400 font-medium">
+                      Estoque baixo (últimas unidades). Aproveite!
+                    </div>
+                  </div>
+                </div>
+                <span className="px-2 py-0.5 rounded-md bg-rose-500 text-white font-black text-[10px] uppercase">
+                  -{saldaoCalc.discountPercent}%
+                </span>
+              </div>
+            )}
+
             {/* PAINEL DE PREÇO */}
             <div className="space-y-2.5">
               <div className="flex items-baseline space-x-2 flex-wrap">
                 <span className="text-3xl sm:text-4xl lg:text-4xl font-black tracking-tight text-[#003B73] dark:text-white">
                   R$ {precoVistaCalculado.toFixed(2).replace('.', ',')}
                 </span>
-                {precoVistaCalculado < p.price ? (
+                {saldaoCalc.isSaldao ? (
+                  <span className="text-[11px] font-extrabold text-white bg-rose-500 px-2.5 py-1 rounded-full shadow-xs">
+                    Saldão ({saldaoCalc.discountPercent}% OFF)
+                  </span>
+                ) : precoVistaCalculado < p.price ? (
                   <span className="text-[11px] font-extrabold text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/80 px-2.5 py-1 rounded-full border border-emerald-200">
                     À Vista (Pix / 10% OFF)
                   </span>
@@ -841,9 +876,9 @@ export const ProductDetail: React.FC = () => {
                 )}
               </div>
 
-              {p.originalPrice && p.originalPrice > p.price && (
+              {(saldaoCalc.isSaldao || (p.originalPrice && p.originalPrice > p.price)) && (
                 <div className="text-xs line-through text-[#52708F]">
-                  De: R$ {p.originalPrice.toFixed(2).replace('.', ',')}
+                  De: R$ {saldaoCalc.originalPrice.toFixed(2).replace('.', ',')}
                 </div>
               )}
 

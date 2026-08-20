@@ -150,6 +150,15 @@ export interface Product {
   modelCode?: string;
   referenceCode?: string;
   cor?: string;
+  isSaldao?: boolean;
+}
+
+export interface SaldaoConfig {
+  enabled: boolean;
+  maxStock: number;
+  discountPercent: number;
+  bannerText?: string;
+  updatedAt?: string;
 }
 
 export interface EvidenciaAuthSession {

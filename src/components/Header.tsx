@@ -50,6 +50,7 @@ export const Header: React.FC = () => {
     toggleTheme,
     categories = [],
     products = [],
+    saldaoConfig,
   } = useApp();
 
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -68,7 +69,12 @@ export const Header: React.FC = () => {
   const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
 
   const handleSubcategoryFilter = (subName: string, isPromo?: boolean) => {
-    if (isPromo) {
+    const cleanSub = subName.toUpperCase();
+    if (cleanSub.includes("SALDÃO") || cleanSub.includes("SALDAO")) {
+      setSelectedCategory("SALDÃO");
+      if (setSelectedMenuTab) setSelectedMenuTab("saldão");
+      if (setSelectedSubcategory) setSelectedSubcategory("TODAS");
+    } else if (isPromo) {
       setSelectedCategory("PROMOÇÕES");
       if (setSelectedMenuTab) setSelectedMenuTab("promoções");
       if (setSelectedSubcategory) setSelectedSubcategory("TODAS");
@@ -145,12 +151,21 @@ export const Header: React.FC = () => {
 
     // Verifica se existem produtos em promoção disponíveis no catálogo
     const hasPromoProducts = activeProducts.some(p => p.originalPrice && p.originalPrice > p.price);
-    if (hasPromoProducts || activeProducts.length === 0) {
-      uniqueNavs.push({ name: "Promoções", key: "PROMOÇÕES", isPromo: true });
+
+    const resultNavs: { name: string; key: string; isPromo?: boolean }[] = [];
+
+    if (saldaoConfig?.enabled) {
+      resultNavs.push({ name: "🔥 Saldão Calçados", key: "SALDÃO", isPromo: true });
     }
 
-    return uniqueNavs;
-  }, [categories, products]);
+    resultNavs.push(...uniqueNavs);
+
+    if (hasPromoProducts || activeProducts.length === 0) {
+      resultNavs.push({ name: "Promoções", key: "PROMOÇÕES", isPromo: true });
+    }
+
+    return resultNavs;
+  }, [categories, products, saldaoConfig]);
 
   return (
     <header

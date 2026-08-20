@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
-import { Product, CartItem, Order, PaymentStatus, UserProfile, UserRole, CrediarioStatus, Category, MoblinkConfig, MoblinkSyncLog, MoblinkSyncLogItem, EvidenciaAuthSession, HeroBanner, HomeSectionConfig, AboutConfig, ContactConfig, StoreConfig, ViewMode } from '../types';
+import { Product, CartItem, Order, PaymentStatus, UserProfile, UserRole, CrediarioStatus, Category, MoblinkConfig, MoblinkSyncLog, MoblinkSyncLogItem, EvidenciaAuthSession, HeroBanner, HomeSectionConfig, AboutConfig, ContactConfig, StoreConfig, ViewMode, SaldaoConfig } from '../types';
+import { loadSaldaoConfig, saveSaldaoConfig, DEFAULT_SALDAO_CONFIG, getSaldaoProductPrice } from '../services/saldaoService';
 import { db, auth, seedDatabaseIfNeeded, SEED_PRODUCTS } from '../lib/firebase';
 import { collection, onSnapshot, doc, setDoc, getDoc, query, where, deleteDoc } from 'firebase/firestore';
 import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
@@ -94,6 +95,9 @@ interface AppContextProps {
   contactConfig: ContactConfig;
   updateContactConfig: (config: Partial<ContactConfig>) => Promise<void>;
   restoreDefaultConfig: () => Promise<void>;
+  // Saldão de Calçados
+  saldaoConfig: SaldaoConfig;
+  updateSaldaoConfig: (config: Partial<SaldaoConfig>) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextProps | undefined>(undefined);
@@ -291,6 +295,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [orders, setOrders] = useState<Order[]>(() => getLocalOrders());
   const [isLoadingOrders, setIsLoadingOrders] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Saldão de Calçados State & Config
+  const [saldaoConfig, setSaldaoConfig] = useState<SaldaoConfig>(DEFAULT_SALDAO_CONFIG);
+
+  useEffect(() => {
+    loadSaldaoConfig().then(cfg => {
+      setSaldaoConfig(cfg);
+    });
+  }, []);
+
+  const updateSaldaoConfig = useCallback(async (newConfig: Partial<SaldaoConfig>) => {
+    setSaldaoConfig(prev => {
+      const merged = { ...prev, ...newConfig };
+      saveSaldaoConfig(merged);
+      return merged;
+    });
+  }, []);
   const [selectedCategory, setSelectedCategoryState] = useState('TODOS');
   const [selectedSubcategory, setSelectedSubcategory] = useState('TODAS');
 
@@ -1018,6 +1039,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Helper Cart Actions
   const addToCart = (product: Product, size: number | string) => {
+    const saldaoCalc = getSaldaoProductPrice(product, saldaoConfig);
+    const targetProduct: Product = saldaoCalc.isSaldao
+      ? {
+          ...product,
+          price: saldaoCalc.price,
+          originalPrice: saldaoCalc.originalPrice,
+          precoVista: saldaoCalc.price,
+          preco_vista: saldaoCalc.price,
+          precoCartao: saldaoCalc.price,
+          preco_cartao: saldaoCalc.price,
+        }
+      : product;
+
     setCart((prevCart) => {
       const existingIndex = prevCart.findIndex(
         (item) => item.product.id === product.id && item.selectedSize === size
@@ -1026,9 +1060,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (existingIndex > -1) {
         const updated = [...prevCart];
         updated[existingIndex].quantity += 1;
+        updated[existingIndex].product = targetProduct;
         return updated;
       } else {
-        return [...prevCart, { product, selectedSize: size, quantity: 1 }];
+        return [...prevCart, { product: targetProduct, selectedSize: size, quantity: 1 }];
       }
     });
   };
@@ -2049,6 +2084,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         contactConfig,
         updateContactConfig,
         restoreDefaultConfig,
+        saldaoConfig,
+        updateSaldaoConfig,
       }}
     >
       {children}

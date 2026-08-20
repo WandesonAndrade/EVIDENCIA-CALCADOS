@@ -52,7 +52,8 @@ export const CategorySandwichMenu: React.FC<CategorySandwichMenuProps> = ({ isOp
     setSelectedSubcategory,
     setSelectedMenuTab,
     setCurrentView,
-    theme
+    theme,
+    saldaoConfig
   } = useApp();
 
   const isDark = theme === 'dark';
@@ -63,6 +64,7 @@ export const CategorySandwichMenu: React.FC<CategorySandwichMenuProps> = ({ isOp
 
   // Ícones e paleta visual padronizada com as cores da marca (Azul Institucional & Azul Vibrante)
   const categoryMetaMap: Record<string, { icon: React.ElementType; bg: string; color: string }> = {
+    'SALDÃO': { icon: Tag, bg: 'bg-rose-50 dark:bg-rose-950/50', color: 'text-rose-600 dark:text-rose-400' },
     'CALÇADOS': { icon: Footprints, bg: 'bg-[#EEF8FF] dark:bg-blue-950/60', color: 'text-[#006EDB] dark:text-blue-300' },
     'ACESSÓRIOS': { icon: ShoppingBag, bg: 'bg-[#EEF8FF] dark:bg-blue-950/60', color: 'text-[#006EDB] dark:text-blue-300' },
     'CONFECÇÕES': { icon: Shirt, bg: 'bg-[#EEF8FF] dark:bg-blue-950/60', color: 'text-[#006EDB] dark:text-blue-300' },
@@ -80,14 +82,18 @@ export const CategorySandwichMenu: React.FC<CategorySandwichMenuProps> = ({ isOp
     const categoryMap = new Map<string, { name: string; key: string; isPromo?: boolean; subs: Set<string> }>();
 
     // 1. Categorias Padrão Essenciais
-    const defaults = [
+    const defaults = [];
+    if (saldaoConfig?.enabled) {
+      defaults.push({ name: '🔥 Saldão Calçados', key: 'SALDÃO', isPromo: true });
+    }
+    defaults.push(
       { name: 'Calçados', key: 'CALÇADOS' },
       { name: 'Acessórios', key: 'ACESSÓRIOS' },
       { name: 'Confecções', key: 'CONFECÇÕES' },
       { name: 'Novidades', key: 'NOVIDADES' },
       { name: 'Diversos', key: 'DIVERSOS' },
       { name: 'Promoções', key: 'PROMOÇÕES', isPromo: true },
-    ];
+    );
 
     defaults.forEach(d => {
       categoryMap.set(d.key, { name: d.name, key: d.key, isPromo: d.isPromo, subs: new Set<string>() });
@@ -179,9 +185,15 @@ export const CategorySandwichMenu: React.FC<CategorySandwichMenuProps> = ({ isOp
   // Seleciona Categoria e Subcategoria e navega
   const handleSelectSubcategory = (categoryName: string, subcategoryName: string) => {
     const catUpper = categoryName.toUpperCase();
-    setSelectedCategory(catUpper);
-    if (setSelectedMenuTab) setSelectedMenuTab(categoryName.toLowerCase());
-    if (setSelectedSubcategory) setSelectedSubcategory(subcategoryName);
+    if (catUpper.includes('SALDÃO') || catUpper.includes('SALDAO')) {
+      setSelectedCategory('SALDÃO');
+      if (setSelectedMenuTab) setSelectedMenuTab('saldão');
+      if (setSelectedSubcategory) setSelectedSubcategory('TODAS');
+    } else {
+      setSelectedCategory(catUpper);
+      if (setSelectedMenuTab) setSelectedMenuTab(categoryName.toLowerCase());
+      if (setSelectedSubcategory) setSelectedSubcategory(subcategoryName);
+    }
     
     setCurrentView('category-page');
     onClose();

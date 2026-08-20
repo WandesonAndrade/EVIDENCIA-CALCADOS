@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useApp } from "../context/AppContext";
 import { Product } from "../types";
-import { Eye, Heart, ArrowRight, ArrowUpDown, Truck, CreditCard, RefreshCw, ShoppingBag, Sparkles, ChevronLeft, ChevronRight } from "lucide-react";
+import { Eye, Heart, ArrowRight, ArrowUpDown, Truck, CreditCard, RefreshCw, ShoppingBag, Sparkles, ChevronLeft, ChevronRight, Tag } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { scrollToSectionWithOffset } from "../lib/scrollUtils";
 import { normalizeCategoryName, normalizeSubcategoryName } from "../services/moblinkCategoriesService";
 import { hasProductValidGrade, extractClassificacaoCategoria } from "../services/moblinkProductsService";
+import { isSaldaoProduct, getSaldaoProductPrice } from "../services/saldaoService";
 
 interface ProductCardProps {
   product: Product;
@@ -22,18 +23,26 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
   onToggleFavorite,
   onViewDetails,
 }) => {
+  const { saldaoConfig } = useApp();
   const isDark = theme === "dark";
-  const mainPrice = product.price;
-  const originalPrice =
-    product.originalPrice && product.originalPrice > product.price
+  const saldaoCalc = getSaldaoProductPrice(product, saldaoConfig);
+
+  const mainPrice = saldaoCalc.price;
+  const originalPrice = saldaoCalc.isSaldao
+    ? saldaoCalc.originalPrice
+    : product.originalPrice && product.originalPrice > product.price
       ? product.originalPrice
       : null;
 
-  const discountPercent = originalPrice
-    ? Math.round(((originalPrice - mainPrice) / originalPrice) * 100)
-    : 0;
+  const discountPercent = saldaoCalc.isSaldao
+    ? saldaoCalc.discountPercent
+    : originalPrice
+      ? Math.round(((originalPrice - mainPrice) / originalPrice) * 100)
+      : 0;
 
-  const pixPrice = (mainPrice * 0.9).toFixed(2).replace(".", ",");
+  const pixPrice = saldaoCalc.isSaldao 
+    ? mainPrice.toFixed(2).replace(".", ",") 
+    : (mainPrice * 0.9).toFixed(2).replace(".", ",");
   const parcelas = 6;
   const valorParcela = (mainPrice / parcelas).toFixed(2).replace(".", ",");
 
@@ -72,7 +81,11 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
 
         {/* Badges no Canto Superior Esquerdo */}
         <div className="absolute top-3.5 left-3.5 flex flex-col gap-1 z-10">
-          {discountPercent > 0 ? (
+          {saldaoCalc.isSaldao ? (
+            <span className="px-2.5 py-1 text-[10px] font-black text-white bg-gradient-to-r from-rose-600 to-amber-500 rounded-full shadow-md uppercase tracking-wider animate-pulse flex items-center gap-1">
+              🔥 SALDÃO -{saldaoCalc.discountPercent}%
+            </span>
+          ) : discountPercent > 0 ? (
             <span className="px-2.5 py-0.5 text-[10px] font-bold text-white bg-[#e30000] rounded-full shadow-xs uppercase tracking-wider">
               -{discountPercent}% OFF
             </span>
@@ -123,7 +136,7 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
             <div className="space-y-0.5">
               <div className="flex items-center space-x-1.5 flex-wrap">
                 <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/80 px-2 py-0.5 rounded-md border border-emerald-300/50">
-                  À Vista no PIX (-10%)
+                  {saldaoCalc.isSaldao ? `Saldão (${saldaoCalc.discountPercent}% OFF)` : 'À Vista no PIX (-10%)'}
                 </span>
                 {originalPrice && (
                   <span className="text-xs line-through text-[#52708F]">
@@ -344,6 +357,17 @@ export const ProductList: React.FC = () => {
     if (setCurrentView) setCurrentView('category-page');
   };
 
+  const { saldaoConfig } = useApp();
+
+  // Produtos do Saldão de Calçados (Calçados visíveis com grade válida e estoque <= saldaoConfig.maxStock)
+  const saldaoProducts = useMemo(() => {
+    return products.filter((prod) => {
+      const isAvailable = (prod.stock !== undefined ? prod.stock > 0 : (prod.saldo_loja ?? 0) > 0);
+      if (!prod.visible || !isAvailable || !hasProductValidGrade(prod)) return false;
+      return isSaldaoProduct(prod, saldaoConfig);
+    });
+  }, [products, saldaoConfig]);
+
   // Produtos exibidos na Seção 'Novidades': EXCLUSIVAMENTE produtos marcados como Lançamento/Novidade, visíveis, com estoque e com grade ativa
   const novidadesProducts = useMemo(() => {
     return products.filter((p) => {
@@ -506,6 +530,55 @@ export const ProductList: React.FC = () => {
         </div>
       </div>
 
+
+      {/* 1.5 SEÇÃO SALDÃO DE CALÇADOS (ESTOQUE BAIXO COM DESCONTO EM %) */}
+      {saldaoConfig?.enabled && saldaoProducts.length > 0 && (
+        <div className="space-y-6">
+          <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-rose-900/90 via-slate-900 to-amber-950/90 text-white border border-rose-500/30 shadow-2xl relative overflow-hidden">
+            <div className="absolute top-0 right-0 transform translate-x-12 -translate-y-12 w-64 h-64 bg-rose-500/10 rounded-full blur-3xl pointer-events-none" />
+            <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-rose-500 text-white shadow-md animate-pulse">
+                  <Tag className="h-3 w-3" />
+                  <span>ÚLTIMAS UNIDADES EM ESTOQUE</span>
+                </span>
+                <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-white flex items-center gap-2">
+                  <span>🔥 Saldão de Calçados</span>
+                  <span className="text-amber-400 text-lg sm:text-2xl font-black">-{saldaoConfig.discountPercent}% OFF</span>
+                </h2>
+                <p className="text-xs sm:text-sm font-medium text-slate-300">
+                  {saldaoConfig.bannerText || `Aproveite calçados selecionados com até ${saldaoConfig.discountPercent}% de desconto por tempo limitado!`}
+                </p>
+              </div>
+
+              <button 
+                onClick={() => {
+                  if (setSelectedSubcategory) setSelectedSubcategory('TODAS');
+                  if (setSelectedCategory) setSelectedCategory('SALDÃO');
+                  if (setSelectedMenuTab) setSelectedMenuTab('saldão');
+                  if (setCurrentView) setCurrentView('category-page');
+                }}
+                className="px-5 py-2.5 rounded-xl bg-white text-slate-950 font-black text-xs hover:bg-amber-400 transition-colors shadow-lg cursor-pointer shrink-0"
+              >
+                Ver todos os calçados em saldão →
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+            {saldaoProducts.slice(0, 5).map((product) => (
+              <ProductCard
+                key={product.id}
+                product={product}
+                theme={theme}
+                isFavorite={favorites.includes(product.id)}
+                onToggleFavorite={toggleFavorite}
+                onViewDetails={handleVerDetalhes}
+              />
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* 2. SEÇÃO NOVIDADES */}
       {novidadesProducts.length > 0 && (

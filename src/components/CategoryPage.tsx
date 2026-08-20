@@ -21,6 +21,7 @@ import { Hero } from './Hero';
 import { ProductCard } from './ProductList';
 import { scrollToSectionWithOffset } from '../lib/scrollUtils';
 import { normalizeCategoryName, normalizeSubcategoryName, isProductInCategory } from '../services/moblinkCategoriesService';
+import { isSaldaoProduct } from '../services/saldaoService';
 
 interface TabConfig {
   title: string;
@@ -165,7 +166,9 @@ export const CategoryPage: React.FC = () => {
     favorites = [],
     toggleFavorite,
     selectedSubcategory: globalSubcategory,
-    setSelectedSubcategory: setGlobalSubcategory
+    setSelectedSubcategory: setGlobalSubcategory,
+    selectedCategory,
+    saldaoConfig,
   } = useApp();
 
   const isDark = theme === 'dark';
@@ -211,6 +214,26 @@ export const CategoryPage: React.FC = () => {
     : null;
 
   const getTabConfig = () => {
+    const cleanTabKey = (selectedMenuTab || '').trim().toLowerCase();
+    const cleanSubKey = (globalSubcategory || '').trim().toLowerCase();
+    const cleanCatKey = (selectedCategory || '').trim().toLowerCase();
+
+    const isSaldao = (
+      cleanTabKey.includes('saldão') || cleanTabKey.includes('saldao') ||
+      cleanSubKey.includes('saldão') || cleanSubKey.includes('saldao') ||
+      cleanCatKey.includes('saldão') || cleanCatKey.includes('saldao')
+    );
+
+    if (isSaldao) {
+      return {
+        title: '🔥 SALDÃO DE CALÇADOS - ÚLTIMAS UNIDADES',
+        subtitle: saldaoConfig?.bannerText || `Aproveite calçados selecionados em estoque baixo com até ${saldaoConfig?.discountPercent || 20}% de desconto por tempo limitado!`,
+        bannerImage: 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?q=80&w=1600&auto=format&fit=crop',
+        badgeText: `🔥 SALDÃO -${saldaoConfig?.discountPercent || 20}% OFF`,
+        filter: (prod: Product) => isSaldaoProduct(prod, saldaoConfig)
+      };
+    }
+
     if (activeSubcategory) {
       const cleanSub = activeSubcategory.trim().toUpperCase();
       const normSub = normalizeSubcategoryName(cleanSub).toUpperCase();
@@ -236,8 +259,6 @@ export const CategoryPage: React.FC = () => {
         }
       };
     }
-
-    const cleanTabKey = (selectedMenuTab || '').trim().toLowerCase();
 
     if (TAB_CONFIGS[cleanTabKey]) {
       return TAB_CONFIGS[cleanTabKey];

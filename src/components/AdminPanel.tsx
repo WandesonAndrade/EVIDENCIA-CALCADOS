@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
-import { Product, Order, OrderStatus, PaymentStatus, UserProfile, Category, HeroBanner, HomeSectionConfig, AboutConfig, ContactConfig } from '../types';
+import { Product, Order, OrderStatus, PaymentStatus, UserProfile, Category, HeroBanner, HomeSectionConfig, AboutConfig, ContactConfig, SaldaoConfig } from '../types';
 import { MoblinkIntegrationPanel } from './MoblinkIntegrationPanel';
 import { MoblinkProductsManager } from './MoblinkProductsManager';
 import { MoblinkClientsManager } from './MoblinkClientsManager';
@@ -12,6 +12,7 @@ import { storage, db, auth, app } from '../lib/firebase';
 import { moblinkClientesService } from '../services/moblinkClientesService';
 import { FinancialDashboard } from './FinancialDashboard';
 import { uploadImageToSupabase } from '../services/supabaseStorageService';
+import { isSaldaoProduct, getSaldaoProductPrice } from '../services/saldaoService';
 
 
 
@@ -45,6 +46,7 @@ type AdminTab =
   | 'about-editor' 
   | 'support-contact' 
   | 'settings'
+  | 'saldao'
   | 'team';
 
 export const AdminPanel: React.FC = () => {
@@ -78,6 +80,8 @@ export const AdminPanel: React.FC = () => {
     contactConfig,
     updateContactConfig,
     restoreDefaultConfig,
+    saldaoConfig,
+    updateSaldaoConfig,
     atualizarStatusCrediario,
     updateUserCashback
   } = useApp();
@@ -253,6 +257,43 @@ export const AdminPanel: React.FC = () => {
   const [cloudinaryUploadPreset, setCloudinaryUploadPreset] = useState(
     (import.meta as any).env?.VITE_CLOUDINARY_UPLOAD_PRESET || localStorage.getItem('cloudinary_upload_preset') || ''
   );
+
+  // Saldão de Calçados Form State
+  const [saldaoEnabledInput, setSaldaoEnabledInput] = useState(saldaoConfig?.enabled ?? true);
+  const [saldaoMaxStockInput, setSaldaoMaxStockInput] = useState(saldaoConfig?.maxStock ?? 2);
+  const [saldaoDiscountInput, setSaldaoDiscountInput] = useState(saldaoConfig?.discountPercent ?? 20);
+  const [saldaoBannerInput, setSaldaoBannerInput] = useState(saldaoConfig?.bannerText || '🔥 SALDÃO DE CALÇADOS - ÚLTIMAS UNIDADES COM DESCONTO EXCLUSIVO!');
+  const [isSavingSaldao, setIsSavingSaldao] = useState(false);
+
+  useEffect(() => {
+    if (saldaoConfig) {
+      setSaldaoEnabledInput(saldaoConfig.enabled);
+      setSaldaoMaxStockInput(saldaoConfig.maxStock ?? 2);
+      setSaldaoDiscountInput(saldaoConfig.discountPercent ?? 20);
+      setSaldaoBannerInput(saldaoConfig.bannerText || '🔥 SALDÃO DE CALÇADOS - ÚLTIMAS UNIDADES COM DESCONTO EXCLUSIVO!');
+    }
+  }, [saldaoConfig]);
+
+  const handleSaveSaldaoSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSavingSaldao(true);
+
+    try {
+      await updateSaldaoConfig({
+        enabled: saldaoEnabledInput,
+        maxStock: Number(saldaoMaxStockInput) || 2,
+        discountPercent: Number(saldaoDiscountInput) || 20,
+        bannerText: saldaoBannerInput.trim(),
+      });
+
+      addToast("Saldão Atualizado!", "As regras do Saldão de Calçados foram salvas e aplicadas na loja com sucesso.", "success");
+    } catch (err: any) {
+      console.error(err);
+      addToast("Erro ao Salvar", err.message || "Não foi possível salvar as configurações do Saldão.", "error");
+    } finally {
+      setIsSavingSaldao(false);
+    }
+  };
 
   // CMS 1: Hero Banners State & Form
   const [editingBanner, setEditingBanner] = useState<HeroBanner | null>(null);
@@ -989,6 +1030,25 @@ export const AdminPanel: React.FC = () => {
                 >
                   <PhoneCall className="h-4 w-4" />
                   <span>Suporte & Contatos</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('saldao')}
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    activeTab === 'saldao'
+                      ? isDark ? 'bg-rose-500/10 text-rose-400 border border-rose-500/30' : 'bg-slate-900 text-white shadow-sm'
+                      : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <div className="flex items-center space-x-3">
+                    <Tag className="h-4 w-4 text-rose-500" />
+                    <span>Saldão de Calçados</span>
+                  </div>
+                  {saldaoConfig?.enabled && (
+                    <span className="px-1.5 py-0.5 text-[9px] font-black rounded-md bg-rose-500 text-white uppercase">
+                      Ativo
+                    </span>
+                  )}
                 </button>
               </div>
             )}
@@ -2475,6 +2535,227 @@ export const AdminPanel: React.FC = () => {
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {/* TAB 10: SALDÃO DE CALÇADOS (DESCONTO DE ESTOQUE BAIXO) */}
+        {activeTab === 'saldao' && (
+          <div className="space-y-8 max-w-5xl">
+            <div>
+              <div className="flex items-center space-x-3 mb-1">
+                <div className="p-2.5 rounded-2xl bg-rose-500/10 text-rose-500 border border-rose-500/20">
+                  <Tag className="h-6 w-6" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-black tracking-tight flex items-center space-x-2">
+                    <span>Saldão de Calçados (Últimas Unidades)</span>
+                  </h2>
+                  <p className="text-xs text-slate-400">
+                    Defina o limite de estoque baixo e a porcentagem de desconto automática para impulsionar a venda de últimos pares de calçados.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Painel de Controle de Regras do Saldão */}
+            <form onSubmit={handleSaveSaldaoSettings} className={`p-6 sm:p-8 rounded-3xl border backdrop-blur-xl space-y-6 ${
+              isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
+            }`}>
+              <div className="flex items-center justify-between pb-4 border-b border-slate-800/40">
+                <div className="space-y-1">
+                  <h3 className="text-sm font-black text-rose-400 flex items-center space-x-2">
+                    <Sparkles className="h-4 w-4" />
+                    <span>Status da Promoção de Saldão</span>
+                  </h3>
+                  <p className="text-xs text-slate-400">Ative ou desative o desconto automático de saldão na vitrine.</p>
+                </div>
+
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    checked={saldaoEnabledInput}
+                    onChange={(e) => setSaldaoEnabledInput(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-rose-500"></div>
+                  <span className="ml-3 text-xs font-bold text-slate-300">
+                    {saldaoEnabledInput ? 'Saldão ATIVO na Loja' : 'Saldão Desativado'}
+                  </span>
+                </label>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+                <div>
+                  <label className="block text-xs font-bold mb-1 text-slate-300">
+                    Estoque Máximo para Entrar no Saldão (Unidades)
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      min="1"
+                      max="20"
+                      value={saldaoMaxStockInput}
+                      onChange={(e) => setSaldaoMaxStockInput(Number(e.target.value))}
+                      className={`w-full p-3.5 rounded-xl text-sm border font-bold focus:outline-none focus:border-rose-500 ${
+                        isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-100 border-slate-300'
+                      }`}
+                      placeholder="Ex: 2"
+                    />
+                    <span className="absolute right-3 top-3.5 text-xs text-slate-500 font-medium">pares ou menos</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    Produtos de calçados com estoque ≤ este número entrarão automaticamente no Saldão.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold mb-1 text-slate-300">
+                    Desconto em Porcentagem (%) sobre o Preço de Venda
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      min="1"
+                      max="80"
+                      value={saldaoDiscountInput}
+                      onChange={(e) => setSaldaoDiscountInput(Number(e.target.value))}
+                      className={`w-full p-3.5 rounded-xl text-sm border font-black text-rose-500 focus:outline-none focus:border-rose-500 ${
+                        isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-100 border-slate-300'
+                      }`}
+                      placeholder="Ex: 20"
+                    />
+                    <span className="absolute right-3 top-3.5 text-xs text-slate-500 font-bold">% OFF</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    Ex: Um calçado de R$ 200,00 com 20% OFF será vendido por R$ 160,00.
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold mb-1 text-slate-300">
+                  Texto do Banner / Chamada do Saldão
+                </label>
+                <input
+                  type="text"
+                  value={saldaoBannerInput}
+                  onChange={(e) => setSaldaoBannerInput(e.target.value)}
+                  className={`w-full p-3.5 rounded-xl text-xs border focus:outline-none focus:border-rose-500 ${
+                    isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-100 border-slate-300'
+                  }`}
+                  placeholder="Ex: 🔥 SALDÃO DE CALÇADOS - ÚLTIMAS UNIDADES COM ATÉ 20% OFF!"
+                />
+              </div>
+
+              <div className="flex items-center justify-between pt-4 border-t border-slate-800/40">
+                <div className="flex items-center space-x-2 text-xs text-slate-400">
+                  <Info className="h-4 w-4 text-amber-400" />
+                  <span>O desconto é aplicado instantaneamente para todos os clientes.</span>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isSavingSaldao}
+                  className="px-6 py-3 rounded-xl bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-600 hover:to-amber-600 text-white font-bold text-xs shadow-lg shadow-rose-950/40 transition-all flex items-center space-x-2 cursor-pointer"
+                >
+                  <Save className="h-4 w-4" />
+                  <span>{isSavingSaldao ? 'Salvando...' : 'Salvar e Aplicar Regras do Saldão'}</span>
+                </button>
+              </div>
+            </form>
+
+            {/* Resumo de Calçados no Saldão */}
+            {(() => {
+              const currentConfig: SaldaoConfig = {
+                enabled: saldaoEnabledInput,
+                maxStock: Number(saldaoMaxStockInput) || 2,
+                discountPercent: Number(saldaoDiscountInput) || 20,
+              };
+
+              const saldaoProds = products.filter(p => isSaldaoProduct(p, currentConfig));
+
+              return (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-lg font-black tracking-tight flex items-center space-x-2">
+                        <span>Produtos Elegíveis no Saldão ({saldaoProds.length})</span>
+                      </h3>
+                      <p className="text-xs text-slate-400">
+                        Lista em tempo real dos calçados com estoque ≤ {currentConfig.maxStock} pares.
+                      </p>
+                    </div>
+                  </div>
+
+                  {saldaoProds.length === 0 ? (
+                    <div className={`p-8 text-center rounded-3xl border ${
+                      isDark ? 'bg-slate-900/40 border-slate-800 text-slate-400' : 'bg-slate-100 border-slate-200 text-slate-600'
+                    }`}>
+                      <Package className="h-10 w-10 mx-auto mb-2 opacity-40 text-rose-500" />
+                      <p className="text-sm font-bold">Nenhum calçado encontrado com estoque ≤ {currentConfig.maxStock} unidades.</p>
+                      <p className="text-xs opacity-75 mt-1">Aumente o limite de estoque nas configurações acima se desejar incluir mais calçados.</p>
+                    </div>
+                  ) : (
+                    <div className={`rounded-3xl border overflow-hidden backdrop-blur-xl ${
+                      isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
+                    }`}>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                          <thead>
+                            <tr className={`border-b text-[10px] font-black uppercase tracking-wider ${
+                              isDark ? 'bg-slate-950/80 border-slate-800 text-slate-400' : 'bg-slate-100 border-slate-200 text-slate-600'
+                            }`}>
+                              <th className="p-4">Produto</th>
+                              <th className="p-4 text-center">Estoque Atual</th>
+                              <th className="p-4 text-right">Preço De</th>
+                              <th className="p-4 text-right">Preço Saldão ({currentConfig.discountPercent}% OFF)</th>
+                              <th className="p-4 text-right">Economia Cliente</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-800/40 text-xs">
+                            {saldaoProds.map(prod => {
+                              const calc = getSaldaoProductPrice(prod, currentConfig);
+                              const totalStock = Number(prod.stock ?? prod.saldo_loja ?? 0);
+                              return (
+                                <tr key={prod.id} className={isDark ? 'hover:bg-slate-800/40' : 'hover:bg-slate-50'}>
+                                  <td className="p-4">
+                                    <div className="flex items-center space-x-3">
+                                      <img
+                                        src={prod.images?.[0] || prod.imageUrl || prod.foto_uri || 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=200'}
+                                        alt={prod.name}
+                                        className="w-10 h-10 rounded-xl object-cover border border-slate-700/40 shrink-0"
+                                      />
+                                      <div>
+                                        <div className="font-bold line-clamp-1">{prod.name}</div>
+                                        <div className="text-[10px] text-slate-500">COD/ID: {prod.moblinkId || prod.id}</div>
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td className="p-4 text-center">
+                                    <span className="px-2.5 py-1 rounded-full text-xs font-black bg-rose-500/10 text-rose-500 border border-rose-500/20">
+                                      {totalStock} {totalStock === 1 ? 'par' : 'pares'}
+                                    </span>
+                                  </td>
+                                  <td className="p-4 text-right text-slate-400 line-through font-medium">
+                                    R$ {calc.originalPrice.toFixed(2).replace('.', ',')}
+                                  </td>
+                                  <td className="p-4 text-right font-black text-emerald-400 text-sm">
+                                    R$ {calc.price.toFixed(2).replace('.', ',')}
+                                  </td>
+                                  <td className="p-4 text-right font-bold text-amber-400">
+                                    - R$ {calc.savedAmount.toFixed(2).replace('.', ',')}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         )}
 
