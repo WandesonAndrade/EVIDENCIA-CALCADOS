@@ -122,8 +122,10 @@ export const FinancialDashboard: React.FC = () => {
         ? JSON.parse(localAuditRaw)
         : {};
 
-      // Mapeia transações recebidas
-      const mappedReceived: ReceivedPayment[] = pixTxs.map((t: any) => {
+      // Mapeia apenas transações Pix verdadeiramente recebidas/aprovadas pelo Mercado Pago (status === 'approved')
+      const approvedPixTxs = pixTxs.filter((t: any) => t.status === 'approved');
+
+      const mappedReceived: ReceivedPayment[] = approvedPixTxs.map((t: any) => {
         const key = String(t.payment_id);
         const isAuditedLocal = localAudits[key]?.audited ?? t.audited;
 

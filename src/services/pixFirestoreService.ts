@@ -175,6 +175,18 @@ export const pixFirestoreService = {
   },
 
   /**
+   * Busca apenas as transações Pix APROVADAS (status === 'approved')
+   */
+  async fetchApprovedPixTransacoes(): Promise<PixTransacaoFirestore[]> {
+    try {
+      const all = await this.fetchAllPixTransacoes();
+      return all.filter(t => t.status === 'approved');
+    } catch {
+      return [];
+    }
+  },
+
+  /**
    * Atualiza o status da transação Pix (ex: approved, cancelled, expired)
    */
   async updatePixStatus(docId: string, status: 'pending' | 'approved' | 'cancelled' | 'expired'): Promise<void> {

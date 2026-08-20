@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Copy, Check, Loader2, QrCode, AlertTriangle, CheckCircle2, RefreshCw } from 'lucide-react';
+import { X, Copy, Check, Loader2, QrCode, AlertTriangle, CheckCircle2, RefreshCw, MessageSquare } from 'lucide-react';
 import { pixFirestoreService } from '../services/pixFirestoreService';
 
 interface PixPaymentModalProps {
@@ -50,6 +50,7 @@ export const PixPaymentModal: React.FC<PixPaymentModalProps> = ({
   const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const hasFetchedRef = useRef(false);
 
   // Stop polling
   const stopPolling = useCallback(() => {
@@ -191,15 +192,17 @@ export const PixPaymentModal: React.FC<PixPaymentModalProps> = ({
     }
   }, [parcelValue, parcelDescription, emailCliente, nomeCliente, cpfCliente, externalReference, startPolling, stopPolling, stopTimer]);
 
-  // Generate Pix on open
+  // Generate Pix on open (apenas 1x por abertura do modal)
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !hasFetchedRef.current) {
+      hasFetchedRef.current = true;
       fetchPix(false);
     }
-    return () => {
+    if (!isOpen) {
+      hasFetchedRef.current = false;
       stopPolling();
       stopTimer();
-    };
+    }
   }, [isOpen, fetchPix, stopPolling, stopTimer]);
 
   // Cleanup on unmount
@@ -397,15 +400,17 @@ export const PixPaymentModal: React.FC<PixPaymentModalProps> = ({
                   <p className={`text-[10px] ${isDark ? 'text-[#48484a]' : 'text-[#aeaeb2]'}`}>
                     ID #{pixData.payment_id}
                   </p>
+                  
                   <button
-                    onClick={onClose}
-                    className={`mt-2 px-8 py-2.5 rounded-xl text-sm font-black transition-all cursor-pointer ${
-                      isDark
-                        ? 'bg-emerald-500 hover:bg-emerald-400 text-white shadow-[0_0_20px_rgba(16,185,129,0.3)]'
-                        : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm'
-                    }`}
+                    onClick={() => {
+                      if (onPaymentSuccess && pixData) {
+                        onPaymentSuccess(pixData.payment_id);
+                      }
+                    }}
+                    className="w-full py-3 px-6 rounded-2xl bg-[#25D366] hover:bg-[#20ba5a] text-white text-xs font-black uppercase tracking-wider flex items-center justify-center space-x-2 shadow-lg transition-all cursor-pointer"
                   >
-                    Fechar
+                    <MessageSquare className="h-4 w-4" />
+                    <span>Prosseguir no WhatsApp (Pix Pago)</span>
                   </button>
                 </motion.div>
               )}
@@ -508,6 +513,21 @@ export const PixPaymentModal: React.FC<PixPaymentModalProps> = ({
                         )}
                       </button>
                     </div>
+                  </div>
+
+                  {/* Botão de Enviar ao WhatsApp após pagar */}
+                  <div className="pt-2">
+                    <button
+                      onClick={() => {
+                        if (onPaymentSuccess && pixData) {
+                          onPaymentSuccess(pixData.payment_id);
+                        }
+                      }}
+                      className="w-full py-2.5 px-4 rounded-xl bg-[#25D366] hover:bg-[#20ba5a] text-white text-xs font-black uppercase tracking-wider flex items-center justify-center space-x-2 shadow-md transition-all cursor-pointer"
+                    >
+                      <MessageSquare className="h-4 w-4" />
+                      <span>Já Paguei / Enviar Pedido no WhatsApp</span>
+                    </button>
                   </div>
 
                   {/* Payment ID */}

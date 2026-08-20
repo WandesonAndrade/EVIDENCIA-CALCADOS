@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext';
 import { UserProfile, SavedAddress } from '../types';
 import { firebaseAuthService } from '../services/firebaseAuthService';
 import { CompleteProfileModal } from './CompleteProfileModal';
+import { PixPaymentModal } from './PixPaymentModal';
 import { 
   X, CheckCircle2, Truck, ShoppingBag, Zap, CreditCard, 
   ShieldCheck, MapPin, Info, ArrowRight, MessageSquare, Sparkles, User, Edit3, Plus, Loader2
@@ -214,6 +215,8 @@ export const CheckoutConfirmationModal: React.FC<CheckoutConfirmationModalProps>
   const [crediarioInstallments, setCrediarioInstallments] = useState<number>(1);
   const [selectedSellerName, setSelectedSellerName] = useState<string>('Atendimento Direto da Loja');
   const [teamSellers, setTeamSellers] = useState<UserProfile[]>([]);
+  const [isPixModalOpen, setIsPixModalOpen] = useState(false);
+  const pixExternalRef = React.useMemo(() => `ped_${Date.now()}`, [isPixModalOpen]);
 
   useEffect(() => {
     let isMounted = true;
@@ -281,7 +284,7 @@ export const CheckoutConfirmationModal: React.FC<CheckoutConfirmationModalProps>
     };
   });
 
-  const handleConfirmClick = () => {
+  const executeConfirmOrder = (pixPaymentId?: number) => {
     const selectedInstallments = paymentMethod === 'Cartão de Crédito' 
       ? installments 
       : (paymentMethod === 'Crediário da Loja' ? crediarioInstallments : 1);
@@ -301,6 +304,14 @@ export const CheckoutConfirmationModal: React.FC<CheckoutConfirmationModalProps>
       selectedSellerName !== 'Atendimento Direto da Loja' ? selectedSellerName : undefined,
       formattedAddress
     );
+  };
+
+  const handleConfirmClick = () => {
+    if (paymentMethod === 'Pix') {
+      setIsPixModalOpen(true);
+      return;
+    }
+    executeConfirmOrder();
   };
 
 
@@ -923,6 +934,22 @@ export const CheckoutConfirmationModal: React.FC<CheckoutConfirmationModalProps>
       <CompleteProfileModal
         isOpen={isProfileModalOpen}
         onClose={() => setIsProfileModalOpen(false)}
+      />
+
+      <PixPaymentModal
+        isOpen={isPixModalOpen}
+        onClose={() => setIsPixModalOpen(false)}
+        isDark={isDark}
+        parcelDescription={`Pedido Evidência Calçados (${cartItemsCount} ${cartItemsCount === 1 ? 'item' : 'itens'})`}
+        parcelValue={grandTotal}
+        emailCliente={currentUser?.email || 'cliente@evidencia.com.br'}
+        nomeCliente={currentUser?.name || 'Cliente'}
+        cpfCliente={currentUser?.cpf || ''}
+        externalReference={pixExternalRef}
+        onPaymentSuccess={(paymentId) => {
+          setIsPixModalOpen(false);
+          executeConfirmOrder(paymentId);
+        }}
       />
     </div>
   );

@@ -1,6 +1,7 @@
 import express from "express";
 import path from "path";
 import fs from "fs";
+import os from "os";
 import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
 import { db } from "./src/lib/firebase.js";
@@ -190,7 +191,7 @@ interface PixCacheEntry {
   expirationDateIso: string;
 }
 
-const PIX_CACHE_FILE = path.join(process.cwd(), ".pix_cache.json");
+const PIX_CACHE_FILE = path.join(os.tmpdir(), "evidencia_pix_cache.json");
 let pixCacheMap = new Map<string, PixCacheEntry>();
 
 function loadPixCache() {
