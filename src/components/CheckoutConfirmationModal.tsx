@@ -45,7 +45,7 @@ export const CheckoutConfirmationModal: React.FC<CheckoutConfirmationModalProps>
   onConfirmOrder,
   isProcessing
 }) => {
-  const { currentUser, updateUserProfile, theme } = useApp();
+  const { currentUser, updateUserProfile, theme, sellers = [] } = useApp();
   const isDark = theme === 'dark';
 
   const [deliveryType, setDeliveryType] = useState<'Entrega em Caxias-MA' | 'Entrega para Outras Cidades' | 'Retirada na Loja'>(initialDeliveryType || 'Entrega em Caxias-MA');
@@ -847,9 +847,9 @@ export const CheckoutConfirmationModal: React.FC<CheckoutConfirmationModalProps>
                   }`}
                 >
                   <option value="Atendimento Direto da Loja">Sem indicação / Atendimento Direto da Loja</option>
-                  {teamSellers.map((seller) => (
-                    <option key={seller.uid || seller.email} value={seller.name}>
-                      {seller.name}
+                  {sellers.filter(s => s.active).map((seller) => (
+                    <option key={seller.id} value={seller.name}>
+                      {seller.name} {seller.code ? `(${seller.code})` : ''}
                     </option>
                   ))}
                 </select>

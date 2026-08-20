@@ -7,6 +7,7 @@ import { scrollToSectionWithOffset } from "../lib/scrollUtils";
 import { normalizeCategoryName, normalizeSubcategoryName } from "../services/moblinkCategoriesService";
 import { hasProductValidGrade, extractClassificacaoCategoria } from "../services/moblinkProductsService";
 import { isSaldaoProduct, getSaldaoProductPrice } from "../services/saldaoService";
+import { getApplicablePromotion } from "../services/promotionsService";
 
 interface ProductCardProps {
   product: Product;
@@ -23,24 +24,34 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
   onToggleFavorite,
   onViewDetails,
 }) => {
-  const { saldaoConfig } = useApp();
+  const { saldaoConfig, promotions = [] } = useApp();
   const isDark = theme === "dark";
   const saldaoCalc = getSaldaoProductPrice(product, saldaoConfig);
+  const applicablePromo = getApplicablePromotion(product, promotions);
 
-  const mainPrice = saldaoCalc.price;
-  const originalPrice = saldaoCalc.isSaldao
+  let mainPrice = saldaoCalc.price;
+  let originalPrice = saldaoCalc.isSaldao
     ? saldaoCalc.originalPrice
     : product.originalPrice && product.originalPrice > product.price
       ? product.originalPrice
       : null;
 
+  if (!saldaoCalc.isSaldao && applicablePromo) {
+    mainPrice = applicablePromo.promoPrice;
+    originalPrice = applicablePromo.originalPrice;
+  }
+
   const discountPercent = saldaoCalc.isSaldao
     ? saldaoCalc.discountPercent
-    : originalPrice
-      ? Math.round(((originalPrice - mainPrice) / originalPrice) * 100)
-      : 0;
+    : applicablePromo
+      ? (applicablePromo.campaign.discountType === 'percentage'
+          ? applicablePromo.campaign.discountValue
+          : (originalPrice ? Math.round(((originalPrice - mainPrice) / originalPrice) * 100) : 0))
+      : originalPrice
+        ? Math.round(((originalPrice - mainPrice) / originalPrice) * 100)
+        : 0;
 
-  const pixPrice = saldaoCalc.isSaldao 
+  const pixPrice = (saldaoCalc.isSaldao || applicablePromo) 
     ? mainPrice.toFixed(2).replace(".", ",") 
     : (mainPrice * 0.9).toFixed(2).replace(".", ",");
   const parcelas = 6;
@@ -85,6 +96,10 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
             <span className="px-2.5 py-1 text-[10px] font-black text-white bg-gradient-to-r from-rose-600 to-amber-500 rounded-full shadow-md uppercase tracking-wider animate-pulse flex items-center gap-1">
               🔥 SALDÃO -{saldaoCalc.discountPercent}%
             </span>
+          ) : applicablePromo ? (
+            <span className="px-2.5 py-1 text-[10px] font-black text-slate-950 bg-gradient-to-r from-amber-400 to-amber-500 rounded-full shadow-md uppercase tracking-wider animate-bounce flex items-center gap-1">
+              🏷️ {applicablePromo.discountLabel}
+            </span>
           ) : discountPercent > 0 ? (
             <span className="px-2.5 py-0.5 text-[10px] font-bold text-white bg-[#e30000] rounded-full shadow-xs uppercase tracking-wider">
               -{discountPercent}% OFF
@@ -96,32 +111,30 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
           )}
         </div>
 
-        {/* Botão Favoritos */}
         <button
           onClick={(e) => {
             e.stopPropagation();
-            onToggleFavorite(String(product.id));
+            onToggleFavorite(product.id);
           }}
-          className={`absolute top-3.5 right-3.5 p-2 rounded-full backdrop-blur-md transition-all z-20 ${
-            isDark
-              ? "bg-black/60 text-white/80 hover:text-rose-500 hover:bg-black/80 border border-white/10"
-              : "bg-white/90 text-[#00509E] hover:text-rose-600 hover:bg-white shadow-xs border border-black/5"
+          className={`absolute top-3.5 right-3.5 p-2 rounded-full border transition-all z-10 cursor-pointer ${
+            isFavorite
+              ? "bg-rose-500 border-rose-500 text-white shadow-md"
+              : isDark
+                ? "bg-slate-900/80 border-white/10 text-slate-400 hover:text-white hover:bg-slate-800"
+                : "bg-white/90 border-blue-900/10 text-[#52708F] hover:text-rose-500 hover:bg-white"
           }`}
           title={isFavorite ? "Remover dos favoritos" : "Adicionar aos favoritos"}
         >
-          <Heart className={`h-4 w-4 ${isFavorite ? "fill-rose-500 text-rose-500" : ""}`} />
+          <Heart className={`w-4 h-4 ${isFavorite ? "fill-white" : ""}`} />
         </button>
       </div>
 
-      {/* Detalhes do Produto */}
-      <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
-        <div className="space-y-2">
-          {/* Categoria / Marca */}
-          {(product.category || product.nome_grupo) && (
-            <span className="text-[10px] font-bold uppercase tracking-wider text-[#52708F] block">
-              {product.category || product.nome_grupo}
-            </span>
-          )}
+      {/* Informações do Produto */}
+      <div className="p-4 sm:p-5 flex flex-col justify-between flex-1 space-y-3">
+        <div className="space-y-1.5">
+          <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#52708F]">
+            {product.category || "Evidência Calçados"}
+          </span>
 
           {/* Título: Azul Escuro #00509E */}
           <h3 className={`text-sm font-bold tracking-tight line-clamp-2 min-h-[40px] leading-snug ${
@@ -130,13 +143,22 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
             {product.name}
           </h3>
 
-          {/* Matriz de Preços: Preço à vista no PIX em Grande Destaque */}
+          {/* Matriz de Preços: Preço em Destaque Conforme Saldão/Oferta/Regular */}
           <div className="space-y-1 pt-1">
-            {/* Preço À Vista no PIX em Destaque Principal */}
             <div className="space-y-0.5">
               <div className="flex items-center space-x-1.5 flex-wrap">
-                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/80 px-2 py-0.5 rounded-md border border-emerald-300/50">
-                  {saldaoCalc.isSaldao ? `Saldão (${saldaoCalc.discountPercent}% OFF)` : 'À Vista no PIX (-10%)'}
+                <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md border ${
+                  saldaoCalc.isSaldao 
+                    ? "text-rose-800 dark:text-rose-300 bg-rose-100 dark:bg-rose-950/80 border-rose-300/50" 
+                    : applicablePromo 
+                      ? "text-amber-900 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/80 border-amber-300/50" 
+                      : "text-emerald-800 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/80 border-emerald-300/50"
+                }`}>
+                  {saldaoCalc.isSaldao 
+                    ? `Saldão (${saldaoCalc.discountPercent}% OFF)` 
+                    : applicablePromo 
+                      ? `Oferta (${applicablePromo.discountLabel} OFF)` 
+                      : 'À Vista no PIX (-10%)'}
                 </span>
                 {originalPrice && (
                   <span className="text-xs line-through text-[#52708F]">

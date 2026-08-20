@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
-import { Product, CartItem, Order, PaymentStatus, UserProfile, UserRole, CrediarioStatus, Category, MoblinkConfig, MoblinkSyncLog, MoblinkSyncLogItem, EvidenciaAuthSession, HeroBanner, HomeSectionConfig, AboutConfig, ContactConfig, StoreConfig, ViewMode, SaldaoConfig } from '../types';
+import { Product, CartItem, Order, PaymentStatus, UserProfile, UserRole, CrediarioStatus, Category, MoblinkConfig, MoblinkSyncLog, MoblinkSyncLogItem, EvidenciaAuthSession, HeroBanner, HomeSectionConfig, AboutConfig, ContactConfig, StoreConfig, ViewMode, SaldaoConfig, PromoCampaign, Seller } from '../types';
 import { loadSaldaoConfig, saveSaldaoConfig, DEFAULT_SALDAO_CONFIG, getSaldaoProductPrice } from '../services/saldaoService';
+import { loadPromotionsFromLocalStorage, savePromotionsToLocalStorage, savePromotionToFirestore, deletePromotionFromFirestore, PROMOTIONS_COLLECTION, getApplicablePromotion } from '../services/promotionsService';
+import { loadSellersFromLocalStorage, saveSellersToLocalStorage, saveSellerToFirestore, deleteSellerFromFirestore, SELLERS_COLLECTION } from '../services/sellersService';
 import { db, auth, seedDatabaseIfNeeded, SEED_PRODUCTS } from '../lib/firebase';
 import { collection, onSnapshot, doc, setDoc, getDoc, query, where, deleteDoc } from 'firebase/firestore';
 import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
@@ -98,6 +100,18 @@ interface AppContextProps {
   // Saldão de Calçados
   saldaoConfig: SaldaoConfig;
   updateSaldaoConfig: (config: Partial<SaldaoConfig>) => Promise<void>;
+  // Ofertas & Promoções
+  promotions: PromoCampaign[];
+  isLoadingPromotions: boolean;
+  savePromotion: (campaign: PromoCampaign) => Promise<PromoCampaign>;
+  deletePromotion: (campaignId: string) => Promise<void>;
+  togglePromotionStatus: (campaignId: string) => Promise<void>;
+  // Vendedores (Gestão de Cadastros)
+  sellers: Seller[];
+  isLoadingSellers: boolean;
+  saveSeller: (seller: Seller) => Promise<Seller>;
+  deleteSeller: (sellerId: string) => Promise<void>;
+  toggleSellerStatus: (sellerId: string) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextProps | undefined>(undefined);
@@ -310,6 +324,109 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const merged = { ...prev, ...newConfig };
       saveSaldaoConfig(merged);
       return merged;
+    });
+  }, []);
+
+  // Ofertas & Promoções State & Handlers
+  const [promotions, setPromotions] = useState<PromoCampaign[]>(() => loadPromotionsFromLocalStorage());
+  const [isLoadingPromotions, setIsLoadingPromotions] = useState(true);
+
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, PROMOTIONS_COLLECTION), (snapshot) => {
+      const list: PromoCampaign[] = [];
+      snapshot.forEach((docSnap) => {
+        list.push({ id: docSnap.id, ...docSnap.data() } as PromoCampaign);
+      });
+      // Sincroniza estado e cache local
+      setPromotions(list);
+      savePromotionsToLocalStorage(list);
+      setIsLoadingPromotions(false);
+    }, (err) => {
+      console.warn('Firestore promotions listening failed, fallback to local:', err.message);
+      setPromotions(loadPromotionsFromLocalStorage());
+      setIsLoadingPromotions(false);
+    });
+
+    return () => unsub();
+  }, []);
+
+  const savePromotion = useCallback(async (campaign: PromoCampaign): Promise<PromoCampaign> => {
+    const saved = await savePromotionToFirestore(campaign);
+    setPromotions(prev => {
+      const idx = prev.findIndex(p => p.id === saved.id);
+      if (idx > -1) {
+        const copy = [...prev];
+        copy[idx] = saved;
+        return copy;
+      }
+      return [saved, ...prev];
+    });
+    return saved;
+  }, []);
+
+  const deletePromotion = useCallback(async (campaignId: string): Promise<void> => {
+    await deletePromotionFromFirestore(campaignId);
+    setPromotions(prev => prev.filter(p => p.id !== campaignId));
+  }, []);
+
+  const togglePromotionStatus = useCallback(async (campaignId: string): Promise<void> => {
+    setPromotions(prev => {
+      const target = prev.find(p => p.id === campaignId);
+      if (!target) return prev;
+      const updated = { ...target, active: !target.active };
+      savePromotionToFirestore(updated);
+      return prev.map(p => p.id === campaignId ? updated : p);
+    });
+  }, []);
+
+  // Vendedores (Gestão de Cadastros) State & Handlers
+  const [sellers, setSellers] = useState<Seller[]>(() => loadSellersFromLocalStorage());
+  const [isLoadingSellers, setIsLoadingSellers] = useState(true);
+
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, SELLERS_COLLECTION), (snapshot) => {
+      const list: Seller[] = [];
+      snapshot.forEach((docSnap) => {
+        list.push({ id: docSnap.id, ...docSnap.data() } as Seller);
+      });
+      setSellers(list);
+      saveSellersToLocalStorage(list);
+      setIsLoadingSellers(false);
+    }, (err) => {
+      console.warn('Firestore sellers listening failed, fallback to local:', err.message);
+      setSellers(loadSellersFromLocalStorage());
+      setIsLoadingSellers(false);
+    });
+
+    return () => unsub();
+  }, []);
+
+  const saveSeller = useCallback(async (seller: Seller): Promise<Seller> => {
+    const saved = await saveSellerToFirestore(seller);
+    setSellers(prev => {
+      const idx = prev.findIndex(s => s.id === saved.id);
+      if (idx > -1) {
+        const copy = [...prev];
+        copy[idx] = saved;
+        return copy;
+      }
+      return [saved, ...prev];
+    });
+    return saved;
+  }, []);
+
+  const deleteSeller = useCallback(async (sellerId: string): Promise<void> => {
+    await deleteSellerFromFirestore(sellerId);
+    setSellers(prev => prev.filter(s => s.id !== sellerId));
+  }, []);
+
+  const toggleSellerStatus = useCallback(async (sellerId: string): Promise<void> => {
+    setSellers(prev => {
+      const target = prev.find(s => s.id === sellerId);
+      if (!target) return prev;
+      const updated = { ...target, active: !target.active };
+      saveSellerToFirestore(updated);
+      return prev.map(s => s.id === sellerId ? updated : s);
     });
   }, []);
   const [selectedCategory, setSelectedCategoryState] = useState('TODOS');
@@ -1040,17 +1157,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Helper Cart Actions
   const addToCart = (product: Product, size: number | string) => {
     const saldaoCalc = getSaldaoProductPrice(product, saldaoConfig);
-    const targetProduct: Product = saldaoCalc.isSaldao
-      ? {
-          ...product,
-          price: saldaoCalc.price,
-          originalPrice: saldaoCalc.originalPrice,
-          precoVista: saldaoCalc.price,
-          preco_vista: saldaoCalc.price,
-          precoCartao: saldaoCalc.price,
-          preco_cartao: saldaoCalc.price,
-        }
-      : product;
+    const applicablePromo = getApplicablePromotion(product, promotions);
+
+    let targetProduct: Product = product;
+
+    if (saldaoCalc.isSaldao) {
+      targetProduct = {
+        ...product,
+        price: saldaoCalc.price,
+        originalPrice: saldaoCalc.originalPrice,
+        precoVista: saldaoCalc.price,
+        preco_vista: saldaoCalc.price,
+        precoCartao: saldaoCalc.price,
+        preco_cartao: saldaoCalc.price,
+      };
+    } else if (applicablePromo) {
+      const promoPrice = applicablePromo.promoPrice;
+      targetProduct = {
+        ...product,
+        price: promoPrice,
+        originalPrice: applicablePromo.originalPrice,
+        precoVista: promoPrice,
+        preco_vista: promoPrice,
+        precoCartao: promoPrice,
+        preco_cartao: promoPrice,
+      };
+    }
 
     setCart((prevCart) => {
       const existingIndex = prevCart.findIndex(
@@ -2086,6 +2218,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         restoreDefaultConfig,
         saldaoConfig,
         updateSaldaoConfig,
+        promotions,
+        isLoadingPromotions,
+        savePromotion,
+        deletePromotion,
+        togglePromotionStatus,
+        sellers,
+        isLoadingSellers,
+        saveSeller,
+        deleteSeller,
+        toggleSellerStatus,
       }}
     >
       {children}

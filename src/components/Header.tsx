@@ -70,13 +70,9 @@ export const Header: React.FC = () => {
 
   const handleSubcategoryFilter = (subName: string, isPromo?: boolean) => {
     const cleanSub = subName.toUpperCase();
-    if (cleanSub.includes("SALDÃO") || cleanSub.includes("SALDAO")) {
-      setSelectedCategory("SALDÃO");
-      if (setSelectedMenuTab) setSelectedMenuTab("saldão");
-      if (setSelectedSubcategory) setSelectedSubcategory("TODAS");
-    } else if (isPromo) {
-      setSelectedCategory("PROMOÇÕES");
-      if (setSelectedMenuTab) setSelectedMenuTab("promoções");
+    if (cleanSub.includes("SALDÃO") || cleanSub.includes("SALDAO") || cleanSub.includes("OFERTA") || cleanSub.includes("PROMOÇ")) {
+      setSelectedCategory("OFERTAS");
+      if (setSelectedMenuTab) setSelectedMenuTab("ofertas");
       if (setSelectedSubcategory) setSelectedSubcategory("TODAS");
     } else {
       setSelectedCategory("CALÇADOS");
@@ -154,18 +150,11 @@ export const Header: React.FC = () => {
 
     const resultNavs: { name: string; key: string; isPromo?: boolean }[] = [];
 
-    if (saldaoConfig?.enabled) {
-      resultNavs.push({ name: "🔥 Saldão Calçados", key: "SALDÃO", isPromo: true });
-    }
-
+    resultNavs.push({ name: "Ofertas & Saldão", key: "OFERTAS", isPromo: true });
     resultNavs.push(...uniqueNavs);
 
-    if (hasPromoProducts || activeProducts.length === 0) {
-      resultNavs.push({ name: "Promoções", key: "PROMOÇÕES", isPromo: true });
-    }
-
     return resultNavs;
-  }, [categories, products, saldaoConfig]);
+  }, [categories, products]);
 
   return (
     <header
@@ -560,8 +549,8 @@ export const Header: React.FC = () => {
                 <div className="flex items-center space-x-6 sm:space-x-8 overflow-x-auto no-scrollbar flex-1">
                   {navCategories.map((item) => {
                     const isActive = item.isPromo
-                      ? selectedCategory.toUpperCase() === "PROMOÇÕES"
-                      : selectedCategory.toUpperCase() === "CALÇADOS" && selectedSubcategory.toUpperCase() === item.key;
+                      ? (selectedCategory.toUpperCase() === "OFERTAS" || selectedCategory.toUpperCase() === "SALDÃO" || selectedCategory.toUpperCase() === "PROMOÇÕES")
+                      : (selectedCategory.toUpperCase() === "CALÇADOS" && selectedSubcategory.toUpperCase() === item.key);
 
                     return (
                       <button

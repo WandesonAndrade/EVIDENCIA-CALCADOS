@@ -1,18 +1,20 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
-import { Product, Order, OrderStatus, PaymentStatus, UserProfile, Category, HeroBanner, HomeSectionConfig, AboutConfig, ContactConfig, SaldaoConfig } from '../types';
+import { Product, Order, OrderStatus, PaymentStatus, UserProfile, Category, HeroBanner, HomeSectionConfig, AboutConfig, ContactConfig, SaldaoConfig, PromoCampaign } from '../types';
 import { MoblinkIntegrationPanel } from './MoblinkIntegrationPanel';
 import { MoblinkProductsManager } from './MoblinkProductsManager';
 import { MoblinkClientsManager } from './MoblinkClientsManager';
 import { ErrorBoundary } from './ErrorBoundary';
 import { AuthScreen } from './AuthScreen';
 import { TeamManagement } from './TeamManagement';
+import { SellersManager } from './SellersManager';
 import { checkIsProfileComplete } from '../App';
 import { storage, db, auth, app } from '../lib/firebase';
 import { moblinkClientesService } from '../services/moblinkClientesService';
 import { FinancialDashboard } from './FinancialDashboard';
 import { uploadImageToSupabase } from '../services/supabaseStorageService';
 import { isSaldaoProduct, getSaldaoProductPrice } from '../services/saldaoService';
+import { getCampaignStatus, isCampaignActive, calculateCampaignPrice } from '../services/promotionsService';
 
 
 
@@ -27,7 +29,7 @@ import {
   Info, Sliders, Zap, Barcode, Image, ArrowUp, ArrowDown,
   BookOpen, PhoneCall, Globe, CheckCircle2, Sparkles, Layout, HelpCircle,
   FileText, Briefcase, MapPin, Gift, Heart, ShoppingCart, Cake, AlertTriangle, LogOut, Shield,
-  FolderTree, Tag
+  FolderTree, Tag, X
 } from 'lucide-react';
 import { moblinkCategoriesService, normalizeCategoryName, normalizeSubcategoryName } from '../services/moblinkCategoriesService';
 
@@ -38,6 +40,7 @@ type AdminTab =
   | 'sales' 
   | 'crediario'
   | 'customers' 
+  | 'vendedores'
   | 'new-product' 
   | 'categories' 
   | 'moblink' 
@@ -47,6 +50,7 @@ type AdminTab =
   | 'support-contact' 
   | 'settings'
   | 'saldao'
+  | 'promotions'
   | 'team';
 
 export const AdminPanel: React.FC = () => {
@@ -82,9 +86,102 @@ export const AdminPanel: React.FC = () => {
     restoreDefaultConfig,
     saldaoConfig,
     updateSaldaoConfig,
+    promotions = [],
+    sellers = [],
+    savePromotion,
+    deletePromotion,
+    togglePromotionStatus,
     atualizarStatusCrediario,
     updateUserCashback
   } = useApp();
+
+  // Estados de Gerenciamento de Ofertas & Promoções
+  const [isPromoModalOpen, setIsPromoModalOpen] = useState(false);
+  const [editingPromo, setEditingPromo] = useState<PromoCampaign | null>(null);
+
+  const [promoTitle, setPromoTitle] = useState('');
+  const [promoDescription, setPromoDescription] = useState('');
+  const [promoStartDate, setPromoStartDate] = useState('');
+  const [promoEndDate, setPromoEndDate] = useState('');
+  const [promoDiscountType, setPromoDiscountType] = useState<'percentage' | 'fixed'>('percentage');
+  const [promoDiscountValue, setPromoDiscountValue] = useState<number>(15);
+  const [promoProductIds, setPromoProductIds] = useState<string[]>([]);
+  const [promoActive, setPromoActive] = useState(true);
+
+  const [promoProductSearch, setPromoProductSearch] = useState('');
+  const [promoCategoryFilter, setPromoCategoryFilter] = useState('TODAS');
+
+  const handleOpenNewPromoModal = () => {
+    setEditingPromo(null);
+    setPromoTitle('');
+    setPromoDescription('');
+    const today = new Date().toISOString().split('T')[0];
+    const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    setPromoStartDate(today);
+    setPromoEndDate(nextWeek);
+    setPromoDiscountType('percentage');
+    setPromoDiscountValue(15);
+    setPromoProductIds([]);
+    setPromoActive(true);
+    setPromoProductSearch('');
+    setPromoCategoryFilter('TODAS');
+    setIsPromoModalOpen(true);
+  };
+
+  const handleOpenEditPromoModal = (campaign: PromoCampaign) => {
+    setEditingPromo(campaign);
+    setPromoTitle(campaign.title);
+    setPromoDescription(campaign.description || '');
+    setPromoStartDate(campaign.startDate ? campaign.startDate.split('T')[0] : '');
+    setPromoEndDate(campaign.endDate ? campaign.endDate.split('T')[0] : '');
+    setPromoDiscountType(campaign.discountType || 'percentage');
+    setPromoDiscountValue(campaign.discountValue || 10);
+    setPromoProductIds(campaign.productIds || []);
+    setPromoActive(campaign.active !== false);
+    setPromoProductSearch('');
+    setPromoCategoryFilter('TODAS');
+    setIsPromoModalOpen(true);
+  };
+
+  const handleSavePromo = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!promoTitle.trim()) {
+      alert('Por favor, informe o título da promoção.');
+      return;
+    }
+    if (!promoStartDate || !promoEndDate) {
+      alert('Por favor, defina a data inicial e final da promoção.');
+      return;
+    }
+    if (promoProductIds.length === 0) {
+      alert('Por favor, selecione ao menos 1 produto participante.');
+      return;
+    }
+
+    const campaignId = editingPromo ? editingPromo.id : `promo_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+
+    const campaign: PromoCampaign = {
+      id: campaignId,
+      title: promoTitle.trim(),
+      description: promoDescription.trim(),
+      startDate: promoStartDate,
+      endDate: promoEndDate,
+      discountType: promoDiscountType,
+      discountValue: Number(promoDiscountValue) || 0,
+      productIds: promoProductIds,
+      active: promoActive,
+      createdAt: editingPromo?.createdAt || new Date().toISOString(),
+    };
+
+    await savePromotion(campaign);
+    setIsPromoModalOpen(false);
+  };
+
+  const handleToggleProductInPromo = (prodId: string) => {
+    setPromoProductIds(prev => 
+      prev.includes(prodId) ? prev.filter(id => id !== prodId) : [...prev, prodId]
+    );
+  };
 
   const activeAdminUser = currentAdminUser || currentUser;
   const isAdmin = true; // Todo colaborador autenticado no painel possui privilégio total de Administrador
@@ -918,6 +1015,20 @@ export const AdminPanel: React.FC = () => {
                   </span>
                 )}
               </button>
+
+              <button
+                onClick={() => setActiveTab('vendedores')}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  activeTab === 'vendedores'
+                    ? isDark ? 'bg-amber-400/10 text-amber-400 border border-amber-400/30' : 'bg-slate-900 text-white shadow-sm'
+                    : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <div className="flex items-center space-x-3">
+                  <UserCheck className="h-4 w-4 text-emerald-500" />
+                  <span>Vendedores (Cadastros)</span>
+                </div>
+              </button>
             </div>
 
             {/* GROUP 2: CATÁLOGO DE PRODUTOS */}
@@ -1047,6 +1158,25 @@ export const AdminPanel: React.FC = () => {
                   {saldaoConfig?.enabled && (
                     <span className="px-1.5 py-0.5 text-[9px] font-black rounded-md bg-rose-500 text-white uppercase">
                       Ativo
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('promotions')}
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    activeTab === 'promotions'
+                      ? isDark ? 'bg-amber-400/10 text-amber-400 border border-amber-400/30' : 'bg-slate-900 text-white shadow-sm'
+                      : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <div className="flex items-center space-x-3">
+                    <Gift className="h-4 w-4 text-amber-500" />
+                    <span>Ofertas & Promoções</span>
+                  </div>
+                  {promotions.filter(p => isCampaignActive(p)).length > 0 && (
+                    <span className="px-1.5 py-0.5 text-[9px] font-black rounded-md bg-amber-500 text-slate-950 uppercase">
+                      {promotions.filter(p => isCampaignActive(p)).length}
                     </span>
                   )}
                 </button>
@@ -1213,7 +1343,7 @@ export const AdminPanel: React.FC = () => {
         {activeTab === 'sales' && (() => {
           const sellersList = Array.from(
             new Set([
-              ...users.filter(u => (u.role === 'admin' || u.role === 'seller' || u.isAuthorizedCollaborator) && u.isSeller !== false).map(u => u.name),
+              ...sellers.filter(s => s.active).map(s => s.name),
               ...orders.map(o => o.sellerName).filter((s): s is string => Boolean(s && s.trim()))
             ])
           ).filter(Boolean);
@@ -1646,6 +1776,11 @@ export const AdminPanel: React.FC = () => {
         {/* TAB: BASE DE CLIENTES & CRM MOBLINK ERP */}
         {activeTab === 'customers' && (
           <MoblinkClientsManager isDark={isDark} />
+        )}
+
+        {/* TAB: CADASTRO DE VENDEDORES */}
+        {activeTab === 'vendedores' && (
+          <SellersManager theme={theme} />
         )}
 
         {/* TAB: GESTÃO DE EQUIPE & SEGURANÇA */}
@@ -2759,6 +2894,219 @@ export const AdminPanel: React.FC = () => {
           </div>
         )}
 
+        {/* TAB 8.5: GERENCIAMENTO DE OFERTAS & PROMOÇÕES */}
+        {activeTab === 'promotions' && (
+          <div className="space-y-8 max-w-6xl">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h2 className="text-2xl font-black tracking-tight flex items-center space-x-2">
+                  <Gift className="h-6 w-6 text-amber-500 animate-pulse" />
+                  <span>Gerenciamento de Ofertas e Campanhas Promocionais</span>
+                </h2>
+                <p className="text-xs text-slate-400 mt-1">
+                  Crie e gerencie campanhas de ofertas com período de vigência, porcentagem ou valor de desconto e selecione os produtos participantes.
+                </p>
+              </div>
+
+              <button
+                onClick={handleOpenNewPromoModal}
+                className="px-5 py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black text-xs uppercase tracking-wider transition-all shadow-lg flex items-center space-x-2 cursor-pointer shrink-0"
+              >
+                <Plus className="h-4 w-4" />
+                <span>Nova Oferta Promocional</span>
+              </button>
+            </div>
+
+            {/* Cards de Métricas e Estatísticas */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className={`p-5 rounded-3xl border ${isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-400">Total de Campanhas</span>
+                  <div className="p-2 rounded-xl bg-blue-500/10 text-blue-400">
+                    <Gift className="h-4 w-4" />
+                  </div>
+                </div>
+                <div className="text-2xl font-black mt-2">{promotions.length}</div>
+                <div className="text-[10px] text-slate-500 mt-1">Ofertas cadastradas no sistema</div>
+              </div>
+
+              <div className={`p-5 rounded-3xl border ${isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-400">Em Andamento</span>
+                  <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400">
+                    <CheckCircle2 className="h-4 w-4" />
+                  </div>
+                </div>
+                <div className="text-2xl font-black text-emerald-400 mt-2">
+                  {promotions.filter(p => getCampaignStatus(p) === 'active').length}
+                </div>
+                <div className="text-[10px] text-slate-500 mt-1">Vigentes e ativas no site agora</div>
+              </div>
+
+              <div className={`p-5 rounded-3xl border ${isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-400">Agendadas</span>
+                  <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400">
+                    <Tag className="h-4 w-4" />
+                  </div>
+                </div>
+                <div className="text-2xl font-black text-amber-400 mt-2">
+                  {promotions.filter(p => getCampaignStatus(p) === 'scheduled').length}
+                </div>
+                <div className="text-[10px] text-slate-500 mt-1">Aguardando início do período</div>
+              </div>
+
+              <div className={`p-5 rounded-3xl border ${isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-400">Produtos Ofertados</span>
+                  <div className="p-2 rounded-xl bg-purple-500/10 text-purple-400">
+                    <ShoppingBag className="h-4 w-4" />
+                  </div>
+                </div>
+                <div className="text-2xl font-black text-purple-400 mt-2">
+                  {Array.from(new Set(promotions.filter(p => getCampaignStatus(p) === 'active').flatMap(p => p.productIds))).length}
+                </div>
+                <div className="text-[10px] text-slate-500 mt-1">Itens em oferta no catálogo</div>
+              </div>
+            </div>
+
+            {/* Lista de Promoções Cadastradas */}
+            <div className={`p-6 sm:p-8 rounded-3xl border ${isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-200 shadow-sm'} space-y-6`}>
+              <div className="flex items-center justify-between">
+                <h3 className="text-base font-black tracking-tight text-white flex items-center space-x-2">
+                  <Tag className="h-4 w-4 text-amber-400" />
+                  <span>Campanhas Promocionais</span>
+                </h3>
+              </div>
+
+              {promotions.length === 0 ? (
+                <div className="text-center py-12 space-y-3">
+                  <Gift className="h-12 w-12 text-slate-500 mx-auto opacity-50" />
+                  <h4 className="text-base font-bold">Nenhuma oferta promocional criada</h4>
+                  <p className="text-xs text-slate-400 max-w-md mx-auto">
+                    Crie campanhas como "Semana do Consumidor" ou "Ofertas de Inverno" definindo desconto e produtos participantes.
+                  </p>
+                  <button
+                    onClick={handleOpenNewPromoModal}
+                    className="px-4 py-2 bg-amber-500 text-slate-950 font-black text-xs rounded-xl shadow-md cursor-pointer hover:bg-amber-400 transition-colors"
+                  >
+                    + Criar Primeira Oferta
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {promotions.map((promo) => {
+                    const status = getCampaignStatus(promo);
+                    const matchingProducts = products.filter(p => promo.productIds.includes(String(p.id)) || (p.moblinkId && promo.productIds.includes(String(p.moblinkId))));
+
+                    return (
+                      <div
+                        key={promo.id}
+                        className={`p-5 rounded-2xl border flex flex-col justify-between space-y-4 transition-all ${
+                          isDark ? 'bg-slate-950/80 border-slate-800 hover:border-slate-700' : 'bg-slate-50 border-slate-200 shadow-xs'
+                        }`}
+                      >
+                        <div className="space-y-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <div className="flex items-center space-x-2">
+                                <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-md ${
+                                  status === 'active' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 animate-pulse' :
+                                  status === 'scheduled' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' :
+                                  status === 'expired' ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' :
+                                  'bg-slate-800 text-slate-400'
+                                }`}>
+                                  {status === 'active' ? '🟢 Em Andamento' :
+                                   status === 'scheduled' ? '🟡 Agendada' :
+                                   status === 'expired' ? '🔴 Expirada' :
+                                   '⚪ Inativa'}
+                                </span>
+
+                                <span className="text-[10px] font-black uppercase text-amber-400 px-2 py-0.5 bg-amber-400/10 rounded-md border border-amber-400/20">
+                                  {promo.discountType === 'percentage' ? `-${promo.discountValue}% OFF` : `-R$ ${promo.discountValue.toFixed(2).replace('.', ',')}`}
+                                </span>
+                              </div>
+
+                              <h4 className="text-base font-black text-white mt-1.5 line-clamp-1">{promo.title}</h4>
+                              {promo.description && (
+                                <p className="text-xs text-slate-400 line-clamp-2 mt-0.5">{promo.description}</p>
+                              )}
+                            </div>
+
+                            <div className="flex items-center space-x-1 shrink-0">
+                              <button
+                                onClick={() => handleOpenEditPromoModal(promo)}
+                                className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors cursor-pointer"
+                                title="Editar Oferta"
+                              >
+                                <Edit className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                onClick={() => deletePromotion(promo.id)}
+                                className="p-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 transition-colors cursor-pointer"
+                                title="Excluir Oferta"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="text-xs text-slate-400 space-y-1 bg-slate-900/60 p-3 rounded-xl border border-slate-800/60">
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold">Período de Vigência:</span>
+                              <span className="font-medium text-slate-200">
+                                {promo.startDate ? promo.startDate : 'Início imediato'} até {promo.endDate ? promo.endDate : 'Indefinido'}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold">Produtos Participantes:</span>
+                              <span className="font-black text-amber-400">
+                                {promo.productIds.length} {promo.productIds.length === 1 ? 'produto' : 'produtos'}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Miniaturas de Produtos Participantes */}
+                          {matchingProducts.length > 0 && (
+                            <div className="flex items-center space-x-2 overflow-x-auto pb-1">
+                              {matchingProducts.slice(0, 5).map(p => (
+                                <div key={p.id} className="w-9 h-9 rounded-lg border border-slate-800 bg-white p-0.5 shrink-0 overflow-hidden" title={p.name}>
+                                  <img src={p.images?.[0] || p.imageUrl || p.foto_uri} alt={p.name} className="w-full h-full object-contain" />
+                                </div>
+                              ))}
+                              {matchingProducts.length > 5 && (
+                                <span className="text-[10px] font-extrabold text-slate-400 shrink-0">
+                                  +{matchingProducts.length - 5} outros
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between">
+                          <span className="text-[11px] text-slate-400">
+                            Status no E-commerce:
+                          </span>
+                          <button
+                            onClick={() => togglePromotionStatus(promo.id)}
+                            className={`px-3 py-1 rounded-full text-xs font-black cursor-pointer transition-all ${
+                              promo.active
+                                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-emerald-500/30'
+                                : 'bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-700'
+                            }`}
+                          >
+                            {promo.active ? 'Ativa' : 'Desativada'}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* TAB 9: SETTINGS & DANGER ZONE (RESET LAYOUT) */}
         {activeTab === 'settings' && (
           isAdmin ? (
@@ -3017,6 +3365,261 @@ export const AdminPanel: React.FC = () => {
                   className="flex-1 py-3 px-4 text-xs font-black uppercase tracking-wider rounded-xl bg-amber-400 text-slate-950 hover:bg-amber-300 transition-all shadow-md cursor-pointer"
                 >
                   Salvar Cadastro
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE CRIAR / EDITAR OFERTA PROMOCIONAL */}
+      {isPromoModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
+          <div className={`w-full max-w-3xl rounded-3xl border shadow-2xl p-6 sm:p-8 space-y-6 max-h-[90vh] flex flex-col ${
+            isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
+          }`}>
+            <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+              <div>
+                <h3 className="text-xl font-black flex items-center space-x-2 text-amber-400">
+                  <Gift className="h-5 w-5" />
+                  <span>{editingPromo ? 'Editar Oferta Promocional' : 'Nova Oferta Promocional'}</span>
+                </h3>
+                <p className="text-xs text-slate-400">Configure os detalhes, o desconto e os produtos que participarão da campanha.</p>
+              </div>
+              <button
+                onClick={() => setIsPromoModalOpen(false)}
+                className="p-2 rounded-full bg-slate-800 text-slate-400 hover:text-white cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSavePromo} className="space-y-5 overflow-y-auto pr-1 flex-1">
+              {/* Título & Descrição */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold mb-1 text-slate-300">Título da Promoção *</label>
+                  <input
+                    type="text"
+                    required
+                    value={promoTitle}
+                    onChange={(e) => setPromoTitle(e.target.value)}
+                    placeholder="Ex: Semana do Consumidor, Oferta de Inverno"
+                    className={`w-full p-3 rounded-xl text-xs border focus:outline-none ${
+                      isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-100 border-slate-300'
+                    }`}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold mb-1 text-slate-300">Descrição / Chamada (Opcional)</label>
+                  <input
+                    type="text"
+                    value={promoDescription}
+                    onChange={(e) => setPromoDescription(e.target.value)}
+                    placeholder="Ex: Até 20% de desconto em produtos selecionados!"
+                    className={`w-full p-3 rounded-xl text-xs border focus:outline-none ${
+                      isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-100 border-slate-300'
+                    }`}
+                  />
+                </div>
+              </div>
+
+              {/* Datas de Vigência & Regra de Desconto */}
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                <div>
+                  <label className="block text-xs font-bold mb-1 text-slate-300">Data Inicial *</label>
+                  <input
+                    type="date"
+                    required
+                    value={promoStartDate}
+                    onChange={(e) => setPromoStartDate(e.target.value)}
+                    className={`w-full p-3 rounded-xl text-xs border focus:outline-none ${
+                      isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-100 border-slate-300'
+                    }`}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold mb-1 text-slate-300">Data Final *</label>
+                  <input
+                    type="date"
+                    required
+                    value={promoEndDate}
+                    onChange={(e) => setPromoEndDate(e.target.value)}
+                    className={`w-full p-3 rounded-xl text-xs border focus:outline-none ${
+                      isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-100 border-slate-300'
+                    }`}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold mb-1 text-slate-300">Tipo de Desconto</label>
+                  <select
+                    value={promoDiscountType}
+                    onChange={(e) => setPromoDiscountType(e.target.value as any)}
+                    className={`w-full p-3 rounded-xl text-xs border focus:outline-none ${
+                      isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-100 border-slate-300'
+                    }`}
+                  >
+                    <option value="percentage">Porcentagem (%)</option>
+                    <option value="fixed">Valor Fixo (R$)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold mb-1 text-slate-300">
+                    {promoDiscountType === 'percentage' ? 'Desconto (%) *' : 'Desconto (R$) *'}
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    step={promoDiscountType === 'percentage' ? '1' : '0.5'}
+                    required
+                    value={promoDiscountValue}
+                    onChange={(e) => setPromoDiscountValue(Number(e.target.value))}
+                    className={`w-full p-3 rounded-xl text-xs border focus:outline-none ${
+                      isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-100 border-slate-300'
+                    }`}
+                  />
+                </div>
+              </div>
+
+              {/* SELEÇÃO DE PRODUTOS PARTICIPANTES */}
+              <div className="space-y-3 pt-2">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <label className="block text-xs font-black text-amber-400 uppercase tracking-wider">
+                      Produtos Participantes ({promoProductIds.length} selecionados)
+                    </label>
+                    <p className="text-[11px] text-slate-400">Marque os produtos que terão o desconto desta oferta.</p>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const matchingIds = products.filter(p => p.visible).map(p => String(p.id));
+                        setPromoProductIds(Array.from(new Set([...promoProductIds, ...matchingIds])));
+                      }}
+                      className="px-3 py-1.5 rounded-lg bg-amber-500/20 text-amber-400 font-bold text-[10px] uppercase border border-amber-500/30 cursor-pointer hover:bg-amber-500/30"
+                    >
+                      Selecionar Todos
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPromoProductIds([])}
+                      className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-400 font-bold text-[10px] uppercase border border-slate-700 cursor-pointer hover:bg-slate-700"
+                    >
+                      Limpar Seleção
+                    </button>
+                  </div>
+                </div>
+
+                {/* Filtro de Busca de Produtos dentro da Modal */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={promoProductSearch}
+                      onChange={(e) => setPromoProductSearch(e.target.value)}
+                      placeholder="Buscar produto por nome, código ou SKU..."
+                      className={`w-full pl-9 pr-3 py-2 text-xs border rounded-xl focus:outline-none ${
+                        isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-100 border-slate-300'
+                      }`}
+                    />
+                    <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-500" />
+                  </div>
+
+                  <select
+                    value={promoCategoryFilter}
+                    onChange={(e) => setPromoCategoryFilter(e.target.value)}
+                    className={`w-full p-2 text-xs border rounded-xl focus:outline-none ${
+                      isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-100 border-slate-300'
+                    }`}
+                  >
+                    <option value="TODAS">Todas as Categorias</option>
+                    <option value="CALÇADOS">Calçados</option>
+                    <option value="CONFECÇÕES">Confecções</option>
+                    <option value="ACESSÓRIOS">Acessórios</option>
+                    <option value="DIVERSOS">Diversos</option>
+                  </select>
+                </div>
+
+                {/* Grid de Seleção de Produtos */}
+                <div className="max-h-60 overflow-y-auto border border-slate-800 rounded-2xl p-3 space-y-2 bg-slate-900/40">
+                  {products.filter(prod => {
+                    if (!prod.visible) return false;
+                    if (promoCategoryFilter !== 'TODAS') {
+                      const catUpper = (prod.category || prod.nome_grupo || '').toUpperCase();
+                      if (!catUpper.includes(promoCategoryFilter.toUpperCase())) return false;
+                    }
+                    if (promoProductSearch) {
+                      const q = promoProductSearch.toLowerCase().trim();
+                      const matchName = prod.name.toLowerCase().includes(q);
+                      const matchCode = String(prod.id).includes(q) || (prod.sku && prod.sku.toLowerCase().includes(q));
+                      if (!matchName && !matchCode) return false;
+                    }
+                    return true;
+                  }).map(prod => {
+                    const isSelected = promoProductIds.includes(String(prod.id)) || (prod.moblinkId && promoProductIds.includes(String(prod.moblinkId)));
+                    const calcPrice = calculateCampaignPrice(prod.price, {
+                      id: '', title: '', startDate: '', endDate: '',
+                      discountType: promoDiscountType,
+                      discountValue: promoDiscountValue,
+                      productIds: [], active: true
+                    });
+
+                    return (
+                      <div
+                        key={prod.id}
+                        onClick={() => handleToggleProductInPromo(String(prod.id))}
+                        className={`p-2.5 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
+                          isSelected
+                            ? 'bg-amber-500/10 border-amber-500/40 text-white'
+                            : 'bg-slate-900/60 border-slate-800 hover:border-slate-700 text-slate-300'
+                        }`}
+                      >
+                        <div className="flex items-center space-x-3">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => {}}
+                            className="h-4 w-4 text-amber-500 rounded border-slate-700 focus:ring-amber-400"
+                          />
+                          <div className="w-8 h-8 rounded-lg bg-white p-0.5 overflow-hidden shrink-0 border border-slate-800">
+                            <img src={prod.images?.[0] || prod.imageUrl || prod.foto_uri} alt={prod.name} className="w-full h-full object-contain" />
+                          </div>
+                          <div>
+                            <div className="text-xs font-bold line-clamp-1">{prod.name}</div>
+                            <div className="text-[10px] text-slate-500">{prod.category} • SKU: {prod.sku || prod.id}</div>
+                          </div>
+                        </div>
+
+                        <div className="text-right shrink-0">
+                          <div className="text-xs font-black text-amber-400">R$ {calcPrice.toFixed(2).replace('.', ',')}</div>
+                          <div className="text-[10px] text-slate-500 line-through">De: R$ {prod.price.toFixed(2).replace('.', ',')}</div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Botões de Ação */}
+              <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsPromoModalOpen(false)}
+                  className="px-5 py-2.5 rounded-xl bg-slate-800 text-slate-300 font-bold text-xs hover:bg-slate-700 transition-colors cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black text-xs uppercase tracking-wider transition-all shadow-md cursor-pointer"
+                >
+                  {editingPromo ? 'Salvar Alterações' : 'Criar Promoção'}
                 </button>
               </div>
             </form>

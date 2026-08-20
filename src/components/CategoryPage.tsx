@@ -15,19 +15,24 @@ import {
   SlidersHorizontal,
   RotateCcw,
   Tag,
-  Ruler
+  Ruler,
+  Sparkles,
+  Gift,
+  ShoppingBag
 } from 'lucide-react';
 import { Hero } from './Hero';
 import { ProductCard } from './ProductList';
 import { scrollToSectionWithOffset } from '../lib/scrollUtils';
 import { normalizeCategoryName, normalizeSubcategoryName, isProductInCategory } from '../services/moblinkCategoriesService';
 import { isSaldaoProduct } from '../services/saldaoService';
+import { getApplicablePromotion, isCampaignActive } from '../services/promotionsService';
 
 interface TabConfig {
   title: string;
   subtitle: string;
   bannerImage: string;
   badgeText: string;
+  isDealsPage?: boolean;
   filter: (prod: Product) => boolean;
 }
 
@@ -169,6 +174,7 @@ export const CategoryPage: React.FC = () => {
     setSelectedSubcategory: setGlobalSubcategory,
     selectedCategory,
     saldaoConfig,
+    promotions = [],
   } = useApp();
 
   const isDark = theme === 'dark';
@@ -177,6 +183,9 @@ export const CategoryPage: React.FC = () => {
   const [selectedSubcategory, setSelectedSubcategory] = useState<string>('TODAS');
   const [timeLeft, setTimeLeft] = useState({ horas: 23, minutos: 59, segundos: 59 });
   const gridSectionRef = useRef<HTMLDivElement | null>(null);
+
+  // ESTADO DA ABA/SEÇÃO NA PÁGINA UNIFICADA DE OFERTAS & SALDÃO ('all' | 'saldao' | 'promotions')
+  const [offersSectionTab, setOffersSectionTab] = useState<'all' | 'saldao' | 'promotions'>('all');
 
   // ESTADOS DOS FILTROS (MARCA, GRADE/TAMANHO, PREÇO, OFERTAS)
   const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
@@ -218,19 +227,24 @@ export const CategoryPage: React.FC = () => {
     const cleanSubKey = (globalSubcategory || '').trim().toLowerCase();
     const cleanCatKey = (selectedCategory || '').trim().toLowerCase();
 
-    const isSaldao = (
-      cleanTabKey.includes('saldão') || cleanTabKey.includes('saldao') ||
-      cleanSubKey.includes('saldão') || cleanSubKey.includes('saldao') ||
-      cleanCatKey.includes('saldão') || cleanCatKey.includes('saldao')
+    const isSaldaoOrOfertas = (
+      cleanTabKey.includes('saldão') || cleanTabKey.includes('saldao') || cleanTabKey.includes('oferta') || cleanTabKey.includes('promoção') || cleanTabKey.includes('promocao') ||
+      cleanSubKey.includes('saldão') || cleanSubKey.includes('saldao') || cleanSubKey.includes('oferta') || cleanSubKey.includes('promoção') || cleanSubKey.includes('promocao') ||
+      cleanCatKey.includes('saldão') || cleanCatKey.includes('saldao') || cleanCatKey.includes('oferta') || cleanCatKey.includes('promoção') || cleanCatKey.includes('promocao')
     );
 
-    if (isSaldao) {
+    if (isSaldaoOrOfertas) {
       return {
-        title: '🔥 SALDÃO DE CALÇADOS - ÚLTIMAS UNIDADES',
-        subtitle: saldaoConfig?.bannerText || `Aproveite calçados selecionados em estoque baixo com até ${saldaoConfig?.discountPercent || 20}% de desconto por tempo limitado!`,
+        title: '🔥 OFERTAS & SALDÃO DE CALÇADOS',
+        subtitle: saldaoConfig?.bannerText || 'Confira os calçados em Saldão de estoque baixo e todas as campanhas de ofertas ativas com os melhores descontos do catálogo!',
         bannerImage: 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?q=80&w=1600&auto=format&fit=crop',
-        badgeText: `🔥 SALDÃO -${saldaoConfig?.discountPercent || 20}% OFF`,
-        filter: (prod: Product) => isSaldaoProduct(prod, saldaoConfig)
+        badgeText: '🏷️🔥 OFERTAS & SALDÃO',
+        isDealsPage: true,
+        filter: (prod: Product) => {
+          const inSaldao = isSaldaoProduct(prod, saldaoConfig);
+          const inPromo = Boolean(getApplicablePromotion(prod, promotions));
+          return inSaldao || inPromo;
+        }
       };
     }
 
@@ -453,6 +467,35 @@ export const CategoryPage: React.FC = () => {
       return true;
     });
   }, [baseCategoryItems, selectedBrands, selectedSizes, priceRange, onlySale]);
+
+  const saldaoItems = useMemo(() => {
+    return filteredItems.filter(prod => isSaldaoProduct(prod, saldaoConfig));
+  }, [filteredItems, saldaoConfig]);
+
+  const promoCampaignItems = useMemo(() => {
+    return filteredItems.filter(prod => Boolean(getApplicablePromotion(prod, promotions)));
+  }, [filteredItems, promotions]);
+
+  const activeCampaignsWithProducts = useMemo(() => {
+    const activePromos = promotions.filter(c => isCampaignActive(c));
+    
+    return activePromos.map(campaign => {
+      const campaignProducts = filteredItems.filter(prod => {
+        if (!Array.isArray(campaign.productIds) || campaign.productIds.length === 0) return false;
+        const prodIdStr = String(prod.id || '').trim();
+        const mobIdStr = prod.moblinkId ? String(prod.moblinkId).trim() : '';
+        return campaign.productIds.some(id => {
+          const sId = String(id).trim();
+          return (prodIdStr !== '' && sId === prodIdStr) || (mobIdStr !== '' && sId === mobIdStr);
+        });
+      });
+
+      return {
+        campaign,
+        products: campaignProducts
+      };
+    }).filter(group => group.products.length > 0);
+  }, [promotions, filteredItems]);
 
   const offersItems = baseCategoryItems.filter(prod => !!prod.onSale || (prod.originalPrice && prod.originalPrice > prod.price));
   const maxIndex = Math.max(0, offersItems.length - cardsPerPage);
@@ -887,9 +930,192 @@ export const CategoryPage: React.FC = () => {
             <FilterSidebarContent />
           </aside>
 
-          {/* ÁREA PRINCIPAL DOS CARDS DE PRODUTO */}
+          {/* ÁREA PRINCIPAL DOS CARDS DE PRODUTO OU SEÇÕES DE OFERTAS */}
           <main className="lg:col-span-9 space-y-6">
-            {filteredItems.length === 0 ? (
+            {config.isDealsPage ? (
+              <div className="space-y-10">
+                {/* BARRA DE NAVEGAÇÃO E SELEÇÃO DE SEÇÕES DA PÁGINA DE OFERTAS */}
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 rounded-3xl bg-[#EEF8FF] border border-blue-900/10 shadow-sm">
+                  <div className="flex items-center space-x-2">
+                    <Tag className="h-4 w-4 text-[#006EDB]" />
+                    <span className="text-xs font-black text-[#003B73] uppercase tracking-wider">
+                      Seções em Destaque
+                    </span>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                    <button
+                      onClick={() => setOffersSectionTab('all')}
+                      className={`px-3.5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                        offersSectionTab === 'all'
+                          ? 'bg-[#003B73] text-white shadow-xs'
+                          : 'bg-white text-[#003B73] border border-blue-900/10 hover:bg-[#DDF1FF]'
+                      }`}
+                    >
+                      🏷️🔥 Ver Todas ({filteredItems.length})
+                    </button>
+
+                    <button
+                      onClick={() => setOffersSectionTab('saldao')}
+                      className={`px-3.5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                        offersSectionTab === 'saldao'
+                          ? 'bg-rose-600 text-white shadow-xs'
+                          : 'bg-white text-[#003B73] border border-blue-900/10 hover:bg-rose-50'
+                      }`}
+                    >
+                      🔥 Saldão ({saldaoItems.length})
+                    </button>
+
+                    <button
+                      onClick={() => setOffersSectionTab('promotions')}
+                      className={`px-3.5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                        offersSectionTab === 'promotions'
+                          ? 'bg-amber-500 text-slate-950 shadow-xs'
+                          : 'bg-white text-[#003B73] border border-blue-900/10 hover:bg-amber-50'
+                      }`}
+                    >
+                      🏷️ Oferta ({promoCampaignItems.length})
+                    </button>
+                  </div>
+                </div>
+
+                {/* BLOCO DO SALDÃO DE CALÇADOS DE ESTOQUE BAIXO */}
+                {(offersSectionTab === 'all' || offersSectionTab === 'saldao') && (
+                  <div className="space-y-4">
+                    <div className="p-5 rounded-2xl bg-gradient-to-r from-rose-500/10 via-amber-500/10 to-rose-500/10 border border-rose-500/25 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                      <div className="space-y-0.5">
+                        <div className="flex items-center space-x-2">
+                          <span className="px-2 py-0.5 text-[9px] font-black rounded bg-rose-600 text-white uppercase tracking-wider animate-pulse">
+                            Estoque Baixo
+                          </span>
+                          <span className="text-xs font-extrabold text-rose-600">Saldão Exclusivo</span>
+                        </div>
+                        <h3 className="text-lg sm:text-xl font-black text-[#003B73] tracking-tight flex items-center space-x-2">
+                          <span>🔥 SALDÃO DE CALÇADOS - ÚLTIMAS UNIDADES</span>
+                        </h3>
+                        <p className="text-xs text-[#52708F]">
+                          Calçados com 5 ou menos pares em estoque com descontos de liquidação por tempo limitado!
+                        </p>
+                      </div>
+
+                      <span className="px-3 py-1 rounded-xl bg-white border border-rose-500/30 text-rose-600 font-extrabold text-xs shrink-0">
+                        {saldaoItems.length} {saldaoItems.length === 1 ? 'modelo no saldão' : 'modelos no saldão'}
+                      </span>
+                    </div>
+
+                    {saldaoItems.length === 0 ? (
+                      <div className="text-center py-6 p-4 rounded-2xl border border-blue-900/10 bg-white text-xs text-[#52708F]">
+                        Nenhum calçado disponível no Saldão com os filtros atuais.
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                        {saldaoItems.map((prod) => (
+                          <ProductCard
+                            key={prod.id}
+                            product={prod}
+                            theme={theme}
+                            isFavorite={favorites.includes(prod.id)}
+                            onToggleFavorite={toggleFavorite}
+                            onViewDetails={handleVerDetalhes}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* BLOCO DE CAMPANHAS PROMOCIONAIS COM NOME DA OFERTA/CAMPANHA */}
+                {(offersSectionTab === 'all' || offersSectionTab === 'promotions') && (
+                  <div className="space-y-8 pt-6 border-t border-blue-900/10">
+                    {activeCampaignsWithProducts.length > 0 ? (
+                      activeCampaignsWithProducts.map(({ campaign, products: campProducts }) => (
+                        <div key={campaign.id} className="space-y-4">
+                          <div className="p-5 rounded-2xl bg-gradient-to-r from-amber-500/10 via-amber-400/10 to-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                            <div className="space-y-0.5">
+                              <div className="flex items-center space-x-2">
+                                <span className="px-2 py-0.5 text-[9px] font-black rounded bg-amber-500 text-slate-950 uppercase tracking-wider animate-bounce">
+                                  Oferta Especial
+                                </span>
+                                <span className="text-xs font-extrabold text-amber-600">
+                                  {campaign.discountType === 'percentage' 
+                                    ? `-${campaign.discountValue}% OFF` 
+                                    : `-R$ ${campaign.discountValue} OFF`}
+                                </span>
+                              </div>
+                              <h3 className="text-lg sm:text-xl font-black text-[#003B73] tracking-tight">
+                                🏷️ {campaign.title.toUpperCase()}
+                              </h3>
+                              <p className="text-xs text-[#52708F]">
+                                {campaign.description || 'Produtos participantes desta oferta com descontos imperdíveis por tempo limitado.'}
+                              </p>
+                            </div>
+
+                            <span className="px-3 py-1 rounded-xl bg-white border border-amber-500/30 text-amber-700 font-extrabold text-xs shrink-0">
+                              {campProducts.length} {campProducts.length === 1 ? 'produto na oferta' : 'produtos na oferta'}
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                            {campProducts.map((prod) => (
+                              <ProductCard
+                                key={prod.id}
+                                product={prod}
+                                theme={theme}
+                                isFavorite={favorites.includes(prod.id)}
+                                onToggleFavorite={toggleFavorite}
+                                onViewDetails={handleVerDetalhes}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="space-y-4">
+                        <div className="p-5 rounded-2xl bg-gradient-to-r from-amber-500/10 via-amber-400/10 to-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                          <div className="space-y-0.5">
+                            <div className="flex items-center space-x-2">
+                              <span className="px-2 py-0.5 text-[9px] font-black rounded bg-amber-500 text-slate-950 uppercase tracking-wider animate-bounce">
+                                OFERTAS ESPECIAIS
+                              </span>
+                              <span className="text-xs font-extrabold text-amber-600">Campanhas Ativas</span>
+                            </div>
+                            <h3 className="text-lg sm:text-xl font-black text-[#003B73] tracking-tight">
+                              🏷️ OFERTAS PROMOCIONAIS
+                            </h3>
+                            <p className="text-xs text-[#52708F]">
+                              Produtos participando de campanhas com descontos promocionais exclusivos e vigentes.
+                            </p>
+                          </div>
+
+                          <span className="px-3 py-1 rounded-xl bg-white border border-amber-500/30 text-amber-700 font-extrabold text-xs shrink-0">
+                            {promoCampaignItems.length} {promoCampaignItems.length === 1 ? 'produto em oferta' : 'produtos em oferta'}
+                          </span>
+                        </div>
+
+                        {promoCampaignItems.length === 0 ? (
+                          <div className="text-center py-6 p-4 rounded-2xl border border-blue-900/10 bg-white text-xs text-[#52708F]">
+                            Nenhuma oferta promocional disponível com os filtros atuais.
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                            {promoCampaignItems.map((prod) => (
+                              <ProductCard
+                                key={prod.id}
+                                product={prod}
+                                theme={theme}
+                                isFavorite={favorites.includes(prod.id)}
+                                onToggleFavorite={toggleFavorite}
+                                onViewDetails={handleVerDetalhes}
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : filteredItems.length === 0 ? (
               <div className="py-16 text-center border rounded-3xl bg-white border-blue-900/10 text-[#003B73] shadow-md space-y-4">
                 <Filter className="h-10 w-10 text-[#006EDB] mx-auto opacity-50" />
                 <p className="text-sm font-bold text-[#003B73]">

@@ -82,18 +82,14 @@ export const CategorySandwichMenu: React.FC<CategorySandwichMenuProps> = ({ isOp
     const categoryMap = new Map<string, { name: string; key: string; isPromo?: boolean; subs: Set<string> }>();
 
     // 1. Categorias Padrão Essenciais
-    const defaults = [];
-    if (saldaoConfig?.enabled) {
-      defaults.push({ name: '🔥 Saldão Calçados', key: 'SALDÃO', isPromo: true });
-    }
-    defaults.push(
+    const defaults = [
+      { name: 'Ofertas & Saldão', key: 'OFERTAS', isPromo: true },
       { name: 'Calçados', key: 'CALÇADOS' },
       { name: 'Acessórios', key: 'ACESSÓRIOS' },
       { name: 'Confecções', key: 'CONFECÇÕES' },
       { name: 'Novidades', key: 'NOVIDADES' },
       { name: 'Diversos', key: 'DIVERSOS' },
-      { name: 'Promoções', key: 'PROMOÇÕES', isPromo: true },
-    );
+    ];
 
     defaults.forEach(d => {
       categoryMap.set(d.key, { name: d.name, key: d.key, isPromo: d.isPromo, subs: new Set<string>() });
@@ -185,9 +181,9 @@ export const CategorySandwichMenu: React.FC<CategorySandwichMenuProps> = ({ isOp
   // Seleciona Categoria e Subcategoria e navega
   const handleSelectSubcategory = (categoryName: string, subcategoryName: string) => {
     const catUpper = categoryName.toUpperCase();
-    if (catUpper.includes('SALDÃO') || catUpper.includes('SALDAO')) {
-      setSelectedCategory('SALDÃO');
-      if (setSelectedMenuTab) setSelectedMenuTab('saldão');
+    if (catUpper.includes('SALDÃO') || catUpper.includes('SALDAO') || catUpper.includes('OFERTA') || catUpper.includes('PROMOÇ')) {
+      setSelectedCategory('OFERTAS');
+      if (setSelectedMenuTab) setSelectedMenuTab('ofertas');
       if (setSelectedSubcategory) setSelectedSubcategory('TODAS');
     } else {
       setSelectedCategory(catUpper);

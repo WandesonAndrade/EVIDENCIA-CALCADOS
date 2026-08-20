@@ -5,6 +5,7 @@ import { getGradeProdutoById, getProdutoGradesFromApi } from '../services/moblin
 import { getSingleProdutoMoblinkFromApi, sanitizeProductForFirestore, mergeErpSyncWithExistingDbProduct, inferCategoryFromProductName } from '../services/moblinkProductsService';
 import { normalizeCategoryName, normalizeSubcategoryName } from '../services/moblinkCategoriesService';
 import { isSaldaoProduct, getSaldaoProductPrice } from '../services/saldaoService';
+import { getApplicablePromotion } from '../services/promotionsService';
 import { db } from '../lib/firebase';
 import { doc, setDoc } from 'firebase/firestore';
 import { GradeProduto, Product, ProdutoGradesResult } from '../types';
@@ -26,7 +27,8 @@ export const ProductDetail: React.FC = () => {
     favorites = [],
     toggleFavorite,
     theme,
-    saldaoConfig
+    saldaoConfig,
+    promotions = []
   } = useApp();
 
   const [selectedLinhaOption, setSelectedLinhaOption] = useState<string | number | null>(null);
@@ -517,30 +519,40 @@ export const ProductDetail: React.FC = () => {
 
   const isFavorite = favorites.includes(p.id);
 
-  // Integração com Saldão de Calçados
+  // Integração com Saldão de Calçados & Ofertas Promocionais
   const saldaoCalc = getSaldaoProductPrice(p, saldaoConfig);
+  const applicablePromo = getApplicablePromotion(p, promotions);
+
+  const isPromoOrSaldaoActive = saldaoCalc.isSaldao || Boolean(applicablePromo);
+  const effectivePromoPrice = saldaoCalc.isSaldao
+    ? saldaoCalc.price
+    : (applicablePromo ? applicablePromo.promoPrice : p.price);
 
   const discountPercent = saldaoCalc.isSaldao
     ? saldaoCalc.discountPercent
-    : (p.originalPrice && p.originalPrice > p.price
-      ? Math.round(((p.originalPrice - p.price) / p.originalPrice) * 100)
-      : 0);
+    : applicablePromo
+      ? (applicablePromo.campaign.discountType === 'percentage'
+          ? applicablePromo.campaign.discountValue
+          : Math.round(((applicablePromo.originalPrice - applicablePromo.promoPrice) / applicablePromo.originalPrice) * 100))
+      : (p.originalPrice && p.originalPrice > p.price
+        ? Math.round(((p.originalPrice - p.price) / p.originalPrice) * 100)
+        : 0);
 
-  // Regras de Preços por Modalidade (Respeita o valor do Saldão se ativo):
-  const precoCrediarioCalculado = saldaoCalc.isSaldao
-    ? saldaoCalc.price
+  // Regras de Preços por Modalidade (Respeita o valor do Saldão ou Oferta se ativo):
+  const precoCrediarioCalculado = isPromoOrSaldaoActive
+    ? effectivePromoPrice
     : ((p as any).precoCrediario || (p as any).preco_crediario || p.price);
 
   const precoVistaVal = (p as any).precoVista ?? (p as any).preco_vista ?? (p as any).precoAvista ?? (p as any).priceCash ?? (p as any).pricePix;
-  const precoVistaCalculado = saldaoCalc.isSaldao
-    ? saldaoCalc.price
+  const precoVistaCalculado = isPromoOrSaldaoActive
+    ? effectivePromoPrice
     : ((typeof precoVistaVal === 'number' && precoVistaVal > 0)
       ? precoVistaVal
       : (p.price > 0 ? Math.round(p.price * 0.9 * 100) / 100 : p.price));
 
   const precoCartaoVal = (p as any).precoCartao ?? (p as any).preco_cartao ?? (p as any).priceCard;
-  const precoCartaoCalculado = saldaoCalc.isSaldao
-    ? saldaoCalc.price
+  const precoCartaoCalculado = isPromoOrSaldaoActive
+    ? effectivePromoPrice
     : ((typeof precoCartaoVal === 'number' && precoCartaoVal > 0)
       ? precoCartaoVal
       : (p.price > 0 ? Math.round(p.price * 0.9 * 100) / 100 : p.price));
@@ -835,8 +847,8 @@ export const ProductDetail: React.FC = () => {
           <div className={`p-5 sm:p-6 rounded-3xl border space-y-5 shadow-md backdrop-blur-md ${
             isDark ? 'bg-slate-900/90 border-slate-800 text-white' : 'bg-white border-blue-900/10 text-[#003B73]'
           }`}>
-            {/* Banner Destacado do Saldão de Calçados */}
-            {saldaoCalc.isSaldao && (
+            {/* Banner Destacado do Saldão de Calçados ou Oferta Promocional */}
+            {saldaoCalc.isSaldao ? (
               <div className="p-3.5 rounded-2xl bg-gradient-to-r from-rose-500/15 via-amber-500/15 to-rose-500/15 border border-rose-500/30 text-rose-500 flex items-center justify-between">
                 <div className="flex items-center space-x-2">
                   <Tag className="h-5 w-5 text-rose-500 shrink-0" />
@@ -853,7 +865,24 @@ export const ProductDetail: React.FC = () => {
                   -{saldaoCalc.discountPercent}%
                 </span>
               </div>
-            )}
+            ) : applicablePromo ? (
+              <div className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/15 via-amber-400/15 to-amber-500/15 border border-amber-500/30 text-amber-500 flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Sparkles className="h-5 w-5 text-amber-500 shrink-0" />
+                  <div>
+                    <div className="text-xs font-black uppercase tracking-wider text-amber-400">
+                      🏷️ {applicablePromo.campaign.title} ({applicablePromo.discountLabel})
+                    </div>
+                    <div className="text-[10px] text-slate-400 font-medium">
+                      {applicablePromo.campaign.description || 'Preço promocional especial por tempo determinado.'}
+                    </div>
+                  </div>
+                </div>
+                <span className="px-2 py-0.5 rounded-md bg-amber-500 text-slate-950 font-black text-[10px] uppercase">
+                  {applicablePromo.discountLabel}
+                </span>
+              </div>
+            ) : null}
 
             {/* PAINEL DE PREÇO */}
             <div className="space-y-2.5">

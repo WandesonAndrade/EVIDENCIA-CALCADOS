@@ -161,6 +161,20 @@ export interface SaldaoConfig {
   updatedAt?: string;
 }
 
+export interface PromoCampaign {
+  id: string;
+  title: string;
+  description?: string;
+  startDate: string; // Formato YYYY-MM-DD ou YYYY-MM-DDTHH:mm
+  endDate: string;   // Formato YYYY-MM-DD ou YYYY-MM-DDTHH:mm
+  discountType: 'percentage' | 'fixed';
+  discountValue: number;
+  productIds: string[];
+  active: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface EvidenciaAuthSession {
   token: string;
   expiresAt?: string;
@@ -264,6 +278,19 @@ export interface Order {
 }
 
 export type UserRole = 'admin' | 'seller' | 'customer';
+
+export interface Seller {
+  id: string;
+  name: string;
+  code?: string;
+  cpf?: string;
+  phone?: string;
+  email?: string;
+  active: boolean;
+  notes?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
 
 export interface Subcategory {
   id: string;
