@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Copy, Check, Loader2, QrCode, AlertTriangle, CheckCircle2, RefreshCw, MessageSquare } from 'lucide-react';
 import { pixFirestoreService } from '../services/pixFirestoreService';
+import { pixPaymentService } from '../services/pixPaymentService';
 
 interface PixPaymentModalProps {
   isOpen: boolean;
@@ -74,10 +75,7 @@ export const PixPaymentModal: React.FC<PixPaymentModalProps> = ({
 
     const checkStatus = async () => {
       try {
-        const res = await fetch(`/verificar-pix/${paymentId}`);
-        if (!res.ok) return;
-        const data = await res.json();
-
+        const data = await pixPaymentService.checkPixStatus(paymentId);
         if (data.success && data.status === 'approved') {
           stopPolling();
           stopTimer();
@@ -112,23 +110,17 @@ export const PixPaymentModal: React.FC<PixPaymentModalProps> = ({
     stopTimer();
 
     try {
-      const res = await fetch('/gerar-pix-parcela', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          valor: parcelValue,
-          descricao: parcelDescription,
-          emailCliente,
-          nomeCliente,
-          cpfCliente,
-          externalReference,
-          forceNew,
-        }),
+      const data = await pixPaymentService.generatePix({
+        valor: parcelValue,
+        descricao: parcelDescription,
+        emailCliente,
+        nomeCliente,
+        cpfCliente,
+        externalReference,
+        forceNew,
       });
 
-      const data = await res.json();
-
-      if (!res.ok || !data.success) {
+      if (!data.success) {
         throw new Error(data.message || 'Erro ao gerar Pix.');
       }
 
@@ -190,7 +182,7 @@ export const PixPaymentModal: React.FC<PixPaymentModalProps> = ({
       setErrorMsg(err.message || 'Erro inesperado ao gerar Pix.');
       setState('error');
     }
-  }, [parcelValue, parcelDescription, emailCliente, nomeCliente, cpfCliente, externalReference, startPolling, stopPolling, stopTimer]);
+  }, [parcelValue, parcelDescription, emailCliente, nomeCliente, cpfCliente, externalReference, idVenda, idParcela, startPolling, stopPolling, stopTimer]);
 
   // Generate Pix on open (apenas 1x por abertura do modal)
   useEffect(() => {
@@ -429,16 +421,16 @@ export const PixPaymentModal: React.FC<PixPaymentModalProps> = ({
                         <img
                           src={`data:image/png;base64,${pixData.qr_code_base64}`}
                           alt="QR Code Pix"
-                          className="w-48 h-48"
+                          className="w-48 h-48 object-contain rounded-xl"
                           draggable={false}
                         />
                       ) : (
-                        <div className="w-48 h-48 flex flex-col items-center justify-center space-y-2">
-                          <QrCode className="h-16 w-16 text-slate-300" />
-                          <p className="text-[10px] text-slate-400 text-center">
-                            Use o código abaixo
-                          </p>
-                        </div>
+                        <img
+                          src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(pixData.qr_code)}`}
+                          alt="QR Code Pix"
+                          className="w-48 h-48 object-contain rounded-xl"
+                          draggable={false}
+                        />
                       )}
                     </div>
                   </div>
