@@ -803,13 +803,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [favorites, currentUser?.uid]);
 
 
-  // Sync theme to LocalStorage and update body class
+  // Sync theme to LocalStorage and update body class & colorScheme (bloqueia override do SO/dispositivo)
   useEffect(() => {
     localStorage.setItem('evidencia_theme', theme);
     if (theme === 'dark') {
       document.documentElement.classList.add('dark');
+      document.documentElement.style.colorScheme = 'dark';
     } else {
       document.documentElement.classList.remove('dark');
+      document.documentElement.style.colorScheme = 'light';
     }
   }, [theme]);
 
