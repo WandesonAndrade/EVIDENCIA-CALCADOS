@@ -22,7 +22,7 @@ import { moblinkCategoriesService, normalizeCategoryName, normalizeSubcategoryNa
 import { getProdutoGradesFromApi } from '../services/moblinkGradesService';
 import { db } from '../lib/firebase';
 import { doc, setDoc } from 'firebase/firestore';
-import { uploadImageToSupabase, isSupabaseConfigured, deleteImageFromSupabase } from '../services/supabaseStorageService';
+import { uploadImageToSupabase, isSupabaseConfigured, deleteImageFromSupabase, auditSupabaseVsFirebasePhotos, PhotoAuditReport, SupabaseAuditItem } from '../services/supabaseStorageService';
 import { 
   Package, 
   Search, 
@@ -59,7 +59,8 @@ import {
   Square,
   Check,
   Tags,
-  Folder
+  Folder,
+  ExternalLink
 } from 'lucide-react';
 
 const resolveProductSubcategory = (item: any, existingDb?: Product | null): string => {
@@ -253,6 +254,52 @@ export const MoblinkProductsManager: React.FC = () => {
   const [isLoadingProductGrade, setIsLoadingProductGrade] = useState(false);
 
   // Consulta automática de Grade de Produto (MobLink ERP) com filtro de saldo > 0 ao abrir o modal
+  const [isAuditingPhotos, setIsAuditingPhotos] = useState(false);
+  const [photoAuditReport, setPhotoAuditReport] = useState<PhotoAuditReport | null>(null);
+  const [showAuditModal, setShowAuditModal] = useState(false);
+  const [auditTab, setAuditTab] = useState<'all' | 'orphan' | 'linked'>('orphan');
+
+  const handleRunPhotoAudit = async () => {
+    setIsAuditingPhotos(true);
+    try {
+      const report = await auditSupabaseVsFirebasePhotos(products);
+      setPhotoAuditReport(report);
+      setShowAuditModal(true);
+      setFeedback({
+        success: true,
+        message: `Auditoria concluída com sucesso! ${report.totalOrphanPhotos} foto(s) órfã(s) encontrada(s) no Supabase Storage.`,
+      });
+    } catch (err: any) {
+      setFeedback({
+        success: false,
+        message: `Erro na auditoria de fotos: ${err.message || 'Falha ao conectar com o Supabase Storage.'}`,
+      });
+    } finally {
+      setIsAuditingPhotos(false);
+    }
+  };
+
+  const handleDeleteAuditOrphan = async (item: SupabaseAuditItem) => {
+    try {
+      const success = await deleteImageFromSupabase(item.publicUrl);
+      if (success) {
+        setPhotoAuditReport(prev => {
+          if (!prev) return null;
+          const updatedItems = prev.items.filter(i => i.publicUrl !== item.publicUrl);
+          return {
+            ...prev,
+            totalSupabaseFiles: Math.max(0, prev.totalSupabaseFiles - 1),
+            totalOrphanPhotos: Math.max(0, prev.totalOrphanPhotos - 1),
+            items: updatedItems,
+          };
+        });
+        setFeedback({ success: true, message: `Foto "${item.name}" excluída do Supabase Storage.` });
+      }
+    } catch (err: any) {
+      setFeedback({ success: false, message: `Falha ao excluir foto: ${err.message}` });
+    }
+  };
+
   useEffect(() => {
     let isMounted = true;
     if (selectedProduct) {
@@ -665,8 +712,16 @@ export const MoblinkProductsManager: React.FC = () => {
     const map = new Map<string, Product>();
     (products || []).forEach(p => {
       if (!p) return;
-      if (p.id) map.set(String(p.id), p);
-      if (p.moblinkId) map.set(String(p.moblinkId), p);
+      if (p.id) {
+        const cleanId = String(p.id).trim();
+        map.set(cleanId, p);
+        map.set(cleanId.toLowerCase(), p);
+      }
+      if (p.moblinkId) {
+        const cleanMob = String(p.moblinkId).trim();
+        map.set(cleanMob, p);
+        map.set(cleanMob.toLowerCase(), p);
+      }
     });
     return map;
   }, [products]);
@@ -674,13 +729,14 @@ export const MoblinkProductsManager: React.FC = () => {
   // Check if a Moblink product is already in our database
   const getExistingDbProduct = useCallback((moblinkId: string): Product | undefined => {
     if (!moblinkId) return undefined;
-    return dbProductsMap.get(String(moblinkId));
+    const clean = String(moblinkId).trim();
+    return dbProductsMap.get(clean) || dbProductsMap.get(clean.toLowerCase());
   }, [dbProductsMap]);
 
   // Open Full Edit Modal for a product
   const handleOpenEnrichmentForm = async (item: MoblinkRawProduct) => {
     if (!item) return;
-    const mobId = String(item.id || item.moblinkId || 'MOB-000');
+    const mobId = String(item.id || item.moblinkId || 'MOB-000').trim();
     const existing = getExistingDbProduct(mobId);
 
     setSelectedProduct(item);
@@ -766,26 +822,42 @@ export const MoblinkProductsManager: React.FC = () => {
     setEditColorImages(initialColorImages);
 
     const isPlaceholder = (url: string) => !url || url.includes('unsplash.com') || url.includes('placeholder');
-    if (existing && Array.isArray(existing.images) && existing.images.length > 0) {
-      const realImgs = existing.images.filter(img => img && !isPlaceholder(img));
-      const rawFoto = item.foto_uri || item.foto_url || item.foto || item.imagem || item.image;
-      const initialImgs = realImgs.length > 0 ? realImgs : existing.images;
-      if (rawFoto && typeof rawFoto === 'string' && !isPlaceholder(rawFoto) && !initialImgs.includes(rawFoto)) {
-        setImages([rawFoto, ...initialImgs]);
-      } else {
-        setImages(initialImgs);
+    
+    // Coleta TODAS as URLs válidas salvas no documento do Firebase (images[], foto_uri ou imageUrl)
+    const existingDbImages: string[] = [];
+    if (existing) {
+      if (Array.isArray(existing.images)) {
+        existing.images.forEach(img => {
+          if (img && typeof img === 'string' && img.trim() && !isPlaceholder(img)) {
+            const cleanUrl = img.trim();
+            if (!existingDbImages.includes(cleanUrl)) existingDbImages.push(cleanUrl);
+          }
+        });
       }
-      setRichDescription(existing.description || item.compl_descr || item.descricaoMoblink || item.descricao || '');
+      if (existing.foto_uri && typeof existing.foto_uri === 'string' && existing.foto_uri.trim() && !isPlaceholder(existing.foto_uri)) {
+        const cleanUrl = existing.foto_uri.trim();
+        if (!existingDbImages.includes(cleanUrl)) existingDbImages.push(cleanUrl);
+      }
+      if (existing.imageUrl && typeof existing.imageUrl === 'string' && existing.imageUrl.trim() && !isPlaceholder(existing.imageUrl)) {
+        const cleanUrl = existing.imageUrl.trim();
+        if (!existingDbImages.includes(cleanUrl)) existingDbImages.push(cleanUrl);
+      }
+    }
+
+    if (existingDbImages.length > 0) {
+      setImages(existingDbImages);
+      setRichDescription(existing?.description || item.compl_descr || item.descricaoMoblink || item.descricao || '');
     } else {
-      const rawFoto = item.foto_uri || item.foto_url || item.foto || item.imagem || item.image;
+      // REGRA ABSOLUTA: Produtos sem foto no Firebase Firestore possuem array de fotos VAZIO []
+      setImages([]);
       const complDescr = item.compl_descr || item.descr_compl || item.descricao_completa;
       const baseDescr = initialName || `Produto ${mobId}`;
-      setImages(rawFoto && typeof rawFoto === 'string' && !isPlaceholder(rawFoto) ? [rawFoto] : []);
       setRichDescription(
-        complDescr 
+        existing?.description ||
+        (complDescr 
           ? `<p><strong>${baseDescr}</strong></p>\n<p>${complDescr}</p>`
           : item.descricaoMoblink || item.descricao || 
-          `<h3>${baseDescr}</h3>\n<p>Produto importado do sistema MobLink ERP. Feito com materiais nobres e acabamento impecável.</p>\n<ul>\n  <li>Garantia de Qualidade Evidência</li>\n  <li>Acabamento em Couro Premium</li>\n</ul>`
+          `<h3>${baseDescr}</h3>\n<p>Produto importado do sistema MobLink ERP. Feito com materiais nobres e acabamento impecável.</p>\n<ul>\n  <li>Garantia de Qualidade Evidência</li>\n  <li>Acabamento em Couro Premium</li>\n</ul>`)
       );
     }
   };
@@ -1883,6 +1955,16 @@ export const MoblinkProductsManager: React.FC = () => {
             >
               <ShieldCheck className="h-4 w-4 text-emerald-200" />
               <span>⚡ Auditar &amp; Validar Grades</span>
+            </button>
+
+            <button
+              onClick={handleRunPhotoAudit}
+              disabled={isAuditingPhotos}
+              className="px-5 py-3 bg-purple-600 hover:bg-purple-700 text-white font-extrabold rounded-2xl text-xs transition-all flex items-center gap-2 cursor-pointer shadow-md active:scale-95 disabled:opacity-50 shadow-purple-500/20"
+              title="Audita fotos no Supabase Storage x URLs no Firebase Firestore"
+            >
+              <ImageIcon className={`h-4 w-4 text-purple-200 ${isAuditingPhotos ? 'animate-spin' : ''}`} />
+              <span>{isAuditingPhotos ? 'Auditando Fotos...' : '🔒 Auditoria de Fotos (Supabase x Firebase)'}</span>
             </button>
           </div>
         </div>
@@ -3372,6 +3454,173 @@ export const MoblinkProductsManager: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE AUDITORIA DE FOTOS (SUPABASE STORAGE x FIREBASE FIRESTORE) */}
+      {showAuditModal && photoAuditReport && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+          <div className="bg-white dark:bg-[#0f172a] rounded-3xl max-w-3xl w-full p-6 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-6 max-h-[90vh] flex flex-col">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b pb-4 dark:border-slate-800 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center font-bold">
+                  <ImageIcon className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-base text-slate-800 dark:text-slate-100">
+                    Auditoria de Fotos (Supabase Storage x Firebase)
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Verificação de segurança entre fotos armazenadas no bucket e URLs no banco de dados.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAuditModal(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-2 rounded-xl"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* KPI Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 shrink-0">
+              <div className="p-4 rounded-2xl bg-purple-500/10 border border-purple-500/20 text-purple-600 dark:text-purple-300">
+                <div className="text-xs font-bold uppercase tracking-wider mb-1">Arquivos no Supabase</div>
+                <div className="text-2xl font-black">{photoAuditReport.totalSupabaseFiles}</div>
+              </div>
+              <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-300">
+                <div className="text-xs font-bold uppercase tracking-wider mb-1">Vinculadas no Firebase</div>
+                <div className="text-2xl font-black">{photoAuditReport.totalLinkedPhotos}</div>
+              </div>
+              <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-300">
+                <div className="text-xs font-bold uppercase tracking-wider mb-1">Fotos Órfãs (Sem Firebase)</div>
+                <div className="text-2xl font-black">{photoAuditReport.totalOrphanPhotos}</div>
+              </div>
+            </div>
+
+            {/* Tabs Filter */}
+            <div className="flex items-center gap-2 border-b dark:border-slate-800 pb-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setAuditTab('orphan')}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  auditTab === 'orphan'
+                    ? 'bg-rose-500 text-white shadow-md'
+                    : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
+              >
+                Fotos Órfãs ({photoAuditReport.totalOrphanPhotos})
+              </button>
+              <button
+                type="button"
+                onClick={() => setAuditTab('linked')}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  auditTab === 'linked'
+                    ? 'bg-emerald-600 text-white shadow-md'
+                    : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
+              >
+                Fotos Vinculadas ({photoAuditReport.totalLinkedPhotos})
+              </button>
+              <button
+                type="button"
+                onClick={() => setAuditTab('all')}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  auditTab === 'all'
+                    ? 'bg-slate-800 text-white shadow-md'
+                    : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
+              >
+                Todas ({photoAuditReport.totalSupabaseFiles})
+              </button>
+            </div>
+
+            {/* Items List */}
+            <div className="overflow-y-auto space-y-3 flex-1 pr-2">
+              {photoAuditReport.items
+                .filter(item => {
+                  if (auditTab === 'orphan') return item.isOrphan;
+                  if (auditTab === 'linked') return !item.isOrphan;
+                  return true;
+                })
+                .map((item, idx) => (
+                  <div
+                    key={idx}
+                    className={`p-3.5 rounded-2xl border flex items-center justify-between gap-4 transition-all ${
+                      item.isOrphan
+                        ? 'bg-rose-500/5 border-rose-500/20'
+                        : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <img
+                        src={item.publicUrl}
+                        alt={item.name}
+                        className="w-12 h-12 rounded-xl object-cover border border-slate-700/40 shrink-0 bg-slate-100"
+                        onError={(e) => { (e.target as any).src = 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=100'; }}
+                      />
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">
+                          {item.name}
+                        </div>
+                        <div className="text-[11px] text-slate-500 truncate">
+                          Caminho: <code className="text-purple-400">{item.filePath}</code>
+                        </div>
+                        {item.linkedProductName ? (
+                          <div className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 truncate">
+                            ✓ Vinculada ao produto: {item.linkedProductName} ({item.linkedProductId})
+                          </div>
+                        ) : (
+                          <div className="text-[11px] font-bold text-rose-500 truncate">
+                            ⚠️ Órfã: NENHUM produto no Firebase utiliza esta foto.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <a
+                        href={item.publicUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="p-2 rounded-xl bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-300 transition-all text-xs font-bold"
+                        title="Abrir no Supabase"
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                      </a>
+                      {item.isOrphan && (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteAuditOrphan(item)}
+                          className="px-3 py-1.5 rounded-xl bg-rose-500/20 text-rose-600 hover:bg-rose-500 hover:text-white transition-all text-xs font-bold flex items-center gap-1 cursor-pointer"
+                          title="Excluir arquivo do Supabase Storage"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          <span>Excluir</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-between pt-4 border-t dark:border-slate-800 shrink-0">
+              <span className="text-xs text-slate-400 font-medium">
+                Sincronização em tempo real de fotos ativas.
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowAuditModal(false)}
+                className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl cursor-pointer"
+              >
+                Fechar Auditoria
+              </button>
+            </div>
           </div>
         </div>
       )}

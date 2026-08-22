@@ -82,6 +82,7 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
           src={
             product.images?.[0] ||
             product.foto_uri ||
+            product.imageUrl ||
             "https://images.unsplash.com/photo-1549298916-b41d501d3772?q=80&w=600&auto=format&fit=crop"
           }
           alt={product.name}

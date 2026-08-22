@@ -241,3 +241,137 @@ export async function deleteImageFromSupabase(publicUrl: string): Promise<boolea
   console.log(`[SupabaseStorageService] Arquivo deletado com sucesso do Supabase Storage:`, data);
   return true;
 }
+
+export interface SupabaseAuditItem {
+  name: string;
+  publicUrl: string;
+  filePath: string;
+  bucket: string;
+  isOrphan: boolean;
+  linkedProductId?: string;
+  linkedProductName?: string;
+  createdAt?: string;
+}
+
+export interface PhotoAuditReport {
+  totalSupabaseFiles: number;
+  totalFirestoreProducts: number;
+  totalLinkedPhotos: number;
+  totalOrphanPhotos: number;
+  items: SupabaseAuditItem[];
+}
+
+/**
+ * Realiza uma auditoria de segurança entre os arquivos no Supabase Storage e o banco Firebase Firestore.
+ * Identifica fotos órfãs (arquivos no Supabase cujas URLs NÃO estão salvas no Firebase).
+ */
+export async function auditSupabaseVsFirebasePhotos(
+  firestoreProducts: any[]
+): Promise<PhotoAuditReport> {
+  const supabase = getSupabaseClient();
+  const config = getSupabaseConfig();
+  const targetBucket = config.bucket || 'products';
+
+  if (!supabase) {
+    throw new Error('Supabase Storage não está configurado. Preencha a URL e Anon Key nas configurações.');
+  }
+
+  // 1. Mapeia todas as URLs cadastradas nos produtos do Firebase Firestore
+  const registeredUrlsMap = new Map<string, { id: string; name: string }>();
+
+  firestoreProducts.forEach(prod => {
+    const prodId = String(prod.id || prod.moblinkId || '');
+    const prodName = String(prod.name || prod.nome || 'Sem Nome');
+
+    const urlsToRegister: string[] = [];
+    if (Array.isArray(prod.images)) {
+      prod.images.forEach((img: any) => {
+        if (typeof img === 'string' && img.trim()) urlsToRegister.push(img.trim());
+      });
+    }
+    if (prod.imageUrl && typeof prod.imageUrl === 'string') urlsToRegister.push(prod.imageUrl.trim());
+    if (prod.foto_uri && typeof prod.foto_uri === 'string') urlsToRegister.push(prod.foto_uri.trim());
+
+    urlsToRegister.forEach(url => {
+      registeredUrlsMap.set(url, { id: prodId, name: prodName });
+    });
+  });
+
+  // 2. Lista os arquivos do bucket no Supabase (pastas 'produtos' e raiz)
+  const foldersToScan = ['produtos', 'banners', 'sobre', ''];
+  const allBucketFiles: Array<{ name: string; folder: string; createdAt?: string }> = [];
+
+  for (const folder of foldersToScan) {
+    try {
+      const { data, error } = await supabase.storage.from(targetBucket).list(folder, {
+        limit: 500,
+        offset: 0,
+        sortBy: { column: 'name', order: 'asc' },
+      });
+
+      if (!error && Array.isArray(data)) {
+        data.forEach(item => {
+          if (item.name && item.id) {
+            allBucketFiles.push({
+              name: item.name,
+              folder,
+              createdAt: item.created_at,
+            });
+          }
+        });
+      }
+    } catch (err) {
+      console.warn(`[SupabaseAudit] Erro ao listar pasta "${folder}":`, err);
+    }
+  }
+
+  // 3. Cruza os arquivos do Supabase com o mapa de URLs do Firebase
+  let totalLinked = 0;
+  let totalOrphan = 0;
+  const items: SupabaseAuditItem[] = [];
+
+  allBucketFiles.forEach(file => {
+    const filePath = file.folder ? `${file.folder}/${file.name}` : file.name;
+    const { data: publicUrlData } = supabase.storage.from(targetBucket).getPublicUrl(filePath);
+    const publicUrl = publicUrlData?.publicUrl || '';
+
+    let linkedInfo = registeredUrlsMap.get(publicUrl);
+
+    // Fallback: Tenta casamento flexível de caminho se o host mudar ligeiramente
+    if (!linkedInfo) {
+      for (const [regUrl, info] of registeredUrlsMap.entries()) {
+        if (regUrl.includes(filePath) || publicUrl.includes(regUrl)) {
+          linkedInfo = info;
+          break;
+        }
+      }
+    }
+
+    const isOrphan = !linkedInfo;
+    if (isOrphan) {
+      totalOrphan++;
+    } else {
+      totalLinked++;
+    }
+
+    items.push({
+      name: file.name,
+      filePath,
+      bucket: targetBucket,
+      publicUrl,
+      isOrphan,
+      linkedProductId: linkedInfo?.id,
+      linkedProductName: linkedInfo?.name,
+      createdAt: file.createdAt,
+    });
+  });
+
+  return {
+    totalSupabaseFiles: allBucketFiles.length,
+    totalFirestoreProducts: firestoreProducts.length,
+    totalLinkedPhotos: totalLinked,
+    totalOrphanPhotos: totalOrphan,
+    items,
+  };
+}
+

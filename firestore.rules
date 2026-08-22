@@ -62,19 +62,32 @@ service cloud.firestore {
       allow write: if isAuth();
     }
 
-    // Regra para Pedidos da Loja (Leitura e atualização permitidas para Clientes e Equipe)
+    // Regra para Pedidos da Loja (Leitura e gravação para Checkout e Gestão)
     match /orders/{orderId} {
-      allow create: if true; // Permite checkout
-      allow read: if isAuth() && (
-        resource.data.userId == request.auth.uid || 
-        resource.data.customerEmail == request.auth.token.email || 
-        isTeamMember()
-      );
-      allow update: if isTeamMember();
-      allow delete: if isAdmin();
+      allow create: if true; // Permite checkout público
+      allow read: if isAuth();
+      allow update, delete: if isAuth();
     }
 
-    // Regra para Configurações da Loja (CMS Layout, Banners, Contatos - Exclusivo Admin/Equipe)
+    // Regra para Vendedores (Sellers)
+    match /sellers/{sellerId} {
+      allow read: if true;
+      allow write: if isAuth();
+    }
+
+    // Regra para Campanhas Promocionais (Promotions)
+    match /promotions/{promotionId} {
+      allow read: if true;
+      allow write: if isAuth();
+    }
+
+    // Regra para Configurações Gerais (Saldão, etc.)
+    match /settings/{document=**} {
+      allow read: if true;
+      allow write: if isAuth();
+    }
+
+    // Regra para Configurações da Loja (CMS Layout, Banners, Contatos)
     match /storeConfig/{document=**} {
       allow read: if true;
       allow write: if isAuth();

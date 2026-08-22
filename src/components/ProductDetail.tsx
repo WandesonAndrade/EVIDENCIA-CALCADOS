@@ -139,7 +139,7 @@ export const ProductDetail: React.FC = () => {
   const allProductImages = React.useMemo(() => {
     return (p?.images && p.images.length > 0)
       ? p.images.filter(Boolean) 
-      : (p?.foto_uri ? [p.foto_uri] : []);
+      : (p?.foto_uri ? [p.foto_uri] : (p?.imageUrl ? [p.imageUrl] : []));
   }, [p]);
 
   const idGrade = p?.id_grade ?? p?.gradeId ?? null;

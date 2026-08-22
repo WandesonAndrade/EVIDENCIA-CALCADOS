@@ -226,14 +226,13 @@ const saveLocalCategories = (updatedCategories: Category[]) => {
   localStorage.setItem('evidencia_local_categories', JSON.stringify(updatedCategories));
 };
 
-// Local fallback helpers - strictly Moblink products
+// Local fallback helpers - salva e carrega todo o catálogo para abertura instantânea (0ms)
 const getLocalProducts = (): Product[] => {
   const saved = localStorage.getItem('evidencia_local_products');
   if (saved) {
     try {
       const parsed: Product[] = JSON.parse(saved);
-      const moblinkFiltered = parsed.filter(p => p.moblinkId || p.id.startsWith('MOB-'));
-      if (moblinkFiltered.length > 0) return moblinkFiltered;
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
     } catch (e) {
       console.error("Failed to parse local products, using SEED_PRODUCTS:", e);
     }
@@ -242,8 +241,13 @@ const getLocalProducts = (): Product[] => {
 };
 
 const saveLocalProducts = (updatedProducts: Product[]) => {
-  const moblinkOnly = updatedProducts.filter(p => p.moblinkId || p.id.startsWith('MOB-'));
-  localStorage.setItem('evidencia_local_products', JSON.stringify(moblinkOnly));
+  if (Array.isArray(updatedProducts) && updatedProducts.length > 0) {
+    try {
+      localStorage.setItem('evidencia_local_products', JSON.stringify(updatedProducts));
+    } catch (e) {
+      console.warn("Failed to save local products to cache:", e);
+    }
+  }
 };
 
 const getLocalOrders = (): Order[] => {
@@ -429,14 +433,63 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return prev.map(s => s.id === sellerId ? updated : s);
     });
   }, []);
-  const [selectedCategory, setSelectedCategoryState] = useState('TODOS');
-  const [selectedSubcategory, setSelectedSubcategory] = useState('TODAS');
+  const [selectedCategory, setSelectedCategoryState] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return sessionStorage.getItem('evidencia_selected_category') || localStorage.getItem('evidencia_selected_category') || 'CALÇADOS';
+    }
+    return 'CALÇADOS';
+  });
+
+  const [selectedSubcategory, setSelectedSubcategoryState] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return sessionStorage.getItem('evidencia_selected_subcategory') || localStorage.getItem('evidencia_selected_subcategory') || 'TODAS';
+    }
+    return 'TODAS';
+  });
 
   const setSelectedCategory = useCallback((category: string) => {
-    setSelectedCategoryState(category);
-    setSelectedSubcategory('TODAS');
+    const clean = (category || '').trim();
+    setSelectedCategoryState(clean);
+    setSelectedSubcategoryState('TODAS');
+    if (typeof window !== 'undefined') {
+      try {
+        sessionStorage.setItem('evidencia_selected_category', clean);
+        localStorage.setItem('evidencia_selected_category', clean);
+        sessionStorage.setItem('evidencia_selected_subcategory', 'TODAS');
+        localStorage.setItem('evidencia_selected_subcategory', 'TODAS');
+      } catch (e) {}
+    }
   }, []);
-  const [selectedMenuTab, setSelectedMenuTab] = useState('lançamentos');
+
+  const setSelectedSubcategory = useCallback((subcategory: string) => {
+    const clean = (subcategory || '').trim();
+    setSelectedSubcategoryState(clean);
+    if (typeof window !== 'undefined') {
+      try {
+        sessionStorage.setItem('evidencia_selected_subcategory', clean);
+        localStorage.setItem('evidencia_selected_subcategory', clean);
+      } catch (e) {}
+    }
+  }, []);
+
+  const [selectedMenuTab, setSelectedMenuTabState] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = sessionStorage.getItem('evidencia_selected_menu_tab') || localStorage.getItem('evidencia_selected_menu_tab');
+      if (saved && saved.trim()) return saved.trim();
+    }
+    return 'calcados';
+  });
+
+  const setSelectedMenuTab = useCallback((tab: string) => {
+    const clean = (tab || '').trim();
+    setSelectedMenuTabState(clean);
+    if (typeof window !== 'undefined') {
+      try {
+        sessionStorage.setItem('evidencia_selected_menu_tab', clean);
+        localStorage.setItem('evidencia_selected_menu_tab', clean);
+      } catch (e) {}
+    }
+  }, []);
   
   const [currentView, setCurrentViewState] = useState<ViewMode>(() => {
     if (typeof window !== 'undefined') {
@@ -836,8 +889,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (p.moblinkId) dbMap.set(String(p.moblinkId), p);
     });
 
-    return moblinkRawList.map((item) => {
-      const mobId = String(item.id || item.moblinkId || 'MOB-101');
+    const processedMobIds = new Set<string>();
+
+    const mergedFromMoblink = moblinkRawList.map((item) => {
+      const mobId = String(item.id || item.moblinkId || 'MOB-101').trim();
+      processedMobIds.add(mobId);
       const dbRecord = dbMap.get(mobId);
 
       const rawFotoUri = item.foto_uri || item.foto_url || item.fotoUri || item.fotoUrl || item.imagem || item.image || item.foto;
@@ -870,7 +926,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         : 'Calçados';
       const liveSubcategory = catInfo.subcategory || item.subcategoria || item.subcategory || dbRecord?.subcategory;
       const liveBarcode = item.codigoBarras || item.barcode || item.codigo || dbRecord?.barcode;
-      const liveBrand = item.marca || dbRecord?.brand || 'Evidência';
+      const liveBrand = item.marca || dbRecord?.brand || (item as any)?.brand || (item as any)?.marca || 'Evidência';
       const liveMaterial = item.material || dbRecord?.material;
       const liveColor = item.cor || dbRecord?.color;
       const liveGender = item.genero || dbRecord?.gender;
@@ -880,12 +936,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // Extract Complementary Description (compl_descr)
       const liveComplDescr = item.compl_descr || item.descr_compl || item.descricao_complementar || item.compl_descricao || dbRecord?.compl_descr || '';
 
-      // 2. PRESERVE ENRICHED MEDIA & DESCRIPTION FROM LOCAL DATABASE (FIREBASE) / LOJISTA (NÃO SOBREESCREVE FOTOS DO ADMINISTRADOR)
+      // 2. PRESERVE ENRICHED MEDIA & DESCRIPTION FROM LOCAL DATABASE (FIREBASE) / LOJISTA
+      // REGRA ABSOLUTA: Fotos dos produtos vêm EXCLUSIVAMENTE de URLs salvas no Firebase Firestore
       let combinedImages: string[] = [];
       if (dbRecord?.images && Array.isArray(dbRecord.images) && dbRecord.images.length > 0) {
         combinedImages = dbRecord.images.filter(Boolean);
-      } else if (rawFotoUri && typeof rawFotoUri === 'string' && rawFotoUri.trim() !== '') {
-        combinedImages = [rawFotoUri.trim()];
+      } else if (dbRecord?.foto_uri && typeof dbRecord.foto_uri === 'string' && dbRecord.foto_uri.trim() !== '') {
+        combinedImages = [dbRecord.foto_uri.trim()];
+      } else if (dbRecord?.imageUrl && typeof dbRecord.imageUrl === 'string' && dbRecord.imageUrl.trim() !== '') {
+        combinedImages = [dbRecord.imageUrl.trim()];
       } else {
         combinedImages = [];
       }
@@ -937,7 +996,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // --------------------------------------------------------
         onSale: Boolean((liveOriginalPrice && liveOriginalPrice > livePrice) || dbRecord?.onSale),
         images: combinedImages, // Preserved from lojista
-        foto_uri: dbRecord?.foto_uri || rawFotoUri || combinedImages[0],
+        imageUrl: dbRecord?.imageUrl || dbRecord?.foto_uri || combinedImages[0] || '',
+        foto_uri: dbRecord?.foto_uri || dbRecord?.imageUrl || combinedImages[0] || '',
         colorImageMap,
         colorImages,
         description: adaptedFullDescription, // Preserved from lojista
@@ -959,6 +1019,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       return crossedProduct;
     });
+
+    // Preserva integralmente os produtos do Firestore que não vieram na resposta da chamada Moblink
+    const remainingDbProducts = dbProducts.filter(p => {
+      if (!p) return false;
+      const pId = String(p.id || '').trim();
+      const mobId = p.moblinkId ? String(p.moblinkId).trim() : '';
+      return !processedMobIds.has(pId) && (mobId === '' || !processedMobIds.has(mobId));
+    });
+
+    return [...mergedFromMoblink, ...remainingDbProducts];
   };
 
   // Sync MobLink products directly from API and cross with DB records (Incremental Delta Sync)
