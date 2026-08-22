@@ -411,6 +411,33 @@ export const CategoryPage: React.FC = () => {
     });
   }, [baseCategoryItems]);
 
+  // EXTRATOR DINÂMICO DE SUBCATEGORIAS DISPONÍVEIS NA CATEGORIA ATIVA
+  const availableSubcategories = useMemo(() => {
+    const subMap = new Map<string, number>();
+
+    products.filter(prod => {
+      const matchesSearch = searchQuery 
+        ? prod.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+          prod.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          prod.category.toLowerCase().includes(searchQuery.toLowerCase())
+        : true;
+      const isAvailable = (prod.stock !== undefined ? prod.stock > 0 : (prod.saldo_loja ?? 0) > 0);
+      return prod.visible && isAvailable && matchesSearch && config.filter(prod);
+    }).forEach(prod => {
+      const rawSub = (prod.nome_subgrupo || prod.subcategory || '').trim();
+      if (rawSub && rawSub.toUpperCase() !== 'GERAL') {
+        const normSub = normalizeSubcategoryName(rawSub);
+        if (normSub) {
+          subMap.set(normSub, (subMap.get(normSub) || 0) + 1);
+        }
+      }
+    });
+
+    return Array.from(subMap.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count);
+  }, [products, searchQuery, config]);
+
   // PRODUTOS FILTRADOS PELOS CRITÉRIOS SELECIONADOS (MARCA, TAMANHO, PREÇO, OFERTA)
   const filteredItems = useMemo(() => {
     return baseCategoryItems.filter(prod => {
@@ -856,10 +883,14 @@ export const CategoryPage: React.FC = () => {
 
             {activeSubcategory && (
               <button
-                onClick={() => setSelectedSubcategory('TODAS')}
-                className="text-xs font-extrabold text-[#006EDB] hover:text-[#00509E] underline cursor-pointer mr-2"
+                onClick={() => {
+                  setSelectedSubcategory('TODAS');
+                  if (setGlobalSubcategory) setGlobalSubcategory('TODAS');
+                }}
+                className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full bg-[#DDF1FF] text-[#006EDB] hover:bg-blue-100 hover:text-[#00509E] text-xs font-bold transition-all border border-blue-900/15 cursor-pointer shadow-2xs mr-2"
               >
-                Ver todas as subcategorias
+                <span>Ver todas as subcategorias</span>
+                <X className="h-3.5 w-3.5" />
               </button>
             )}
 
@@ -868,6 +899,46 @@ export const CategoryPage: React.FC = () => {
             </span>
           </div>
         </div>
+
+        {/* BARRA DE SELEÇÃO RÁPIDA DE SUBCATEGORIAS */}
+        {availableSubcategories.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 pt-1 pb-1">
+            <span className="text-xs font-bold text-[#003B73] mr-1">Subcategorias:</span>
+            <button
+              onClick={() => {
+                setSelectedSubcategory('TODAS');
+                if (setGlobalSubcategory) setGlobalSubcategory('TODAS');
+              }}
+              className={`px-3.5 py-1 rounded-full text-xs font-bold transition-all cursor-pointer shadow-2xs border ${
+                !activeSubcategory
+                  ? 'bg-[#003B73] text-white border-[#003B73]'
+                  : 'bg-white text-[#003B73] border-blue-900/15 hover:border-[#006EDB] hover:bg-blue-50'
+              }`}
+            >
+              Todas ({baseCategoryItems.length})
+            </button>
+
+            {availableSubcategories.map(sub => {
+              const isActive = activeSubcategory?.toLowerCase() === sub.name.toLowerCase();
+              return (
+                <button
+                  key={sub.name}
+                  onClick={() => {
+                    setSelectedSubcategory(sub.name);
+                    if (setGlobalSubcategory) setGlobalSubcategory(sub.name);
+                  }}
+                  className={`px-3.5 py-1 rounded-full text-xs font-bold transition-all cursor-pointer shadow-2xs border ${
+                    isActive
+                      ? 'bg-[#003B73] text-white border-[#003B73]'
+                      : 'bg-white text-[#00509E] border-blue-900/15 hover:border-[#006EDB] hover:bg-blue-50'
+                  }`}
+                >
+                  {sub.name} <span className="opacity-75 font-normal">({sub.count})</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {/* PÍLULAS DOS FILTROS ATIVOS PARA REMOÇÃO RÁPIDA */}
         {hasActiveFilters && (
