@@ -349,6 +349,42 @@ export const MoblinkProductsManager: React.FC = () => {
     }
   };
 
+  /**
+   * Sincronização Unificada de Mídias (Supabase Storage):
+   * Vincula fotos por ID e abre o relatório de auditoria de fotos em 1 clique
+   */
+  const handleUnifiedSupabaseSync = async () => {
+    setIsLinkingSupabase(true);
+    setIsAuditingPhotos(true);
+    try {
+      const { updatedCount } = await autoLinkSupabasePhotosToFirestore(products);
+      const report = await auditSupabaseVsFirebasePhotos(products);
+      setPhotoAuditReport(report);
+      setShowAuditModal(true);
+      setFeedback({
+        success: true,
+        message: `🎉 Vinculação & Auditoria do Supabase concluídas! ${updatedCount} produto(s) vinculados e ${report.totalOrphanPhotos} foto(s) órfã(s) identificadas.`,
+      });
+    } catch (err: any) {
+      setFeedback({
+        success: false,
+        message: `Erro na sincronização do Supabase Storage: ${err.message || 'Falha ao conectar.'}`,
+      });
+    } finally {
+      setIsLinkingSupabase(false);
+      setIsAuditingPhotos(false);
+    }
+  };
+
+  /**
+   * Sincronização Unificada do ERP MobLink:
+   * Atualiza estoque + valida variações de grades de tamanho em 1 clique
+   */
+  const handleUnifiedErpSync = async () => {
+    await fetchMoblinkProducts();
+    await handleAuditAndApplyGradesToStockProducts();
+  };
+
   const handleDeleteAuditOrphan = async (item: SupabaseAuditItem) => {
     try {
       const success = await deleteImageFromSupabase(item.publicUrl);
@@ -1927,17 +1963,24 @@ export const MoblinkProductsManager: React.FC = () => {
     return Array.from(set).sort();
   }, [editColor, selectedProductGrade, selectedProduct, combinedCatalog]);
 
-  // Estrutura Agrupada por Modelo (Nome-Base) para exibição de variações de cores lado a lado
+  // Estrutura Agrupada por Classificação ERP (Número do Grupo antes do ponto '.', ex: 001, 002)
   const groupedList = useMemo(() => {
     const groupedMoblinkMap = filteredMoblinkList.reduce((acc, item) => {
       const mobId = String(item.id || item.moblinkId || 'MOB-000');
-      const rawName = item.nome || item.name || item.descricao || '';
-      const { baseName, variant } = extractBaseNameAndVariant(rawName);
+      const catInfo = extractClassificacaoCategoria(item);
+      const rawClass = catInfo.classificacao || String(item.classificacao || (item as any).id_grupo || (item as any).cod_classificacao || (item as any).classificacao_erp || '').trim() || '001.001';
+      const parts = rawClass.split('.');
+      const rawGrupoNum = (parts[0] !== undefined && parts[0] !== '') ? parts[0].trim() : '001';
+      const grupoCode = rawGrupoNum.padStart(3, '0');
       
-      if (!acc[baseName]) {
-        acc[baseName] = {
-          baseName,
-          category: item.categoria || item.category || 'Geral',
+      const rawCatName = item.categoria || item.category || item.nome_grupo || catInfo.category || 'Geral';
+      const groupKey = `Grupo ${grupoCode} (${rawCatName.toUpperCase()})`;
+
+      if (!acc[groupKey]) {
+        acc[groupKey] = {
+          baseName: groupKey,
+          grupoCode,
+          category: rawCatName,
           items: [],
           totalStock: 0,
         };
@@ -1950,13 +1993,15 @@ export const MoblinkProductsManager: React.FC = () => {
       const hasMedia = hasEnrichedMedia || Boolean(item.foto_uri || item.foto_url || item.foto || item.imagem || item.image);
 
       const itemModelCode = existingDb?.modelCode || existingDb?.referenceCode || (item as any)?.modelCode || (item as any)?.referenceCode;
-      if (itemModelCode && !acc[baseName].modelCode) {
-        acc[baseName].modelCode = itemModelCode;
+      if (itemModelCode && !acc[groupKey].modelCode) {
+        acc[groupKey].modelCode = itemModelCode;
       }
 
+      const rawName = item.nome || item.name || item.descricao || '';
+      const { variant } = extractBaseNameAndVariant(rawName);
       const displayColor = existingDb?.color || existingDb?.cor || item.cor || item.color || variant;
 
-      acc[baseName].items.push({
+      acc[groupKey].items.push({
         item,
         mobId,
         variant: displayColor,
@@ -1967,10 +2012,11 @@ export const MoblinkProductsManager: React.FC = () => {
         existingDb,
       });
 
-      acc[baseName].totalStock += estoqueAtual;
+      acc[groupKey].totalStock += estoqueAtual;
       return acc;
     }, {} as Record<string, {
       baseName: string;
+      grupoCode: string;
       category: string;
       modelCode?: string;
       items: Array<{
@@ -1988,18 +2034,11 @@ export const MoblinkProductsManager: React.FC = () => {
 
     const groups = Object.values(groupedMoblinkMap);
 
-    // Ordenação dinâmica dos grupos de modelos família
+    // Ordenação dos grupos pela numeração da Classificação ERP (001, 002, 003...)
     groups.sort((a, b) => {
-      if (sortBy === 'refMoblink') {
-        const aFirstMobId = a.items[0]?.mobId || '';
-        const bFirstMobId = b.items[0]?.mobId || '';
-        const aNum = parseInt(aFirstMobId.replace(/\D/g, ''), 10) || 0;
-        const bNum = parseInt(bFirstMobId.replace(/\D/g, ''), 10) || 0;
-        if (aNum !== bNum) return aNum - bNum;
-        return aFirstMobId.localeCompare(bFirstMobId);
-      }
-      if (sortBy === 'stockAsc') return a.totalStock - b.totalStock;
-      if (sortBy === 'stockDesc') return b.totalStock - a.totalStock;
+      const aNum = parseInt(a.grupoCode, 10) || 0;
+      const bNum = parseInt(b.grupoCode, 10) || 0;
+      if (aNum !== bNum) return aNum - bNum;
       return a.baseName.localeCompare(b.baseName);
     });
 
@@ -2014,12 +2053,12 @@ export const MoblinkProductsManager: React.FC = () => {
         }
         if (sortBy === 'stockAsc') return a.estoqueAtual - b.estoqueAtual;
         if (sortBy === 'stockDesc') return b.estoqueAtual - a.estoqueAtual;
-        return a.variant.localeCompare(b.variant);
+        return (a.item.nome || '').localeCompare(b.item.nome || '');
       });
     });
 
     return groups;
-  }, [filteredMoblinkList, sortBy, dbProductsMap]);
+  }, [filteredMoblinkList, dbProductsMap, sortBy]);
   const isGroupedViewActive = viewMode === 'grouped' || Boolean(baseNameFilter);
 
   const totalPages = isGroupedViewActive 
@@ -2044,66 +2083,50 @@ export const MoblinkProductsManager: React.FC = () => {
           ? 'bg-slate-900/90 border-slate-800 text-white' 
           : 'bg-white/90 border-slate-200/80 text-slate-900 shadow-xs'
       }`}>
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5 pb-6 border-b border-slate-200/60 dark:border-slate-800/80">
-          <div className="space-y-1.5">
-            <div className="flex items-center space-x-2">
-              <span className="p-2 rounded-xl bg-[#0071E3]/10 text-[#0071E3] dark:bg-[#0071E3]/20 dark:text-blue-400">
-                <Zap className="h-5 w-5 stroke-[2.5]" />
+        {/* TOP SECTION: TITLE & SUBTITLE & ACTIONS */}
+        <div className="space-y-4 pb-6 border-b border-slate-200/60 dark:border-slate-800/80">
+          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+            <div className="flex items-center gap-3 flex-wrap min-w-0">
+              <span className="p-2.5 rounded-2xl bg-[#0071E3]/10 text-[#0071E3] dark:bg-[#0071E3]/20 dark:text-blue-400 shrink-0">
+                <Zap className="h-6 w-6 stroke-[2.5]" />
               </span>
-              <h2 className={`text-xl sm:text-2xl font-black tracking-tight ${
+              <h2 className={`text-xl sm:text-2xl font-black tracking-tight whitespace-normal ${
                 theme === 'dark' ? 'text-white' : 'text-[#003B73]'
               }`}>
                 Gestão de Produtos &amp; Estoque (MobLink ERP)
               </h2>
-              <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-[#0071E3]/10 text-[#0071E3] dark:bg-blue-400/20 dark:text-blue-300 border border-[#0071E3]/20">
+              <span className="text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full bg-[#0071E3]/10 text-[#0071E3] dark:bg-blue-400/20 dark:text-blue-300 border border-[#0071E3]/20 shrink-0">
                 Apple Studio
               </span>
             </div>
-            <p className="text-xs sm:text-sm font-medium text-slate-500 dark:text-slate-400 max-w-3xl leading-relaxed">
-              Central oficial de sincronização em tempo real do MobLink ERP. Enriqueça fotos, altere descrições de modelos e gerencie a visibilidade da vitrine.
-            </p>
+
+            {/* ACTION BUTTONS ROW (UNIFIED ACTION CONSOLE) */}
+            <div className="flex items-center gap-3 flex-wrap">
+              <button
+                onClick={handleUnifiedErpSync}
+                disabled={isLoading}
+                className="px-5 py-3 bg-[#0071E3] hover:bg-[#00509E] text-white font-extrabold rounded-2xl text-xs transition-all flex items-center gap-2.5 cursor-pointer shadow-md active:scale-95 disabled:opacity-50 shrink-0"
+                title="Sincroniza saldos de estoque e valida disponibilidade de variações/tamanhos do MobLink ERP"
+              >
+                <RefreshCw className={`h-4.5 w-4.5 ${isLoading ? 'animate-spin text-white' : ''}`} />
+                <span>{isLoading ? 'Sincronizando ERP & Grades...' : '⚡ Sincronizar ERP & Grades (Estoque + Tamanhos)'}</span>
+              </button>
+
+              <button
+                onClick={handleUnifiedSupabaseSync}
+                disabled={isAuditingPhotos || isLinkingSupabase}
+                className="px-5 py-3 bg-purple-600 hover:bg-purple-700 text-white font-extrabold rounded-2xl text-xs transition-all flex items-center gap-2.5 cursor-pointer shadow-md active:scale-95 disabled:opacity-50 shadow-purple-500/20 shrink-0"
+                title="Vincula fotos salvas no Supabase Storage pelo ID e abre a auditoria completa de mídias"
+              >
+                <ImageIcon className={`h-4.5 w-4.5 text-purple-200 ${isAuditingPhotos || isLinkingSupabase ? 'animate-spin' : ''}`} />
+                <span>{isAuditingPhotos || isLinkingSupabase ? 'Sincronizando Fotos...' : '📸 Sincronizar & Auditar Fotos (Supabase)'}</span>
+              </button>
+            </div>
           </div>
 
-          <div className="flex items-center gap-3 flex-wrap shrink-0">
-            <button
-              onClick={fetchMoblinkProducts}
-              disabled={isLoading}
-              className="px-5 py-3 bg-[#0071E3] hover:bg-[#00509E] text-white font-extrabold rounded-2xl text-xs transition-all flex items-center gap-2 cursor-pointer shadow-md active:scale-95 disabled:opacity-50"
-            >
-              <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin text-white' : ''}`} />
-              <span>{isLoading ? 'Sincronizando ERP...' : 'Atualizar Estoque ERP'}</span>
-            </button>
-
-            <button
-              onClick={handleAuditAndApplyGradesToStockProducts}
-              disabled={isLoading}
-              className="px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-2xl text-xs transition-all flex items-center gap-2 cursor-pointer shadow-md active:scale-95 disabled:opacity-50 shadow-emerald-500/20"
-              title="Audita saldo e grade de todos os produtos com estoque"
-            >
-              <ShieldCheck className="h-4 w-4 text-emerald-200" />
-              <span>⚡ Auditar &amp; Validar Grades</span>
-            </button>
-
-            <button
-              onClick={handleRunPhotoAudit}
-              disabled={isAuditingPhotos}
-              className="px-5 py-3 bg-purple-600 hover:bg-purple-700 text-white font-extrabold rounded-2xl text-xs transition-all flex items-center gap-2 cursor-pointer shadow-md active:scale-95 disabled:opacity-50 shadow-purple-500/20"
-              title="Audita fotos no Supabase Storage x URLs no Firebase Firestore"
-            >
-              <ImageIcon className={`h-4 w-4 text-purple-200 ${isAuditingPhotos ? 'animate-spin' : ''}`} />
-              <span>{isAuditingPhotos ? 'Auditando Fotos...' : '🔒 Auditoria de Fotos (Supabase x Firebase)'}</span>
-            </button>
-
-            <button
-              onClick={handleAutoLinkSupabasePhotos}
-              disabled={isLinkingSupabase}
-              className="px-5 py-3 bg-amber-600 hover:bg-amber-700 text-white font-extrabold rounded-2xl text-xs transition-all flex items-center gap-2 cursor-pointer shadow-md active:scale-95 disabled:opacity-50 shadow-amber-500/20"
-              title="Vincular fotos do Supabase Storage aos produtos pelo ID (ex: produto_1998_...)"
-            >
-              <Zap className={`h-4 w-4 text-amber-200 ${isLinkingSupabase ? 'animate-spin' : ''}`} />
-              <span>{isLinkingSupabase ? 'Vinculando Fotos...' : '📸 Vincular Fotos Supabase por ID'}</span>
-            </button>
-          </div>
+          <p className="text-xs sm:text-sm font-medium text-slate-500 dark:text-slate-400 max-w-4xl leading-relaxed">
+            Central oficial de sincronização em tempo real do MobLink ERP. Enriqueça fotos, altere descrições de modelos e gerencie a visibilidade da vitrine.
+          </p>
         </div>
 
         {/* APPLE KPI STATS GRID */}
@@ -2236,24 +2259,58 @@ export const MoblinkProductsManager: React.FC = () => {
               }`}
             >
               <FolderTree className="h-4 w-4" />
-              <span>Agrupado por Modelo ({groupedList.length})</span>
+              <span>Agrupado por Classificação ({groupedList.length})</span>
             </button>
           </div>
 
-          {/* SEARCH INPUT */}
-          <div className="relative w-full md:max-w-md">
-            <input
-              type="text"
-              placeholder="Buscar por Modelo (ex: Sound Kids), ID MobLink ou SKU..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-2xl bg-white dark:bg-slate-800/90 text-slate-900 dark:text-slate-100 font-medium text-xs focus:outline-none focus:ring-2 focus:ring-[#0071E3] transition-all shadow-xs"
-            />
-            <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
+          {/* SEARCH INPUT & RESET ALL */}
+          <div className="flex items-center gap-2 w-full md:w-auto flex-1 max-w-lg">
+            <div className="relative flex-1">
+              <input
+                type="text"
+                placeholder="Buscar por Modelo (ex: Sound Kids), ID MobLink ou SKU..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-2xl bg-white dark:bg-slate-800/90 text-slate-900 dark:text-slate-100 font-medium text-xs focus:outline-none focus:ring-2 focus:ring-[#0071E3] transition-all shadow-xs"
+              />
+              <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-3 top-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+
+            {(categoryFilter !== 'Todos' || subcategoryFilter !== 'Todas' || photoFilter !== 'todos' || gradeFilter !== 'todos' || hideOutOfStock || hideNoGrade || classificacaoGrupoFilter || classificacaoSubgrupoFilter || searchQuery) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setCategoryFilter('Todos');
+                  setSubcategoryFilter('Todas');
+                  setPhotoFilter('todos');
+                  setGradeFilter('todos');
+                  setHideOutOfStock(false);
+                  setHideNoGrade(false);
+                  setClassificacaoGrupoFilter('');
+                  setClassificacaoSubgrupoFilter('');
+                  setSearchQuery('');
+                  setBaseNameFilter('');
+                }}
+                className="px-3 py-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 font-bold rounded-2xl text-xs border border-rose-500/20 transition-all cursor-pointer flex items-center gap-1.5 shrink-0"
+                title="Limpar todos os filtros ativos"
+              >
+                <X className="h-3.5 w-3.5" />
+                <span>Limpar Filtros</span>
+              </button>
+            )}
           </div>
         </div>
 
-        {/* SELECTS E FILTROS */}
+        {/* SELECTS E FILTROS ORGANIZADOS */}
         <div className="flex flex-wrap items-center gap-3">
           {/* FILTRO DE CATEGORIA */}
           <div className="flex items-center space-x-1.5">
@@ -2328,7 +2385,7 @@ export const MoblinkProductsManager: React.FC = () => {
           {/* ORDENAÇÃO DE PRODUTOS */}
           <div className="flex items-center space-x-1.5">
             <Filter className="h-3.5 w-3.5 text-[#0071E3] shrink-0" />
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider shrink-0">Ordenar Por:</span>
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider shrink-0">Ordenar:</span>
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as any)}
@@ -2336,23 +2393,8 @@ export const MoblinkProductsManager: React.FC = () => {
             >
               <option value="nameSku">Produto &amp; SKU (A-Z)</option>
               <option value="refMoblink">Ref MobLink (ID Numérico)</option>
-              <option value="stockDesc">Estoque Actual (Maior → Menor)</option>
-              <option value="stockAsc">Estoque Actual (Menor → Maior)</option>
-            </select>
-          </div>
-
-          {/* FILTRO SELETIVO DE GRADE */}
-          <div className="flex items-center space-x-1.5">
-            <Layers className="h-3.5 w-3.5 text-[#0071E3] shrink-0" />
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider shrink-0">Grade:</span>
-            <select
-              value={gradeFilter}
-              onChange={(e) => setGradeFilter(e.target.value as any)}
-              className="px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50/80 dark:bg-slate-800/90 text-slate-800 dark:text-blue-400 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-[#0071E3] transition-all cursor-pointer"
-            >
-              <option value="todos">Todas (Com &amp; Sem Grade)</option>
-              <option value="com_grade">✓ Apenas Com Grade (Disponível p/ Venda)</option>
-              <option value="sem_grade">⚠️ Apenas Sem Grade (Indisponível)</option>
+              <option value="stockDesc">Estoque (Maior → Menor)</option>
+              <option value="stockAsc">Estoque (Menor → Maior)</option>
             </select>
           </div>
 
@@ -2371,6 +2413,21 @@ export const MoblinkProductsManager: React.FC = () => {
             </select>
           </div>
 
+          {/* FILTRO SELETIVO DE GRADE */}
+          <div className="flex items-center space-x-1.5">
+            <Layers className="h-3.5 w-3.5 text-[#0071E3] shrink-0" />
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider shrink-0">Grade:</span>
+            <select
+              value={gradeFilter}
+              onChange={(e) => setGradeFilter(e.target.value as any)}
+              className="px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50/80 dark:bg-slate-800/90 text-slate-800 dark:text-blue-400 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-[#0071E3] transition-all cursor-pointer"
+            >
+              <option value="todos">Todas (Com &amp; Sem Grade)</option>
+              <option value="com_grade">✓ Com Grade</option>
+              <option value="sem_grade">⚠️ Sem Grade</option>
+            </select>
+          </div>
+
           {/* TOGGLE OCULTAR ESTOQUE ZERADO */}
           <label className="inline-flex items-center gap-2 px-3 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl cursor-pointer select-none shrink-0 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
             <input
@@ -2381,20 +2438,6 @@ export const MoblinkProductsManager: React.FC = () => {
             />
             <span className="text-xs font-extrabold text-slate-700 dark:text-slate-200">
               Ocultar Estoque Zerado (0)
-            </span>
-          </label>
-
-          {/* TOGGLE OCULTAR PRODUTOS SEM GRADE */}
-          <label className="inline-flex items-center gap-2 px-3 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl cursor-pointer select-none shrink-0 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors" title="Ocultar produtos que não possuem grade de tamanhos cadastrada">
-            <input
-              type="checkbox"
-              checked={hideNoGrade}
-              onChange={(e) => setHideNoGrade(e.target.checked)}
-              className="w-4 h-4 rounded text-[#0071E3] border-slate-300 focus:ring-[#0071E3] cursor-pointer"
-            />
-            <span className="text-xs font-extrabold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
-              <Layers className="h-3.5 w-3.5 text-[#0071E3]" />
-              Ocultar Sem Grade
             </span>
           </label>
         </div>
@@ -2415,7 +2458,7 @@ export const MoblinkProductsManager: React.FC = () => {
             <p className="text-xs font-bold text-slate-500">Nenhum produto encontrado.</p>
           </div>
         ) : isGroupedViewActive ? (
-          /* MODO LISTA HIERÁRQUICA AGRUPADA POR NOME-BASE */
+          /* MODO LISTA HIERÁRQUICA AGRUPADA POR CLASSIFICAÇÃO ERP */
           <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
             {paginatedGroupedList.map((group) => {
               const isExpanded = expandedModels[group.baseName] ?? true;
@@ -2425,7 +2468,7 @@ export const MoblinkProductsManager: React.FC = () => {
 
               return (
                 <div key={group.baseName} className="transition-colors">
-                  {/* CABEÇALHO DA LINHA HIERÁRQUICA PAI (MODELO BASE) */}
+                  {/* CABEÇALHO DA CLASSIFICAÇÃO ERP (GRUPO) */}
                   <div 
                     onClick={() => toggleModelExpand(group.baseName)}
                     className={`p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 cursor-pointer select-none transition-all ${
@@ -2439,29 +2482,22 @@ export const MoblinkProductsManager: React.FC = () => {
                         type="button" 
                         className="p-1.5 rounded-lg bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 transition-transform"
                       >
-                        {isExpanded ? <ChevronDown className="h-4 w-4 text-amber-500" /> : <ChevronRight className="h-4 w-4" />}
+                        {isExpanded ? <ChevronDown className="h-4 w-4 text-[#0071E3]" /> : <ChevronRight className="h-4 w-4" />}
                       </button>
 
                       <div className="space-y-0.5">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <Package className="h-4 w-4 text-amber-500 shrink-0" />
+                          <FolderTree className="h-4 w-4 text-[#0071E3] shrink-0" />
                           <h3 className="font-black text-sm text-slate-800 dark:text-slate-100">
-                            {group.baseName}
+                            Classificação {group.baseName}
                           </h3>
                           
-                          {modelRefCode && (
-                            <span className="inline-flex items-center gap-1 font-mono text-[10px] font-black px-2.5 py-0.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 rounded-md">
-                              <Hash className="h-3 w-3 text-amber-500" />
-                              Ref Pai: {modelRefCode}
-                            </span>
-                          )}
-
-                          <span className="text-[10px] px-2.5 py-0.5 bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold rounded-full uppercase">
-                            {group.category}
+                          <span className="text-[10px] px-2.5 py-0.5 bg-[#0071E3]/10 text-[#0071E3] dark:bg-blue-400/20 dark:text-blue-300 font-black rounded-full uppercase">
+                            {group.items.length} produto(s)
                           </span>
                         </div>
                         <p className="text-[11px] text-slate-400">
-                          Modelo Família com {group.items.length} variação(ões) de cores cadastradas no ERP
+                          Grupo de Classificação ERP com total de {group.totalStock} pares/unidades em estoque
                         </p>
                       </div>
                     </div>
