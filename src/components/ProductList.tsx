@@ -8,6 +8,7 @@ import { normalizeCategoryName, normalizeSubcategoryName } from "../services/mob
 import { hasProductValidGrade, extractClassificacaoCategoria } from "../services/moblinkProductsService";
 import { isSaldaoProduct, getSaldaoProductPrice } from "../services/saldaoService";
 import { getApplicablePromotion } from "../services/promotionsService";
+import { NO_PHOTO_SVG } from "../utils/placeholder";
 
 interface ProductCardProps {
   product: Product;
@@ -80,10 +81,12 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
       }`}>
         <img
           src={
-            product.images?.[0] ||
+            (product.images && product.images.length > 0 && product.images[0]) ||
             product.foto_uri ||
             product.imageUrl ||
-            "https://images.unsplash.com/photo-1549298916-b41d501d3772?q=80&w=600&auto=format&fit=crop"
+            (product.colorImages && typeof product.colorImages === 'object' && Object.values(product.colorImages).flat().filter(Boolean)[0]) ||
+            (product.colorImageMap && typeof product.colorImageMap === 'object' && Object.values(product.colorImageMap).filter(Boolean)[0]) ||
+            NO_PHOTO_SVG
           }
           alt={product.name}
           className="w-full h-full object-contain drop-shadow-md group-hover:drop-shadow-xl group-hover:scale-106 transition-all duration-500 ease-out"
@@ -731,7 +734,7 @@ export const ProductList: React.FC = () => {
                 isDark ? 'from-[#101828] via-[#101828]/70 to-transparent' : 'from-[#ffffff] via-[#ffffff]/70 to-transparent'
               }`} />
               <img 
-                src="https://images.unsplash.com/photo-1542291026-7eec264c27ff?q=80&w=600&auto=format&fit=crop" 
+                src={NO_PHOTO_SVG} 
                 alt="Sapatos" 
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
               />

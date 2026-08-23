@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { UserProfile, Product, CrediarioStatus } from '../types';
+import { NO_PHOTO_SVG } from '../utils/placeholder';
 import { moblinkClientesService, MoblinkContaReceber, getInstallmentAmount } from '../services/moblinkClientesService';
 import { collection, getDocs, doc, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -1555,7 +1556,7 @@ export const MoblinkClientsManager: React.FC<MoblinkClientsManagerProps> = ({ is
                         <div className="space-y-2">
                           {getClientCartItems(selectedClient).map((item: any, idx: number) => {
                             const pMatch = products.find(p => String(p.id) === String(item.productId) || String(p.moblinkId) === String(item.productId));
-                            const imgUrl = pMatch?.imageUrl || item.image || item.imageUrl || 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400';
+                            const imgUrl = pMatch?.imageUrl || item.image || item.imageUrl || NO_PHOTO_SVG;
                             
                             return (
                               <div key={idx} className={`p-3 rounded-2xl border flex items-center justify-between gap-3 ${

@@ -1,4 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { doc, setDoc } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 
 // Cache em memória do cliente Supabase para reutilização
 let supabaseClientInstance: SupabaseClient | null = null;
@@ -373,5 +375,198 @@ export async function auditSupabaseVsFirebasePhotos(
     totalOrphanPhotos: totalOrphan,
     items,
   };
+}
+
+/**
+ * Salva os metadados enriquecidos do produto (fotos por cor, imagens, descricao) no Supabase DB
+ */
+export async function syncProductMediaToSupabase(product: Partial<any>): Promise<void> {
+  const supabase = getSupabaseClient();
+  if (!supabase) return;
+
+  try {
+    const id = String(product.id || product.moblinkId || '').trim();
+    if (!id) return;
+
+    const payload = {
+      id,
+      name: product.name || product.descricao || '',
+      images: Array.isArray(product.images) ? product.images : [],
+      imageUrl: product.imageUrl || product.foto_uri || '',
+      foto_uri: product.foto_uri || product.imageUrl || '',
+      colorImages: product.colorImages || {},
+      colorImageMap: product.colorImageMap || {},
+      description: product.description || '',
+      updated_at: new Date().toISOString()
+    };
+
+    await supabase.from('products_media').upsert(payload, { onConflict: 'id' });
+  } catch (err: any) {
+    console.warn('[SupabaseStorageService] Sync products_media info:', err?.message);
+  }
+}
+
+/**
+ * Busca todos os produtos enriquecidos com mídia a partir do Supabase DB
+ */
+export async function fetchProductMediaFromSupabase(): Promise<any[]> {
+  const supabase = getSupabaseClient();
+  if (!supabase) return [];
+
+  try {
+    const { data, error } = await supabase.from('products_media').select('*');
+    if (error || !Array.isArray(data)) return [];
+    return data;
+  } catch (err) {
+    return [];
+  }
+}
+
+/**
+ * Mapeia automaticamente todas as fotos do Supabase Storage identificadas pelo ID no nome do arquivo:
+ * Exemplo: produto_1998_1787273728 -> liga ao produto ID 1998 e MOB-1998
+ */
+export async function fetchSupabaseStoragePhotosMap(): Promise<Map<string, string[]>> {
+  const supabase = getSupabaseClient();
+  const config = getSupabaseConfig();
+  const photoMap = new Map<string, string[]>();
+
+  if (!supabase) return photoMap;
+
+  const configuredBucket = config.bucket || 'products';
+  const bucketsToScan = Array.from(new Set([configuredBucket, 'products', 'produtos', 'evidenciacalcados', 'evidencia-calcados', 'evidencia']));
+  const foldersToScan = ['', 'produtos', 'produtos_moblink', 'fotos', 'images', 'public'];
+
+  for (const bucketName of bucketsToScan) {
+    for (const folder of foldersToScan) {
+      try {
+        const { data, error } = await supabase.storage.from(bucketName).list(folder, {
+          limit: 1000,
+          offset: 0,
+          sortBy: { column: 'name', order: 'asc' },
+        });
+
+        if (!error && Array.isArray(data)) {
+          data.forEach(item => {
+            if (!item.name || item.name.startsWith('.')) return;
+
+            const filePath = folder ? `${folder}/${item.name}` : item.name;
+            const { data: publicUrlData } = supabase.storage.from(bucketName).getPublicUrl(filePath);
+            const publicUrl = publicUrlData?.publicUrl;
+            if (!publicUrl) return;
+
+            // Extrai o ID entre os underline (_): ex: produto_1998_1787273728 -> 1998
+            let extractedId = '';
+            const matchNamed = item.name.match(/(?:produto|foto|img|image)_([a-zA-Z0-9-]+)(?:_|\.|$)/i);
+            if (matchNamed && matchNamed[1]) {
+              extractedId = matchNamed[1].trim();
+            } else {
+              const matchDirect = item.name.match(/^([a-zA-Z0-9-]+)_/);
+              if (matchDirect && matchDirect[1]) {
+                extractedId = matchDirect[1].trim();
+              }
+            }
+
+            if (extractedId) {
+              const cleanId = extractedId.replace(/^MOB-/i, '');
+              const mobIdKey = `MOB-${cleanId}`;
+
+              [cleanId, mobIdKey, extractedId].forEach(key => {
+                if (!key) return;
+                const list = photoMap.get(key) || [];
+                if (!list.includes(publicUrl)) {
+                  list.push(publicUrl);
+                  photoMap.set(key, list);
+                }
+              });
+            }
+          });
+        }
+      } catch (err) {
+        // Silently scan next bucket/folder combination
+      }
+    }
+  }
+
+  return photoMap;
+}
+
+/**
+ * Varre todo o Supabase Storage e salva/atualiza as URLs no Firestore para todos os produtos correspondentes por ID
+ */
+export async function autoLinkSupabasePhotosToFirestore(productsList: any[]): Promise<{ updatedCount: number; matchedMap: Map<string, string[]> }> {
+  const photoMap = await fetchSupabaseStoragePhotosMap();
+  let updatedCount = 0;
+
+  if (!photoMap || photoMap.size === 0 || !Array.isArray(productsList)) {
+    return { updatedCount: 0, matchedMap: photoMap };
+  }
+
+  for (const prod of productsList) {
+    const rawId = String(prod.id || prod.moblinkId || '').trim();
+    if (!rawId) continue;
+
+    const possibleKeys = Array.from(new Set([
+      rawId,
+      rawId.replace(/^MOB-/i, ''),
+      `MOB-${rawId.replace(/^MOB-/i, '')}`,
+      String(prod.sku || ''),
+      String(prod.codigo || ''),
+      String(prod.referencia || ''),
+      String(prod.modelCode || ''),
+      String(prod.referenceCode || '')
+    ].filter(k => k && k.trim() !== '')));
+
+    let supabasePhotos: string[] = [];
+    for (const key of possibleKeys) {
+      const found = photoMap.get(key);
+      if (Array.isArray(found) && found.length > 0) {
+        found.forEach(url => {
+          if (!supabasePhotos.includes(url)) supabasePhotos.push(url);
+        });
+      }
+    }
+
+    if (supabasePhotos.length > 0) {
+      const existingImages = Array.isArray(prod.images) ? prod.images.filter((u: any) => u && typeof u === 'string' && !u.includes('unsplash.com') && !u.includes('placeholder')) : [];
+      
+      const newImages = [...existingImages];
+      supabasePhotos.forEach(url => {
+        if (!newImages.includes(url)) newImages.push(url);
+      });
+
+      const coverUrl = newImages[0];
+      try {
+        const prodRef = doc(db, 'products', rawId);
+        await setDoc(prodRef, {
+          images: newImages,
+          imageUrl: coverUrl,
+          foto_uri: coverUrl,
+          hasMedia: true,
+          hasCustomData: true,
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
+
+        prod.images = newImages;
+        prod.imageUrl = coverUrl;
+        prod.foto_uri = coverUrl;
+        prod.hasMedia = true;
+        updatedCount++;
+      } catch (e) {
+        console.warn(`[AutoLinkSupabase] Erro ao atualizar Firestore para produto ${rawId}:`, e);
+      }
+    }
+  }
+
+  // Atualiza backups do localStorage
+  if (typeof localStorage !== 'undefined') {
+    ['evidencia_local_products', 'evidencia_firestore_products_backup'].forEach(key => {
+      try {
+        localStorage.setItem(key, JSON.stringify(productsList));
+      } catch {}
+    });
+  }
+
+  return { updatedCount, matchedMap: photoMap };
 }
 

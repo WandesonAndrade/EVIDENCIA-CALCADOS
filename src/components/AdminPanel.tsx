@@ -15,6 +15,7 @@ import { FinancialDashboard } from './FinancialDashboard';
 import { uploadImageToSupabase } from '../services/supabaseStorageService';
 import { isSaldaoProduct, getSaldaoProductPrice } from '../services/saldaoService';
 import { getCampaignStatus, isCampaignActive, calculateCampaignPrice } from '../services/promotionsService';
+import { NO_PHOTO_SVG } from '../utils/placeholder';
 
 
 
@@ -2856,7 +2857,7 @@ export const AdminPanel: React.FC = () => {
                                   <td className="p-4">
                                     <div className="flex items-center space-x-3">
                                       <img
-                                        src={prod.images?.[0] || prod.imageUrl || prod.foto_uri || 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=200'}
+                                        src={prod.images?.[0] || prod.imageUrl || prod.foto_uri || NO_PHOTO_SVG}
                                         alt={prod.name}
                                         className="w-10 h-10 rounded-xl object-cover border border-slate-700/40 shrink-0"
                                       />

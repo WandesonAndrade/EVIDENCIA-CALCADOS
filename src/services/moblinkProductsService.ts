@@ -652,15 +652,43 @@ export const mergeErpSyncWithExistingDbProduct = (
     : (updatedErpProd.description || updatedErpProd.descricao_completa || updatedErpProd.compl_descr || '');
 
   // 3. FOTOS & GALERIA: se o lojista definiu fotos no banco, elas TÊM PRIORIDADE MÁXIMA
-  const protectedImages = (Array.isArray(existingDbProd.images) && existingDbProd.images.length > 0)
-    ? existingDbProd.images
+  const isPlaceholder = (url: string) => !url || url.includes('unsplash.com') || url.includes('placeholder');
+  let validDbImages: string[] = [];
+
+  const addValidPhoto = (url: any) => {
+    if (url && typeof url === 'string' && url.trim() && !isPlaceholder(url)) {
+      const clean = url.trim();
+      if (!validDbImages.includes(clean)) validDbImages.push(clean);
+    }
+  };
+
+  if (Array.isArray(existingDbProd.images)) {
+    existingDbProd.images.forEach(addValidPhoto);
+  }
+  addValidPhoto(existingDbProd.foto_uri);
+  addValidPhoto(existingDbProd.imageUrl);
+
+  const protectedColorImageMap = existingDbProd.colorImageMap || updatedErpProd?.colorImageMap;
+  const protectedColorImages = existingDbProd.colorImages || updatedErpProd?.colorImages;
+
+  if (protectedColorImages && typeof protectedColorImages === 'object') {
+    Object.values(protectedColorImages).forEach(urls => {
+      if (Array.isArray(urls)) {
+        urls.forEach(addValidPhoto);
+      }
+    });
+  }
+  if (protectedColorImageMap && typeof protectedColorImageMap === 'object') {
+    Object.values(protectedColorImageMap).forEach(addValidPhoto);
+  }
+
+  const protectedImages = validDbImages.length > 0
+    ? validDbImages
     : (Array.isArray(updatedErpProd.images) && updatedErpProd.images.length > 0)
     ? updatedErpProd.images
     : (existingDbProd.foto_uri ? [existingDbProd.foto_uri] : updatedErpProd.foto_uri ? [updatedErpProd.foto_uri] : []);
 
-  const protectedFotoUri = existingDbProd.foto_uri || (protectedImages.length > 0 ? protectedImages[0] : updatedErpProd.foto_uri);
-  const protectedColorImageMap = existingDbProd.colorImageMap || updatedErpProd?.colorImageMap;
-  const protectedColorImages = existingDbProd.colorImages || updatedErpProd?.colorImages;
+  const protectedFotoUri = validDbImages[0] || existingDbProd.foto_uri || (protectedImages.length > 0 ? protectedImages[0] : updatedErpProd.foto_uri);
 
   // 4. ATUALIZAÇÃO COMPLETA EM TEMPO REAL A PARTIR DO ERP (Classificação, Categorias, Preços, Estoque e Grade)
   const liveClassificacao = (updatedErpProd.classificacao && String(updatedErpProd.classificacao).trim() !== '')
@@ -775,25 +803,19 @@ export const sanitizeProductForFirestore = (
   ).trim();
   const description = descriptionRaw.length > 0 ? descriptionRaw : name;
 
+  const isUnsplashUrl = (url?: string | null) => !url || typeof url !== 'string' || url.includes('unsplash.com') || url.includes('placeholder');
+
   let imageUrl = "";
-  if (
-    product.imageUrl &&
-    typeof product.imageUrl === "string" &&
-    product.imageUrl.trim() !== ""
-  ) {
+  if (product.imageUrl && typeof product.imageUrl === "string" && !isUnsplashUrl(product.imageUrl)) {
     imageUrl = product.imageUrl.trim();
-  } else if (
-    Array.isArray(product.images) &&
-    product.images.length > 0 &&
-    product.images[0]
-  ) {
-    imageUrl = String(product.images[0]).trim();
-  } else if (product.foto_uri && typeof product.foto_uri === "string") {
+  } else if (Array.isArray(product.images) && product.images.length > 0) {
+    const valid = product.images.find(img => img && typeof img === 'string' && !isUnsplashUrl(img));
+    if (valid) imageUrl = valid.trim();
+  } else if (product.foto_uri && typeof product.foto_uri === "string" && !isUnsplashUrl(product.foto_uri)) {
     imageUrl = product.foto_uri.trim();
   }
 
-  const defaultPlaceholderImg = "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=800";
-  const effectiveImg = imageUrl || defaultPlaceholderImg;
+  const effectiveImg = imageUrl;
 
   // Chave mestra numérica 'classificacao'
   const rawClass = String(
@@ -855,8 +877,8 @@ export const sanitizeProductForFirestore = (
   const catInfo = extractClassificacaoCategoria(product);
 
   const finalImagesList = (Array.isArray(product.images) && product.images.length > 0)
-    ? product.images
-    : [effectiveImg];
+    ? product.images.filter(img => img && typeof img === 'string' && !isUnsplashUrl(img))
+    : (effectiveImg ? [effectiveImg] : []);
 
   const rawGrupo = (product as any).nome_grupo || (product as any).categoria || catInfo.nome_grupo || catInfo.category;
   const rawSubgrupo = (product as any).nome_subgrupo || (product as any).subcategoria || catInfo.nome_subgrupo || catInfo.subcategory;
@@ -866,7 +888,7 @@ export const sanitizeProductForFirestore = (
     id,
     name,
     description,
-    imageUrl: finalImagesList[0],
+    imageUrl: finalImagesList[0] || "",
     classificacao: cleanClassificacao || catInfo.classificacao,
     id_grupo: (product as any).id_grupo ?? (cleanClassificacao.split('.')[0] || ''),
     id_subgrupo: (product as any).id_subgrupo ?? (cleanClassificacao.split('.')[1] || ''),
@@ -884,7 +906,7 @@ export const sanitizeProductForFirestore = (
     hasGrade,
     updatedAt,
     images: finalImagesList,
-    foto_uri: finalImagesList[0],
+    foto_uri: finalImagesList[0] || "",
     preco_venda: price,
     precoVista: precoVistaVal,
     preco_vista: precoVistaVal,
@@ -892,6 +914,13 @@ export const sanitizeProductForFirestore = (
     preco_cartao: precoCartaoVal,
     saldo_loja: stock,
   };
+
+  const isPlaceholderUrl = (u: any) => !u || typeof u !== 'string' || u.includes('unsplash.com') || u.includes('placeholder');
+  const validPhotosCount = finalImagesList.filter(u => !isPlaceholderUrl(u)).length;
+  const hasColorPhotos = product.colorImages && typeof product.colorImages === 'object' && Object.values(product.colorImages).flat().some(u => !isPlaceholderUrl(u));
+  const hasMedia = validPhotosCount > 0 || Boolean(hasColorPhotos);
+  cleanPayload.hasMedia = hasMedia;
+  cleanPayload.hasCustomData = hasMedia || Boolean(product.description && product.description !== name);
 
   const refVal = extractReferenciaMoblink(product);
   if (refVal) {

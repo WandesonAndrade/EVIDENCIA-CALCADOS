@@ -14,6 +14,10 @@ import { getProdutosMoblink, extractPrecoTabelaMoblink, extractPrecoVistaMoblink
 import { moblinkCategoriesService, normalizeCategoryName } from '../services/moblinkCategoriesService';
 import { cleanUndefinedProperties } from '../utils/cleanObject';
 import { API_ENDPOINTS } from '../services/api';
+import { syncProductMediaToSupabase, fetchProductMediaFromSupabase, fetchSupabaseStoragePhotosMap, autoLinkSupabasePhotosToFirestore } from '../services/supabaseStorageService';
+import { NO_PHOTO_SVG } from '../utils/placeholder';
+import { getCachedCatalog, setCachedCatalog, mergeStockIntoCachedProducts } from '../services/catalogCacheService';
+import { fetchLiveStockMapFromMoblink, fetchDirectProductStockAndGrade } from '../services/moblinkStockDirectService';
 
 
 interface AppContextProps {
@@ -228,7 +232,7 @@ const saveLocalCategories = (updatedCategories: Category[]) => {
 
 // Local fallback helpers - salva e carrega todo o catálogo para abertura instantânea (0ms)
 const getLocalProducts = (): Product[] => {
-  const saved = localStorage.getItem('evidencia_local_products');
+  const saved = localStorage.getItem('evidencia_local_products') || localStorage.getItem('evidencia_firestore_products_backup');
   if (saved) {
     try {
       const parsed: Product[] = JSON.parse(saved);
@@ -243,7 +247,44 @@ const getLocalProducts = (): Product[] => {
 const saveLocalProducts = (updatedProducts: Product[]) => {
   if (Array.isArray(updatedProducts) && updatedProducts.length > 0) {
     try {
-      localStorage.setItem('evidencia_local_products', JSON.stringify(updatedProducts));
+      const isPlaceholder = (url?: string | null) => !url || url.includes('unsplash.com') || url.includes('placeholder');
+      const existingStr = localStorage.getItem('evidencia_firestore_products_backup') || localStorage.getItem('evidencia_local_products');
+      let existingList: Product[] = [];
+      if (existingStr) {
+        try { existingList = JSON.parse(existingStr); } catch {}
+      }
+      const existingMap = new Map<string, Product>();
+      if (Array.isArray(existingList)) {
+        existingList.forEach(p => { if (p.id) existingMap.set(String(p.id), p); });
+      }
+
+      // Preserva fotos de produtos anteriores se a nova sincronização vier sem foto
+      const mergedToSave = updatedProducts.map(p => {
+        const id = String(p.id);
+        const old = existingMap.get(id);
+        if (old) {
+          const oldPhotos = (old.images || []).filter(u => u && !isPlaceholder(u));
+          const currentPhotos = (p.images || []).filter(u => u && !isPlaceholder(u));
+          
+          const oldColorImages = old.colorImages;
+          const oldColorImageMap = old.colorImageMap;
+
+          if (currentPhotos.length === 0 && oldPhotos.length > 0) {
+            return {
+              ...p,
+              images: oldPhotos,
+              imageUrl: old.imageUrl || old.foto_uri || oldPhotos[0],
+              foto_uri: old.foto_uri || old.imageUrl || oldPhotos[0],
+              colorImages: (p.colorImages && Object.keys(p.colorImages).length > 0) ? p.colorImages : oldColorImages,
+              colorImageMap: (p.colorImageMap && Object.keys(p.colorImageMap).length > 0) ? p.colorImageMap : oldColorImageMap,
+            };
+          }
+        }
+        return p;
+      });
+
+      localStorage.setItem('evidencia_local_products', JSON.stringify(mergedToSave));
+      localStorage.setItem('evidencia_firestore_products_backup', JSON.stringify(mergedToSave));
     } catch (e) {
       console.warn("Failed to save local products to cache:", e);
     }
@@ -882,9 +923,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Crossing helper: merges real-time Moblink API data (name, price, stock, sku)
   // with local database enriched fields (photos/images, rich description, custom categories) matched by ID.
-  const mergeMoblinkWithLocalDb = (moblinkRawList: any[], dbProducts: Product[]): Product[] => {
+  const mergeMoblinkWithLocalDb = (moblinkRawList: any[], dbProducts: Product[], supabasePhotoMap?: Map<string, string[]>): Product[] => {
+    let effectiveDbProducts = dbProducts;
+    if ((!effectiveDbProducts || effectiveDbProducts.length === 0) && typeof window !== 'undefined') {
+      const backupStr = localStorage.getItem('evidencia_firestore_products_backup') || localStorage.getItem('evidencia_local_products');
+      if (backupStr) {
+        try {
+          const parsed = JSON.parse(backupStr);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            effectiveDbProducts = parsed;
+          }
+        } catch {}
+      }
+    }
+
     const dbMap = new Map<string, Product>();
-    dbProducts.forEach(p => {
+    effectiveDbProducts.forEach(p => {
       if (p.id) dbMap.set(String(p.id), p);
       if (p.moblinkId) dbMap.set(String(p.moblinkId), p);
     });
@@ -938,19 +992,46 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       // 2. PRESERVE ENRICHED MEDIA & DESCRIPTION FROM LOCAL DATABASE (FIREBASE) / LOJISTA
       // REGRA ABSOLUTA: Fotos dos produtos vêm EXCLUSIVAMENTE de URLs salvas no Firebase Firestore
+      const isPlaceholder = (url: string) => !url || url.includes('unsplash.com') || url.includes('placeholder');
       let combinedImages: string[] = [];
-      if (dbRecord?.images && Array.isArray(dbRecord.images) && dbRecord.images.length > 0) {
-        combinedImages = dbRecord.images.filter(Boolean);
-      } else if (dbRecord?.foto_uri && typeof dbRecord.foto_uri === 'string' && dbRecord.foto_uri.trim() !== '') {
-        combinedImages = [dbRecord.foto_uri.trim()];
-      } else if (dbRecord?.imageUrl && typeof dbRecord.imageUrl === 'string' && dbRecord.imageUrl.trim() !== '') {
-        combinedImages = [dbRecord.imageUrl.trim()];
-      } else {
-        combinedImages = [];
+
+      const addValidPhoto = (url: any) => {
+        if (url && typeof url === 'string' && url.trim() && !isPlaceholder(url)) {
+          const clean = url.trim();
+          if (!combinedImages.includes(clean)) combinedImages.push(clean);
+        }
+      };
+
+      if (dbRecord?.images && Array.isArray(dbRecord.images)) {
+        dbRecord.images.forEach(addValidPhoto);
       }
+      addValidPhoto(dbRecord?.foto_uri);
+      addValidPhoto(dbRecord?.imageUrl);
 
       const colorImageMap = dbRecord?.colorImageMap || (item as any)?.colorImageMap;
       const colorImages = dbRecord?.colorImages || (item as any)?.colorImages;
+
+      if (colorImages && typeof colorImages === 'object') {
+        Object.values(colorImages).forEach(urls => {
+          if (Array.isArray(urls)) {
+            urls.forEach(addValidPhoto);
+          }
+        });
+      }
+      if (colorImageMap && typeof colorImageMap === 'object') {
+        Object.values(colorImageMap).forEach(addValidPhoto);
+      }
+
+      // Adiciona fotos do Supabase Storage mapeadas por ID no nome do arquivo (ex: produto_1998_...)
+      if (supabasePhotoMap && supabasePhotoMap.size > 0) {
+        const cleanMobId = mobId.replace(/^MOB-/i, '');
+        const supabasePhotos = supabasePhotoMap.get(cleanMobId) || supabasePhotoMap.get(mobId) || supabasePhotoMap.get(`MOB-${cleanMobId}`);
+        if (Array.isArray(supabasePhotos)) {
+          supabasePhotos.forEach(addValidPhoto);
+        }
+      }
+
+      const primaryCoverUrl = combinedImages[0] || (dbRecord?.imageUrl && !isPlaceholder(dbRecord.imageUrl) ? dbRecord.imageUrl : '') || (dbRecord?.foto_uri && !isPlaceholder(dbRecord.foto_uri) ? dbRecord.foto_uri : '');
 
       // Adaptation for Complete Description (Preserva cadastro manual do lojista se existir)
       let adaptedFullDescription = '';
@@ -996,8 +1077,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // --------------------------------------------------------
         onSale: Boolean((liveOriginalPrice && liveOriginalPrice > livePrice) || dbRecord?.onSale),
         images: combinedImages, // Preserved from lojista
-        imageUrl: dbRecord?.imageUrl || dbRecord?.foto_uri || combinedImages[0] || '',
-        foto_uri: dbRecord?.foto_uri || dbRecord?.imageUrl || combinedImages[0] || '',
+        imageUrl: primaryCoverUrl,
+        foto_uri: primaryCoverUrl,
         colorImageMap,
         colorImages,
         description: adaptedFullDescription, // Preserved from lojista
@@ -1037,9 +1118,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const moblinkRawList = await getProdutosMoblink();
       if (!moblinkRawList || moblinkRawList.length === 0) return;
 
+      // Busca fotos salvas no Supabase Storage vinculadas pelo ID no nome do arquivo (ex: produto_1998_...)
+      const supabasePhotoMap = await fetchSupabaseStoragePhotosMap().catch(() => new Map());
+
       // Get current database products to merge
       const currentDbProducts = products.length > 0 ? products : getLocalProducts();
-      const crossedCatalog = mergeMoblinkWithLocalDb(moblinkRawList, currentDbProducts);
+      const crossedCatalog = mergeMoblinkWithLocalDb(moblinkRawList, currentDbProducts, supabasePhotoMap);
 
       // Incremental Sync: Salva no Firestore apenas os produtos com saldo > 0 que sofreram alterações reais
       const itemsToSync = filterProductsRequiringSync(currentDbProducts, moblinkRawList);
@@ -1067,23 +1151,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       setProducts(crossedCatalog);
       saveLocalProducts(crossedCatalog);
+      setCachedCatalog(crossedCatalog);
+      autoLinkSupabasePhotosToFirestore(crossedCatalog).catch(() => {});
     } catch (err) {
       console.warn("Auto-sync & crossing from Moblink API skipped:", err);
     }
   };
 
-  // Seed and listen to products in Firestore
+  // Carga ultra-rápida do Catálogo (Navegador Cache ➔ MobLink ERP Direto)
   useEffect(() => {
-    const initAndListen = async () => {
+    const initCatalog = async () => {
+      // 1. Tenta carregar catálogo estático (mídia/fotos/descrições) do Cache do Navegador
+      const cached = getCachedCatalog();
+      if (cached && cached.length > 0) {
+        setProducts(cached);
+        setIsLoadingProducts(false);
+        console.log(`⚡ [AppContext] Catálogo inicializado instantaneamente a partir do cache local (${cached.length} produtos). Zero leituras no Firebase.`);
+
+        // Busca o saldo de estoque atualizado 100% DIRETO da API do MobLink ERP em segundo plano
+        fetchLiveStockMapFromMoblink().then(liveStockMap => {
+          if (liveStockMap && liveStockMap.size > 0) {
+            setProducts(prev => mergeStockIntoCachedProducts(prev, liveStockMap));
+            console.log(`⚡ [AppContext] Saldo de estoque atualizado direto da API MobLink ERP para ${liveStockMap.size} referências.`);
+          }
+        }).catch(() => {});
+        return;
+      }
+
+      // 2. Primeiro acesso do cliente: carrega do Firestore e salva no cache do navegador
       try {
         await seedDatabaseIfNeeded();
       } catch (error) {
-        console.warn("Seeding skipped or failed. Using local storage products fallback:", error);
+        console.warn("Seeding de produtos falhou ou ignorado:", error);
       }
 
-      // Auto-sincronização imediata da vitrine ao iniciar/recarregar a página
       syncProductsFromMoblinkApi().catch(err => {
-        console.warn("Auto-sincronização da vitrine ao iniciar:", err);
+        console.warn("Auto-sincronização inicial do MobLink:", err);
       });
 
       const unsubscribe = onSnapshot(collection(db, 'products'), (snapshot) => {
@@ -1092,7 +1195,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const data = doc.data() as Product;
           const prod = { id: doc.id, ...data };
 
-          // Enriquece e sanitiza campos de categoria se estiverem ausentes ou genéricos ("Geral")
           const catInfo = extractClassificacaoCategoria(prod);
           if (!prod.category || prod.category.toUpperCase() === 'GERAL') {
             prod.category = catInfo.category || 'Calçados';
@@ -1108,14 +1210,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
           prodList.push(prod);
         });
-        
-        // Populate state directly with products from Firestore database
+
         setProducts(prodList);
         saveLocalProducts(prodList);
+        setCachedCatalog(prodList);
         setIsLoadingProducts(false);
       }, (error) => {
-        console.warn("Firestore collection products listening failed, operating with local fallback catalog:", error.message);
-        setProducts(getLocalProducts());
+        console.warn("Snapshot do Firestore indisponível. Usando fallback local:", error.message);
+        const fallback = getLocalProducts();
+        setProducts(fallback);
         setIsLoadingProducts(false);
       });
 
@@ -1123,7 +1226,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     let unsub: any;
-    initAndListen().then(u => { unsub = u; });
+    initCatalog().then(u => { unsub = u; });
     return () => { if (unsub) unsub(); };
   }, []);
 
@@ -1664,7 +1767,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       price: item.product.price,
       quantity: item.quantity,
       selectedSize: item.selectedSize,
-      image: item.product.images?.[0] || item.product.foto_uri || 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?q=80&w=600&auto=format&fit=crop'
+      image: item.product.images?.[0] || item.product.foto_uri || NO_PHOTO_SVG
     }));
 
     const paymentMethodStr = (paymentMethod === 'Cartão de Crédito' && installments > 1)
@@ -1869,13 +1972,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const stock = product.stock ?? product.saldo_loja ?? 0;
     if (stock <= 0) return;
 
-    // Try Firestore
+    // Try Firestore & Supabase DB Sync
     try {
       const sanitized = sanitizeProductForFirestore(product);
       await setDoc(doc(db, 'products', product.id), sanitized);
     } catch (error) {
       console.warn("Firestore failed to add product. Cached locally:", error);
     }
+    syncProductMediaToSupabase(product).catch(() => {});
   };
 
   const deleteProduct = async (productId: string) => {
@@ -1894,13 +1998,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateProduct = async (productId: string, updatedFields: Partial<Product>) => {
     const existing = products.find(p => p.id === productId);
+    const merged = { ...(existing || {}), ...updatedFields } as Product;
+
     // Update state & local storage
-    const updated = products.map(p => p.id === productId ? { ...p, ...updatedFields } : p);
+    const updated = products.map(p => p.id === productId ? merged : p);
     setProducts(updated);
     saveLocalProducts(updated);
 
+    syncProductMediaToSupabase(merged).catch(() => {});
+
     // Se o produto já existe e não sofreu alteração real em seus campos, pula gravação no Firestore
-    if (existing && !hasProductChanged(existing, { ...existing, ...updatedFields })) {
+    if (existing && !hasProductChanged(existing, merged)) {
       return;
     }
 

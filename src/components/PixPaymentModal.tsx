@@ -16,11 +16,11 @@ interface PixPaymentModalProps {
   externalReference?: string;
   idVenda?: string;
   idParcela?: string;
-  onPaymentSuccess?: (paymentId: number) => void;
+  onPaymentSuccess?: (paymentId: number | string) => void;
 }
 
 interface PixData {
-  payment_id: number;
+  payment_id: number | string;
   qr_code: string;
   qr_code_base64: string | null;
   expires_at?: number;
@@ -70,7 +70,7 @@ export const PixPaymentModal: React.FC<PixPaymentModalProps> = ({
   }, []);
 
   // Poll payment status
-  const startPolling = useCallback((paymentId: number) => {
+  const startPolling = useCallback((paymentId: number | string) => {
     stopPolling();
 
     const checkStatus = async () => {

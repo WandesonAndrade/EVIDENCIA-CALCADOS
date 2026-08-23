@@ -4,11 +4,16 @@ import {
 } from 'firebase/firestore';
 import { getParcelId, MoblinkContaReceber } from './moblinkClientesService';
 
+function isQuotaError(err: any): boolean {
+  const msg = err?.message || String(err || '');
+  return msg.includes('Quota limit exceeded') || msg.includes('resource-exhausted') || msg.includes('quota');
+}
+
 export interface PixTransacaoFirestore {
   id?: string;
   docId: string;
   parcelKey: string;
-  payment_id: number;
+  payment_id: number | string;
   qr_code: string;
   qr_code_base64: string | null;
   transaction_amount: number;
@@ -137,7 +142,9 @@ export const pixFirestoreService = {
       await setDoc(docRef, payload, { merge: true });
       console.log(`[Firestore pix_transacoes] Documento '${docId}' salvo com sucesso na coleção pix_transacoes.`);
     } catch (err: any) {
-      console.warn(`[Firestore pix_transacoes Warn] Falha ao salvar no Firestore (verifique regras de permissão):`, err?.message || err);
+      if (!isQuotaError(err)) {
+        console.warn(`[Firestore pix_transacoes Warn] Falha ao salvar no Firestore:`, err?.message || err);
+      }
     }
     return docId;
   },
@@ -155,7 +162,9 @@ export const pixFirestoreService = {
         return snap.data() as PixTransacaoFirestore;
       }
     } catch (err) {
-      console.warn(`[Firestore pix_transacoes Warn] Erro ao consultar documento:`, err);
+      if (!isQuotaError(err)) {
+        console.warn(`[Firestore pix_transacoes Warn] Erro ao consultar documento:`, err);
+      }
     }
     return null;
   },
@@ -169,7 +178,9 @@ export const pixFirestoreService = {
       const snap = await getDocs(colRef);
       return snap.docs.map(d => ({ ...d.data(), id: d.id }) as PixTransacaoFirestore);
     } catch (err) {
-      console.warn(`[Firestore pix_transacoes Warn] Erro ao listar coleção:`, err);
+      if (!isQuotaError(err)) {
+        console.warn(`[Firestore pix_transacoes Warn] Erro ao listar coleção:`, err);
+      }
       return [];
     }
   },

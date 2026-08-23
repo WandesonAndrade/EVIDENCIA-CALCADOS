@@ -13,6 +13,12 @@ export default defineConfig(() => {
     },
     server: {
       proxy: {
+        "/mp-api": {
+          target: "https://api.mercadopago.com/v1",
+          changeOrigin: true,
+          secure: false,
+          rewrite: (path) => path.replace(/^\/mp-api/, ""),
+        },
         "/api": {
           target: "https://api.evidenciacalcados.com.br/api/v1/",
           changeOrigin: true,

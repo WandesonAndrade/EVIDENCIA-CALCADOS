@@ -22,7 +22,8 @@ import { moblinkCategoriesService, normalizeCategoryName, normalizeSubcategoryNa
 import { getProdutoGradesFromApi } from '../services/moblinkGradesService';
 import { db } from '../lib/firebase';
 import { doc, setDoc } from 'firebase/firestore';
-import { uploadImageToSupabase, isSupabaseConfigured, deleteImageFromSupabase, auditSupabaseVsFirebasePhotos, PhotoAuditReport, SupabaseAuditItem } from '../services/supabaseStorageService';
+import { uploadImageToSupabase, isSupabaseConfigured, deleteImageFromSupabase, auditSupabaseVsFirebasePhotos, PhotoAuditReport, SupabaseAuditItem, syncProductMediaToSupabase, autoLinkSupabasePhotosToFirestore } from '../services/supabaseStorageService';
+import { NO_PHOTO_SVG } from '../utils/placeholder';
 import { 
   Package, 
   Search, 
@@ -155,6 +156,54 @@ interface MoblinkRawProduct {
   color?: string;
 }
 
+const isPlaceholderUrl = (url?: string | null): boolean => {
+  if (!url || typeof url !== 'string') return true;
+  const clean = url.trim().toLowerCase();
+  return !clean || clean.includes('unsplash.com') || clean.includes('placeholder');
+};
+
+const extractBestRealPhoto = (prod: any): string => {
+  if (!prod) return '';
+
+  if (Array.isArray(prod.images)) {
+    for (const img of prod.images) {
+      if (img && typeof img === 'string' && !isPlaceholderUrl(img)) {
+        return img.trim();
+      }
+    }
+  }
+
+  if (prod.imageUrl && typeof prod.imageUrl === 'string' && !isPlaceholderUrl(prod.imageUrl)) {
+    return prod.imageUrl.trim();
+  }
+
+  if (prod.colorImages && typeof prod.colorImages === 'object') {
+    for (const urls of Object.values(prod.colorImages)) {
+      if (Array.isArray(urls)) {
+        for (const u of urls) {
+          if (u && typeof u === 'string' && !isPlaceholderUrl(u as string)) {
+            return (u as string).trim();
+          }
+        }
+      }
+    }
+  }
+
+  if (prod.colorImageMap && typeof prod.colorImageMap === 'object') {
+    for (const u of Object.values(prod.colorImageMap)) {
+      if (u && typeof u === 'string' && !isPlaceholderUrl(u as string)) {
+        return (u as string).trim();
+      }
+    }
+  }
+
+  if (prod.foto_uri && typeof prod.foto_uri === 'string' && !isPlaceholderUrl(prod.foto_uri)) {
+    return prod.foto_uri.trim();
+  }
+
+  return '';
+};
+
 export const MoblinkProductsManager: React.FC = () => {
   const { products, addProduct, updateProduct, deleteProduct, categories, theme } = useApp();
 
@@ -193,7 +242,7 @@ export const MoblinkProductsManager: React.FC = () => {
         nome_subgrupo: dbProd?.nome_subgrupo || (dbProd as any)?.subcategory,
         category: dbProd?.category || 'Geral',
         tamanhos: Array.isArray(dbProd?.sizes) ? dbProd.sizes : [],
-        foto_uri: Array.isArray(dbProd?.images) && dbProd.images.length > 0 ? dbProd.images[0] : ((dbProd as any)?.foto_uri || ''),
+        foto_uri: extractBestRealPhoto(dbProd),
         modelCode: dbProd?.modelCode || dbProd?.referenceCode,
         referenceCode: dbProd?.referenceCode || dbProd?.modelCode,
         cor: (dbProd as any)?.cor || dbProd?.color,
@@ -220,6 +269,7 @@ export const MoblinkProductsManager: React.FC = () => {
   const [hideOutOfStock, setHideOutOfStock] = useState(false);
   const [hideNoGrade, setHideNoGrade] = useState(false);
   const [gradeFilter, setGradeFilter] = useState<'todos' | 'com_grade' | 'sem_grade'>('todos');
+  const [photoFilter, setPhotoFilter] = useState<'todos' | 'com_foto' | 'sem_foto'>('todos');
   const [sortBy, setSortBy] = useState<'nameSku' | 'refMoblink' | 'stockAsc' | 'stockDesc'>('nameSku');
   const [fetchError, setFetchError] = useState<string | null>(null);
 
@@ -276,6 +326,26 @@ export const MoblinkProductsManager: React.FC = () => {
       });
     } finally {
       setIsAuditingPhotos(false);
+    }
+  };
+
+  const [isLinkingSupabase, setIsLinkingSupabase] = useState(false);
+
+  const handleAutoLinkSupabasePhotos = async () => {
+    setIsLinkingSupabase(true);
+    try {
+      const { updatedCount } = await autoLinkSupabasePhotosToFirestore(products);
+      setFeedback({
+        success: true,
+        message: `🎉 Vinculação concluída! ${updatedCount} produto(s) tiveram suas fotos do Supabase salvas e atreladas por ID.`,
+      });
+    } catch (err: any) {
+      setFeedback({
+        success: false,
+        message: `Erro ao vincular fotos do Supabase: ${err.message || 'Falha na varredura.'}`,
+      });
+    } finally {
+      setIsLinkingSupabase(false);
     }
   };
 
@@ -417,7 +487,7 @@ export const MoblinkProductsManager: React.FC = () => {
           nome_subgrupo: dbProd?.nome_subgrupo || (dbProd as any)?.subcategory,
           category: dbProd?.category || 'Geral',
           tamanhos: Array.isArray(dbProd?.sizes) ? dbProd.sizes : [],
-          foto_uri: Array.isArray(dbProd?.images) && dbProd.images.length > 0 ? dbProd.images[0] : ((dbProd as any)?.foto_uri || ''),
+          foto_uri: extractBestRealPhoto(dbProd),
           modelCode: dbProd?.modelCode || dbProd?.referenceCode,
           referenceCode: dbProd?.referenceCode || dbProd?.modelCode,
           cor: (dbProd as any)?.cor || dbProd?.color,
@@ -842,6 +912,26 @@ export const MoblinkProductsManager: React.FC = () => {
         const cleanUrl = existing.imageUrl.trim();
         if (!existingDbImages.includes(cleanUrl)) existingDbImages.push(cleanUrl);
       }
+      if (existing.colorImages && typeof existing.colorImages === 'object') {
+        Object.values(existing.colorImages).forEach(urls => {
+          if (Array.isArray(urls)) {
+            urls.forEach(u => {
+              if (u && typeof u === 'string' && u.trim() && !isPlaceholder(u)) {
+                const cleanUrl = u.trim();
+                if (!existingDbImages.includes(cleanUrl)) existingDbImages.push(cleanUrl);
+              }
+            });
+          }
+        });
+      }
+      if (existing.colorImageMap && typeof existing.colorImageMap === 'object') {
+        Object.values(existing.colorImageMap).forEach(u => {
+          if (u && typeof u === 'string' && u.trim() && !isPlaceholder(u)) {
+            const cleanUrl = String(u).trim();
+            if (!existingDbImages.includes(cleanUrl)) existingDbImages.push(cleanUrl);
+          }
+        });
+      }
     }
 
     if (existingDbImages.length > 0) {
@@ -1133,7 +1223,27 @@ export const MoblinkProductsManager: React.FC = () => {
     const productStock = extractSaldoLojaMoblink(selectedProduct);
     const categoryName = normalizeCategoryName(selectedProduct.nome_grupo || selectedProduct.categoria || selectedProduct.category || 'Geral');
 
-    const finalImages = images.filter(img => img && typeof img === 'string' && img.trim() !== '');
+    const isPlaceholder = (url: string) => !url || url.includes('unsplash.com') || url.includes('placeholder');
+    const finalImages = images.filter(img => img && typeof img === 'string' && img.trim() !== '' && !isPlaceholder(img));
+
+    // Garante que qualquer foto anexada a uma cor também seja incluída em finalImages
+    Object.values(editColorImages).forEach(urls => {
+      if (Array.isArray(urls)) {
+        urls.forEach(u => {
+          if (u && typeof u === 'string' && u.trim() && !isPlaceholder(u)) {
+            const cleanUrl = u.trim();
+            if (!finalImages.includes(cleanUrl)) finalImages.push(cleanUrl);
+          }
+        });
+      }
+    });
+
+    Object.values(editColorImageMap).forEach(u => {
+      if (u && typeof u === 'string' && u.trim() && !isPlaceholder(u)) {
+        const cleanUrl = String(u).trim();
+        if (!finalImages.includes(cleanUrl)) finalImages.push(cleanUrl);
+      }
+    });
 
     const refCode = selectedProduct.referencia || selectedProduct.referenceCode || selectedProduct.modelCode || undefined;
     const activeSizes = selectedProductGrade?.tamanhos || (selectedProduct.tamanhos as any) || [];
@@ -1143,12 +1253,14 @@ export const MoblinkProductsManager: React.FC = () => {
     const finalColorImageMap: Record<string, string> = {};
 
     Object.entries(editColorImages).forEach(([color, urls]) => {
-      const validUrls = (urls || []).filter(u => u && finalImages.includes(u));
+      const validUrls = (urls || []).filter(u => u && typeof u === 'string' && u.trim() && !isPlaceholder(u));
       if (validUrls.length > 0) {
         finalColorImages[color] = validUrls;
         finalColorImageMap[color] = validUrls[0];
       }
     });
+
+    const primaryCoverUrl = finalImages[0] || '';
 
     const updatedProductPayload: Product = {
       id: mobId,
@@ -1175,6 +1287,8 @@ export const MoblinkProductsManager: React.FC = () => {
       nome_grupo: selectedProduct.nome_grupo,
       nome_subgrupo: selectedProduct.nome_subgrupo,
       images: finalImages,
+      imageUrl: primaryCoverUrl,
+      foto_uri: primaryCoverUrl,
       sizes: activeSizes,
       crediarioProprio: true,
       visible: productStock <= 0 ? false : editVisible,
@@ -1211,6 +1325,8 @@ export const MoblinkProductsManager: React.FC = () => {
       } else if (productStock > 0) {
         await addProduct(updatedProductPayload);
       }
+
+      syncProductMediaToSupabase(updatedProductPayload).catch(() => {});
 
       // Atualiza também a lista local do MobLink no estado para refletir instantaneamente
       setMoblinkList(prev => prev.map(item => {
@@ -1686,7 +1802,18 @@ export const MoblinkProductsManager: React.FC = () => {
         matchesClassificacao = matchesGrupo && matchesSubgrupo;
       }
 
-      return matchesSearch && matchesCategory && matchesSubcategory && matchesBaseName && matchesSync && matchesClassificacao;
+      // Filtro Seletivo de Fotos (Com Foto vs Sem Foto)
+      let matchesPhoto = true;
+      const photoUrl = extractBestRealPhoto(item) || extractBestRealPhoto(existingDb);
+      const hasRealPhoto = Boolean(photoUrl && !isPlaceholderUrl(photoUrl));
+
+      if (photoFilter === 'com_foto') {
+        matchesPhoto = hasRealPhoto;
+      } else if (photoFilter === 'sem_foto') {
+        matchesPhoto = !hasRealPhoto;
+      }
+
+      return matchesSearch && matchesCategory && matchesSubcategory && matchesBaseName && matchesSync && matchesClassificacao && matchesPhoto;
     });
 
     // Ordenação dinâmica da lista individual
@@ -1715,7 +1842,7 @@ export const MoblinkProductsManager: React.FC = () => {
     });
 
     return filtered;
-  }, [combinedCatalog, searchQuery, categoryFilter, subcategoryFilter, classificacaoGrupoFilter, classificacaoSubgrupoFilter, baseNameFilter, syncFilter, hideOutOfStock, hideNoGrade, gradeFilter, sortBy, dbProductsMap]);
+  }, [combinedCatalog, searchQuery, categoryFilter, subcategoryFilter, classificacaoGrupoFilter, classificacaoSubgrupoFilter, baseNameFilter, syncFilter, photoFilter, hideOutOfStock, hideNoGrade, gradeFilter, sortBy, dbProductsMap]);
 
   // Taxonomia oficial lida diretamente da coleção 'categories' do Firebase Firestore
   const storeCategoryTree = useMemo(() => {
@@ -1965,6 +2092,16 @@ export const MoblinkProductsManager: React.FC = () => {
             >
               <ImageIcon className={`h-4 w-4 text-purple-200 ${isAuditingPhotos ? 'animate-spin' : ''}`} />
               <span>{isAuditingPhotos ? 'Auditando Fotos...' : '🔒 Auditoria de Fotos (Supabase x Firebase)'}</span>
+            </button>
+
+            <button
+              onClick={handleAutoLinkSupabasePhotos}
+              disabled={isLinkingSupabase}
+              className="px-5 py-3 bg-amber-600 hover:bg-amber-700 text-white font-extrabold rounded-2xl text-xs transition-all flex items-center gap-2 cursor-pointer shadow-md active:scale-95 disabled:opacity-50 shadow-amber-500/20"
+              title="Vincular fotos do Supabase Storage aos produtos pelo ID (ex: produto_1998_...)"
+            >
+              <Zap className={`h-4 w-4 text-amber-200 ${isLinkingSupabase ? 'animate-spin' : ''}`} />
+              <span>{isLinkingSupabase ? 'Vinculando Fotos...' : '📸 Vincular Fotos Supabase por ID'}</span>
             </button>
           </div>
         </div>
@@ -2216,6 +2353,21 @@ export const MoblinkProductsManager: React.FC = () => {
               <option value="todos">Todas (Com &amp; Sem Grade)</option>
               <option value="com_grade">✓ Apenas Com Grade (Disponível p/ Venda)</option>
               <option value="sem_grade">⚠️ Apenas Sem Grade (Indisponível)</option>
+            </select>
+          </div>
+
+          {/* FILTRO SELETIVO DE FOTOS */}
+          <div className="flex items-center space-x-1.5">
+            <ImageIcon className="h-3.5 w-3.5 text-purple-500 shrink-0" />
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider shrink-0">Fotos:</span>
+            <select
+              value={photoFilter}
+              onChange={(e) => setPhotoFilter(e.target.value as any)}
+              className="px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50/80 dark:bg-slate-800/90 text-slate-800 dark:text-purple-400 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all cursor-pointer"
+            >
+              <option value="todos">Todos (Com &amp; Sem Foto)</option>
+              <option value="com_foto">📸 Apenas Com Foto</option>
+              <option value="sem_foto">🚫 Apenas Sem Foto</option>
             </select>
           </div>
 
@@ -3561,7 +3713,7 @@ export const MoblinkProductsManager: React.FC = () => {
                         src={item.publicUrl}
                         alt={item.name}
                         className="w-12 h-12 rounded-xl object-cover border border-slate-700/40 shrink-0 bg-slate-100"
-                        onError={(e) => { (e.target as any).src = 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=100'; }}
+                        onError={(e) => { (e.target as any).src = NO_PHOTO_SVG; }}
                       />
                       <div className="min-w-0">
                         <div className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">

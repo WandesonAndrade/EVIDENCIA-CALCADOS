@@ -284,7 +284,7 @@ export const CheckoutConfirmationModal: React.FC<CheckoutConfirmationModalProps>
     };
   });
 
-  const executeConfirmOrder = (pixPaymentId?: number) => {
+  const executeConfirmOrder = (pixPaymentId?: number | string) => {
     const selectedInstallments = paymentMethod === 'Cartão de Crédito' 
       ? installments 
       : (paymentMethod === 'Crediário da Loja' ? crediarioInstallments : 1);

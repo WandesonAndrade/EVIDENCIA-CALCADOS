@@ -73,4 +73,71 @@ export async function seedDatabaseIfNeeded() {
   }
 }
 
+/**
+ * Varre e limpa do Firestore qualquer URL remanescente do Unsplash ou foto fictícia de teste
+ */
+export async function cleanFirestoreUnsplashUrls() {
+  try {
+    const productsCollectionRef = collection(db, 'products');
+    const snapshot = await getDocs(productsCollectionRef);
+    const isUnsplash = (url: any) => typeof url === 'string' && (url.includes('unsplash.com') || url.includes('placeholder'));
+
+    snapshot.forEach(async (docSnap) => {
+      const data = docSnap.data();
+      let needsUpdate = false;
+      const updates: Record<string, any> = {};
+
+      if (Array.isArray(data.images)) {
+        const cleanedImages = data.images.filter((img: any) => !isUnsplash(img));
+        if (cleanedImages.length !== data.images.length) {
+          updates.images = cleanedImages;
+          needsUpdate = true;
+        }
+      }
+
+      if (isUnsplash(data.imageUrl)) {
+        updates.imageUrl = "";
+        needsUpdate = true;
+      }
+
+      if (isUnsplash(data.foto_uri)) {
+        updates.foto_uri = "";
+        needsUpdate = true;
+      }
+
+      if (needsUpdate) {
+        await setDoc(docSnap.ref, updates, { merge: true });
+        console.log(`[Firebase Cleanup] Removidas URLs Unsplash do produto ${docSnap.id}`);
+      }
+    });
+
+    // Limpa também o cache local do navegador
+    if (typeof localStorage !== 'undefined') {
+      ['evidencia_local_products', 'evidencia_firestore_products_backup'].forEach(key => {
+        const raw = localStorage.getItem(key);
+        if (raw) {
+          try {
+            const list = JSON.parse(raw);
+            if (Array.isArray(list)) {
+              const cleaned = list.map((p: any) => {
+                const cleanImgs = Array.isArray(p.images) ? p.images.filter((i: any) => !isUnsplash(i)) : [];
+                return {
+                  ...p,
+                  images: cleanImgs,
+                  imageUrl: isUnsplash(p.imageUrl) ? (cleanImgs[0] || '') : (p.imageUrl || ''),
+                  foto_uri: isUnsplash(p.foto_uri) ? (cleanImgs[0] || '') : (p.foto_uri || ''),
+                };
+              });
+              localStorage.setItem(key, JSON.stringify(cleaned));
+            }
+          } catch {}
+        }
+      });
+    }
+  } catch (err) {
+    console.warn("Firestore Unsplash cleanup skipped:", err);
+  }
+}
+
 seedDatabaseIfNeeded();
+cleanFirestoreUnsplashUrls();
