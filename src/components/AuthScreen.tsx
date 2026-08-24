@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { User, Shield, Lock, Phone, UserCheck, Eye, EyeOff, ChevronRight, ShoppingBag, LogOut } from 'lucide-react';
+import { User, Shield, Lock, Phone, UserCheck, Eye, EyeOff, ChevronRight, ShoppingBag, LogOut, Sparkles } from 'lucide-react';
 import { BrandLogo } from './BrandLogo';
 import { UserProfile } from '../types';
+import { FirstAccessModal } from './FirstAccessModal';
 
 interface AuthScreenProps {
   mode?: 'customer' | 'admin';
@@ -40,6 +41,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
   const [confirmarSenha, setConfirmarSenha] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isFirstAccessOpen, setIsFirstAccessOpen] = useState(false);
 
   const [errorMessage, setErrorMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -513,6 +515,18 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
           <span>Conectar rapidamente com o Google</span>
         </button>
 
+        {/* BOTÃO PRIMEIRO ACESSO DA LOJA FÍSICA (MOBLINK ERP) */}
+        <div className="pt-2">
+          <button
+            type="button"
+            onClick={() => setIsFirstAccessOpen(true)}
+            className="w-full py-3 px-4 bg-[#0071E3]/10 hover:bg-[#0071E3]/20 text-[#0071E3] dark:text-blue-400 font-extrabold rounded-2xl text-xs border border-[#0071E3]/20 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xs active:scale-95"
+          >
+            <Sparkles className="h-4 w-4 text-[#0071E3] shrink-0" />
+            <span>Já compra na loja física? Ativar Primeiro Acesso</span>
+          </button>
+        </div>
+
         {/* Security & Support Info Footer */}
         <div className="pt-3 border-t border-slate-800/40 space-y-1.5 text-center text-xs">
           <p className={isDark ? 'text-slate-400' : 'text-slate-500'}>
@@ -531,6 +545,17 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
         </div>
 
       </div>
+
+      {/* MODAL PRIMEIRO ACESSO INTEIGENTE POR CPF */}
+      <FirstAccessModal
+        isOpen={isFirstAccessOpen}
+        onClose={() => setIsFirstAccessOpen(false)}
+        onSuccess={(user) => {
+          processPostAuth(user);
+        }}
+        initialCpf={cpf}
+        isDark={isDark}
+      />
     </div>
   );
 };

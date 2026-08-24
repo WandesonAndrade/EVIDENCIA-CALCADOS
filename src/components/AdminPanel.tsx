@@ -476,13 +476,10 @@ export const AdminPanel: React.FC = () => {
     try {
       setIsSyncingMoblinkClientes(true);
       setSyncMoblinkClientesProgress('Iniciando conexão com API do MobLink ERP...');
-      const result = await moblinkClientesService.syncClientesToFirestore((curr, tot, msg) => {
-        setSyncMoblinkClientesProgress(msg);
-      });
-      await fetchUsers();
+      const moblinkList = await moblinkClientesService.fetchMoblinkClientesDirect();
       addToast(
-        'Sincronização ERP Concluída!',
-        `${result.imported} novos clientes importados e ${result.updated} atualizados no banco de dados.`,
+        'Base de Clientes Carregada!',
+        `${moblinkList.length} clientes carregados em tempo real do MobLink ERP (0 gravações no Firebase).`,
         'success'
       );
     } catch (err: any) {

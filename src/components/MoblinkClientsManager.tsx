@@ -279,46 +279,47 @@ export const MoblinkClientsManager: React.FC<MoblinkClientsManagerProps> = ({ is
     }
   }, [groupedInvoices]);
 
-  // Load clients from Firestore
-  const loadClientsFromFirestore = async () => {
+  // Carrega clientes diretamente da API oficial do MobLink ERP em tempo real (0 leituras/escritas no Firebase)
+  const loadClientsFromMoblinkDirect = async () => {
     try {
       setIsLoading(true);
-      const snap = await getDocs(collection(db, 'users'));
-      const list: UserProfile[] = [];
-      snap.forEach(docSnap => {
-        list.push({ uid: docSnap.id, ...docSnap.data() } as UserProfile);
-      });
-
-      setClients(list);
+      const moblinkList = await moblinkClientesService.fetchMoblinkClientesDirect();
+      setClients(moblinkList);
     } catch (err) {
-      console.warn("Erro ao buscar clientes no Firestore:", err);
+      console.warn("Erro ao buscar clientes diretamente da API do MobLink ERP:", err);
+      // Fallback para Firestore se a API do MobLink estiver inacessível
+      try {
+        const snap = await getDocs(collection(db, 'users'));
+        const list: UserProfile[] = [];
+        snap.forEach(docSnap => {
+          list.push({ uid: docSnap.id, ...docSnap.data() } as UserProfile);
+        });
+        setClients(list);
+      } catch (_) {}
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    loadClientsFromFirestore();
+    loadClientsFromMoblinkDirect();
   }, []);
 
-  // Sync with MobLink ERP API
+  // Sincronização Direta do ERP MobLink (0 leituras/escritas no Firebase Firestore)
   const handleSyncERP = async () => {
     try {
       setIsSyncing(true);
-      setSyncProgressMessage('Conectando ao ERP MobLink...');
-      const res = await moblinkClientesService.syncClientesToFirestore((curr, total, msg) => {
-        setSyncProgressMessage(msg);
-      });
-      
-      await loadClientsFromFirestore();
+      setSyncProgressMessage('Consultando API do MobLink ERP em tempo real...');
+      const moblinkList = await moblinkClientesService.fetchMoblinkClientesDirect();
+      setClients(moblinkList);
       addToast(
         'Base de Clientes Atualizada!',
-        `${res.imported} novos clientes importados e ${res.updated} atualizados do ERP MobLink.`,
+        `${moblinkList.length} clientes carregados em tempo real da API MobLink ERP (0 leituras/escritas no Firebase).`,
         'success'
       );
     } catch (err: any) {
       console.error("Erro na sincronização de clientes:", err);
-      addToast('Erro ao Sincronizar', err.message || 'Falha ao conectar com o MobLink ERP.', 'error');
+      addToast('Erro ao Atualizar', err.message || 'Falha ao conectar com o MobLink ERP.', 'error');
     } finally {
       setIsSyncing(false);
       setSyncProgressMessage('');
