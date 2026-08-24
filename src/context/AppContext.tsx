@@ -15,7 +15,7 @@ import { moblinkCategoriesService, normalizeCategoryName } from '../services/mob
 import { cleanUndefinedProperties } from '../utils/cleanObject';
 import { API_ENDPOINTS } from '../services/api';
 import { syncProductMediaToSupabase, fetchProductMediaFromSupabase, fetchSupabaseStoragePhotosMap, autoLinkSupabasePhotosToFirestore } from '../services/supabaseStorageService';
-import { NO_PHOTO_SVG } from '../utils/placeholder';
+import { NO_PHOTO_SVG, isPlaceholderUrl } from '../utils/placeholder';
 import { getCachedCatalog, setCachedCatalog, mergeStockIntoCachedProducts } from '../services/catalogCacheService';
 import { fetchLiveStockMapFromMoblink, fetchDirectProductStockAndGrade } from '../services/moblinkStockDirectService';
 
@@ -247,7 +247,6 @@ const getLocalProducts = (): Product[] => {
 const saveLocalProducts = (updatedProducts: Product[]) => {
   if (Array.isArray(updatedProducts) && updatedProducts.length > 0) {
     try {
-      const isPlaceholder = (url?: string | null) => !url || url.includes('unsplash.com') || url.includes('placeholder');
       const existingStr = localStorage.getItem('evidencia_firestore_products_backup') || localStorage.getItem('evidencia_local_products');
       let existingList: Product[] = [];
       if (existingStr) {
@@ -258,23 +257,26 @@ const saveLocalProducts = (updatedProducts: Product[]) => {
         existingList.forEach(p => { if (p.id) existingMap.set(String(p.id), p); });
       }
 
-      // Preserva fotos de produtos anteriores se a nova sincronização vier sem foto
+      // Preserva fotos de produtos anteriores se a nova sincronização vier sem foto (mas apenas se forem fotos reais, NÃO placeholders)
       const mergedToSave = updatedProducts.map(p => {
         const id = String(p.id);
         const old = existingMap.get(id);
         if (old) {
-          const oldPhotos = (old.images || []).filter(u => u && !isPlaceholder(u));
-          const currentPhotos = (p.images || []).filter(u => u && !isPlaceholder(u));
+          const oldPhotos = (old.images || []).filter(u => u && !isPlaceholderUrl(u));
+          const currentPhotos = (p.images || []).filter(u => u && !isPlaceholderUrl(u));
           
           const oldColorImages = old.colorImages;
           const oldColorImageMap = old.colorImageMap;
 
           if (currentPhotos.length === 0 && oldPhotos.length > 0) {
+            const oldCover = (!isPlaceholderUrl(old.imageUrl) ? old.imageUrl : null) 
+              || (!isPlaceholderUrl(old.foto_uri) ? old.foto_uri : null) 
+              || oldPhotos[0];
             return {
               ...p,
               images: oldPhotos,
-              imageUrl: old.imageUrl || old.foto_uri || oldPhotos[0],
-              foto_uri: old.foto_uri || old.imageUrl || oldPhotos[0],
+              imageUrl: oldCover,
+              foto_uri: oldCover,
               colorImages: (p.colorImages && Object.keys(p.colorImages).length > 0) ? p.colorImages : oldColorImages,
               colorImageMap: (p.colorImageMap && Object.keys(p.colorImageMap).length > 0) ? p.colorImageMap : oldColorImageMap,
             };
@@ -824,7 +826,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 id: item.productId,
                 name: item.name,
                 price: item.price,
-                images: ['https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?q=80&w=600&auto=format&fit=crop'],
+                images: [],
                 sizes: [String(item.selectedSize)]
               } as Product,
               selectedSize: item.selectedSize,
@@ -991,12 +993,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const liveComplDescr = item.compl_descr || item.descr_compl || item.descricao_complementar || item.compl_descricao || dbRecord?.compl_descr || '';
 
       // 2. PRESERVE ENRICHED MEDIA & DESCRIPTION FROM LOCAL DATABASE (FIREBASE) / LOJISTA
-      // REGRA ABSOLUTA: Fotos dos produtos vêm EXCLUSIVAMENTE de URLs salvas no Firebase Firestore
-      const isPlaceholder = (url: string) => !url || url.includes('unsplash.com') || url.includes('placeholder');
+      // REGRA ABSOLUTA: Fotos dos produtos vêm de URLs salvas no Firestore ou mapeadas no Supabase
       let combinedImages: string[] = [];
 
       const addValidPhoto = (url: any) => {
-        if (url && typeof url === 'string' && url.trim() && !isPlaceholder(url)) {
+        if (url && typeof url === 'string' && url.trim() && !isPlaceholderUrl(url)) {
           const clean = url.trim();
           if (!combinedImages.includes(clean)) combinedImages.push(clean);
         }
@@ -1031,7 +1032,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       }
 
-      const primaryCoverUrl = combinedImages[0] || (dbRecord?.imageUrl && !isPlaceholder(dbRecord.imageUrl) ? dbRecord.imageUrl : '') || (dbRecord?.foto_uri && !isPlaceholder(dbRecord.foto_uri) ? dbRecord.foto_uri : '');
+      const primaryCoverUrl = combinedImages[0] || (dbRecord?.imageUrl && !isPlaceholderUrl(dbRecord.imageUrl) ? dbRecord.imageUrl : '') || (dbRecord?.foto_uri && !isPlaceholderUrl(dbRecord.foto_uri) ? dbRecord.foto_uri : '');
 
       // Adaptation for Complete Description (Preserva cadastro manual do lojista se existir)
       let adaptedFullDescription = '';
@@ -1158,37 +1159,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  // Carga ultra-rápida do Catálogo (Navegador Cache ➔ MobLink ERP Direto)
+  // Carga ultra-rápida do Catálogo (Navegador Cache ➔ MobLink ERP Direto + Firestore em tempo real)
   useEffect(() => {
     const initCatalog = async () => {
-      // 1. Tenta carregar catálogo estático (mídia/fotos/descrições) do Cache do Navegador
+      // 1. Tenta carregar catálogo estático (mídia/fotos/descrições) do Cache do Navegador para abertura instantânea (0ms)
       const cached = getCachedCatalog();
       if (cached && cached.length > 0) {
         setProducts(cached);
         setIsLoadingProducts(false);
-        console.log(`⚡ [AppContext] Catálogo inicializado instantaneamente a partir do cache local (${cached.length} produtos). Zero leituras no Firebase.`);
+        console.log(`⚡ [AppContext] Catálogo inicializado instantaneamente a partir do cache local (${cached.length} produtos). Sincronizando fotos e estoque em segundo plano...`);
 
-        // Busca o saldo de estoque atualizado 100% DIRETO da API do MobLink ERP em segundo plano
-        fetchLiveStockMapFromMoblink().then(liveStockMap => {
-          if (liveStockMap && liveStockMap.size > 0) {
-            setProducts(prev => mergeStockIntoCachedProducts(prev, liveStockMap));
-            console.log(`⚡ [AppContext] Saldo de estoque atualizado direto da API MobLink ERP para ${liveStockMap.size} referências.`);
-          }
-        }).catch(() => {});
-        return;
+        // Dispara sincronização em segundo plano (MobLink ERP + Fotos do Supabase Storage) sem travar a interface
+        syncProductsFromMoblinkApi().catch(err => {
+          console.warn("[AppContext] Sincronização em background do MobLink/Supabase:", err);
+        });
+      } else {
+        // Primeiro acesso do cliente: seeding e sync inicial
+        try {
+          await seedDatabaseIfNeeded();
+        } catch (error) {
+          console.warn("Seeding de produtos falhou ou ignorado:", error);
+        }
+
+        syncProductsFromMoblinkApi().catch(err => {
+          console.warn("Auto-sincronização inicial do MobLink:", err);
+        });
       }
 
-      // 2. Primeiro acesso do cliente: carrega do Firestore e salva no cache do navegador
-      try {
-        await seedDatabaseIfNeeded();
-      } catch (error) {
-        console.warn("Seeding de produtos falhou ou ignorado:", error);
-      }
-
-      syncProductsFromMoblinkApi().catch(err => {
-        console.warn("Auto-sincronização inicial do MobLink:", err);
-      });
-
+      // 2. Registra listener em tempo real do Firestore para receber links anexados e fotos salvas diretamente no banco
       const unsubscribe = onSnapshot(collection(db, 'products'), (snapshot) => {
         const prodList: Product[] = [];
         snapshot.forEach((doc) => {
@@ -1211,15 +1209,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           prodList.push(prod);
         });
 
-        setProducts(prodList);
-        saveLocalProducts(prodList);
-        setCachedCatalog(prodList);
+        if (prodList.length > 0) {
+          setProducts(prodList);
+          saveLocalProducts(prodList);
+          setCachedCatalog(prodList);
+        }
         setIsLoadingProducts(false);
       }, (error) => {
-        console.warn("Snapshot do Firestore indisponível. Usando fallback local:", error.message);
-        const fallback = getLocalProducts();
-        setProducts(fallback);
-        setIsLoadingProducts(false);
+        console.warn("Snapshot do Firestore indisponível:", error.message);
+        if (!cached || cached.length === 0) {
+          const fallback = getLocalProducts();
+          setProducts(fallback);
+          setIsLoadingProducts(false);
+        }
       });
 
       return unsubscribe;
@@ -2263,7 +2265,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
 
       const currentDbProducts = products.length > 0 ? products : getLocalProducts();
-      const crossedCatalog = mergeMoblinkWithLocalDb(moblinkRawList, currentDbProducts);
+      const supabasePhotoMap = await fetchSupabaseStoragePhotosMap().catch(() => new Map());
+      const crossedCatalog = mergeMoblinkWithLocalDb(moblinkRawList, currentDbProducts, supabasePhotoMap);
 
       // Save each crossed item into Firestore to keep database in sync (Sanitizado)
       for (const prod of crossedCatalog) {

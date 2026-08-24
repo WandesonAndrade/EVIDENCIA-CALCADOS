@@ -3,5 +3,6 @@ export const NO_PHOTO_SVG = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.o
 export const isPlaceholderUrl = (url?: string | null): boolean => {
   if (!url || typeof url !== 'string') return true;
   const clean = url.trim().toLowerCase();
-  return !clean || clean.includes('unsplash.com') || clean.includes('placeholder') || clean.startsWith('data:image/svg');
+  return !clean || clean.includes('unsplash.com') || clean.includes('placeholder') || clean.includes('via.placeholder') || clean.startsWith('data:image/svg');
 };
+

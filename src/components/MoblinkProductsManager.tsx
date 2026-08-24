@@ -23,7 +23,7 @@ import { getProdutoGradesFromApi } from '../services/moblinkGradesService';
 import { db } from '../lib/firebase';
 import { doc, setDoc } from 'firebase/firestore';
 import { uploadImageToSupabase, isSupabaseConfigured, deleteImageFromSupabase, auditSupabaseVsFirebasePhotos, PhotoAuditReport, SupabaseAuditItem, syncProductMediaToSupabase, autoLinkSupabasePhotosToFirestore } from '../services/supabaseStorageService';
-import { NO_PHOTO_SVG } from '../utils/placeholder';
+import { NO_PHOTO_SVG, isPlaceholderUrl } from '../utils/placeholder';
 import { 
   Package, 
   Search, 
@@ -155,12 +155,6 @@ interface MoblinkRawProduct {
   newArrival?: boolean;
   color?: string;
 }
-
-const isPlaceholderUrl = (url?: string | null): boolean => {
-  if (!url || typeof url !== 'string') return true;
-  const clean = url.trim().toLowerCase();
-  return !clean || clean.includes('unsplash.com') || clean.includes('placeholder');
-};
 
 const extractBestRealPhoto = (prod: any): string => {
   if (!prod) return '';
@@ -927,24 +921,22 @@ export const MoblinkProductsManager: React.FC = () => {
     setEditColorImageMap(initialColorMap as Record<string, string>);
     setEditColorImages(initialColorImages);
 
-    const isPlaceholder = (url: string) => !url || url.includes('unsplash.com') || url.includes('placeholder');
-    
     // Coleta TODAS as URLs válidas salvas no documento do Firebase (images[], foto_uri ou imageUrl)
     const existingDbImages: string[] = [];
     if (existing) {
       if (Array.isArray(existing.images)) {
         existing.images.forEach(img => {
-          if (img && typeof img === 'string' && img.trim() && !isPlaceholder(img)) {
+          if (img && typeof img === 'string' && img.trim() && !isPlaceholderUrl(img)) {
             const cleanUrl = img.trim();
             if (!existingDbImages.includes(cleanUrl)) existingDbImages.push(cleanUrl);
           }
         });
       }
-      if (existing.foto_uri && typeof existing.foto_uri === 'string' && existing.foto_uri.trim() && !isPlaceholder(existing.foto_uri)) {
+      if (existing.foto_uri && typeof existing.foto_uri === 'string' && existing.foto_uri.trim() && !isPlaceholderUrl(existing.foto_uri)) {
         const cleanUrl = existing.foto_uri.trim();
         if (!existingDbImages.includes(cleanUrl)) existingDbImages.push(cleanUrl);
       }
-      if (existing.imageUrl && typeof existing.imageUrl === 'string' && existing.imageUrl.trim() && !isPlaceholder(existing.imageUrl)) {
+      if (existing.imageUrl && typeof existing.imageUrl === 'string' && existing.imageUrl.trim() && !isPlaceholderUrl(existing.imageUrl)) {
         const cleanUrl = existing.imageUrl.trim();
         if (!existingDbImages.includes(cleanUrl)) existingDbImages.push(cleanUrl);
       }
@@ -952,7 +944,7 @@ export const MoblinkProductsManager: React.FC = () => {
         Object.values(existing.colorImages).forEach(urls => {
           if (Array.isArray(urls)) {
             urls.forEach(u => {
-              if (u && typeof u === 'string' && u.trim() && !isPlaceholder(u)) {
+              if (u && typeof u === 'string' && u.trim() && !isPlaceholderUrl(u)) {
                 const cleanUrl = u.trim();
                 if (!existingDbImages.includes(cleanUrl)) existingDbImages.push(cleanUrl);
               }
@@ -962,7 +954,7 @@ export const MoblinkProductsManager: React.FC = () => {
       }
       if (existing.colorImageMap && typeof existing.colorImageMap === 'object') {
         Object.values(existing.colorImageMap).forEach(u => {
-          if (u && typeof u === 'string' && u.trim() && !isPlaceholder(u)) {
+          if (u && typeof u === 'string' && u.trim() && !isPlaceholderUrl(u)) {
             const cleanUrl = String(u).trim();
             if (!existingDbImages.includes(cleanUrl)) existingDbImages.push(cleanUrl);
           }
@@ -1124,10 +1116,8 @@ export const MoblinkProductsManager: React.FC = () => {
   const syncImageUpdateToFirestore = async (rawImagesList: string[]) => {
     if (!selectedProduct) return rawImagesList;
 
-    const isPlaceholder = (url: string) => !url || url.includes('unsplash.com') || url.includes('placeholder') || url.includes('via.placeholder');
-    
     // Separa fotos reais de fotos modelos genéricas
-    const realPhotos = rawImagesList.filter(img => img && !isPlaceholder(img));
+    const realPhotos = rawImagesList.filter(img => img && !isPlaceholderUrl(img));
     
     // Se o usuário/ERP tiver fotos reais, exclui a foto padrão Unsplash
     const finalImagesList = realPhotos.length > 0 ? realPhotos : rawImagesList;
@@ -1259,14 +1249,13 @@ export const MoblinkProductsManager: React.FC = () => {
     const productStock = extractSaldoLojaMoblink(selectedProduct);
     const categoryName = normalizeCategoryName(selectedProduct.nome_grupo || selectedProduct.categoria || selectedProduct.category || 'Geral');
 
-    const isPlaceholder = (url: string) => !url || url.includes('unsplash.com') || url.includes('placeholder');
-    const finalImages = images.filter(img => img && typeof img === 'string' && img.trim() !== '' && !isPlaceholder(img));
+    const finalImages = images.filter(img => img && typeof img === 'string' && img.trim() !== '' && !isPlaceholderUrl(img));
 
     // Garante que qualquer foto anexada a uma cor também seja incluída em finalImages
     Object.values(editColorImages).forEach(urls => {
       if (Array.isArray(urls)) {
         urls.forEach(u => {
-          if (u && typeof u === 'string' && u.trim() && !isPlaceholder(u)) {
+          if (u && typeof u === 'string' && u.trim() && !isPlaceholderUrl(u)) {
             const cleanUrl = u.trim();
             if (!finalImages.includes(cleanUrl)) finalImages.push(cleanUrl);
           }
@@ -1275,7 +1264,7 @@ export const MoblinkProductsManager: React.FC = () => {
     });
 
     Object.values(editColorImageMap).forEach(u => {
-      if (u && typeof u === 'string' && u.trim() && !isPlaceholder(u)) {
+      if (u && typeof u === 'string' && u.trim() && !isPlaceholderUrl(u)) {
         const cleanUrl = String(u).trim();
         if (!finalImages.includes(cleanUrl)) finalImages.push(cleanUrl);
       }
@@ -1289,7 +1278,7 @@ export const MoblinkProductsManager: React.FC = () => {
     const finalColorImageMap: Record<string, string> = {};
 
     Object.entries(editColorImages).forEach(([color, urls]) => {
-      const validUrls = (urls || []).filter(u => u && typeof u === 'string' && u.trim() && !isPlaceholder(u));
+      const validUrls = (urls || []).filter(u => u && typeof u === 'string' && u.trim() && !isPlaceholderUrl(u));
       if (validUrls.length > 0) {
         finalColorImages[color] = validUrls;
         finalColorImageMap[color] = validUrls[0];

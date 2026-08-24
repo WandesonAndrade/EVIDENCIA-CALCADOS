@@ -7,6 +7,7 @@ import {
 import { evidenciaAuthService } from '../lib/evidenciaAuth';
 import { API_ENDPOINTS } from './api';
 import { parseValor } from '../utils/numberUtils';
+import { isPlaceholderUrl } from '../utils/placeholder';
 
 export const MOBLINK_OFFICIAL_API_URL = API_ENDPOINTS.PRODUTOS;
 export { parseValor };
@@ -652,11 +653,10 @@ export const mergeErpSyncWithExistingDbProduct = (
     : (updatedErpProd.description || updatedErpProd.descricao_completa || updatedErpProd.compl_descr || '');
 
   // 3. FOTOS & GALERIA: se o lojista definiu fotos no banco, elas TÊM PRIORIDADE MÁXIMA
-  const isPlaceholder = (url: string) => !url || url.includes('unsplash.com') || url.includes('placeholder');
   let validDbImages: string[] = [];
 
   const addValidPhoto = (url: any) => {
-    if (url && typeof url === 'string' && url.trim() && !isPlaceholder(url)) {
+    if (url && typeof url === 'string' && url.trim() && !isPlaceholderUrl(url)) {
       const clean = url.trim();
       if (!validDbImages.includes(clean)) validDbImages.push(clean);
     }
@@ -915,7 +915,6 @@ export const sanitizeProductForFirestore = (
     saldo_loja: stock,
   };
 
-  const isPlaceholderUrl = (u: any) => !u || typeof u !== 'string' || u.includes('unsplash.com') || u.includes('placeholder');
   const validPhotosCount = finalImagesList.filter(u => !isPlaceholderUrl(u)).length;
   const hasColorPhotos = product.colorImages && typeof product.colorImages === 'object' && Object.values(product.colorImages).flat().some(u => !isPlaceholderUrl(u));
   const hasMedia = validPhotosCount > 0 || Boolean(hasColorPhotos);

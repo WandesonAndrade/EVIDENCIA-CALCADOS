@@ -1,6 +1,7 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { doc, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { isPlaceholderUrl } from '../utils/placeholder';
 
 // Cache em memória do cliente Supabase para reutilização
 let supabaseClientInstance: SupabaseClient | null = null;
@@ -528,7 +529,7 @@ export async function autoLinkSupabasePhotosToFirestore(productsList: any[]): Pr
     }
 
     if (supabasePhotos.length > 0) {
-      const existingImages = Array.isArray(prod.images) ? prod.images.filter((u: any) => u && typeof u === 'string' && !u.includes('unsplash.com') && !u.includes('placeholder')) : [];
+      const existingImages = Array.isArray(prod.images) ? prod.images.filter((u: any) => u && typeof u === 'string' && !isPlaceholderUrl(u)) : [];
       
       const newImages = [...existingImages];
       supabasePhotos.forEach(url => {
