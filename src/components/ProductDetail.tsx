@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { ShoppingCart, ShoppingBag, MapPin, Star, ChevronRight, ArrowLeft, Shield, Sparkles, Heart, Share2, Check, CreditCard, CheckCircle2, AlertCircle, ArrowRight, Truck, RefreshCw, Package, MessageSquare, Search, Loader2, X, Tag } from 'lucide-react';
 import { getGradeProdutoById, getProdutoGradesFromApi } from '../services/moblinkGradesService';
-import { getSingleProdutoMoblinkFromApi, sanitizeProductForFirestore, mergeErpSyncWithExistingDbProduct, inferCategoryFromProductName } from '../services/moblinkProductsService';
+import { getSingleProdutoMoblinkFromApi, sanitizeProductForFirestore, mergeErpSyncWithExistingDbProduct, inferCategoryFromProductName, hasProductValidGrade } from '../services/moblinkProductsService';
 import { normalizeCategoryName, normalizeSubcategoryName } from '../services/moblinkCategoriesService';
 import { isSaldaoProduct, getSaldaoProductPrice } from '../services/saldaoService';
 import { getApplicablePromotion } from '../services/promotionsService';
@@ -539,17 +539,23 @@ export const ProductDetail: React.FC = () => {
 
   const relatedProducts = React.useMemo(() => {
     if (!products || products.length === 0 || !p) return [];
-    const sameCategory = products.filter(prod => 
-      String(prod.id) !== String(p.id) &&
-      (prod.visible !== false) &&
-      (prod.category === p.category || prod.nome_grupo === p.nome_grupo || prod.productType === p.productType)
-    );
+    const sameCategory = products.filter(prod => {
+      const isAvailable = (prod.stock !== undefined ? prod.stock > 0 : (prod.saldo_loja ?? 0) > 0);
+      return String(prod.id) !== String(p.id) &&
+        prod.visible !== false &&
+        isAvailable &&
+        hasProductValidGrade(prod) &&
+        (prod.category === p.category || prod.nome_grupo === p.nome_grupo || prod.productType === p.productType);
+    });
 
     if (sameCategory.length >= 4) {
       return sameCategory.slice(0, 4);
     }
 
-    const others = products.filter(prod => String(prod.id) !== String(p.id) && prod.visible !== false);
+    const others = products.filter(prod => {
+      const isAvailable = (prod.stock !== undefined ? prod.stock > 0 : (prod.saldo_loja ?? 0) > 0);
+      return String(prod.id) !== String(p.id) && prod.visible !== false && isAvailable && hasProductValidGrade(prod);
+    });
     return others.slice(0, 4);
   }, [products, p]);
 

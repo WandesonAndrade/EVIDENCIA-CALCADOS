@@ -239,13 +239,13 @@ export const ProductList: React.FC = () => {
     }
   };
 
-  // Subcategorias dinâmicas extraídas prioritariamente dos produtos COM ESTOQUE DISPONÍVEL
+  // Subcategorias dinâmicas extraídas prioritariamente dos produtos COM ESTOQUE DISPONÍVEL E GRADE ATIVA
   const activeSubcategoriesInStock = useMemo(() => {
     const subMap = new Map<string, { id: string; name: string; image?: string; itemCount: number }>();
 
     (products || []).forEach((p) => {
       const isAvailable = (p.stock !== undefined ? p.stock > 0 : (p.saldo_loja ?? 0) > 0);
-      if (!p.visible || !isAvailable) return;
+      if (!p.visible || !isAvailable || !hasProductValidGrade(p)) return;
 
       const rawSub = (p.nome_subgrupo || p.subcategory || p.category || "").trim();
       if (!rawSub || /^\d+(\.\d+)?$/.test(rawSub)) return;
@@ -348,7 +348,7 @@ export const ProductList: React.FC = () => {
         (prod.nome_grupo && prod.nome_grupo.toLowerCase().includes(query)) ||
         prod.category.toLowerCase().includes(query);
       const isAvailable = (prod.stock !== undefined ? prod.stock > 0 : (prod.saldo_loja ?? 0) > 0);
-      return matchesSearch && prod.visible && isAvailable;
+      return matchesSearch && prod.visible && isAvailable && hasProductValidGrade(prod);
     });
   }, [products, searchQuery]);
 

@@ -9,6 +9,7 @@ import { Product } from '../types';
 import { CompleteProfileModal } from './CompleteProfileModal';
 import { CheckoutConfirmationModal } from './CheckoutConfirmationModal';
 import { normalizeCategoryName } from '../services/moblinkCategoriesService';
+import { hasProductValidGrade } from '../services/moblinkProductsService';
 import { isProfileIncomplete } from '../App';
 
 export const Cart: React.FC = () => {
@@ -83,7 +84,7 @@ export const Cart: React.FC = () => {
   };
 
   const recommendedProducts = products
-    .filter((p) => p.visible && (p.stock !== undefined ? p.stock > 0 : (p.saldo_loja ?? 0) > 0) && !cart.some((c) => c.product.id === p.id))
+    .filter((p) => p.visible && (p.stock !== undefined ? p.stock > 0 : (p.saldo_loja ?? 0) > 0) && hasProductValidGrade(p) && !cart.some((c) => c.product.id === p.id))
     .slice(0, 4);
 
   const handleRecommendClick = (p: Product) => {
