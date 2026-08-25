@@ -90,7 +90,16 @@ service cloud.firestore {
     // Regra para Configurações da Loja (CMS Layout, Banners, Contatos)
     match /storeConfig/{document=**} {
       allow read: if true;
-      allow write: if isAuth();
+      allow write: if true;
+    }
+
+    // Regra para Configurações e Logs do Moblink ERP
+    match /moblinkConfig/{document=**} {
+      allow read, write: if true;
+    }
+
+    match /moblinkLogs/{document=**} {
+      allow read, write: if true;
     }
 
     // Regra para Transações Pix (Meu Crediário e Auditoria Financeira)
@@ -104,4 +113,3 @@ service cloud.firestore {
     }
   }
 }
-

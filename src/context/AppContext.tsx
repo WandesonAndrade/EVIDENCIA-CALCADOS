@@ -2099,12 +2099,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateMoblinkConfig = async (newCfg: Partial<MoblinkConfig>) => {
     const updated = { ...moblinkConfig, ...newCfg };
     setMoblinkConfig(updated);
-    localStorage.setItem('evidencia_moblink_config', JSON.stringify(updated));
+    try {
+      localStorage.setItem('evidencia_moblink_config', JSON.stringify(updated));
+    } catch {}
 
     try {
-      await setDoc(doc(db, 'moblinkConfig', 'default'), updated, { merge: true });
-    } catch (e) {
-      console.warn("Could not save moblinkConfig to Firestore:", e);
+      const sanitized = cleanUndefinedProperties(updated);
+      await setDoc(doc(db, 'moblinkConfig', 'default'), sanitized, { merge: true });
+    } catch (e: any) {
+      console.warn("Salvamento no Firestore ignorado (mantido no LocalStorage):", e?.message || e);
     }
 
     // Also update server endpoint if available
@@ -2113,7 +2116,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updated)
-      });
+      }).catch(() => {});
     } catch (e) {
       // Server call optional
     }
