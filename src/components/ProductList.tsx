@@ -5,7 +5,7 @@ import { Eye, Heart, ArrowRight, ArrowUpDown, Truck, CreditCard, RefreshCw, Shop
 import { motion, AnimatePresence } from "motion/react";
 import { scrollToSectionWithOffset } from "../lib/scrollUtils";
 import { normalizeCategoryName, normalizeSubcategoryName } from "../services/moblinkCategoriesService";
-import { hasProductValidGrade, extractClassificacaoCategoria } from "../services/moblinkProductsService";
+import { hasProductValidGrade, hasProductValidPhoto, extractClassificacaoCategoria } from "../services/moblinkProductsService";
 import { isSaldaoProduct, getSaldaoProductPrice } from "../services/saldaoService";
 import { getApplicablePromotion } from "../services/promotionsService";
 import { NO_PHOTO_SVG } from "../utils/placeholder";
@@ -239,13 +239,13 @@ export const ProductList: React.FC = () => {
     }
   };
 
-  // Subcategorias dinâmicas extraídas prioritariamente dos produtos COM ESTOQUE DISPONÍVEL E GRADE ATIVA
+  // Subcategorias dinâmicas extraídas prioritariamente dos produtos COM ESTOQUE DISPONÍVEL E FOTO VÁLIDA
   const activeSubcategoriesInStock = useMemo(() => {
     const subMap = new Map<string, { id: string; name: string; image?: string; itemCount: number }>();
 
     (products || []).forEach((p) => {
       const isAvailable = (p.stock !== undefined ? p.stock > 0 : (p.saldo_loja ?? 0) > 0);
-      if (!p.visible || !isAvailable || !hasProductValidGrade(p)) return;
+      if (!p.visible || !isAvailable || !hasProductValidPhoto(p)) return;
 
       const rawSub = (p.nome_subgrupo || p.subcategory || p.category || "").trim();
       if (!rawSub || /^\d+(\.\d+)?$/.test(rawSub)) return;
@@ -348,7 +348,7 @@ export const ProductList: React.FC = () => {
         (prod.nome_grupo && prod.nome_grupo.toLowerCase().includes(query)) ||
         prod.category.toLowerCase().includes(query);
       const isAvailable = (prod.stock !== undefined ? prod.stock > 0 : (prod.saldo_loja ?? 0) > 0);
-      return matchesSearch && prod.visible && isAvailable && hasProductValidGrade(prod);
+      return matchesSearch && prod.visible && isAvailable && hasProductValidPhoto(prod);
     });
   }, [products, searchQuery]);
 
@@ -385,20 +385,20 @@ export const ProductList: React.FC = () => {
 
   const { saldaoConfig } = useApp();
 
-  // Produtos do Saldão de Calçados (Calçados visíveis com grade válida e estoque <= saldaoConfig.maxStock)
+  // Produtos do Saldão de Calçados (Calçados visíveis com foto válida e estoque <= saldaoConfig.maxStock)
   const saldaoProducts = useMemo(() => {
     return products.filter((prod) => {
       const isAvailable = (prod.stock !== undefined ? prod.stock > 0 : (prod.saldo_loja ?? 0) > 0);
-      if (!prod.visible || !isAvailable || !hasProductValidGrade(prod)) return false;
+      if (!prod.visible || !isAvailable || !hasProductValidPhoto(prod)) return false;
       return isSaldaoProduct(prod, saldaoConfig);
     });
   }, [products, saldaoConfig]);
 
-  // Produtos exibidos na Seção 'Novidades': EXCLUSIVAMENTE produtos marcados como Lançamento/Novidade, visíveis, com estoque e com grade ativa
+  // Produtos exibidos na Seção 'Novidades': EXCLUSIVAMENTE produtos marcados como Lançamento/Novidade, visíveis, com estoque e com foto real
   const novidadesProducts = useMemo(() => {
     return products.filter((p) => {
       const isAvailable = (p.stock !== undefined ? p.stock > 0 : (p.saldo_loja ?? 0) > 0);
-      return p.visible && isAvailable && hasProductValidGrade(p) && (p.newArrival === true || (p as any).novo === true);
+      return p.visible && isAvailable && hasProductValidPhoto(p) && (p.newArrival === true || (p as any).novo === true);
     });
   }, [products]);
 
@@ -406,7 +406,7 @@ export const ProductList: React.FC = () => {
   const calcadosProducts = useMemo(() => {
     return products.filter((prod) => {
       const isAvailable = (prod.stock !== undefined ? prod.stock > 0 : (prod.saldo_loja ?? 0) > 0);
-      if (!prod.visible || !isAvailable || !hasProductValidGrade(prod)) return false;
+      if (!prod.visible || !isAvailable || !hasProductValidPhoto(prod)) return false;
 
       const catInfo = extractClassificacaoCategoria(prod);
       const catUpper = (catInfo.category || prod.category || prod.nome_grupo || (prod as any).categoria || '').toUpperCase();
@@ -430,11 +430,11 @@ export const ProductList: React.FC = () => {
     });
   }, [products]);
 
-  // Produtos exibidos na Seção 'Confecções' (Strict Match Confecções / Vestuário com Grade Ativa)
+  // Produtos exibidos na Seção 'Confecções' (Strict Match Confecções / Vestuário com Foto Real)
   const confeccoesProducts = useMemo(() => {
     return products.filter((prod) => {
       const isAvailable = (prod.stock !== undefined ? prod.stock > 0 : (prod.saldo_loja ?? 0) > 0);
-      if (!prod.visible || !isAvailable || !hasProductValidGrade(prod)) return false;
+      if (!prod.visible || !isAvailable || !hasProductValidPhoto(prod)) return false;
 
       const catInfo = extractClassificacaoCategoria(prod);
       const catUpper = (catInfo.category || prod.category || prod.nome_grupo || (prod as any).categoria || '').toUpperCase();
@@ -449,7 +449,7 @@ export const ProductList: React.FC = () => {
   const acessoriosProducts = useMemo(() => {
     return products.filter((prod) => {
       const isAvailable = (prod.stock !== undefined ? prod.stock > 0 : (prod.saldo_loja ?? 0) > 0);
-      if (!prod.visible || !isAvailable || !hasProductValidGrade(prod)) return false;
+      if (!prod.visible || !isAvailable || !hasProductValidPhoto(prod)) return false;
 
       const catInfo = extractClassificacaoCategoria(prod);
       const catUpper = (catInfo.category || prod.category || prod.nome_grupo || (prod as any).categoria || '').toUpperCase();

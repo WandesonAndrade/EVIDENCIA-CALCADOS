@@ -26,7 +26,7 @@ import { scrollToSectionWithOffset } from '../lib/scrollUtils';
 import { normalizeCategoryName, normalizeSubcategoryName, isProductInCategory } from '../services/moblinkCategoriesService';
 import { isSaldaoProduct } from '../services/saldaoService';
 import { getApplicablePromotion, isCampaignActive } from '../services/promotionsService';
-import { hasProductValidGrade } from '../services/moblinkProductsService';
+import { hasProductValidPhoto } from '../services/moblinkProductsService';
 
 interface TabConfig {
   title: string;
@@ -360,7 +360,7 @@ export const CategoryPage: React.FC = () => {
         : true;
       
       const isAvailable = (prod.stock !== undefined ? prod.stock > 0 : (prod.saldo_loja ?? 0) > 0);
-      return prod.visible && isAvailable && hasProductValidGrade(prod) && matchesSearch && config.filter(prod);
+      return prod.visible && isAvailable && hasProductValidPhoto(prod) && matchesSearch && config.filter(prod);
     });
   }, [products, searchQuery, config]);
 
@@ -423,7 +423,7 @@ export const CategoryPage: React.FC = () => {
           prod.category.toLowerCase().includes(searchQuery.toLowerCase())
         : true;
       const isAvailable = (prod.stock !== undefined ? prod.stock > 0 : (prod.saldo_loja ?? 0) > 0);
-      return prod.visible && isAvailable && hasProductValidGrade(prod) && matchesSearch && config.filter(prod);
+      return prod.visible && isAvailable && hasProductValidPhoto(prod) && matchesSearch && config.filter(prod);
     }).forEach(prod => {
       const rawSub = (prod.nome_subgrupo || prod.subcategory || '').trim();
       if (rawSub && rawSub.toUpperCase() !== 'GERAL') {

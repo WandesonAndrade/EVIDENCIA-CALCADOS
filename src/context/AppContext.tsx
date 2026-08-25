@@ -10,7 +10,7 @@ import { evidenciaAuthService } from '../lib/evidenciaAuth';
 import { firebaseAuthService } from '../services/firebaseAuthService';
 import { userDataService } from '../services/userDataService';
 import { orderService } from '../services/orderService';
-import { getProdutosMoblink, extractPrecoTabelaMoblink, extractPrecoVistaMoblink, extractPrecoCartaoMoblink, parseValor, extractSaldoLojaMoblink, sanitizeProductForFirestore, cleanUndefinedFields, filterProductsRequiringSync, hasProductChanged, extractClassificacaoCategoria, DEFAULT_GRADE_EXCEPTION_CATEGORIES } from '../services/moblinkProductsService';
+import { getProdutosMoblink, extractPrecoTabelaMoblink, extractPrecoVistaMoblink, extractPrecoCartaoMoblink, parseValor, extractSaldoLojaMoblink, sanitizeProductForFirestore, cleanUndefinedFields, filterProductsRequiringSync, hasProductChanged, extractClassificacaoCategoria } from '../services/moblinkProductsService';
 import { moblinkCategoriesService, normalizeCategoryName } from '../services/moblinkCategoriesService';
 import { cleanUndefinedProperties } from '../utils/cleanObject';
 import { API_ENDPOINTS } from '../services/api';
@@ -607,15 +607,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [moblinkConfig, setMoblinkConfig] = useState<MoblinkConfig>(() => {
     const saved = localStorage.getItem('evidencia_moblink_config');
     if (saved) {
-      try { 
-        const parsed = JSON.parse(saved); 
-        return {
-          ...parsed,
-          noGradeCategoriesException: Array.isArray(parsed.noGradeCategoriesException) && parsed.noGradeCategoriesException.length > 0
-            ? parsed.noGradeCategoriesException
-            : DEFAULT_GRADE_EXCEPTION_CATEGORIES
-        };
-      } catch (e) { console.error("Error loading moblink config", e); }
+      try { return JSON.parse(saved); } catch (e) { console.error("Error loading moblink config", e); }
     }
     return {
       id: 'default',
@@ -631,8 +623,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       syncIntervalMinutes: 15,
       lastSyncAt: new Date().toISOString(),
       stockMatchKey: 'sku',
-      autoCreateMissingProducts: false,
-      noGradeCategoriesException: DEFAULT_GRADE_EXCEPTION_CATEGORIES
+      autoCreateMissingProducts: false
     };
   });
 
@@ -2099,15 +2090,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateMoblinkConfig = async (newCfg: Partial<MoblinkConfig>) => {
     const updated = { ...moblinkConfig, ...newCfg };
     setMoblinkConfig(updated);
-    try {
-      localStorage.setItem('evidencia_moblink_config', JSON.stringify(updated));
-    } catch {}
+    localStorage.setItem('evidencia_moblink_config', JSON.stringify(updated));
 
     try {
-      const sanitized = cleanUndefinedProperties(updated);
-      await setDoc(doc(db, 'moblinkConfig', 'default'), sanitized, { merge: true });
-    } catch (e: any) {
-      console.warn("Salvamento no Firestore ignorado (mantido no LocalStorage):", e?.message || e);
+      await setDoc(doc(db, 'moblinkConfig', 'default'), updated, { merge: true });
+    } catch (e) {
+      console.warn("Could not save moblinkConfig to Firestore:", e);
     }
 
     // Also update server endpoint if available
@@ -2116,7 +2104,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updated)
-      }).catch(() => {});
+      });
     } catch (e) {
       // Server call optional
     }
