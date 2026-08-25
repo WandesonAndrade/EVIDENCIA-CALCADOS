@@ -204,6 +204,7 @@ export interface MoblinkConfig {
   lastSyncAt?: string;
   stockMatchKey: 'sku' | 'moblinkId' | 'barcode' | 'name';
   autoCreateMissingProducts?: boolean;
+  noGradeCategoriesException?: string[];
 }
 
 export interface MoblinkSyncLogItem {

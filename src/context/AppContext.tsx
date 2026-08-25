@@ -10,7 +10,7 @@ import { evidenciaAuthService } from '../lib/evidenciaAuth';
 import { firebaseAuthService } from '../services/firebaseAuthService';
 import { userDataService } from '../services/userDataService';
 import { orderService } from '../services/orderService';
-import { getProdutosMoblink, extractPrecoTabelaMoblink, extractPrecoVistaMoblink, extractPrecoCartaoMoblink, parseValor, extractSaldoLojaMoblink, sanitizeProductForFirestore, cleanUndefinedFields, filterProductsRequiringSync, hasProductChanged, extractClassificacaoCategoria } from '../services/moblinkProductsService';
+import { getProdutosMoblink, extractPrecoTabelaMoblink, extractPrecoVistaMoblink, extractPrecoCartaoMoblink, parseValor, extractSaldoLojaMoblink, sanitizeProductForFirestore, cleanUndefinedFields, filterProductsRequiringSync, hasProductChanged, extractClassificacaoCategoria, DEFAULT_GRADE_EXCEPTION_CATEGORIES } from '../services/moblinkProductsService';
 import { moblinkCategoriesService, normalizeCategoryName } from '../services/moblinkCategoriesService';
 import { cleanUndefinedProperties } from '../utils/cleanObject';
 import { API_ENDPOINTS } from '../services/api';
@@ -607,7 +607,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [moblinkConfig, setMoblinkConfig] = useState<MoblinkConfig>(() => {
     const saved = localStorage.getItem('evidencia_moblink_config');
     if (saved) {
-      try { return JSON.parse(saved); } catch (e) { console.error("Error loading moblink config", e); }
+      try { 
+        const parsed = JSON.parse(saved); 
+        return {
+          ...parsed,
+          noGradeCategoriesException: Array.isArray(parsed.noGradeCategoriesException) && parsed.noGradeCategoriesException.length > 0
+            ? parsed.noGradeCategoriesException
+            : DEFAULT_GRADE_EXCEPTION_CATEGORIES
+        };
+      } catch (e) { console.error("Error loading moblink config", e); }
     }
     return {
       id: 'default',
@@ -623,7 +631,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       syncIntervalMinutes: 15,
       lastSyncAt: new Date().toISOString(),
       stockMatchKey: 'sku',
-      autoCreateMissingProducts: false
+      autoCreateMissingProducts: false,
+      noGradeCategoriesException: DEFAULT_GRADE_EXCEPTION_CATEGORIES
     };
   });
 

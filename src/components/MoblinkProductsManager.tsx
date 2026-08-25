@@ -16,7 +16,8 @@ import {
   isNonFootwearProduct,
   extractClassificacaoCategoria,
   saveMoblinkCache,
-  loadMoblinkCache
+  loadMoblinkCache,
+  DEFAULT_GRADE_EXCEPTION_CATEGORIES
 } from '../services/moblinkProductsService';
 import { moblinkCategoriesService, normalizeCategoryName, normalizeSubcategoryName, isProductInCategory } from '../services/moblinkCategoriesService';
 import { getProdutoGradesFromApi } from '../services/moblinkGradesService';
@@ -61,7 +62,8 @@ import {
   Check,
   Tags,
   Folder,
-  ExternalLink
+  ExternalLink,
+  SlidersHorizontal
 } from 'lucide-react';
 
 const resolveProductSubcategory = (item: any, existingDb?: Product | null): string => {
@@ -199,7 +201,7 @@ const extractBestRealPhoto = (prod: any): string => {
 };
 
 export const MoblinkProductsManager: React.FC = () => {
-  const { products, addProduct, updateProduct, deleteProduct, categories, theme } = useApp();
+  const { products, addProduct, updateProduct, deleteProduct, categories, theme, moblinkConfig, updateMoblinkConfig } = useApp();
 
   const [syncProgress, setSyncProgress] = useState<{ current: number; total: number; phase: string } | null>(null);
 
@@ -292,6 +294,63 @@ export const MoblinkProductsManager: React.FC = () => {
   const [editStockBySize, setEditStockBySize] = useState<Record<string, number>>({});
   const [editColorImageMap, setEditColorImageMap] = useState<Record<string, string>>({});
   const [editColorImages, setEditColorImages] = useState<Record<string, string[]>>({});
+
+  // Estado para armazenar as categorias configuradas como Exceção da Regra de Grade
+  const [exceptionCategories, setExceptionCategories] = useState<string[]>(() => {
+    if (Array.isArray(moblinkConfig?.noGradeCategoriesException) && moblinkConfig.noGradeCategoriesException.length > 0) {
+      return moblinkConfig.noGradeCategoriesException;
+    }
+    return DEFAULT_GRADE_EXCEPTION_CATEGORIES;
+  });
+
+  const [newExceptionInput, setNewExceptionInput] = useState('');
+  const [isSavingExceptions, setIsSavingExceptions] = useState(false);
+  const [exceptionsSaveMessage, setExceptionsSaveMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (Array.isArray(moblinkConfig?.noGradeCategoriesException) && moblinkConfig.noGradeCategoriesException.length > 0) {
+      setExceptionCategories(moblinkConfig.noGradeCategoriesException);
+    }
+  }, [moblinkConfig?.noGradeCategoriesException]);
+
+  const handleToggleExceptionCategory = (catName: string) => {
+    const norm = catName.trim();
+    if (!norm) return;
+    setExceptionCategories(prev => {
+      const exists = prev.some(c => c.toLowerCase() === norm.toLowerCase());
+      if (exists) {
+        return prev.filter(c => c.toLowerCase() !== norm.toLowerCase());
+      } else {
+        return [...prev, norm];
+      }
+    });
+  };
+
+  const handleAddCustomExceptionCategory = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = newExceptionInput.trim();
+    if (!trimmed) return;
+    if (!exceptionCategories.some(c => c.toLowerCase() === trimmed.toLowerCase())) {
+      setExceptionCategories(prev => [...prev, trimmed]);
+    }
+    setNewExceptionInput('');
+  };
+
+  const handleSaveExceptionCategories = async () => {
+    setIsSavingExceptions(true);
+    try {
+      await updateMoblinkConfig({
+        noGradeCategoriesException: exceptionCategories
+      });
+      setExceptionsSaveMessage('✅ Regras de exceção de grade salvas com sucesso!');
+      setTimeout(() => setExceptionsSaveMessage(null), 4000);
+    } catch (err) {
+      console.error("Erro ao salvar exceções de grade:", err);
+      setExceptionsSaveMessage('❌ Erro ao salvar as regras de exceção.');
+    } finally {
+      setIsSavingExceptions(false);
+    }
+  };
 
   // Estado para armazenar dados de Grade do Produto buscados do ERP
   const [selectedProductGrade, setSelectedProductGrade] = useState<ProdutoGradesResult | null>(null);
@@ -1901,6 +1960,21 @@ export const MoblinkProductsManager: React.FC = () => {
     return Array.from(storeCategoryTree.keys()).sort();
   }, [storeCategoryTree]);
 
+  // Lista dinâmica de categorias sugeridas para a Regra de Exceção de Grade
+  const availableCategoriesForExceptions = useMemo(() => {
+    const set = new Set<string>(DEFAULT_GRADE_EXCEPTION_CATEGORIES);
+    (categories || []).forEach(c => {
+      if (c?.name && c.name.trim()) set.add(c.name.trim());
+    });
+    (uniqueCategories || []).forEach(c => {
+      if (c && c.trim()) set.add(c.trim());
+    });
+    (exceptionCategories || []).forEach(c => {
+      if (c && c.trim()) set.add(c.trim());
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [categories, uniqueCategories, exceptionCategories]);
+
   // Lista ESTRITA de Subcategorias exibidas no dropdown (apenas Subcategorias das Categorias da Loja)
   const uniqueSubcategories = useMemo(() => {
     if (categoryFilter !== 'Todos' && storeCategoryTree.has(categoryFilter)) {
@@ -2178,6 +2252,97 @@ export const MoblinkProductsManager: React.FC = () => {
               </span>
             </div>
           </div>
+        </div>
+
+        {/* CARD DE CONFIGURAÇÃO DE EXCEÇÃO DE GRADE PARA CATEGORIAS SEM NÚMERO */}
+        <div className="pt-4 border-t border-slate-200/60 dark:border-slate-800/80 space-y-4">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <span className="p-2.5 rounded-2xl bg-amber-500/10 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400 shrink-0">
+                <SlidersHorizontal className="h-5 w-5 stroke-[2.5]" />
+              </span>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className={`text-sm sm:text-base font-black tracking-tight ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                    Exceções da Regra de Grade Obrigatória
+                  </h3>
+                  <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:bg-amber-400/20 dark:text-amber-300 border border-amber-500/20">
+                    Configurável pelo Admin
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
+                  Categorias selecionadas <strong>NÃO EXIGEM grade de tamanhos</strong> (numerações 35, 36...) para serem vendidas no site (ex: Bolsas, Cintos, Carteiras, Perfumes).
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={handleSaveExceptionCategories}
+              disabled={isSavingExceptions}
+              className="px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-extrabold rounded-2xl text-xs transition-all flex items-center gap-2 cursor-pointer shadow-md active:scale-95 disabled:opacity-50 shrink-0 self-start md:self-auto"
+            >
+              <CheckCircle2 className="h-4 w-4" />
+              <span>{isSavingExceptions ? 'Salvando...' : 'Salvar Regras de Exceção'}</span>
+            </button>
+          </div>
+
+          {/* FEEDBACK TOAST */}
+          {exceptionsSaveMessage && (
+            <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-xs font-bold flex items-center gap-2 animate-fade-in">
+              <CheckCircle2 className="h-4 w-4 shrink-0" />
+              <span>{exceptionsSaveMessage}</span>
+            </div>
+          )}
+
+          {/* CHIPS SELETOR DE CATEGORIAS */}
+          <div className="space-y-2">
+            <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400">
+              Categorias Isentas de Grade ({exceptionCategories.length} ativas):
+            </span>
+            <div className="flex flex-wrap gap-2 pt-1">
+              {availableCategoriesForExceptions.map((catName) => {
+                const isSelected = exceptionCategories.some(c => c.toLowerCase() === catName.toLowerCase());
+                return (
+                  <button
+                    key={catName}
+                    type="button"
+                    onClick={() => handleToggleExceptionCategory(catName)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
+                      isSelected
+                        ? 'bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-500/40 shadow-xs'
+                        : 'bg-slate-100 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700/60 hover:border-amber-500/40'
+                    }`}
+                  >
+                    {isSelected && <Check className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />}
+                    <span>{catName}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* ADICIONAR CATEGORIA CUSTOMIZADA */}
+          <form onSubmit={handleAddCustomExceptionCategory} className="flex items-center gap-2 pt-1 max-w-md">
+            <input
+              type="text"
+              value={newExceptionInput}
+              onChange={(e) => setNewExceptionInput(e.target.value)}
+              placeholder="Outra categoria (ex: Óculos, Bijuterias...)"
+              className={`px-3.5 py-2 text-xs font-semibold rounded-xl border flex-1 outline-none transition-all ${
+                theme === 'dark' 
+                  ? 'bg-slate-800 border-slate-700 text-white placeholder-slate-500 focus:border-amber-500' 
+                  : 'bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400 focus:border-amber-500'
+              }`}
+            />
+            <button
+              type="submit"
+              disabled={!newExceptionInput.trim()}
+              className="px-3.5 py-2 bg-slate-800 dark:bg-slate-700 hover:bg-slate-900 text-white font-bold rounded-xl text-xs transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-40"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              <span>Adicionar</span>
+            </button>
+          </form>
         </div>
       </div>
 

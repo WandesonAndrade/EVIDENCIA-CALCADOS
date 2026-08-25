@@ -97,19 +97,68 @@ export const extractBaseNameAndVariant = (
   };
 };
 
+export const DEFAULT_GRADE_EXCEPTION_CATEGORIES = [
+  'Bolsas',
+  'Acessórios',
+  'Bolsas & Acessórios',
+  'Carteiras',
+  'Cintos',
+  'Confecções',
+  'Cosméticos & Perfumes',
+  'Perfumes',
+  'Cosméticos',
+  'Bijuterias',
+  'Relógios',
+  'Óculos',
+  'Chaveiros',
+  'Malas & Viagem'
+];
+
 /**
  * Checagem de Grade de Produto (Obrigatório para Venda).
- * Verifica se um produto retornado da API do MobLink ERP (ou do banco) possui uma Grade de Tamanhos/Numerações/Variações válida.
- * 
- * REGRA EXPLICITA: Apenas produtos que possuem grade (com tamanhos/variações) estarão disponíveis para venda.
+ * Verifica se um produto retornado da API do MobLink ERP (ou do banco) possui uma Grade de Tamanhos/Numerações/Variações válida,
+ * OU se pertence a uma das categorias de EXCEÇÃO configuradas pelo Administrador no MobLink ERP (ex: Bolsas, Cintos, Perfumes).
  */
-export const hasProductValidGrade = (item: any): boolean => {
+export const hasProductValidGrade = (item: any, customExceptions?: string[]): boolean => {
   if (!item || typeof item !== "object") return false;
 
   // Se o objeto explicitamente define a flag hasGrade como false, não tem grade ativa
   if (item.hasGrade === false) return false;
 
-  // 1. Array de tamanhos/sizes com tamanhos/numerações válidas
+  // 1. CHECAGEM DE CATEGORIAS DE EXCEÇÃO CONFIGURADAS PELO ADMINISTRADOR
+  let exceptionCategories: string[] = DEFAULT_GRADE_EXCEPTION_CATEGORIES;
+  if (Array.isArray(customExceptions) && customExceptions.length > 0) {
+    exceptionCategories = customExceptions;
+  } else if (typeof window !== 'undefined') {
+    try {
+      const saved = localStorage.getItem('evidencia_moblink_config');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed?.noGradeCategoriesException) && parsed.noGradeCategoriesException.length > 0) {
+          exceptionCategories = parsed.noGradeCategoriesException;
+        }
+      }
+    } catch {}
+  }
+
+  const rawCat = (item.categoria || item.category || item.nome_grupo || '').toString().trim().toUpperCase();
+  const rawSubcat = (item.subcategoria || item.subcategory || item.nome_subgrupo || '').toString().trim().toUpperCase();
+  const rawName = (item.nome || item.name || item.descricao || '').toString().trim().toUpperCase();
+
+  const isException = exceptionCategories.some((exc: string) => {
+    if (!exc || typeof exc !== 'string') return false;
+    const cleanExc = exc.trim().toUpperCase();
+    if (!cleanExc) return false;
+    return rawCat.includes(cleanExc) || 
+           cleanExc.includes(rawCat) || 
+           rawSubcat.includes(cleanExc) || 
+           cleanExc.includes(rawSubcat) || 
+           rawName.includes(cleanExc);
+  });
+
+  if (isException) return true;
+
+  // 2. Array de tamanhos/sizes com tamanhos/numerações válidas
   const sizesList = Array.isArray(item.tamanhos)
     ? item.tamanhos
     : Array.isArray(item.sizes)
@@ -124,7 +173,7 @@ export const hasProductValidGrade = (item: any): boolean => {
 
   if (validSizes.length > 0) return true;
 
-  // 2. Array de variações de grade (grade, grades, variacoes, grade_items)
+  // 3. Array de variações de grade (grade, grades, variacoes, grade_items)
   const gradeItemsList = Array.isArray(item.grade)
     ? item.grade
     : Array.isArray(item.grades)
@@ -137,25 +186,25 @@ export const hasProductValidGrade = (item: any): boolean => {
 
   if (gradeItemsList.length > 0) return true;
 
-  // 3. Mapeamento de estoque por tamanho (stockBySize / sizeStockMap)
+  // 4. Mapeamento de estoque por tamanho (stockBySize / sizeStockMap)
   const stockBySizeObj = item.stockBySize || item.sizeStockMap;
   if (typeof stockBySizeObj === "object" && stockBySizeObj !== null) {
     const keys = Object.keys(stockBySizeObj).filter(k => k && k.trim() !== '' && k !== '0');
     if (keys.length > 0) return true;
   }
 
-  // 4. Saldos por tamanho (saldos_lojas_grade)
+  // 5. Saldos por tamanho (saldos_lojas_grade)
   const saldosLojaGrade = Array.isArray(item.saldos_lojas_grade) ? item.saldos_lojas_grade : [];
   if (saldosLojaGrade.length > 0) return true;
 
-  // 5. Se o produto possui id_grade / gradeId válido cadastrado no ERP ou flag explicitada hasGrade: true
+  // 6. Se o produto possui id_grade / gradeId válido cadastrado no ERP ou flag explicitada hasGrade: true
   const idGrade = item.id_grade ?? item.gradeId;
   if (idGrade !== undefined && idGrade !== null && idGrade !== '' && idGrade !== 0 && idGrade !== '0') {
     return true;
   }
   if (item.hasGrade === true) return true;
 
-  // REGRA UNIVERSAL: Se o produto (de QUALQUER categoria) não possui desmembramento de grade cadastrado no ERP, ele NÃO tem grade ativa (retorna false)
+  // REGRA UNIVERSAL: Se o produto não é de uma categoria de exceção nem possui desmembramento de grade cadastrado no ERP, ele NÃO tem grade ativa (retorna false)
   return false;
 };
 
