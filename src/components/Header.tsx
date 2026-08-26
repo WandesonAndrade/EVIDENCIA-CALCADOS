@@ -20,6 +20,9 @@ import {
   ShieldCheck,
   Headphones,
   Tag,
+  Sparkles,
+  ChevronRight,
+  Gift,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { BrandLogo } from "./BrandLogo";
@@ -53,10 +56,214 @@ export const Header: React.FC = () => {
     saldaoConfig,
   } = useApp();
 
+  const isDark = theme === "dark";
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isSandwichMenuOpen, setIsSandwichMenuOpen] = useState(false);
-  const isDark = theme === "dark";
+  const [activeMegaMenu, setActiveMegaMenu] = useState<'feminino' | 'masculino' | 'infantil' | null>(null);
+  const hoverTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+
+  const handleNavMouseEnter = (menuKey: 'feminino' | 'masculino' | 'infantil') => {
+    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+    setActiveMegaMenu(menuKey);
+  };
+
+  const handleNavMouseLeave = () => {
+    hoverTimeoutRef.current = setTimeout(() => {
+      setActiveMegaMenu(null);
+    }, 180);
+  };
+
+  const handleMegaMenuCategoryClick = (categoryName: string, subcategoryName: string) => {
+    setActiveMegaMenu(null);
+    if (categoryName.toUpperCase() === "OFERTAS") {
+      setSelectedCategory("OFERTAS");
+      if (setSelectedMenuTab) setSelectedMenuTab("ofertas");
+      if (setSelectedSubcategory) setSelectedSubcategory("TODAS");
+    } else if (categoryName.toUpperCase() === "TODOS") {
+      setSelectedCategory("TODOS");
+      if (setSelectedMenuTab) setSelectedMenuTab("todos");
+      if (setSelectedSubcategory) setSelectedSubcategory(subcategoryName);
+    } else {
+      setSelectedCategory(categoryName);
+      if (setSelectedMenuTab) setSelectedMenuTab(categoryName.toLowerCase());
+      if (setSelectedSubcategory) setSelectedSubcategory(subcategoryName);
+    }
+    setCurrentView("category-page");
+    setTimeout(() => {
+      scrollToSectionWithOffset("category-all-items-section");
+    }, 100);
+  };
+
+  const MEGAMENU_DATA: Record<'feminino' | 'masculino' | 'infantil', {
+    title: string;
+    badge: string;
+    bannerTitle: string;
+    bannerSubtitle: string;
+    sections: {
+      title: string;
+      category: string;
+      items: { name: string; category: string; subcategory: string }[];
+    }[];
+  }> = {
+    feminino: {
+      title: "Feminino",
+      badge: "Coleção Feminina",
+      bannerTitle: "Tudo para o Universo Feminino",
+      bannerSubtitle: "Calçados, Roupas, Bolsas, Perfumes e Acessórios com pronta entrega",
+      sections: [
+        {
+          title: "Calçados Femininos",
+          category: "Calçados",
+          items: [
+            { name: "Ver Todos os Calçados", category: "Calçados", subcategory: "Feminino" },
+            { name: "Sandálias", category: "Calçados", subcategory: "Sandálias" },
+            { name: "Rasteiras & Papetes", category: "Calçados", subcategory: "Rasteiras" },
+            { name: "Tênis Femininos", category: "Calçados", subcategory: "Tênis" },
+            { name: "Sapatilhas", category: "Calçados", subcategory: "Sapatilhas" },
+            { name: "Scarpins & Saltos", category: "Calçados", subcategory: "Scarpins" },
+            { name: "Botas & Coturnos", category: "Calçados", subcategory: "Botas" },
+            { name: "Chinelos & Slides", category: "Calçados", subcategory: "Chinelos" },
+            { name: "Mocassins & Sapatos", category: "Calçados", subcategory: "Mocassins" },
+          ],
+        },
+        {
+          title: "Moda & Vestuário",
+          category: "Confecções",
+          items: [
+            { name: "Ver Toda Confecção", category: "Confecções", subcategory: "Feminino" },
+            { name: "Blusas & Camisas", category: "Confecções", subcategory: "Feminino" },
+            { name: "Vestidos & Macacões", category: "Confecções", subcategory: "Feminino" },
+            { name: "Calças & Jeans", category: "Confecções", subcategory: "Feminino" },
+            { name: "Shorts & Saias", category: "Confecções", subcategory: "Feminino" },
+            { name: "Jaquetas & Casacos", category: "Confecções", subcategory: "Feminino" },
+          ],
+        },
+        {
+          title: "Bolsas & Acessórios",
+          category: "Acessórios",
+          items: [
+            { name: "Ver Todos Acessórios", category: "Acessórios", subcategory: "Feminino" },
+            { name: "Bolsas Femininas", category: "Acessórios", subcategory: "Bolsas" },
+            { name: "Carteiras", category: "Acessórios", subcategory: "Carteiras" },
+            { name: "Cintos", category: "Acessórios", subcategory: "Cintos" },
+            { name: "Mochilas & Nécessaires", category: "Acessórios", subcategory: "Mochilas" },
+          ],
+        },
+        {
+          title: "Perfumes & Beleza",
+          category: "Perfumes",
+          items: [
+            { name: "Ver Todos Perfumes", category: "Perfumes", subcategory: "Feminino" },
+            { name: "Perfumes Femininos", category: "Perfumes", subcategory: "Feminino" },
+            { name: "Colônias & Deo Colônias", category: "Perfumes", subcategory: "Colônias" },
+            { name: "Body Splash", category: "Perfumes", subcategory: "Body Splash" },
+            { name: "Cosméticos & Cuidados", category: "Perfumes", subcategory: "Cosméticos" },
+          ],
+        },
+      ],
+    },
+    masculino: {
+      title: "Masculino",
+      badge: "Coleção Masculina",
+      bannerTitle: "Estilo & Conforto Masculino",
+      bannerSubtitle: "Tênis, Sapatos, Roupas, Carteiras, Relógios e Perfumes",
+      sections: [
+        {
+          title: "Calçados Masculinos",
+          category: "Calçados",
+          items: [
+            { name: "Ver Todos os Calçados", category: "Calçados", subcategory: "Masculino" },
+            { name: "Tênis Masculinos", category: "Calçados", subcategory: "Tênis" },
+            { name: "Sapatos & Sapatênis", category: "Calçados", subcategory: "Sapatos" },
+            { name: "Botas & Coturnos", category: "Calçados", subcategory: "Botas" },
+            { name: "Chinelos & Slides", category: "Calçados", subcategory: "Chinelos" },
+            { name: "Mocassins & Drivers", category: "Calçados", subcategory: "Mocassins" },
+            { name: "Sandálias & Papetes", category: "Calçados", subcategory: "Papetes" },
+          ],
+        },
+        {
+          title: "Moda & Vestuário",
+          category: "Confecções",
+          items: [
+            { name: "Ver Toda Confecção", category: "Confecções", subcategory: "Masculino" },
+            { name: "Camisetas & Polos", category: "Confecções", subcategory: "Masculino" },
+            { name: "Camisas Sociais", category: "Confecções", subcategory: "Masculino" },
+            { name: "Calças & Jeans", category: "Confecções", subcategory: "Masculino" },
+            { name: "Bermudas & Shorts", category: "Confecções", subcategory: "Masculino" },
+            { name: "Jaquetas & Moletons", category: "Confecções", subcategory: "Masculino" },
+          ],
+        },
+        {
+          title: "Acessórios Masculinos",
+          category: "Acessórios",
+          items: [
+            { name: "Ver Todos Acessórios", category: "Acessórios", subcategory: "Masculino" },
+            { name: "Carteiras em Couro", category: "Acessórios", subcategory: "Carteiras" },
+            { name: "Cintos Masculinos", category: "Acessórios", subcategory: "Cintos" },
+            { name: "Bonés & Chapéus", category: "Acessórios", subcategory: "Boné" },
+            { name: "Relógios & Óculos", category: "Acessórios", subcategory: "Relógio" },
+          ],
+        },
+        {
+          title: "Perfumes & Barbearia",
+          category: "Perfumes",
+          items: [
+            { name: "Ver Todos Perfumes", category: "Perfumes", subcategory: "Masculino" },
+            { name: "Perfumes Masculinos", category: "Perfumes", subcategory: "Masculino" },
+            { name: "Colônias & Deo Colônias", category: "Perfumes", subcategory: "Colônias" },
+            { name: "Cuidados & Barbearia", category: "Perfumes", subcategory: "Cosméticos" },
+          ],
+        },
+      ],
+    },
+    infantil: {
+      title: "Infantil",
+      badge: "Coleção Infantil & Bebê",
+      bannerTitle: "Diversão & Conforto para os Pequenos",
+      bannerSubtitle: "Calçados, Roupas e Mochilas para Meninas, Meninos e Bebês",
+      sections: [
+        {
+          title: "Meninas (Infantil Fem)",
+          category: "Calçados",
+          items: [
+            { name: "Ver Todos Menina", category: "Calçados", subcategory: "Infantil Feminino" },
+            { name: "Tênis & Sapatilhas", category: "Calçados", subcategory: "Infantil Feminino" },
+            { name: "Sandálias & Tamancos", category: "Calçados", subcategory: "Sandálias" },
+            { name: "Chinelos & Botinhas", category: "Calçados", subcategory: "Chinelos" },
+            { name: "Roupas Infantil Feminina", category: "Confecções", subcategory: "Infantil Feminino" },
+          ],
+        },
+        {
+          title: "Meninos (Infantil Masc)",
+          category: "Calçados",
+          items: [
+            { name: "Ver Todos Menino", category: "Calçados", subcategory: "Infantil Masculino" },
+            { name: "Tênis & Chuteiras", category: "Calçados", subcategory: "Infantil Masculino" },
+            { name: "Papetes & Chinelos", category: "Calçados", subcategory: "Chinelos" },
+            { name: "Botas & Sapatênis", category: "Calçados", subcategory: "Tênis" },
+            { name: "Roupas Infantil Masculina", category: "Confecções", subcategory: "Infantil Masculino" },
+          ],
+        },
+        {
+          title: "Bebês (Primeiros Passos)",
+          category: "Calçados",
+          items: [
+            { name: "Sapatinhos de Bebê", category: "Calçados", subcategory: "Bebê" },
+            { name: "Modinha Bebê", category: "Confecções", subcategory: "Infantil" },
+          ],
+        },
+        {
+          title: "Escolar & Mochilas",
+          category: "Escolar",
+          items: [
+            { name: "Mochilas Escolares", category: "Escolar", subcategory: "Escolar" },
+            { name: "Estojos & Lancheiras", category: "Escolar", subcategory: "Escolar" },
+          ],
+        },
+      ],
+    },
+  };
 
   const activeUser = currentAdminUser || currentUser;
   const isAuthorizedCollaborator = Boolean(
@@ -524,8 +731,8 @@ export const Header: React.FC = () => {
             </div>
           </div>
 
-          {/* 3. CATEGORY NAVIGATION CARD */}
-          <div className="py-2.5 pb-4">
+          {/* 3. CATEGORY NAVIGATION CARD & MEGA-MENU CONTAINER */}
+          <div className="py-2.5 pb-4 relative">
             <div
               className={`rounded-2xl border px-4 py-2 flex items-center justify-between overflow-x-auto no-scrollbar transition-all ${
                 isDark
@@ -534,7 +741,7 @@ export const Header: React.FC = () => {
               }`}
             >
               <nav className="flex items-center space-x-4 sm:space-x-8 text-xs font-semibold tracking-tight whitespace-nowrap w-full">
-                {/* Botão Azul com Hambúrguer + Setinha para Baixo (Visível apenas em Desktop sm:flex para evitar duplicidade de menu sanduíche no mobile) */}
+                {/* Botão Azul com Hambúrguer + Setinha para Baixo */}
                 <button
                   id="sandwich-menu-trigger-nav"
                   onClick={() => setIsSandwichMenuOpen(true)}
@@ -545,35 +752,173 @@ export const Header: React.FC = () => {
                   <ChevronDown className="h-3.5 w-3.5 text-white/80" />
                 </button>
 
-                {/* Links de Subcategorias de Calçados com Indicador de Ativo */}
-                <div className="flex items-center space-x-6 sm:space-x-8 overflow-x-auto no-scrollbar flex-1">
-                  {navCategories.map((item) => {
-                    const isActive = item.isPromo
-                      ? (selectedCategory.toUpperCase() === "OFERTAS" || selectedCategory.toUpperCase() === "SALDÃO" || selectedCategory.toUpperCase() === "PROMOÇÕES")
-                      : (selectedCategory.toUpperCase() === "CALÇADOS" && selectedSubcategory.toUpperCase() === item.key);
+                {/* Links Principais: Ofertas & Saldão, Feminino, Masculino, Infantil */}
+                <div className="flex items-center space-x-2 sm:space-x-4 overflow-x-auto no-scrollbar flex-1">
+                  {/* Ofertas & Saldão */}
+                  <button
+                    onClick={() => handleMegaMenuCategoryClick("OFERTAS", "TODAS")}
+                    className="py-2 px-3 rounded-xl transition-all cursor-pointer flex items-center space-x-1.5 text-rose-600 font-extrabold hover:text-rose-700 hover:bg-rose-500/10 text-xs shrink-0"
+                  >
+                    <Tag className="h-3.5 w-3.5 text-rose-600" />
+                    <span>Ofertas & Saldão</span>
+                  </button>
 
-                    return (
-                      <button
-                        key={item.key}
-                        onClick={() => handleSubcategoryFilter(item.name, item.isPromo)}
-                        className={`py-1.5 transition-all cursor-pointer flex items-center space-x-1.5 ${
-                          item.isPromo
-                            ? "text-rose-600 font-extrabold hover:text-rose-700"
-                            : isActive
-                              ? "font-extrabold text-[#003e92] dark:text-amber-400 border-b-2 border-[#003e92] dark:border-amber-400"
-                              : isDark
-                                ? "text-slate-300 hover:text-white"
-                                : "text-neutral-700 hover:text-black"
-                        }`}
-                      >
-                        {item.isPromo && <Tag className="h-3.5 w-3.5 text-rose-600" />}
-                        <span>{item.name}</span>
-                      </button>
-                    );
-                  })}
+                  {/* Feminino */}
+                  <div
+                    className="relative shrink-0"
+                    onMouseEnter={() => handleNavMouseEnter('feminino')}
+                    onMouseLeave={handleNavMouseLeave}
+                  >
+                    <button
+                      onClick={() => {
+                        if (activeMegaMenu === 'feminino') setActiveMegaMenu(null);
+                        else setActiveMegaMenu('feminino');
+                      }}
+                      className={`py-2 px-3.5 rounded-xl transition-all cursor-pointer flex items-center space-x-1.5 text-xs font-bold ${
+                        activeMegaMenu === 'feminino' || (selectedSubcategory.toUpperCase() === 'FEMININO')
+                          ? "font-extrabold text-[#003e92] dark:text-amber-400 bg-[#003e92]/10 dark:bg-amber-400/10"
+                          : isDark
+                            ? "text-slate-300 hover:text-white"
+                            : "text-neutral-700 hover:text-black"
+                      }`}
+                    >
+                      <span>Feminino</span>
+                      <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${
+                        activeMegaMenu === 'feminino' ? "rotate-180 text-[#003e92] dark:text-amber-400" : "text-slate-400"
+                      }`} />
+                    </button>
+                  </div>
+
+                  {/* Masculino */}
+                  <div
+                    className="relative shrink-0"
+                    onMouseEnter={() => handleNavMouseEnter('masculino')}
+                    onMouseLeave={handleNavMouseLeave}
+                  >
+                    <button
+                      onClick={() => {
+                        if (activeMegaMenu === 'masculino') setActiveMegaMenu(null);
+                        else setActiveMegaMenu('masculino');
+                      }}
+                      className={`py-2 px-3.5 rounded-xl transition-all cursor-pointer flex items-center space-x-1.5 text-xs font-bold ${
+                        activeMegaMenu === 'masculino' || (selectedSubcategory.toUpperCase() === 'MASCULINO')
+                          ? "font-extrabold text-[#003e92] dark:text-amber-400 bg-[#003e92]/10 dark:bg-amber-400/10"
+                          : isDark
+                            ? "text-slate-300 hover:text-white"
+                            : "text-neutral-700 hover:text-black"
+                      }`}
+                    >
+                      <span>Masculino</span>
+                      <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${
+                        activeMegaMenu === 'masculino' ? "rotate-180 text-[#003e92] dark:text-amber-400" : "text-slate-400"
+                      }`} />
+                    </button>
+                  </div>
+
+                  {/* Infantil */}
+                  <div
+                    className="relative shrink-0"
+                    onMouseEnter={() => handleNavMouseEnter('infantil')}
+                    onMouseLeave={handleNavMouseLeave}
+                  >
+                    <button
+                      onClick={() => {
+                        if (activeMegaMenu === 'infantil') setActiveMegaMenu(null);
+                        else setActiveMegaMenu('infantil');
+                      }}
+                      className={`py-2 px-3.5 rounded-xl transition-all cursor-pointer flex items-center space-x-1.5 text-xs font-bold ${
+                        activeMegaMenu === 'infantil' || (selectedSubcategory.toUpperCase().includes('INFANTIL'))
+                          ? "font-extrabold text-[#003e92] dark:text-amber-400 bg-[#003e92]/10 dark:bg-amber-400/10"
+                          : isDark
+                            ? "text-slate-300 hover:text-white"
+                            : "text-neutral-700 hover:text-black"
+                      }`}
+                    >
+                      <span>Infantil</span>
+                      <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${
+                        activeMegaMenu === 'infantil' ? "rotate-180 text-[#003e92] dark:text-amber-400" : "text-slate-400"
+                      }`} />
+                    </button>
+                  </div>
                 </div>
               </nav>
             </div>
+
+            {/* PAINEL MEGA-MENU DROPDOWN */}
+            <AnimatePresence>
+              {activeMegaMenu && MEGAMENU_DATA[activeMegaMenu] && (
+                <motion.div
+                  initial={{ opacity: 0, y: 12, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 8, scale: 0.98 }}
+                  transition={{ duration: 0.18, ease: "easeOut" }}
+                  onMouseEnter={() => handleNavMouseEnter(activeMegaMenu)}
+                  onMouseLeave={handleNavMouseLeave}
+                  className={`absolute left-0 right-0 top-full mt-2 z-50 rounded-3xl border shadow-2xl overflow-hidden backdrop-blur-xl transition-all ${
+                    isDark
+                      ? "bg-slate-900/98 border-slate-800 text-slate-100 shadow-slate-950/80"
+                      : "bg-white/98 border-slate-200/80 text-slate-900 shadow-slate-900/15"
+                  }`}
+                >
+                  <div className="p-6 md:p-8 max-w-7xl mx-auto">
+                    {/* Banner Topo do Mega-Menu */}
+                    <div className={`flex items-center justify-between p-4 px-6 rounded-2xl mb-6 border ${
+                      isDark ? "bg-slate-950/80 border-slate-800" : "bg-gradient-to-r from-[#002850] to-[#003e92] text-white border-transparent"
+                    }`}>
+                      <div>
+                        <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-amber-400/20 text-amber-300 text-[10px] font-extrabold tracking-wider uppercase mb-1">
+                          <Sparkles className="w-3 h-3 text-amber-400" />
+                          <span>{MEGAMENU_DATA[activeMegaMenu].badge}</span>
+                        </div>
+                        <h3 className="text-base md:text-lg font-black tracking-tight text-white">
+                          {MEGAMENU_DATA[activeMegaMenu].bannerTitle}
+                        </h3>
+                        <p className="text-xs text-slate-200/90 font-medium">
+                          {MEGAMENU_DATA[activeMegaMenu].bannerSubtitle}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => handleMegaMenuCategoryClick("TODOS", MEGAMENU_DATA[activeMegaMenu].title)}
+                        className="hidden sm:inline-flex items-center gap-2 text-xs font-black px-4 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 cursor-pointer transition-all shadow-sm shrink-0"
+                      >
+                        <span>Explorar Tudo {MEGAMENU_DATA[activeMegaMenu].title}</span>
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    {/* Colunas do Mega-Menu */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8">
+                      {MEGAMENU_DATA[activeMegaMenu].sections.map((sec, idx) => (
+                        <div key={idx} className="space-y-3">
+                          <h4 className="text-xs font-black uppercase tracking-wider text-[#003e92] dark:text-amber-400 border-b pb-2 border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                            <span>{sec.title}</span>
+                          </h4>
+                          <ul className="space-y-1.5">
+                            {sec.items.map((item, itemIdx) => (
+                              <li key={itemIdx}>
+                                <button
+                                  onClick={() => handleMegaMenuCategoryClick(item.category, item.subcategory)}
+                                  className={`text-xs w-full text-left py-1.5 px-2.5 rounded-lg transition-all cursor-pointer flex items-center justify-between group ${
+                                    itemIdx === 0
+                                      ? "font-extrabold text-[#003e92] dark:text-amber-300 hover:bg-[#003e92]/10 dark:hover:bg-amber-400/10"
+                                      : isDark
+                                        ? "text-slate-300 hover:text-white hover:bg-slate-800/60"
+                                        : "text-slate-700 hover:text-black hover:bg-slate-100"
+                                  }`}
+                                >
+                                  <span className="group-hover:translate-x-1 transition-transform">{item.name}</span>
+                                  <ChevronRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity text-slate-400" />
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </div>
       </div>
