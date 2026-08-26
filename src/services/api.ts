@@ -57,6 +57,11 @@ export const API_ENDPOINTS = {
   /** Rota de grupos e subgrupos de categorias: GET ${VITE_API_URL}/produtos/grupos */
   PRODUTOS_GRUPOS: getApiEndpoint("/produtos/grupos"),
 
+  /** Rotas alternativas de categorias do ERP MobLink */
+  PRODUTOS_CATEGORIAS: getApiEndpoint("/produtos/categorias"),
+  GRUPOS: getApiEndpoint("/grupos"),
+  CATEGORIAS: getApiEndpoint("/categorias"),
+
   /** Rota de matriz geral de grades: GET ${VITE_API_URL}/gradesprodutos */
   GRADES_PRODUTOS: getApiEndpoint("/gradesprodutos"),
 

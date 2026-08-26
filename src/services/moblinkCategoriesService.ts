@@ -202,63 +202,106 @@ const defaultClassificacaoEntries: [string, { category: string; subcategory: str
   ["004.001", { category: "Acessórios", subcategory: "Bolsas", nome_grupo: "Acessórios", nome_subgrupo: "Bolsas" }],
   ["004.002", { category: "Acessórios", subcategory: "Cintos", nome_grupo: "Acessórios", nome_subgrupo: "Cintos" }],
   ["004.003", { category: "Acessórios", subcategory: "Carteiras", nome_grupo: "Acessórios", nome_subgrupo: "Carteiras" }],
+  // Mapeamentos equivalentes sem padding de zeros
+  ["1", { category: "Calçados", subcategory: "", nome_grupo: "Calçados", nome_subgrupo: "" }],
+  ["1.1", { category: "Calçados", subcategory: "Masculino", nome_grupo: "Calçados", nome_subgrupo: "Masculino" }],
+  ["1.2", { category: "Calçados", subcategory: "Feminino", nome_grupo: "Calçados", nome_subgrupo: "Feminino" }],
+  ["1.3", { category: "Calçados", subcategory: "Infantil", nome_grupo: "Calçados", nome_subgrupo: "Infantil" }],
+  ["2", { category: "Calçados", subcategory: "", nome_grupo: "Calçados", nome_subgrupo: "" }],
+  ["2.1", { category: "Calçados", subcategory: "Masculino", nome_grupo: "Calçados", nome_subgrupo: "Masculino" }],
+  ["2.2", { category: "Calçados", subcategory: "Feminino", nome_grupo: "Calçados", nome_subgrupo: "Feminino" }],
+  ["2.3", { category: "Calçados", subcategory: "Infantil", nome_grupo: "Calçados", nome_subgrupo: "Infantil" }],
+  ["2.4", { category: "Calçados", subcategory: "Bebê", nome_grupo: "Calçados", nome_subgrupo: "Bebê" }],
+  ["3", { category: "Confecções", subcategory: "", nome_grupo: "Confecções", nome_subgrupo: "" }],
+  ["3.1", { category: "Confecções", subcategory: "Masculino", nome_grupo: "Confecções", nome_subgrupo: "Masculino" }],
+  ["3.2", { category: "Confecções", subcategory: "Feminino", nome_grupo: "Confecções", nome_subgrupo: "Feminino" }],
+  ["3.3", { category: "Confecções", subcategory: "Infantil", nome_grupo: "Confecções", nome_subgrupo: "Infantil" }],
+  ["4", { category: "Acessórios", subcategory: "Bolsas & Acessórios", nome_grupo: "Acessórios", nome_subgrupo: "Bolsas & Acessórios" }],
+  ["4.1", { category: "Acessórios", subcategory: "Bolsas", nome_grupo: "Acessórios", nome_subgrupo: "Bolsas" }],
+  ["4.2", { category: "Acessórios", subcategory: "Cintos", nome_grupo: "Acessórios", nome_subgrupo: "Cintos" }],
+  ["4.3", { category: "Acessórios", subcategory: "Carteiras", nome_grupo: "Acessórios", nome_subgrupo: "Carteiras" }],
 ];
 
 defaultClassificacaoEntries.forEach(([k, v]) => classificacaoIndex.set(k, v));
 
 export const moblinkCategoriesService = {
+  /**
+   * Consulta a API de grupos/categorias do MobLink ERP.
+   * Tenta múltiplos endpoints conhecidos da API para garantir resiliência máxima.
+   */
   async fetchMoblinkGruposApi(): Promise<MoblinkGrupoRaw[]> {
-    try {
-      const response = await evidenciaAuthService.fetchWithAuth(
-        MOBLINK_GRUPOS_API_URL,
-        {
+    const endpointsToTry = [
+      API_ENDPOINTS.PRODUTOS_GRUPOS,
+      API_ENDPOINTS.PRODUTOS_CATEGORIAS,
+      API_ENDPOINTS.GRUPOS,
+      API_ENDPOINTS.CATEGORIAS,
+    ];
+
+    for (const url of endpointsToTry) {
+      try {
+        const response = await evidenciaAuthService.fetchWithAuth(url, {
           method: "GET",
           headers: { Accept: "application/json" },
-        },
-      );
+        });
 
-      if (
-        response.status === 401 ||
-        response.status === 403 ||
-        response.status === 404
-      ) {
-        return [];
-      }
+        if (response.ok) {
+          const data = await response.json();
+          const rawList = Array.isArray(data)
+            ? data
+            : data.grupos || data.categorias || data.subgrupos || data.data || data.items || [];
 
-      if (response.ok) {
-        const data = await response.json();
-        const rawList = Array.isArray(data)
-          ? data
-          : data.grupos || data.data || data.items || [];
-        if (Array.isArray(rawList)) return rawList;
+          if (Array.isArray(rawList) && rawList.length > 0) {
+            return rawList;
+          }
+        }
+      } catch (err) {
+        console.warn(`[moblinkCategoriesService] Aviso ao consultar rota de grupos/categorias (${url}):`, err);
       }
-    } catch (err) {
-      console.warn(
-        "[moblinkCategoriesService] Erro ao consultar API de grupos:",
-        err,
-      );
     }
     return [];
   },
 
+  /**
+   * Resolve e traduz o código numérico de classificação do ERP MobLink para nomes limpos e padronizados.
+   */
   resolveClassificacao(code: string | number | undefined): {
     category: string;
     subcategory: string;
     nome_grupo: string;
     nome_subgrupo: string;
   } {
-    if (!code)
+    if (!code) {
       return {
         category: "Calçados",
         subcategory: "",
         nome_grupo: "Calçados",
         nome_subgrupo: "",
       };
+    }
     const key = String(code).trim();
+    if (!key) {
+      return {
+        category: "Calçados",
+        subcategory: "",
+        nome_grupo: "Calçados",
+        nome_subgrupo: "",
+      };
+    }
+
+    // 1. Tenta correspondência exata
     if (classificacaoIndex.has(key)) return classificacaoIndex.get(key)!;
-    const parentCode = key.split(".")[0];
-    if (classificacaoIndex.has(parentCode))
-      return classificacaoIndex.get(parentCode)!;
+
+    // 2. Tenta com padding de 3 dígitos (ex: "1.1" -> "001.001", "1" -> "001")
+    const parts = key.split(".");
+    const paddedCode = parts.map((p) => p.padStart(3, "0")).join(".");
+    if (classificacaoIndex.has(paddedCode)) return classificacaoIndex.get(paddedCode)!;
+
+    // 3. Tenta pelo código do grupo pai (ex: "001.001" -> "001" ou "1.1" -> "1")
+    const parentCode = parts[0];
+    if (classificacaoIndex.has(parentCode)) return classificacaoIndex.get(parentCode)!;
+    const paddedParent = parentCode.padStart(3, "0");
+    if (classificacaoIndex.has(paddedParent)) return classificacaoIndex.get(paddedParent)!;
+
     return {
       category: "Calçados",
       subcategory: "",
@@ -392,8 +435,10 @@ export const moblinkCategoriesService = {
           ""
         ).trim();
 
-        if (classCode.includes(".")) {
-          const [parentCode, subCode] = classCode.split(".");
+        if (classCode) {
+          const parentCode = classCode.includes(".") ? classCode.split(".")[0].trim() : classCode.trim();
+          const subCode = classCode.includes(".") ? classCode.split(".")[1].trim() : "";
+
           if (parentCode) {
             if (!groupsMap.has(parentCode)) {
               groupsMap.set(parentCode, {
@@ -405,9 +450,10 @@ export const moblinkCategoriesService = {
             }
             if (subCode && rawSubgroup) {
               const groupData = groupsMap.get(parentCode)!;
-              if (!groupData.subMap.has(classCode)) {
-                groupData.subMap.set(classCode, {
-                  id: classCode,
+              const fullSubId = `${parentCode}.${subCode}`;
+              if (!groupData.subMap.has(fullSubId)) {
+                groupData.subMap.set(fullSubId, {
+                  id: fullSubId,
                   subCode,
                   name: normalizeSubcategoryName(rawSubgroup),
                   parentId: parentCode,
