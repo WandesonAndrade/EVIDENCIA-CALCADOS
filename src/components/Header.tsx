@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import { useApp } from "../context/AppContext";
 import {
   ShoppingBag,
@@ -30,7 +30,8 @@ import { CompleteProfileModal } from "./CompleteProfileModal";
 import { CategorySandwichMenu } from "./CategorySandwichMenu";
 import { checkIsProfileComplete } from "../App";
 import { scrollToSectionWithOffset } from "../lib/scrollUtils";
-import { normalizeCategoryName, normalizeSubcategoryName } from "../services/moblinkCategoriesService";
+import { normalizeCategoryName, normalizeSubcategoryName, isProductInCategory } from "../services/moblinkCategoriesService";
+import { hasProductValidPhoto } from "../services/moblinkProductsService";
 
 export const Header: React.FC = () => {
   const {
@@ -94,6 +95,119 @@ export const Header: React.FC = () => {
       scrollToSectionWithOffset("category-all-items-section");
     }, 100);
   };
+
+  const checkHasProductsWithPhoto = useCallback(
+    (
+      catTarget: string,
+      subTarget: string,
+      audience: 'feminino' | 'masculino' | 'infantil'
+    ): boolean => {
+      if (!products || products.length === 0) return true;
+
+      const cleanSub = subTarget.trim().toUpperCase();
+      const cleanCat = catTarget.trim().toUpperCase();
+
+      return products.some((prod) => {
+        if (prod.visible === false) return false;
+
+        const hasStock = prod.stock !== undefined ? prod.stock > 0 : (prod.saldo_loja ?? 0) > 0;
+        if (!hasStock) return false;
+
+        if (!hasProductValidPhoto(prod)) return false;
+
+        if (cleanCat !== "TODOS" && cleanCat !== "OFERTAS") {
+          if (!isProductInCategory(prod, cleanCat)) return false;
+        }
+
+        const pCat = (prod.category || "").toUpperCase();
+        const pGrupo = (prod.nome_grupo || "").toUpperCase();
+        const pSub = (prod.nome_subgrupo || prod.subcategory || "").toUpperCase();
+        const pName = (prod.name || "").toUpperCase();
+        const normSub = normalizeSubcategoryName(pSub).toUpperCase();
+
+        if (audience === "feminino") {
+          const isFem =
+            pSub.includes("FEMININ") ||
+            normSub.includes("FEMININ") ||
+            pCat.includes("FEMININ") ||
+            pGrupo.includes("FEMININ") ||
+            pName.includes("FEMININ") ||
+            pName.includes("FEMINA") ||
+            pName.includes("FEM ");
+          if (!isFem && (pSub.includes("MASCULIN") || pCat.includes("MASCULIN"))) return false;
+          if (!isFem && !cleanCat.includes("CALÇADO") && !cleanCat.includes("CALCADO")) {
+            if (!pName.includes("FEMININ") && !pName.includes("FEM") && !pSub.includes("FEMININ")) {
+              if (pName.includes("MASCULIN") || pSub.includes("MASCULIN")) return false;
+            }
+          }
+        } else if (audience === "masculino") {
+          const isMasc =
+            pSub.includes("MASCULIN") ||
+            normSub.includes("MASCULIN") ||
+            pCat.includes("MASCULIN") ||
+            pGrupo.includes("MASCULIN") ||
+            pName.includes("MASCULIN") ||
+            pName.includes("MASCULINO") ||
+            pName.includes("MASC ");
+          if (!isMasc && (pSub.includes("FEMININ") || pCat.includes("FEMININ"))) return false;
+        } else if (audience === "infantil") {
+          const isInf =
+            pSub.includes("INFANTIL") ||
+            normSub.includes("INFANTIL") ||
+            pCat.includes("INFANTIL") ||
+            pGrupo.includes("INFANTIL") ||
+            pName.includes("INFANTIL") ||
+            pSub.includes("BEBÊ") ||
+            pSub.includes("BEBE") ||
+            pName.includes("INFANTIL");
+          if (!isInf) return false;
+        }
+
+        if (
+          cleanSub === "FEMININO" ||
+          cleanSub === "MASCULINO" ||
+          cleanSub === "INFANTIL" ||
+          cleanSub === "INFANTIL FEMININO" ||
+          cleanSub === "INFANTIL MASCULINO" ||
+          cleanSub === "BEBÊ" ||
+          cleanSub === "ESCOLAR" ||
+          cleanSub === "TODAS"
+        ) {
+          return true;
+        }
+
+        const subKeywords: string[] = [];
+        if (cleanSub.includes("SANDÁLIA") || cleanSub.includes("SANDALIA")) subKeywords.push("SANDÁLIA", "SANDALIA");
+        else if (cleanSub.includes("RASTEIRA") || cleanSub.includes("PAPETE")) subKeywords.push("RASTEIRA", "PAPETE");
+        else if (cleanSub.includes("TÊNIS") || cleanSub.includes("TENIS")) subKeywords.push("TÊNIS", "TENIS", "SNEAKER");
+        else if (cleanSub.includes("SAPATILHA")) subKeywords.push("SAPATILHA");
+        else if (cleanSub.includes("SCARPIN") || cleanSub.includes("SALTO")) subKeywords.push("SCARPIN", "SALTO");
+        else if (cleanSub.includes("BOTA") || cleanSub.includes("COTURNO")) subKeywords.push("BOTA", "COTURNO");
+        else if (cleanSub.includes("CHINELO") || cleanSub.includes("SLIDE")) subKeywords.push("CHINELO", "SLIDE");
+        else if (cleanSub.includes("MOCASSIM") || cleanSub.includes("SAPATO") || cleanSub.includes("DRIVERS")) subKeywords.push("MOCASSIM", "SAPATO", "DRIVER");
+        else if (cleanSub.includes("BLUSA") || cleanSub.includes("CAMISA")) subKeywords.push("BLUSA", "CAMISA", "REGATA", "TOP");
+        else if (cleanSub.includes("VESTIDO") || cleanSub.includes("MACACÃO") || cleanSub.includes("MACACAO")) subKeywords.push("VESTIDO", "MACACÃO", "MACACAO");
+        else if (cleanSub.includes("CALÇA") || cleanSub.includes("CALCA") || cleanSub.includes("JEANS")) subKeywords.push("CALÇA", "CALCA", "JEANS");
+        else if (cleanSub.includes("SHORT") || cleanSub.includes("SAIA") || cleanSub.includes("BERMUDA")) subKeywords.push("SHORT", "SAIA", "BERMUDA");
+        else if (cleanSub.includes("JAQUETA") || cleanSub.includes("CASACO") || cleanSub.includes("MOLETON")) subKeywords.push("JAQUETA", "CASACO", "MOLETON", "BLAZER");
+        else if (cleanSub.includes("BOLSA")) subKeywords.push("BOLSA");
+        else if (cleanSub.includes("CARTEIRA")) subKeywords.push("CARTEIRA");
+        else if (cleanSub.includes("CINTO")) subKeywords.push("CINTO");
+        else if (cleanSub.includes("MOCHILA") || cleanSub.includes("NÉCESSAIRE") || cleanSub.includes("NECESSAIRE")) subKeywords.push("MOCHILA", "NECESSAIRE", "ESTOJO");
+        else if (cleanSub.includes("PERFUME")) subKeywords.push("PERFUME", "FRAGRÂNCIA", "FRAGRANCIA");
+        else if (cleanSub.includes("COLÔNIA") || cleanSub.includes("COLONIA")) subKeywords.push("COLÔNIA", "COLONIA");
+        else if (cleanSub.includes("BODY SPLASH")) subKeywords.push("BODY SPLASH", "SPLASH");
+        else if (cleanSub.includes("COSMÉTICO") || cleanSub.includes("COSMETICO") || cleanSub.includes("CUIDADOS") || cleanSub.includes("BARBEARIA")) subKeywords.push("COSMÉTICO", "COSMETICO", "CREME", "LOÇÃO", "LOCAO", "BARBA");
+
+        if (subKeywords.length > 0) {
+          return subKeywords.some((kw) => pSub.includes(kw) || normSub.includes(kw) || pName.includes(kw));
+        }
+
+        return pSub.includes(cleanSub) || normSub.includes(cleanSub) || pName.includes(cleanSub);
+      });
+    },
+    [products]
+  );
 
   const MEGAMENU_DATA: Record<'feminino' | 'masculino' | 'infantil', {
     title: string;
@@ -888,32 +1002,40 @@ export const Header: React.FC = () => {
 
                     {/* Colunas do Mega-Menu */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8">
-                      {MEGAMENU_DATA[activeMegaMenu].sections.map((sec, idx) => (
-                        <div key={idx} className="space-y-3">
-                          <h4 className="text-xs font-black uppercase tracking-wider text-[#003e92] dark:text-amber-400 border-b pb-2 border-slate-200 dark:border-slate-800 flex items-center justify-between">
-                            <span>{sec.title}</span>
-                          </h4>
-                          <ul className="space-y-1.5">
-                            {sec.items.map((item, itemIdx) => (
-                              <li key={itemIdx}>
-                                <button
-                                  onClick={() => handleMegaMenuCategoryClick(item.category, item.subcategory)}
-                                  className={`text-xs w-full text-left py-1.5 px-2.5 rounded-lg transition-all cursor-pointer flex items-center justify-between group ${
-                                    itemIdx === 0
-                                      ? "font-extrabold text-[#003e92] dark:text-amber-300 hover:bg-[#003e92]/10 dark:hover:bg-amber-400/10"
-                                      : isDark
-                                        ? "text-slate-300 hover:text-white hover:bg-slate-800/60"
-                                        : "text-slate-700 hover:text-black hover:bg-slate-100"
-                                  }`}
-                                >
-                                  <span className="group-hover:translate-x-1 transition-transform">{item.name}</span>
-                                  <ChevronRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity text-slate-400" />
-                                </button>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      ))}
+                      {MEGAMENU_DATA[activeMegaMenu].sections.map((sec, idx) => {
+                        const validItems = sec.items.filter((item) =>
+                          checkHasProductsWithPhoto(item.category, item.subcategory, activeMegaMenu)
+                        );
+
+                        if (validItems.length === 0) return null;
+
+                        return (
+                          <div key={idx} className="space-y-3">
+                            <h4 className="text-xs font-black uppercase tracking-wider text-[#003e92] dark:text-amber-400 border-b pb-2 border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                              <span>{sec.title}</span>
+                            </h4>
+                            <ul className="space-y-1.5">
+                              {validItems.map((item, itemIdx) => (
+                                <li key={itemIdx}>
+                                  <button
+                                    onClick={() => handleMegaMenuCategoryClick(item.category, item.subcategory)}
+                                    className={`text-xs w-full text-left py-1.5 px-2.5 rounded-lg transition-all cursor-pointer flex items-center justify-between group ${
+                                      itemIdx === 0
+                                        ? "font-extrabold text-[#003e92] dark:text-amber-300 hover:bg-[#003e92]/10 dark:hover:bg-amber-400/10"
+                                        : isDark
+                                          ? "text-slate-300 hover:text-white hover:bg-slate-800/60"
+                                          : "text-slate-700 hover:text-black hover:bg-slate-100"
+                                    }`}
+                                  >
+                                    <span className="group-hover:translate-x-1 transition-transform">{item.name}</span>
+                                    <ChevronRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity text-slate-400" />
+                                  </button>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 </motion.div>
