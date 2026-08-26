@@ -57,16 +57,31 @@ export function normalizeSubcategoryName(raw: string): string {
   const clean = raw.trim().toUpperCase();
 
   // Dicionário de Correção Gramatical para Subcategorias do ERP / Banco de Dados
-  if (clean === "MASCULINO" || clean === "MASC") return "Masculino";
-  if (clean === "FEMININO" || clean === "FEM") return "Feminino";
   if (clean.includes("INFANTL MASC") || clean.includes("INFANTIL MASC") || clean === "INF MASC") return "Infantil Masculino";
   if (clean.includes("INFANTL FEM") || clean.includes("INFANTIL FEM") || clean === "INF FEM") return "Infantil Feminino";
+
+  // Tratamento Especial para Perfumaria / Fragrâncias / Cosméticos
+  if (clean.includes("PERFUM") || clean.includes("COLONIA") || clean.includes("COLÔNIA") || clean.includes("FRAGRANC") || clean.includes("FRAGRÂNC")) {
+    if (clean.includes("FEMININ") || clean.includes("FEM")) return "Feminino";
+    if (clean.includes("MASCULIN") || clean.includes("MASC")) return "Masculino";
+    if (clean.includes("INFANT") || clean.includes("KID") || clean.includes("BEBE") || clean.includes("BEBÊ")) return "Infantil";
+    if (clean.includes("UNISSEX") || clean.includes("UNISEX")) return "Unissex";
+    if (clean.includes("COLONIA") || clean.includes("COLÔNIA")) return "Colônias";
+    if (clean.includes("BODY SPLASH")) return "Body Splash";
+    if (clean.includes("KIT") || clean.includes("PRESENT")) return "Kits & Presentes";
+    return "Perfumes";
+  }
+
+  if (clean.includes("COSMETICO") || clean.includes("COSMÉTICO") || clean.includes("COSMETIC")) return "Cosméticos";
+  if (clean.includes("BODY SPLASH")) return "Body Splash";
+  if (clean.includes("COLONIA") || clean.includes("COLÔNIA")) return "Colônias";
+
+  if (clean === "MASCULINO" || clean === "MASC") return "Masculino";
+  if (clean === "FEMININO" || clean === "FEM") return "Feminino";
   if (clean.includes("CONFECOES") || clean.includes("CONFECCOES") || clean.includes("CONFECÇ")) return "Confecções";
   if (clean.includes("CALCADO") || clean.includes("CALÇADO")) return "Calçados";
   if (clean.includes("ACESSORIO") || clean.includes("ACESSÓRIO")) return "Acessórios";
   if (clean.includes("PROMOCOES") || clean.includes("PROMOÇÃO")) return "Promoções";
-  if (clean.includes("COSMETICO") || clean.includes("COSMÉTICO")) return "Cosméticos";
-  if (clean.includes("PERFUME") || clean.includes("PERFUMES")) return "Perfumes";
   if (clean.includes("SAPATILHA") || clean.includes("SAPATILHAS")) return "Sapatilhas";
   if (clean.includes("SANDALIA") || clean.includes("SANDÁLIA") || clean.includes("SANDALIAS") || clean.includes("SANDÁLIAS")) return "Sandálias";
   if (clean.includes("TENIS") || clean.includes("TÊNIS")) return "Tênis";
@@ -111,6 +126,17 @@ export function isProductInCategory(prod: Product, targetCategory: string): bool
 
   if (cat === targetNorm || categoria === targetNorm || grupo === targetNorm) {
     return true;
+  }
+
+  if (targetNorm === "PERFUMES" || targetClean.includes("PERFUM") || targetClean.includes("COSMET") || targetClean.includes("COLONIA")) {
+    return (
+      cat.includes("PERFUM") || cat.includes("COSMET") ||
+      grupo.includes("PERFUM") || grupo.includes("COSMET") ||
+      rawCat.includes("PERFUM") || rawGrupo.includes("PERFUM") || rawSubgrupo.includes("PERFUM") ||
+      rawCat.includes("COSMET") || rawGrupo.includes("COSMET") || rawSubgrupo.includes("COSMET") ||
+      rawCat.includes("COLONIA") || rawGrupo.includes("COLONIA") ||
+      name.includes("PERFUME") || name.includes("COLONIA") || name.includes("COLÔNIA") || name.includes("FRAGRANC") || name.includes("BODY SPLASH")
+    );
   }
 
   if (targetNorm === "CONFECÇÕES" || targetClean.includes("CONFEC") || targetClean.includes("ROUPA") || targetClean.includes("VESTU")) {

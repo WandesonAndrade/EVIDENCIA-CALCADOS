@@ -459,7 +459,17 @@ export function inferCategoryFromProductName(name: string): { category: string; 
   if (upper.includes("SAPATO")) return { category: "Calçados", subcategory: "Sapatos" };
   if (upper.includes("BOLSA") || upper.includes("MOCHILA") || upper.includes("CARTEIRA") || upper.includes("CINTO") || upper.includes("BONÉ") || upper.includes("BONE") || upper.includes("ÓCULOS") || upper.includes("OCULOS")) return { category: "Acessórios", subcategory: "Bolsas & Acessórios" };
   if (upper.includes("CONFEC") || upper.includes("BLUSA") || upper.includes("CAMISA") || upper.includes("CALÇA") || upper.includes("SHORTS") || upper.includes("VESTIDO") || upper.includes("SAIA") || upper.includes("JAQUETA") || upper.includes("CASACO")) return { category: "Confecções", subcategory: "" };
-  if (upper.includes("PERFUM") || upper.includes("COLONIA") || upper.includes("COLÔNIA")) return { category: "Perfumes", subcategory: "" };
+  if (upper.includes("PERFUM") || upper.includes("COLONIA") || upper.includes("COLÔNIA") || upper.includes("FRAGRANC") || upper.includes("FRAGRÂNC") || upper.includes("BODY SPLASH") || upper.includes("EAU DE")) {
+    let sub = "Perfumes";
+    if (upper.includes("FEMININ") || upper.includes(" FEM") || upper.endsWith(" FEM")) sub = "Feminino";
+    else if (upper.includes("MASCULIN") || upper.includes(" MASC") || upper.endsWith(" MASC")) sub = "Masculino";
+    else if (upper.includes("INFANTIL") || upper.includes(" INF") || upper.includes("KIDS") || upper.includes("BEBÊ") || upper.includes("BEBE")) sub = "Infantil";
+    else if (upper.includes("UNISSEX") || upper.includes("UNISEX")) sub = "Unissex";
+    else if (upper.includes("BODY SPLASH")) sub = "Body Splash";
+    else if (upper.includes("COLONIA") || upper.includes("COLÔNIA")) sub = "Colônias";
+    else if (upper.includes("KIT")) sub = "Kits & Presentes";
+    return { category: "Perfumes", subcategory: sub };
+  }
   if (upper.includes("MALA") || upper.includes("RODINHA")) return { category: "Itens de Viagem", subcategory: "" };
 
   return { category: "Calçados", subcategory: "" };
