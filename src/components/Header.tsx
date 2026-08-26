@@ -102,57 +102,117 @@ export const Header: React.FC = () => {
     const subMap = new Map<string, { name: string; count: number; category: string }>();
 
     products.forEach((prod) => {
+      // 1. Produto visível
       if (prod.visible === false) return;
 
+      // 2. Produto com estoque
       const hasStock = prod.stock !== undefined ? prod.stock > 0 : (prod.saldo_loja ?? 0) > 0;
       if (!hasStock) return;
 
+      // 3. COM FOTO VÁLIDA
       if (!hasProductValidPhoto(prod)) return;
 
       const pCat = (prod.category || "").toUpperCase();
       const pGrupo = (prod.nome_grupo || "").toUpperCase();
       const pSub = (prod.nome_subgrupo || prod.subcategory || "").toUpperCase();
       const pName = (prod.name || "").toUpperCase();
+      const pClass = String(prod.classificacao || "").trim();
       const normSubRaw = normalizeSubcategoryName(pSub).toUpperCase();
 
+      // 4. Pertencimento ao público alvo
       let matchesAudience = false;
       if (activeMegaMenu === "feminino") {
-        matchesAudience =
-          pSub.includes("FEMININ") ||
-          normSubRaw.includes("FEMININ") ||
-          pCat.includes("FEMININ") ||
-          pGrupo.includes("FEMININ") ||
-          pName.includes("FEMININ") ||
-          pName.includes("FEMINA") ||
-          pName.includes("FEM ");
-        if (matchesAudience && (pSub.includes("MASCULIN") || pCat.includes("MASCULIN"))) matchesAudience = false;
+        if (pClass.startsWith("001.001") || pClass.startsWith("002.001") || pClass.startsWith("003.001") || pClass.startsWith("1.1")) {
+          matchesAudience = true;
+        } else {
+          const isExplicitFem =
+            pSub.includes("FEMININ") ||
+            normSubRaw.includes("FEMININ") ||
+            pCat.includes("FEMININ") ||
+            pGrupo.includes("FEMININ") ||
+            pName.includes("FEMININ") ||
+            pName.includes("FEMINA") ||
+            pName.includes("FEM ");
+          if (isExplicitFem) {
+            matchesAudience = true;
+          } else {
+            const isExplicitMasc = pSub.includes("MASCULIN") || normSubRaw.includes("MASCULIN") || pCat.includes("MASCULIN") || pGrupo.includes("MASCULIN") || pName.includes("MASCULIN") || pClass.startsWith("001.002");
+            const isExplicitInf = pSub.includes("INFANTIL") || normSubRaw.includes("INFANTIL") || pCat.includes("INFANTIL") || pGrupo.includes("INFANTIL") || pName.includes("INFANTIL") || pSub.includes("BEBÊ") || pClass.startsWith("001.003");
+
+            if (isExplicitMasc || isExplicitInf) {
+              matchesAudience = false;
+            } else {
+              // Por ser catálogo de calçados feminino/unissex em sua maioria, qualifica itens padrão
+              matchesAudience = true;
+            }
+          }
+        }
       } else if (activeMegaMenu === "masculino") {
-        matchesAudience =
-          pSub.includes("MASCULIN") ||
-          normSubRaw.includes("MASCULIN") ||
-          pCat.includes("MASCULIN") ||
-          pGrupo.includes("MASCULIN") ||
-          pName.includes("MASCULIN") ||
-          pName.includes("MASCULINO") ||
-          pName.includes("MASC ");
-        if (matchesAudience && (pSub.includes("FEMININ") || pCat.includes("FEMININ"))) matchesAudience = false;
+        if (pClass.startsWith("001.002") || pClass.startsWith("002.002") || pClass.startsWith("003.002") || pClass.startsWith("1.2")) {
+          matchesAudience = true;
+        } else {
+          matchesAudience =
+            pSub.includes("MASCULIN") ||
+            normSubRaw.includes("MASCULIN") ||
+            pCat.includes("MASCULIN") ||
+            pGrupo.includes("MASCULIN") ||
+            pName.includes("MASCULIN") ||
+            pName.includes("MASCULINO") ||
+            pName.includes("MASC ") ||
+            pSub.includes("SAPATÊNIS") ||
+            pSub.includes("SAPATENIS") ||
+            pName.includes("SAPATÊNIS") ||
+            pName.includes("SAPATENIS");
+          if (matchesAudience && (pSub.includes("FEMININ") || pCat.includes("FEMININ") || pClass.startsWith("001.001"))) {
+            matchesAudience = false;
+          }
+        }
       } else if (activeMegaMenu === "infantil") {
-        matchesAudience =
-          pSub.includes("INFANTIL") ||
-          normSubRaw.includes("INFANTIL") ||
-          pCat.includes("INFANTIL") ||
-          pGrupo.includes("INFANTIL") ||
-          pName.includes("INFANTIL") ||
-          pSub.includes("BEBÊ") ||
-          pSub.includes("BEBE");
+        if (pClass.startsWith("001.003") || pClass.startsWith("001.004") || pClass.startsWith("002.003") || pClass.startsWith("1.3")) {
+          matchesAudience = true;
+        } else {
+          matchesAudience =
+            pSub.includes("INFANTIL") ||
+            normSubRaw.includes("INFANTIL") ||
+            pCat.includes("INFANTIL") ||
+            pGrupo.includes("INFANTIL") ||
+            pName.includes("INFANTIL") ||
+            pSub.includes("BEBÊ") ||
+            pSub.includes("BEBE") ||
+            pName.includes("KIDS") ||
+            pName.includes("BABY");
+        }
       }
 
       if (!matchesAudience) return;
 
+      // 5. Extração e normalização de nome de subcategoria cadastrada (com inferência de fallback)
+      let normName = "";
       const rawSubName = (prod.nome_subgrupo || prod.subcategory || "").trim();
-      if (!rawSubName || rawSubName.toUpperCase() === "GERAL") return;
 
-      const normName = normalizeSubcategoryName(rawSubName);
+      if (rawSubName && rawSubName.toUpperCase() !== "GERAL" && rawSubName.toUpperCase() !== "TODAS") {
+        normName = normalizeSubcategoryName(rawSubName);
+      }
+
+      if (!normName || normName.toUpperCase() === "GERAL" || normName.toUpperCase() === "FEMININO" || normName.toUpperCase() === "MASCULINO" || normName.toUpperCase() === "INFANTIL") {
+        // Inferência por nome do produto se a subcategoria for genérica ou em branco
+        if (pName.includes("SANDÁLIA") || pName.includes("SANDALIA")) normName = "Sandálias";
+        else if (pName.includes("RASTEIRA") || pName.includes("PAPETE")) normName = "Rasteiras & Papetes";
+        else if (pName.includes("TÊNIS") || pName.includes("TENIS") || pName.includes("SNEAKER")) normName = "Tênis";
+        else if (pName.includes("SAPATILHA")) normName = "Sapatilhas";
+        else if (pName.includes("SCARPIN") || pName.includes("SALTO")) normName = "Scarpins & Saltos";
+        else if (pName.includes("BOTA") || pName.includes("COTURNO")) normName = "Botas & Coturnos";
+        else if (pName.includes("CHINELO") || pName.includes("SLIDE")) normName = "Chinelos & Slides";
+        else if (pName.includes("MOCASSIM") || pName.includes("DRIVERS")) normName = "Mocassins";
+        else if (pName.includes("SAPATO") || pName.includes("SAPATÊNIS") || pName.includes("SAPATENIS")) normName = "Sapatos";
+        else if (pName.includes("BOLSA")) normName = "Bolsas";
+        else if (pName.includes("CARTEIRA")) normName = "Carteiras";
+        else if (pName.includes("CINTO")) normName = "Cintos";
+        else if (pName.includes("MOCHILA")) normName = "Mochilas";
+        else if (pName.includes("PERFUME") || pName.includes("COLÔNIA") || pName.includes("COLONIA") || pName.includes("BODY SPLASH")) normName = "Perfumes";
+        else if (pName.includes("BLUSA") || pName.includes("CAMISA") || pName.includes("VESTIDO") || pName.includes("CALÇA") || pName.includes("JEANS")) normName = "Confecções & Moda";
+      }
+
       if (!normName) return;
 
       const key = normName.toUpperCase();
