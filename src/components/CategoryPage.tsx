@@ -249,28 +249,56 @@ export const CategoryPage: React.FC = () => {
       };
     }
 
+    // 1. Resolve o filtro da categoria pai principal (ex: Perfumes, Calçados, Confecções, Acessórios, Todos)
+    let parentCategoryName = '';
+    let parentFilter: (prod: Product) => boolean = () => true;
+
+    if (TAB_CONFIGS[cleanTabKey]) {
+      parentCategoryName = TAB_CONFIGS[cleanTabKey].title;
+      parentFilter = TAB_CONFIGS[cleanTabKey].filter;
+    } else if (cleanTabKey === 'todos') {
+      parentCategoryName = 'TODOS OS PRODUTOS';
+      parentFilter = () => true;
+    } else {
+      const foundCategory = categories.find(c => c.id === selectedMenuTab || c.name.toLowerCase() === selectedMenuTab.toLowerCase() || normalizeCategoryName(c.name).toLowerCase() === selectedMenuTab.toLowerCase());
+      if (foundCategory) {
+        parentCategoryName = normalizeCategoryName(foundCategory.name);
+        parentFilter = (prod: Product) => isProductInCategory(prod, foundCategory.name);
+      } else if (selectedMenuTab) {
+        const cleanTabStr = (selectedMenuTab || '').trim();
+        parentCategoryName = normalizeCategoryName(cleanTabStr);
+        parentFilter = (prod: Product) => isProductInCategory(prod, cleanTabStr);
+      }
+    }
+
+    // 2. Se houver subcategoria ativa, combina o filtro pai obrigatório com a subcategoria selecionada
     if (activeSubcategory) {
       const cleanSub = activeSubcategory.trim().toUpperCase();
       const normSub = normalizeSubcategoryName(cleanSub).toUpperCase();
+      const isGenderOrGenericSub = normSub === 'FEMININO' || normSub === 'MASCULINO' || normSub === 'INFANTIL' || normSub === 'BEBÊ' || normSub === 'UNISSEX';
+
       return {
-        title: activeSubcategory.toUpperCase(),
+        title: parentCategoryName ? `${parentCategoryName.toUpperCase()} - ${activeSubcategory.toUpperCase()}` : activeSubcategory.toUpperCase(),
         subtitle: `Confira todos os modelos de ${activeSubcategory} disponíveis com pronta entrega na Evidência Calçados.`,
         bannerImage: 'https://images.unsplash.com/photo-1549298916-b41d501d3772?q=80&w=1600&auto=format&fit=crop',
         badgeText: `SUBCATEGORIA: ${activeSubcategory.toUpperCase()}`,
         filter: (prod: Product) => {
-          const catRaw = (prod.category || '').toUpperCase();
-          const grupoRaw = (prod.nome_grupo || '').toUpperCase();
+          // Garante pertencimento à categoria pai primeiro (ex: Perfumes não trazem Calçados)
+          if (!parentFilter(prod)) return false;
+
           const subRaw = (prod.nome_subgrupo || prod.subcategory || '').toUpperCase();
           const normSubRaw = normalizeSubcategoryName(subRaw).toUpperCase();
+          const catRaw = (prod.category || '').toUpperCase();
+          const grupoRaw = (prod.nome_grupo || '').toUpperCase();
           const nameRaw = (prod.name || '').toUpperCase();
 
-          return (
+          const subMatch = (
             subRaw.includes(cleanSub) ||
             normSubRaw.includes(normSub) ||
-            catRaw.includes(cleanSub) ||
-            grupoRaw.includes(cleanSub) ||
-            nameRaw.includes(cleanSub)
+            (!isGenderOrGenericSub && (catRaw.includes(cleanSub) || grupoRaw.includes(cleanSub) || nameRaw.includes(cleanSub)))
           );
+
+          return subMatch;
         }
       };
     }
@@ -288,16 +316,14 @@ export const CategoryPage: React.FC = () => {
         filter: () => true
       };
     }
-    
-    const foundCategory = categories.find(c => c.id === selectedMenuTab || c.name.toLowerCase() === selectedMenuTab.toLowerCase() || normalizeCategoryName(c.name).toLowerCase() === selectedMenuTab.toLowerCase());
-    if (foundCategory) {
-      const normCatName = normalizeCategoryName(foundCategory.name);
+
+    if (parentCategoryName) {
       return {
-        title: normCatName,
-        subtitle: foundCategory.description || `Confira nossa coleção de ${normCatName} com condições e qualidade exclusivas Evidência Calçados.`,
+        title: parentCategoryName.toUpperCase(),
+        subtitle: `Confira nossa coleção de ${parentCategoryName} com condições e qualidade exclusivas Evidência Calçados.`,
         bannerImage: 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?q=80&w=1600&auto=format&fit=crop',
-        badgeText: normCatName.toUpperCase(),
-        filter: (prod: Product) => isProductInCategory(prod, foundCategory.name)
+        badgeText: parentCategoryName.toUpperCase(),
+        filter: parentFilter
       };
     }
 

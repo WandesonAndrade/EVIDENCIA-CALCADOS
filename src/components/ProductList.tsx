@@ -4,7 +4,7 @@ import { Product } from "../types";
 import { Eye, Heart, ArrowRight, ArrowUpDown, Truck, CreditCard, RefreshCw, ShoppingBag, Sparkles, ChevronLeft, ChevronRight, Tag } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { scrollToSectionWithOffset } from "../lib/scrollUtils";
-import { normalizeCategoryName, normalizeSubcategoryName } from "../services/moblinkCategoriesService";
+import { normalizeCategoryName, normalizeSubcategoryName, isProductInCategory } from "../services/moblinkCategoriesService";
 import { hasProductValidGrade, hasProductValidPhoto, extractClassificacaoCategoria } from "../services/moblinkProductsService";
 import { isSaldaoProduct, getSaldaoProductPrice } from "../services/saldaoService";
 import { getApplicablePromotion } from "../services/promotionsService";
@@ -322,9 +322,7 @@ export const ProductList: React.FC = () => {
       }
 
       if (!catMatch) {
-        const grupoRaw = (p.nome_grupo || p.category || "").toUpperCase().trim();
-        const grupoNorm = normalizeCategoryName(p.nome_grupo || p.category || "").toUpperCase().trim();
-        catMatch = grupoRaw === target || grupoNorm === target || grupoRaw.includes(target);
+        catMatch = isProductInCategory(p, selectedCategory);
       }
 
       if (!catMatch) return false;
@@ -332,8 +330,14 @@ export const ProductList: React.FC = () => {
 
     if (selectedSubcategory && selectedSubcategory !== "TODAS" && selectedSubcategory !== "TODOS") {
       const targetSub = selectedSubcategory.trim().toUpperCase();
-      const subgrupoRaw = (p.nome_subgrupo || p.subcategory || p.category || "").toUpperCase().trim();
-      if (!subgrupoRaw.includes(targetSub)) return false;
+      const normTargetSub = normalizeSubcategoryName(targetSub).toUpperCase();
+
+      const subgrupoRaw = (p.nome_subgrupo || p.subcategory || "").toUpperCase().trim();
+      const normSubRaw = normalizeSubcategoryName(subgrupoRaw).toUpperCase();
+      const nameRaw = (p.name || "").toUpperCase();
+
+      const subMatch = subgrupoRaw.includes(targetSub) || normSubRaw.includes(normTargetSub) || nameRaw.includes(targetSub);
+      if (!subMatch) return false;
     }
 
     return true;
