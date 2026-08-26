@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import { useApp } from "../context/AppContext";
 import {
   ShoppingBag,
@@ -96,288 +96,79 @@ export const Header: React.FC = () => {
     }, 100);
   };
 
-  const checkHasProductsWithPhoto = useCallback(
-    (
-      catTarget: string,
-      subTarget: string,
-      audience: 'feminino' | 'masculino' | 'infantil'
-    ): boolean => {
-      if (!products || products.length === 0) return true;
+  const dynamicMegaMenuSubcategories = useMemo(() => {
+    if (!activeMegaMenu || !products || products.length === 0) return [];
 
-      const cleanSub = subTarget.trim().toUpperCase();
-      const cleanCat = catTarget.trim().toUpperCase();
+    const subMap = new Map<string, { name: string; count: number; category: string }>();
 
-      return products.some((prod) => {
-        if (prod.visible === false) return false;
+    products.forEach((prod) => {
+      if (prod.visible === false) return;
 
-        const hasStock = prod.stock !== undefined ? prod.stock > 0 : (prod.saldo_loja ?? 0) > 0;
-        if (!hasStock) return false;
+      const hasStock = prod.stock !== undefined ? prod.stock > 0 : (prod.saldo_loja ?? 0) > 0;
+      if (!hasStock) return;
 
-        if (!hasProductValidPhoto(prod)) return false;
+      if (!hasProductValidPhoto(prod)) return;
 
-        if (cleanCat !== "TODOS" && cleanCat !== "OFERTAS") {
-          if (!isProductInCategory(prod, cleanCat)) return false;
-        }
+      const pCat = (prod.category || "").toUpperCase();
+      const pGrupo = (prod.nome_grupo || "").toUpperCase();
+      const pSub = (prod.nome_subgrupo || prod.subcategory || "").toUpperCase();
+      const pName = (prod.name || "").toUpperCase();
+      const normSubRaw = normalizeSubcategoryName(pSub).toUpperCase();
 
-        const pCat = (prod.category || "").toUpperCase();
-        const pGrupo = (prod.nome_grupo || "").toUpperCase();
-        const pSub = (prod.nome_subgrupo || prod.subcategory || "").toUpperCase();
-        const pName = (prod.name || "").toUpperCase();
-        const normSub = normalizeSubcategoryName(pSub).toUpperCase();
+      let matchesAudience = false;
+      if (activeMegaMenu === "feminino") {
+        matchesAudience =
+          pSub.includes("FEMININ") ||
+          normSubRaw.includes("FEMININ") ||
+          pCat.includes("FEMININ") ||
+          pGrupo.includes("FEMININ") ||
+          pName.includes("FEMININ") ||
+          pName.includes("FEMINA") ||
+          pName.includes("FEM ");
+        if (matchesAudience && (pSub.includes("MASCULIN") || pCat.includes("MASCULIN"))) matchesAudience = false;
+      } else if (activeMegaMenu === "masculino") {
+        matchesAudience =
+          pSub.includes("MASCULIN") ||
+          normSubRaw.includes("MASCULIN") ||
+          pCat.includes("MASCULIN") ||
+          pGrupo.includes("MASCULIN") ||
+          pName.includes("MASCULIN") ||
+          pName.includes("MASCULINO") ||
+          pName.includes("MASC ");
+        if (matchesAudience && (pSub.includes("FEMININ") || pCat.includes("FEMININ"))) matchesAudience = false;
+      } else if (activeMegaMenu === "infantil") {
+        matchesAudience =
+          pSub.includes("INFANTIL") ||
+          normSubRaw.includes("INFANTIL") ||
+          pCat.includes("INFANTIL") ||
+          pGrupo.includes("INFANTIL") ||
+          pName.includes("INFANTIL") ||
+          pSub.includes("BEBÊ") ||
+          pSub.includes("BEBE");
+      }
 
-        if (audience === "feminino") {
-          const isFem =
-            pSub.includes("FEMININ") ||
-            normSub.includes("FEMININ") ||
-            pCat.includes("FEMININ") ||
-            pGrupo.includes("FEMININ") ||
-            pName.includes("FEMININ") ||
-            pName.includes("FEMINA") ||
-            pName.includes("FEM ");
-          if (!isFem && (pSub.includes("MASCULIN") || pCat.includes("MASCULIN"))) return false;
-          if (!isFem && !cleanCat.includes("CALÇADO") && !cleanCat.includes("CALCADO")) {
-            if (!pName.includes("FEMININ") && !pName.includes("FEM") && !pSub.includes("FEMININ")) {
-              if (pName.includes("MASCULIN") || pSub.includes("MASCULIN")) return false;
-            }
-          }
-        } else if (audience === "masculino") {
-          const isMasc =
-            pSub.includes("MASCULIN") ||
-            normSub.includes("MASCULIN") ||
-            pCat.includes("MASCULIN") ||
-            pGrupo.includes("MASCULIN") ||
-            pName.includes("MASCULIN") ||
-            pName.includes("MASCULINO") ||
-            pName.includes("MASC ");
-          if (!isMasc && (pSub.includes("FEMININ") || pCat.includes("FEMININ"))) return false;
-        } else if (audience === "infantil") {
-          const isInf =
-            pSub.includes("INFANTIL") ||
-            normSub.includes("INFANTIL") ||
-            pCat.includes("INFANTIL") ||
-            pGrupo.includes("INFANTIL") ||
-            pName.includes("INFANTIL") ||
-            pSub.includes("BEBÊ") ||
-            pSub.includes("BEBE") ||
-            pName.includes("INFANTIL");
-          if (!isInf) return false;
-        }
+      if (!matchesAudience) return;
 
-        if (
-          cleanSub === "FEMININO" ||
-          cleanSub === "MASCULINO" ||
-          cleanSub === "INFANTIL" ||
-          cleanSub === "INFANTIL FEMININO" ||
-          cleanSub === "INFANTIL MASCULINO" ||
-          cleanSub === "BEBÊ" ||
-          cleanSub === "ESCOLAR" ||
-          cleanSub === "TODAS"
-        ) {
-          return true;
-        }
+      const rawSubName = (prod.nome_subgrupo || prod.subcategory || "").trim();
+      if (!rawSubName || rawSubName.toUpperCase() === "GERAL") return;
 
-        const subKeywords: string[] = [];
-        if (cleanSub.includes("SANDÁLIA") || cleanSub.includes("SANDALIA")) subKeywords.push("SANDÁLIA", "SANDALIA");
-        else if (cleanSub.includes("RASTEIRA") || cleanSub.includes("PAPETE")) subKeywords.push("RASTEIRA", "PAPETE");
-        else if (cleanSub.includes("TÊNIS") || cleanSub.includes("TENIS")) subKeywords.push("TÊNIS", "TENIS", "SNEAKER");
-        else if (cleanSub.includes("SAPATILHA")) subKeywords.push("SAPATILHA");
-        else if (cleanSub.includes("SCARPIN") || cleanSub.includes("SALTO")) subKeywords.push("SCARPIN", "SALTO");
-        else if (cleanSub.includes("BOTA") || cleanSub.includes("COTURNO")) subKeywords.push("BOTA", "COTURNO");
-        else if (cleanSub.includes("CHINELO") || cleanSub.includes("SLIDE")) subKeywords.push("CHINELO", "SLIDE");
-        else if (cleanSub.includes("MOCASSIM") || cleanSub.includes("SAPATO") || cleanSub.includes("DRIVERS")) subKeywords.push("MOCASSIM", "SAPATO", "DRIVER");
-        else if (cleanSub.includes("BLUSA") || cleanSub.includes("CAMISA")) subKeywords.push("BLUSA", "CAMISA", "REGATA", "TOP");
-        else if (cleanSub.includes("VESTIDO") || cleanSub.includes("MACACÃO") || cleanSub.includes("MACACAO")) subKeywords.push("VESTIDO", "MACACÃO", "MACACAO");
-        else if (cleanSub.includes("CALÇA") || cleanSub.includes("CALCA") || cleanSub.includes("JEANS")) subKeywords.push("CALÇA", "CALCA", "JEANS");
-        else if (cleanSub.includes("SHORT") || cleanSub.includes("SAIA") || cleanSub.includes("BERMUDA")) subKeywords.push("SHORT", "SAIA", "BERMUDA");
-        else if (cleanSub.includes("JAQUETA") || cleanSub.includes("CASACO") || cleanSub.includes("MOLETON")) subKeywords.push("JAQUETA", "CASACO", "MOLETON", "BLAZER");
-        else if (cleanSub.includes("BOLSA")) subKeywords.push("BOLSA");
-        else if (cleanSub.includes("CARTEIRA")) subKeywords.push("CARTEIRA");
-        else if (cleanSub.includes("CINTO")) subKeywords.push("CINTO");
-        else if (cleanSub.includes("MOCHILA") || cleanSub.includes("NÉCESSAIRE") || cleanSub.includes("NECESSAIRE")) subKeywords.push("MOCHILA", "NECESSAIRE", "ESTOJO");
-        else if (cleanSub.includes("PERFUME")) subKeywords.push("PERFUME", "FRAGRÂNCIA", "FRAGRANCIA");
-        else if (cleanSub.includes("COLÔNIA") || cleanSub.includes("COLONIA")) subKeywords.push("COLÔNIA", "COLONIA");
-        else if (cleanSub.includes("BODY SPLASH")) subKeywords.push("BODY SPLASH", "SPLASH");
-        else if (cleanSub.includes("COSMÉTICO") || cleanSub.includes("COSMETICO") || cleanSub.includes("CUIDADOS") || cleanSub.includes("BARBEARIA")) subKeywords.push("COSMÉTICO", "COSMETICO", "CREME", "LOÇÃO", "LOCAO", "BARBA");
+      const normName = normalizeSubcategoryName(rawSubName);
+      if (!normName) return;
 
-        if (subKeywords.length > 0) {
-          return subKeywords.some((kw) => pSub.includes(kw) || normSub.includes(kw) || pName.includes(kw));
-        }
+      const key = normName.toUpperCase();
+      if (key === "FEMININO" || key === "MASCULINO" || key === "INFANTIL" || key === "GERAL") return;
 
-        return pSub.includes(cleanSub) || normSub.includes(cleanSub) || pName.includes(cleanSub);
-      });
-    },
-    [products]
-  );
+      const catName = prod.category || prod.nome_grupo || "Calçados";
+      const existing = subMap.get(key);
+      if (existing) {
+        existing.count += 1;
+      } else {
+        subMap.set(key, { name: normName, count: 1, category: catName });
+      }
+    });
 
-  const MEGAMENU_DATA: Record<'feminino' | 'masculino' | 'infantil', {
-    title: string;
-    badge: string;
-    bannerTitle: string;
-    bannerSubtitle: string;
-    sections: {
-      title: string;
-      category: string;
-      items: { name: string; category: string; subcategory: string }[];
-    }[];
-  }> = {
-    feminino: {
-      title: "Feminino",
-      badge: "Coleção Feminina",
-      bannerTitle: "Tudo para o Universo Feminino",
-      bannerSubtitle: "Calçados, Roupas, Bolsas, Perfumes e Acessórios com pronta entrega",
-      sections: [
-        {
-          title: "Calçados Femininos",
-          category: "Calçados",
-          items: [
-            { name: "Ver Todos os Calçados", category: "Calçados", subcategory: "Feminino" },
-            { name: "Sandálias", category: "Calçados", subcategory: "Sandálias" },
-            { name: "Rasteiras & Papetes", category: "Calçados", subcategory: "Rasteiras" },
-            { name: "Tênis Femininos", category: "Calçados", subcategory: "Tênis" },
-            { name: "Sapatilhas", category: "Calçados", subcategory: "Sapatilhas" },
-            { name: "Scarpins & Saltos", category: "Calçados", subcategory: "Scarpins" },
-            { name: "Botas & Coturnos", category: "Calçados", subcategory: "Botas" },
-            { name: "Chinelos & Slides", category: "Calçados", subcategory: "Chinelos" },
-            { name: "Mocassins & Sapatos", category: "Calçados", subcategory: "Mocassins" },
-          ],
-        },
-        {
-          title: "Moda & Vestuário",
-          category: "Confecções",
-          items: [
-            { name: "Ver Toda Confecção", category: "Confecções", subcategory: "Feminino" },
-            { name: "Blusas & Camisas", category: "Confecções", subcategory: "Feminino" },
-            { name: "Vestidos & Macacões", category: "Confecções", subcategory: "Feminino" },
-            { name: "Calças & Jeans", category: "Confecções", subcategory: "Feminino" },
-            { name: "Shorts & Saias", category: "Confecções", subcategory: "Feminino" },
-            { name: "Jaquetas & Casacos", category: "Confecções", subcategory: "Feminino" },
-          ],
-        },
-        {
-          title: "Bolsas & Acessórios",
-          category: "Acessórios",
-          items: [
-            { name: "Ver Todos Acessórios", category: "Acessórios", subcategory: "Feminino" },
-            { name: "Bolsas Femininas", category: "Acessórios", subcategory: "Bolsas" },
-            { name: "Carteiras", category: "Acessórios", subcategory: "Carteiras" },
-            { name: "Cintos", category: "Acessórios", subcategory: "Cintos" },
-            { name: "Mochilas & Nécessaires", category: "Acessórios", subcategory: "Mochilas" },
-          ],
-        },
-        {
-          title: "Perfumes & Beleza",
-          category: "Perfumes",
-          items: [
-            { name: "Ver Todos Perfumes", category: "Perfumes", subcategory: "Feminino" },
-            { name: "Perfumes Femininos", category: "Perfumes", subcategory: "Feminino" },
-            { name: "Colônias & Deo Colônias", category: "Perfumes", subcategory: "Colônias" },
-            { name: "Body Splash", category: "Perfumes", subcategory: "Body Splash" },
-            { name: "Cosméticos & Cuidados", category: "Perfumes", subcategory: "Cosméticos" },
-          ],
-        },
-      ],
-    },
-    masculino: {
-      title: "Masculino",
-      badge: "Coleção Masculina",
-      bannerTitle: "Estilo & Conforto Masculino",
-      bannerSubtitle: "Tênis, Sapatos, Roupas, Carteiras, Relógios e Perfumes",
-      sections: [
-        {
-          title: "Calçados Masculinos",
-          category: "Calçados",
-          items: [
-            { name: "Ver Todos os Calçados", category: "Calçados", subcategory: "Masculino" },
-            { name: "Tênis Masculinos", category: "Calçados", subcategory: "Tênis" },
-            { name: "Sapatos & Sapatênis", category: "Calçados", subcategory: "Sapatos" },
-            { name: "Botas & Coturnos", category: "Calçados", subcategory: "Botas" },
-            { name: "Chinelos & Slides", category: "Calçados", subcategory: "Chinelos" },
-            { name: "Mocassins & Drivers", category: "Calçados", subcategory: "Mocassins" },
-            { name: "Sandálias & Papetes", category: "Calçados", subcategory: "Papetes" },
-          ],
-        },
-        {
-          title: "Moda & Vestuário",
-          category: "Confecções",
-          items: [
-            { name: "Ver Toda Confecção", category: "Confecções", subcategory: "Masculino" },
-            { name: "Camisetas & Polos", category: "Confecções", subcategory: "Masculino" },
-            { name: "Camisas Sociais", category: "Confecções", subcategory: "Masculino" },
-            { name: "Calças & Jeans", category: "Confecções", subcategory: "Masculino" },
-            { name: "Bermudas & Shorts", category: "Confecções", subcategory: "Masculino" },
-            { name: "Jaquetas & Moletons", category: "Confecções", subcategory: "Masculino" },
-          ],
-        },
-        {
-          title: "Acessórios Masculinos",
-          category: "Acessórios",
-          items: [
-            { name: "Ver Todos Acessórios", category: "Acessórios", subcategory: "Masculino" },
-            { name: "Carteiras em Couro", category: "Acessórios", subcategory: "Carteiras" },
-            { name: "Cintos Masculinos", category: "Acessórios", subcategory: "Cintos" },
-            { name: "Bonés & Chapéus", category: "Acessórios", subcategory: "Boné" },
-            { name: "Relógios & Óculos", category: "Acessórios", subcategory: "Relógio" },
-          ],
-        },
-        {
-          title: "Perfumes & Barbearia",
-          category: "Perfumes",
-          items: [
-            { name: "Ver Todos Perfumes", category: "Perfumes", subcategory: "Masculino" },
-            { name: "Perfumes Masculinos", category: "Perfumes", subcategory: "Masculino" },
-            { name: "Colônias & Deo Colônias", category: "Perfumes", subcategory: "Colônias" },
-            { name: "Cuidados & Barbearia", category: "Perfumes", subcategory: "Cosméticos" },
-          ],
-        },
-      ],
-    },
-    infantil: {
-      title: "Infantil",
-      badge: "Coleção Infantil & Bebê",
-      bannerTitle: "Diversão & Conforto para os Pequenos",
-      bannerSubtitle: "Calçados, Roupas e Mochilas para Meninas, Meninos e Bebês",
-      sections: [
-        {
-          title: "Meninas (Infantil Fem)",
-          category: "Calçados",
-          items: [
-            { name: "Ver Todos Menina", category: "Calçados", subcategory: "Infantil Feminino" },
-            { name: "Tênis & Sapatilhas", category: "Calçados", subcategory: "Infantil Feminino" },
-            { name: "Sandálias & Tamancos", category: "Calçados", subcategory: "Sandálias" },
-            { name: "Chinelos & Botinhas", category: "Calçados", subcategory: "Chinelos" },
-            { name: "Roupas Infantil Feminina", category: "Confecções", subcategory: "Infantil Feminino" },
-          ],
-        },
-        {
-          title: "Meninos (Infantil Masc)",
-          category: "Calçados",
-          items: [
-            { name: "Ver Todos Menino", category: "Calçados", subcategory: "Infantil Masculino" },
-            { name: "Tênis & Chuteiras", category: "Calçados", subcategory: "Infantil Masculino" },
-            { name: "Papetes & Chinelos", category: "Calçados", subcategory: "Chinelos" },
-            { name: "Botas & Sapatênis", category: "Calçados", subcategory: "Tênis" },
-            { name: "Roupas Infantil Masculina", category: "Confecções", subcategory: "Infantil Masculino" },
-          ],
-        },
-        {
-          title: "Bebês (Primeiros Passos)",
-          category: "Calçados",
-          items: [
-            { name: "Sapatinhos de Bebê", category: "Calçados", subcategory: "Bebê" },
-            { name: "Modinha Bebê", category: "Confecções", subcategory: "Infantil" },
-          ],
-        },
-        {
-          title: "Escolar & Mochilas",
-          category: "Escolar",
-          items: [
-            { name: "Mochilas Escolares", category: "Escolar", subcategory: "Escolar" },
-            { name: "Estojos & Lancheiras", category: "Escolar", subcategory: "Escolar" },
-          ],
-        },
-      ],
-    },
-  };
+    return Array.from(subMap.values()).sort((a, b) => b.count - a.count);
+  }, [activeMegaMenu, products]);
 
   const activeUser = currentAdminUser || currentUser;
   const isAuthorizedCollaborator = Boolean(
@@ -958,9 +749,9 @@ export const Header: React.FC = () => {
               </nav>
             </div>
 
-            {/* PAINEL MEGA-MENU DROPDOWN */}
+            {/* PAINEL MEGA-MENU DROPDOWN DINÂMICO */}
             <AnimatePresence>
-              {activeMegaMenu && MEGAMENU_DATA[activeMegaMenu] && (
+              {activeMegaMenu && (
                 <motion.div
                   initial={{ opacity: 0, y: 12, scale: 0.98 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -982,61 +773,56 @@ export const Header: React.FC = () => {
                       <div>
                         <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-amber-400/20 text-amber-300 text-[10px] font-extrabold tracking-wider uppercase mb-1">
                           <Sparkles className="w-3 h-3 text-amber-400" />
-                          <span>{MEGAMENU_DATA[activeMegaMenu].badge}</span>
+                          <span>
+                            {activeMegaMenu === 'feminino' ? 'Coleção Feminina' : activeMegaMenu === 'masculino' ? 'Coleção Masculina' : 'Coleção Infantil & Bebê'}
+                          </span>
                         </div>
-                        <h3 className="text-base md:text-lg font-black tracking-tight text-white">
-                          {MEGAMENU_DATA[activeMegaMenu].bannerTitle}
+                        <h3 className="text-base md:text-lg font-black tracking-tight text-white capitalize">
+                          Subcategorias {activeMegaMenu === 'feminino' ? 'Femininas' : activeMegaMenu === 'masculino' ? 'Masculinas' : 'Infantis'}
                         </h3>
                         <p className="text-xs text-slate-200/90 font-medium">
-                          {MEGAMENU_DATA[activeMegaMenu].bannerSubtitle}
+                          Subcategorias cadastradas com produtos disponíveis e foto na loja
                         </p>
                       </div>
                       <button
-                        onClick={() => handleMegaMenuCategoryClick("TODOS", MEGAMENU_DATA[activeMegaMenu].title)}
+                        onClick={() => handleMegaMenuCategoryClick("TODOS", activeMegaMenu.toUpperCase())}
                         className="hidden sm:inline-flex items-center gap-2 text-xs font-black px-4 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 cursor-pointer transition-all shadow-sm shrink-0"
                       >
-                        <span>Explorar Tudo {MEGAMENU_DATA[activeMegaMenu].title}</span>
+                        <span>Explorar Tudo {activeMegaMenu.toUpperCase()}</span>
                         <ChevronRight className="w-4 h-4" />
                       </button>
                     </div>
 
-                    {/* Colunas do Mega-Menu */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8">
-                      {MEGAMENU_DATA[activeMegaMenu].sections.map((sec, idx) => {
-                        const validItems = sec.items.filter((item) =>
-                          checkHasProductsWithPhoto(item.category, item.subcategory, activeMegaMenu)
-                        );
-
-                        if (validItems.length === 0) return null;
-
-                        return (
-                          <div key={idx} className="space-y-3">
-                            <h4 className="text-xs font-black uppercase tracking-wider text-[#003e92] dark:text-amber-400 border-b pb-2 border-slate-200 dark:border-slate-800 flex items-center justify-between">
-                              <span>{sec.title}</span>
-                            </h4>
-                            <ul className="space-y-1.5">
-                              {validItems.map((item, itemIdx) => (
-                                <li key={itemIdx}>
-                                  <button
-                                    onClick={() => handleMegaMenuCategoryClick(item.category, item.subcategory)}
-                                    className={`text-xs w-full text-left py-1.5 px-2.5 rounded-lg transition-all cursor-pointer flex items-center justify-between group ${
-                                      itemIdx === 0
-                                        ? "font-extrabold text-[#003e92] dark:text-amber-300 hover:bg-[#003e92]/10 dark:hover:bg-amber-400/10"
-                                        : isDark
-                                          ? "text-slate-300 hover:text-white hover:bg-slate-800/60"
-                                          : "text-slate-700 hover:text-black hover:bg-slate-100"
-                                    }`}
-                                  >
-                                    <span className="group-hover:translate-x-1 transition-transform">{item.name}</span>
-                                    <ChevronRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity text-slate-400" />
-                                  </button>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        );
-                      })}
-                    </div>
+                    {/* Lista Dinâmica de Subcategorias em Grid */}
+                    {dynamicMegaMenuSubcategories.length > 0 ? (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                        {dynamicMegaMenuSubcategories.map((item, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => handleMegaMenuCategoryClick("TODOS", item.name)}
+                            className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between group ${
+                              isDark
+                                ? "bg-slate-800/60 border-slate-700/80 hover:bg-[#003e92]/30 hover:border-amber-400/50 text-slate-100"
+                                : "bg-slate-50 border-slate-200/80 hover:bg-[#003e92] hover:text-white hover:border-[#003e92] text-slate-800 shadow-2xs"
+                            }`}
+                          >
+                            <div className="min-w-0 flex-1 pr-2">
+                              <span className="text-xs font-bold block truncate group-hover:translate-x-0.5 transition-transform">
+                                {item.name}
+                              </span>
+                              <span className="text-[10px] font-medium opacity-65 block mt-0.5">
+                                {item.count} {item.count === 1 ? 'produto' : 'produtos'}
+                              </span>
+                            </div>
+                            <ChevronRight className="w-4 h-4 shrink-0 opacity-40 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-6 text-xs text-slate-500">
+                        Nenhuma subcategoria individual encontrada para esta seção no momento.
+                      </div>
+                    )}
                   </div>
                 </motion.div>
               )}
