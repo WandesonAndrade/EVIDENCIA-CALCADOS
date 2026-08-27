@@ -16,7 +16,7 @@ import { cleanUndefinedProperties } from '../utils/cleanObject';
 import { API_ENDPOINTS } from '../services/api';
 import { syncProductMediaToSupabase, fetchProductMediaFromSupabase, fetchSupabaseStoragePhotosMap, autoLinkSupabasePhotosToFirestore } from '../services/supabaseStorageService';
 import { NO_PHOTO_SVG, isPlaceholderUrl } from '../utils/placeholder';
-import { getCachedCatalog, setCachedCatalog, mergeStockIntoCachedProducts } from '../services/catalogCacheService';
+import { getCachedCatalog, setCachedCatalog, safeSetLocalStorage, mergeStockIntoCachedProducts } from '../services/catalogCacheService';
 import { fetchLiveStockMapFromMoblink, fetchDirectProductStockAndGrade } from '../services/moblinkStockDirectService';
 
 
@@ -230,8 +230,11 @@ const saveLocalCategories = (updatedCategories: Category[]) => {
   localStorage.setItem('evidencia_local_categories', JSON.stringify(updatedCategories));
 };
 
-// Local fallback helpers - salva e carrega todo o catálogo para abertura instantânea (0ms)
+// Local fallback helpers - salva e carrega todo o catálogo para abertura instantânea (0ms) sem estouro de cota do LocalStorage
 const getLocalProducts = (): Product[] => {
+  const cached = getCachedCatalog();
+  if (cached && cached.length > 0) return cached;
+  
   const saved = localStorage.getItem('evidencia_local_products') || localStorage.getItem('evidencia_firestore_products_backup');
   if (saved) {
     try {
@@ -285,8 +288,9 @@ const saveLocalProducts = (updatedProducts: Product[]) => {
         return p;
       });
 
-      localStorage.setItem('evidencia_local_products', JSON.stringify(mergedToSave));
-      localStorage.setItem('evidencia_firestore_products_backup', JSON.stringify(mergedToSave));
+      // Grava no IndexedDB e em cache local otimizado com suporte anti-QuotaExceededError
+      setCachedCatalog(mergedToSave);
+      safeSetLocalStorage('evidencia_firestore_products_backup', JSON.stringify(mergedToSave));
     } catch (e) {
       console.warn("Failed to save local products to cache:", e);
     }
