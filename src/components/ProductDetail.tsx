@@ -11,7 +11,6 @@ import { doc, setDoc } from 'firebase/firestore';
 import { GradeProduto, Product, ProdutoGradesResult } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { CompleteProfileModal } from './CompleteProfileModal';
-import { CheckoutConfirmationModal } from './CheckoutConfirmationModal';
 import { ProductCard } from './ProductList';
 import { isProfileIncomplete } from '../App';
 
@@ -41,8 +40,6 @@ export const ProductDetail: React.FC = () => {
   const [copied, setCopied] = useState(false);
 
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
-  const [isConfirmationModalOpen, setIsConfirmationModalOpen] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
 
   // Estado da Modalidade de Entrega e Simulador de Frete / Cidade
   const [selectedDeliveryType, setSelectedDeliveryType] = useState<'Entrega em Caxias-MA' | 'Entrega para Outras Cidades' | 'Retirada na Loja'>('Entrega em Caxias-MA');
@@ -407,7 +404,8 @@ export const ProductDetail: React.FC = () => {
     }, 1200);
   };
 
-  const handleWhatsAppInstantBuy = () => {
+  const handleInstantBuy = () => {
+    let variationText = 'Único';
     if (hasGrade) {
       const descrLinha = fetchedGrade?.descr_linha || 'Tamanho';
       const descrColuna = fetchedGrade?.descr_coluna || 'Cor';
@@ -421,9 +419,12 @@ export const ProductDetail: React.FC = () => {
         setMessage(`⚠️ Selecione a ${descrColuna} antes de prosseguir.`);
         return;
       }
+      variationText = `${descrLinha}: ${selectedLinhaOption} | ${descrColuna}: ${selectedColunaOption}`;
     } else if (p.sizes && p.sizes.length > 0 && !selectedLinhaOption) {
       setMessage(`⚠️ Selecione o Tamanho do calçado antes de prosseguir.`);
       return;
+    } else if (selectedLinhaOption) {
+      variationText = `Tamanho: ${selectedLinhaOption}`;
     }
 
     if (!currentUser) {
@@ -439,51 +440,9 @@ export const ProductDetail: React.FC = () => {
       return;
     }
 
-    setIsConfirmationModalOpen(true);
-  };
-
-  const handleConfirmOrder = async (
-    paymentMethod: 'Pix' | 'Cartão de Crédito' | 'Crediário da Loja', 
-    deliveryType: 'Entrega em Caxias-MA' | 'Entrega para Outras Cidades' | 'Retirada na Loja',
-    installments?: number,
-    sellerName?: string,
-    customDeliveryAddress?: string
-  ) => {
-    if (!currentUser) return;
-
-    const descrLinha = fetchedGrade?.descr_linha || 'Tamanho';
-    const descrColuna = fetchedGrade?.descr_coluna || 'Cor';
-    const variationText = hasGrade 
-      ? `${descrLinha}: ${selectedLinhaOption} | ${descrColuna}: ${selectedColunaOption}` 
-      : (selectedLinhaOption ? `Tamanho: ${selectedLinhaOption}` : 'Único');
-
-    const directItem = {
-      product: p,
-      selectedSize: variationText,
-      quantity: 1
-    };
-
-    try {
-      setIsProcessing(true);
-      const order = await createOrder(currentUser.name, currentUser.email, {
-        paymentMethod,
-        deliveryType,
-        installments,
-        sellerName,
-        customerPhone: currentUser.telefone || '',
-        deliveryAddress: customDeliveryAddress || (deliveryType === 'Retirada na Loja' 
-          ? 'Retirada na Loja: Rua Afonso Pena, 295 - Centro, Caxias - MA'
-          : `${currentUser.endereco || ''}, Nº ${currentUser.numero || ''} - ${currentUser.bairro || ''}`),
-        overrideItems: [directItem]
-      });
-
-      setIsConfirmationModalOpen(false);
-      window.open(order.whatsappUrl, '_blank');
-    } catch (error) {
-      console.error("Erro ao criar pedido:", error);
-    } finally {
-      setIsProcessing(false);
-    }
+    // Add to cart and redirect to checkout
+    addToCart(p, variationText);
+    setCurrentView('checkout');
   };
 
   const handleShareProduct = () => {
@@ -1072,10 +1031,10 @@ export const ProductDetail: React.FC = () => {
               </button>
 
               <button
-                onClick={handleWhatsAppInstantBuy}
+                onClick={handleInstantBuy}
                 className="w-full flex items-center justify-center space-x-2 py-3.5 px-6 bg-[#003B73] hover:bg-[#00509E] active:scale-98 text-white font-black text-xs uppercase tracking-wider rounded-full shadow-md transition-all cursor-pointer"
               >
-                <span>Comprar Agora no WhatsApp</span>
+                <span>Comprar Agora</span>
                 <ArrowRight className="w-4 h-4 stroke-[2.5]" />
               </button>
 
@@ -1350,10 +1309,13 @@ export const ProductDetail: React.FC = () => {
               {/* BOTÃO DE CONFIRMAR MODALIDADE */}
               <button
                 type="button"
-                onClick={() => setIsDeliveryModalOpen(false)}
+                onClick={() => {
+                  setIsDeliveryModalOpen(false);
+                  handleInstantBuy();
+                }}
                 className="w-full py-3.5 px-4 bg-[#00a650] hover:bg-[#009146] text-white font-extrabold text-xs rounded-2xl shadow-sm transition-all cursor-pointer text-center"
               >
-                Confirmar Modalidade de Entrega
+                Confirmar e Ir para Checkout
               </button>
             </motion.div>
           </div>
@@ -1366,27 +1328,6 @@ export const ProductDetail: React.FC = () => {
         onClose={() => setIsProfileModalOpen(false)}
       />
 
-      {/* Modal Etapa 2: Confirmação de Pedido e Entrega */}
-      <CheckoutConfirmationModal
-        isOpen={isConfirmationModalOpen}
-        onClose={() => setIsConfirmationModalOpen(false)}
-        subtotal={p.price}
-        precoVista={precoVistaCalculado}
-        precoCartao={precoCartaoCalculado}
-        precoCrediario={precoCrediarioCalculado}
-        cartItemsCount={1}
-        initialDeliveryType={selectedDeliveryType}
-        initialCityName={shippingInfo?.city || cityOrCepInput.trim()}
-        initialAddressData={shippingInfo ? {
-          cep: shippingInfo.cep,
-          rua: shippingInfo.rua,
-          bairro: shippingInfo.barrio,
-          cidade: shippingInfo.city,
-          uf: shippingInfo.uf
-        } : undefined}
-        onConfirmOrder={handleConfirmOrder}
-        isProcessing={isProcessing}
-      />
     </motion.div>
   );
 };

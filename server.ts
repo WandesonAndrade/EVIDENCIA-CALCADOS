@@ -709,6 +709,55 @@ app.post("/auditar-pix-transacao", async (req, res) => {
   return res.json({ success: true, paymentId, audited: Boolean(audited) });
 });
 
+// --- PROXY MERCADO PAGO (/mp-api) ---
+app.use("/mp-api", async (req, res) => {
+  const subPath = req.url; // ex: /payments
+  const targetUrl = `https://api.mercadopago.com/v1${subPath}`;
+  
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 12000);
+
+  const options: RequestInit = {
+    method: req.method,
+    headers: {
+      "Content-Type": "application/json",
+    },
+    signal: controller.signal,
+  };
+
+  // Repassa o header de Autorização do frontend, se houver
+  if (req.headers.authorization) {
+    (options.headers as Record<string, string>)["Authorization"] = req.headers.authorization;
+  } else {
+    const mpToken = process.env.MERCADO_PAGO_ACCESS_TOKEN?.replace(/['"]/g, "").trim();
+    if (mpToken) {
+      (options.headers as Record<string, string>)["Authorization"] = `Bearer ${mpToken}`;
+    }
+  }
+
+  if (req.headers["x-idempotency-key"]) {
+    (options.headers as Record<string, string>)["X-Idempotency-Key"] = req.headers["x-idempotency-key"] as string;
+  }
+
+  if (["POST", "PUT", "PATCH"].includes(req.method) && req.body && Object.keys(req.body).length > 0) {
+    options.body = JSON.stringify(req.body);
+  }
+
+  try {
+    const apiRes = await fetch(targetUrl, options);
+    clearTimeout(timeoutId);
+    
+    const contentType = apiRes.headers.get("content-type");
+    if (contentType) res.setHeader("Content-Type", contentType);
+    
+    const data = await apiRes.text();
+    return res.status(apiRes.status).send(data);
+  } catch (err: any) {
+    clearTimeout(timeoutId);
+    return res.status(503).json({ success: false, message: `Falha no proxy MP (Backend): ${err.message}` });
+  }
+});
+
 // --- PROXY BACKEND TRANSPARENTE E SEGURO ---
 
 app.use(["/api/v1", "/v1"], async (req, res, next) => {

@@ -7,7 +7,6 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { Product } from '../types';
 import { CompleteProfileModal } from './CompleteProfileModal';
-import { CheckoutConfirmationModal } from './CheckoutConfirmationModal';
 import { normalizeCategoryName } from '../services/moblinkCategoriesService';
 import { hasProductValidPhoto } from '../services/moblinkProductsService';
 import { isProfileIncomplete } from '../App';
@@ -25,10 +24,7 @@ export const Cart: React.FC = () => {
     theme
   } = useApp();
 
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [createdOrder, setCreatedOrder] = useState<any | null>(null);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
-  const [isConfirmationModalOpen, setIsConfirmationModalOpen] = useState(false);
 
   const isDark = theme === 'dark';
   
@@ -37,7 +33,6 @@ export const Cart: React.FC = () => {
   const isFreeFreight = subtotal > 100;
   const remainingForFreeFreight = Math.max(0, 100.01 - subtotal);
 
-  // Step 1 & 2 Validation Trigger
   const handleStartCheckout = () => {
     if (!currentUser) {
       setCurrentView('login');
@@ -49,38 +44,7 @@ export const Cart: React.FC = () => {
       return;
     }
 
-    setIsConfirmationModalOpen(true);
-  };
-
-  // Step 3 Execution: Final Confirmation & Dispatch
-  const handleConfirmOrder = async (
-    paymentMethod: 'Pix' | 'Cartão de Crédito' | 'Crediário da Loja', 
-    deliveryType: 'Entrega em Caxias-MA' | 'Entrega para Outras Cidades' | 'Retirada na Loja',
-    installments?: number,
-    sellerName?: string
-  ) => {
-    if (!currentUser) return;
-    try {
-      setIsProcessing(true);
-      const order = await createOrder(currentUser.name, currentUser.email, {
-        paymentMethod,
-        deliveryType,
-        installments,
-        sellerName,
-        customerPhone: currentUser.telefone || '',
-        deliveryAddress: deliveryType === 'Retirada na Loja' 
-          ? 'Retirada na Loja: Rua Afonso Pena, 295 - Centro, Caxias - MA'
-          : `${currentUser.endereco || ''}, Nº ${currentUser.numero || ''} - ${currentUser.bairro || ''}`
-      });
-
-      setCreatedOrder(order);
-      setIsConfirmationModalOpen(false);
-      window.open(order.whatsappUrl, '_blank');
-    } catch (error) {
-      console.error("Failed to finalize order:", error);
-    } finally {
-      setIsProcessing(false);
-    }
+    setCurrentView('checkout');
   };
 
   const recommendedProducts = products
@@ -91,91 +55,6 @@ export const Cart: React.FC = () => {
     setSelectedProduct(p);
     setCurrentView('product-detail');
   };
-
-  if (createdOrder) {
-    return (
-      <div className="max-w-xl mx-auto px-4 py-16">
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className={`p-8 sm:p-10 rounded-3xl border backdrop-blur-xl text-center space-y-6 shadow-2xl ${
-            isDark ? 'bg-slate-900/90 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900 shadow-xl'
-          }`}
-        >
-          <div className="w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 flex items-center justify-center mx-auto shadow-md">
-            <MessageSquare className="h-8 w-8" />
-          </div>
-
-          <div className="space-y-2">
-            <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-              <CheckCircle2 className="h-3.5 w-3.5" />
-              <span>Pedido Gerado com Sucesso</span>
-            </div>
-
-            <h2 className={`text-2xl font-black ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
-              Pedido Enviado ao Atendimento!
-            </h2>
-            <p className="text-sm font-mono text-amber-400 font-extrabold">
-              Identificador: {createdOrder.orderNumber || createdOrder.id}
-            </p>
-            <p className={`text-xs sm:text-sm font-medium max-w-sm mx-auto ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-              Seu pedido foi registrado em nosso catálogo e a janela do WhatsApp foi aberta para você concluir o atendimento.
-            </p>
-          </div>
-
-          <div className={`p-4 rounded-2xl border max-w-sm mx-auto text-left space-y-2 text-xs font-medium ${
-            isDark ? 'bg-slate-950/60 border-slate-800 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700'
-          }`}>
-            <p className="font-bold border-b pb-1 text-slate-900 dark:text-slate-100 flex justify-between">
-              <span>Resumo do Pedido</span>
-              <span className="text-amber-400 font-extrabold">{createdOrder.orderNumber}</span>
-            </p>
-            <p>Cliente: <strong className="font-bold">{createdOrder.customerName}</strong></p>
-            <p>Entrega: <strong className="font-bold text-sky-400">{createdOrder.deliveryType || 'Entrega em Caxias-MA'}</strong></p>
-            <p>Pagamento: <strong className="font-bold">{createdOrder.paymentMethod || 'Pix'}</strong></p>
-            <p>Frete: <strong className={createdOrder.deliveryType === 'Entrega para Outras Cidades' ? 'font-bold text-amber-400' : 'font-bold text-emerald-400'}>
-              {createdOrder.deliveryType === 'Entrega para Outras Cidades' 
-                ? (createdOrder.freightCost && createdOrder.freightCost > 0 ? `R$ ${createdOrder.freightCost.toFixed(2).replace('.', ',')}` : 'A COMBINAR')
-                : (createdOrder.freightCost === 0 ? 'GRÁTIS' : 'R$ 10,00')}
-            </strong></p>
-            <p className="pt-1 border-t text-sm font-black text-slate-900 dark:text-white flex justify-between">
-              <span>Total:</span>
-              <span className="text-amber-400">R$ {createdOrder.total.toFixed(2).replace('.', ',')}</span>
-            </p>
-          </div>
-
-          <div className="pt-2 flex flex-col sm:flex-row gap-3 justify-center">
-            <motion.button
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.97 }}
-              onClick={() => {
-                setCreatedOrder(null);
-                setCurrentView('orders');
-              }}
-              className={`px-6 py-3 font-bold text-xs rounded-xl shadow-md cursor-pointer ${
-                isDark ? 'bg-amber-400 text-slate-950 hover:bg-amber-300' : 'bg-slate-900 text-white hover:bg-slate-800'
-              }`}
-            >
-              Ver Meus Pedidos
-            </motion.button>
-            <motion.button
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.97 }}
-              onClick={() => {
-                setCreatedOrder(null);
-                setCurrentView('home');
-              }}
-              className={`px-6 py-3 font-bold text-xs rounded-xl border backdrop-blur-md cursor-pointer ${
-                isDark ? 'bg-slate-900/80 border-slate-800 text-slate-300 hover:bg-slate-800' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-              }`}
-            >
-              Continuar Comprando
-            </motion.button>
-          </div>
-        </motion.div>
-      </div>
-    );
-  }
 
   return (
     <motion.div 
@@ -415,7 +294,7 @@ export const Cart: React.FC = () => {
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={handleStartCheckout}
-                disabled={isProcessing}
+                disabled={false}
                 className="w-full flex items-center justify-center space-x-2 py-4 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs sm:text-sm rounded-2xl shadow-lg shadow-emerald-600/20 disabled:opacity-50 transition-all cursor-pointer uppercase tracking-wider"
               >
                 <MessageSquare className="h-5 w-5" />
@@ -486,16 +365,6 @@ export const Cart: React.FC = () => {
       <CompleteProfileModal
         isOpen={isProfileModalOpen}
         onClose={() => setIsProfileModalOpen(false)}
-      />
-
-      {/* Step 2 Dedicated Confirmation & Delivery Choice Modal */}
-      <CheckoutConfirmationModal
-        isOpen={isConfirmationModalOpen}
-        onClose={() => setIsConfirmationModalOpen(false)}
-        subtotal={subtotal}
-        cartItemsCount={cart.length}
-        onConfirmOrder={handleConfirmOrder}
-        isProcessing={isProcessing}
       />
     </motion.div>
   );

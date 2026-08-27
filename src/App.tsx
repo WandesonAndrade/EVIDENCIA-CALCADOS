@@ -10,6 +10,7 @@ import { Hero } from './components/Hero';
 import { ProductList } from './components/ProductList';
 import { ProductDetail } from './components/ProductDetail';
 import { Cart } from './components/Cart';
+import { CheckoutPage } from './components/CheckoutPage';
 import { AuthScreen } from './components/AuthScreen';
 import { Footer } from './components/Footer';
 import { CategoryPage } from './components/CategoryPage';
@@ -93,6 +94,8 @@ const AppContent: React.FC = () => {
     switch (currentView) {
       case 'cart':
         return <Cart />;
+      case 'checkout':
+        return <CheckoutPage />;
       case 'product-detail':
         return <ProductDetail />;
       case 'category-page':
@@ -145,6 +148,7 @@ const AppContent: React.FC = () => {
   const showIncompleteWarning = isProfileIncomplete(currentUser);
   const isAdminView = currentView === 'admin';
   const isBioView = currentView === 'bio-links';
+  const isCheckoutView = currentView === 'checkout';
 
   if (isBioView) {
     return (
@@ -184,9 +188,9 @@ const AppContent: React.FC = () => {
         </div>
       )}
       <div className="relative z-10">
-        <Header />
+        {!isCheckoutView && <Header />}
         
-        {showIncompleteWarning && (
+        {showIncompleteWarning && !isCheckoutView && (
           <div className="bg-amber-500 text-white py-2 px-4 sm:px-6 lg:px-8 shadow-inner animate-pulse">
             <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
               <div className="flex items-center space-x-2">
@@ -207,17 +211,17 @@ const AppContent: React.FC = () => {
           </div>
         )}
 
-        <main className="pb-12 animate-fade-in">
+        <main className={`${isCheckoutView ? '' : 'pb-12'} animate-fade-in`}>
           <Suspense fallback={<LoadingSpinner fullScreen />}>
             {renderActiveView()}
           </Suspense>
         </main>
       </div>
 
-      <Footer />
+      {!isCheckoutView && <Footer />}
       
       {/* Official Floating Assistant Widget */}
-      <FloatingAssistant />
+      {!isCheckoutView && <FloatingAssistant />}
 
       {/* Complete Profile Modal */}
       <CompleteProfileModal isOpen={isProfileModalOpen} onClose={() => setIsProfileModalOpen(false)} />

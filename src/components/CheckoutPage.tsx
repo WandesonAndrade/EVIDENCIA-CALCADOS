@@ -1,0 +1,691 @@
+import React, { useState, useEffect } from 'react';
+import { useApp } from '../context/AppContext';
+import { UserProfile, SavedAddress } from '../types';
+import { firebaseAuthService } from '../services/firebaseAuthService';
+import { CompleteProfileModal } from './CompleteProfileModal';
+import { PaymentForm } from './PaymentForm';
+import { 
+  CheckCircle2, Truck, ShoppingBag, CreditCard, 
+  ShieldCheck, MapPin, MessageSquare, User, Edit3, Plus, Loader2, ArrowLeft, Lock
+} from 'lucide-react';
+import { motion } from 'motion/react';
+import { cepService } from '../services/cepService';
+import { isProfileIncomplete } from '../App';
+
+export const CheckoutPage: React.FC = () => {
+  const { 
+    currentUser, 
+    updateUserProfile, 
+    theme, 
+    sellers = [], 
+    cart,
+    setCurrentView,
+    createOrder
+  } = useApp();
+  
+  const isDark = theme === 'dark';
+
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [createdOrder, setCreatedOrder] = useState<any | null>(null);
+  const [deliveryType, setDeliveryType] = useState<'Entrega em Caxias-MA' | 'Entrega para Outras Cidades' | 'Retirada na Loja'>('Entrega em Caxias-MA');
+
+  // Se não houver carrinho, redireciona para a home
+  useEffect(() => {
+    if (cart.length === 0 && !createdOrder) {
+      setCurrentView('home');
+    }
+  }, [cart.length, createdOrder, setCurrentView]);
+
+  // Estado para edição de dados do perfil e gestão de múltiplos endereços
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false);
+  const [selectedAddressId, setSelectedAddressId] = useState<string>('default');
+  const [isAddingNewAddress, setIsAddingNewAddress] = useState<boolean>(false);
+  const [newAddrForm, setNewAddrForm] = useState({
+    label: '',
+    rua: '',
+    numero: '',
+    bairro: '',
+    cidade: 'Caxias',
+    uf: 'MA',
+    complemento: ''
+  });
+
+  const [checkoutCep, setCheckoutCep] = useState<string>('');
+  const [isLoadingCheckoutCep, setIsLoadingCheckoutCep] = useState<boolean>(false);
+
+  const handleCheckoutCepChange = async (val: string) => {
+    const raw = val.replace(/\D/g, '');
+    let formatted = raw;
+    if (raw.length > 5) {
+      formatted = `${raw.slice(0, 5)}-${raw.slice(5, 8)}`;
+    }
+    setCheckoutCep(formatted);
+
+    if (raw.length === 8) {
+      setIsLoadingCheckoutCep(true);
+      const res = await cepService.fetchAddressByCep(raw);
+      setIsLoadingCheckoutCep(false);
+      if (res) {
+        setNewAddrForm(prev => ({
+          ...prev,
+          rua: res.logradouro || prev.rua,
+          bairro: res.bairro || prev.bairro,
+          cidade: res.localidade || prev.cidade,
+          uf: res.uf || prev.uf
+        }));
+        if (res.localidade && res.localidade !== 'Caxias') {
+          setOtherCityName(res.localidade);
+        }
+      }
+    }
+  };
+
+  const [otherCityName, setOtherCityName] = useState<string>(
+    (currentUser?.cidade && currentUser.cidade !== 'Caxias') ? currentUser.cidade : ''
+  );
+
+  // Lista normalizada de todos os endereços salvos
+  const defaultAddress: SavedAddress = {
+    id: 'default',
+    label: 'Endereço Cadastrado',
+    rua: currentUser?.endereco || '',
+    numero: currentUser?.numero || 'S/N',
+    bairro: currentUser?.bairro || 'Centro',
+    cidade: currentUser?.cidade || 'Caxias',
+    uf: currentUser?.uf || 'MA',
+  };
+
+  const userSavedList: SavedAddress[] = currentUser?.savedAddresses || [];
+  const allAddresses: SavedAddress[] = defaultAddress.rua 
+    ? [defaultAddress, ...userSavedList]
+    : userSavedList;
+
+  // Sincroniza cidade e verifica se o cliente possui endereço salvo ao abrir
+  useEffect(() => {
+    if (currentUser?.cidade && currentUser.cidade !== 'Caxias') {
+      setOtherCityName(currentUser.cidade);
+    }
+    if (allAddresses.length === 0) {
+      setIsAddingNewAddress(true);
+    }
+  }, [currentUser, allAddresses.length]);
+
+  const handleSaveNewAddress = async () => {
+    if (!newAddrForm.rua.trim() || !newAddrForm.bairro.trim()) {
+      alert('Por favor, informe a Rua e o Bairro do novo endereço.');
+      return;
+    }
+
+    const targetCity = deliveryType === 'Entrega para Outras Cidades' 
+      ? (otherCityName.trim() || newAddrForm.cidade.trim() || 'Outra Cidade')
+      : (newAddrForm.cidade.trim() || 'Caxias');
+
+    const newAddrObj: SavedAddress = {
+      id: 'addr_' + Date.now(),
+      label: newAddrForm.label.trim() || (allAddresses.length === 0 ? 'Endereço Principal' : `Endereço ${allAddresses.length + 1}`),
+      rua: newAddrForm.rua.trim(),
+      numero: newAddrForm.numero.trim() || 'S/N',
+      bairro: newAddrForm.bairro.trim(),
+      cidade: targetCity,
+      uf: newAddrForm.uf.trim() || 'MA',
+      complemento: newAddrForm.complemento.trim(),
+    };
+
+    const updatedAddresses = [...(currentUser?.savedAddresses || []), newAddrObj];
+    const isFirstAddress = !currentUser?.endereco;
+
+    const profileDataToSave: Partial<UserProfile> = {
+      savedAddresses: updatedAddresses
+    };
+
+    if (isFirstAddress) {
+      profileDataToSave.endereco = newAddrObj.rua;
+      profileDataToSave.numero = newAddrObj.numero;
+      profileDataToSave.bairro = newAddrObj.bairro;
+      profileDataToSave.cidade = newAddrObj.cidade;
+      profileDataToSave.uf = newAddrObj.uf;
+    }
+
+    try {
+      await updateUserProfile(profileDataToSave);
+      setSelectedAddressId(newAddrObj.id);
+      setIsAddingNewAddress(false);
+      setNewAddrForm({
+        label: '',
+        rua: '',
+        numero: '',
+        bairro: '',
+        cidade: 'Caxias',
+        uf: 'MA',
+        complemento: ''
+      });
+    } catch (error) {
+      console.error("Erro ao salvar endereço:", error);
+    }
+  };
+
+  const [paymentGroup, setPaymentGroup] = useState<'Online' | 'Crediário'>('Online');
+  const [onlineTab, setOnlineTab] = useState<'pix' | 'credit' | 'debit'>('credit');
+  const [installments, setInstallments] = useState<number>(1);
+  const [crediarioInstallments, setCrediarioInstallments] = useState<number>(1);
+  const [selectedSellerName, setSelectedSellerName] = useState<string>('Atendimento Direto da Loja');
+  const [teamSellers, setTeamSellers] = useState<UserProfile[]>([]);
+  
+  const paymentMethod = paymentGroup === 'Crediário' ? 'Crediário da Loja' 
+    : (onlineTab === 'pix' ? 'Pix' : onlineTab === 'debit' ? 'Cartão de Débito' : 'Cartão de Crédito');
+
+  useEffect(() => {
+    let isMounted = true;
+    firebaseAuthService.getActiveSellers().then((members) => {
+      if (isMounted && members && members.length > 0) {
+        setTeamSellers(members);
+      }
+    });
+    return () => { isMounted = false; };
+  }, []);
+
+  if (!currentUser) {
+    // Evitar render no curto espaço de redirecionamento do useEffect
+    return null;
+  }
+
+  // Preço Base
+  const subtotal = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+  const activeSubtotal = subtotal;
+
+  const isOtherCities = deliveryType === 'Entrega para Outras Cidades';
+  const isFreeFreight = (activeSubtotal > 100 && deliveryType === 'Entrega em Caxias-MA') || deliveryType === 'Retirada na Loja';
+  const freightCost = (deliveryType === 'Retirada na Loja' || isOtherCities) ? 0 : (activeSubtotal > 100 ? 0 : 10);
+  
+  const todayStr = new Date().toISOString().split('T')[0];
+  const isCashbackValid = Boolean(
+    currentUser?.cashbackBalance && 
+    currentUser.cashbackBalance > 0 && 
+    (!currentUser.cashbackValidUntil || currentUser.cashbackValidUntil >= todayStr)
+  );
+  const cashbackDiscount = isCashbackValid ? Math.min(currentUser.cashbackBalance || 0, activeSubtotal + freightCost) : 0;
+  const grandTotal = Math.max(0, activeSubtotal + freightCost - cashbackDiscount);
+
+  const isCrediarioApproved = currentUser.crediarioStatus === 'Aprovado';
+
+  const crediarioInstallmentOptions = Array.from({ length: 6 }, (_, i) => {
+    const count = i + 1;
+    const value = grandTotal / count;
+    return {
+      count,
+      value,
+      label: count === 1
+        ? `1x de R$ ${value.toFixed(2).replace('.', ',')} no Carnê`
+        : `${count}x de R$ ${value.toFixed(2).replace('.', ',')} sem juros no Carnê`
+    };
+  });
+
+  const handleConfirmOrder = async (pixPaymentId?: number | string) => {
+    const selectedInstallments = paymentMethod === 'Cartão de Crédito' 
+      ? installments 
+      : (paymentMethod === 'Crediário da Loja' ? crediarioInstallments : 1);
+
+    const activeAddressObj = allAddresses.find(a => a.id === selectedAddressId) || allAddresses[0] || defaultAddress;
+
+    const formattedAddress = deliveryType === 'Retirada na Loja'
+      ? 'Retirada na Loja: Rua Afonso Pena, 295 - Centro, Caxias - MA'
+      : deliveryType === 'Entrega para Outras Cidades'
+      ? `${activeAddressObj?.rua ? `${activeAddressObj.rua}, Nº ${activeAddressObj.numero || 'S/N'} - ${activeAddressObj.bairro || ''}, ` : ''}${otherCityName || activeAddressObj?.cidade || 'Outra Cidade'}/${activeAddressObj?.uf || 'MA'}`
+      : `${activeAddressObj?.rua || 'Centro'}, Nº ${activeAddressObj?.numero || 'S/N'} - ${activeAddressObj?.bairro || 'Centro'}, Caxias - MA`;
+
+    try {
+      setIsProcessing(true);
+      const order = await createOrder(currentUser.name, currentUser.email, {
+        paymentMethod,
+        deliveryType,
+        installments: selectedInstallments,
+        sellerName: selectedSellerName !== 'Atendimento Direto da Loja' ? selectedSellerName : undefined,
+        customerPhone: currentUser.telefone || '',
+        deliveryAddress: formattedAddress
+      });
+
+      setCreatedOrder(order);
+      window.open(order.whatsappUrl, '_blank');
+    } catch (error) {
+      console.error("Failed to finalize order:", error);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // TELA DE SUCESSO
+  if (createdOrder) {
+    return (
+      <div className={`min-h-screen pt-20 px-4 ${isDark ? 'bg-[#050b18]' : 'bg-slate-50'}`}>
+        <div className="max-w-xl mx-auto py-10">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className={`p-8 sm:p-10 rounded-3xl border backdrop-blur-xl text-center space-y-6 shadow-2xl ${
+              isDark ? 'bg-slate-900/90 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900 shadow-xl'
+            }`}
+          >
+            <div className="w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 flex items-center justify-center mx-auto shadow-md">
+              <CheckCircle2 className="h-8 w-8" />
+            </div>
+  
+            <div className="space-y-2">
+              <h2 className={`text-2xl font-black ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
+                Pedido Confirmado!
+              </h2>
+              <p className="text-sm font-mono text-emerald-500 font-extrabold">
+                Pedido #{createdOrder.orderNumber || createdOrder.id}
+              </p>
+              <p className={`text-sm font-medium max-w-sm mx-auto ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                Seu pedido foi registrado. Nós abrimos o WhatsApp para você concluir o atendimento.
+              </p>
+            </div>
+  
+            <div className={`p-4 rounded-2xl border max-w-sm mx-auto text-left space-y-2 text-xs font-medium ${
+              isDark ? 'bg-slate-950/60 border-slate-800 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700'
+            }`}>
+              <p>Entrega: <strong className="font-bold text-sky-400">{createdOrder.deliveryType}</strong></p>
+              <p>Pagamento: <strong className="font-bold">{createdOrder.paymentMethod}</strong></p>
+              <p className="pt-2 border-t text-sm font-black flex justify-between">
+                <span>Total Pago:</span>
+                <span className="text-emerald-500">R$ {createdOrder.total.toFixed(2).replace('.', ',')}</span>
+              </p>
+            </div>
+  
+            <div className="pt-4">
+              <motion.button
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
+                onClick={() => {
+                  setCreatedOrder(null);
+                  setCurrentView('orders');
+                }}
+                className={`px-8 py-4 font-bold text-sm rounded-xl shadow-md cursor-pointer ${
+                  isDark ? 'bg-amber-400 text-slate-950 hover:bg-amber-300' : 'bg-slate-900 text-white hover:bg-slate-800'
+                }`}
+              >
+                Acompanhar Meus Pedidos
+              </motion.button>
+            </div>
+          </motion.div>
+        </div>
+      </div>
+    );
+  }
+
+  // TELA DE CHECKOUT NORMAL
+  return (
+    <div className={`min-h-screen pb-20 ${isDark ? 'bg-[#000000]' : 'bg-[#f5f5f7]'}`}>
+      {/* Header simplificado e focado na compra */}
+      <header className={`sticky top-0 z-40 backdrop-blur-xl transition-colors ${isDark ? 'bg-black/80 border-b border-white/10' : 'bg-[#f5f5f7]/80 border-b border-slate-200/50'}`}>
+        <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
+          <button 
+            onClick={() => setCurrentView('cart')}
+            className={`flex items-center space-x-2 text-sm font-bold cursor-pointer transition-colors ${isDark ? 'text-slate-300 hover:text-white' : 'text-slate-600 hover:text-slate-900'}`}
+          >
+            <ArrowLeft className="h-4 w-4" />
+            <span>Voltar ao Carrinho</span>
+          </button>
+          
+          <div className="flex items-center space-x-2">
+            <Lock className="h-4 w-4 text-emerald-500" />
+            <span className={`text-xs font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Checkout Seguro</span>
+          </div>
+        </div>
+      </header>
+
+      <div className="max-w-5xl mx-auto px-4 pt-10 pb-20">
+        <div className="mb-10 text-center lg:text-left">
+          <h1 className={`text-3xl sm:text-4xl font-semibold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
+            Finalizar Compra
+          </h1>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          
+          {/* LADO ESQUERDO: ETAPAS DE CHECKOUT */}
+          <div className="lg:col-span-7 space-y-6">
+            
+            {/* ETAPA 1: DADOS PESSOAIS */}
+            <div className={`p-6 sm:p-8 rounded-[24px] shadow-[0_2px_40px_rgba(0,0,0,0.02)] transition-all ${isDark ? 'bg-[#1c1c1e]' : 'bg-white'}`}>
+              <div className="flex items-center justify-between border-b pb-4 mb-5 border-slate-100 dark:border-white/5">
+                <h2 className={`text-lg font-semibold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                  1. Dados Pessoais
+                </h2>
+                <button 
+                  onClick={() => setIsProfileModalOpen(true)}
+                  className="text-[#0071e3] hover:underline font-bold text-xs cursor-pointer flex items-center gap-1"
+                >
+                  <Edit3 className="h-3 w-3" /> Alterar
+                </button>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                <div>
+                  <span className="text-slate-500 dark:text-slate-400 font-medium block text-xs">Nome</span>
+                  <span className="font-bold text-slate-900 dark:text-white">{currentUser.name}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 dark:text-slate-400 font-medium block text-xs">CPF</span>
+                  <span className="font-bold text-slate-900 dark:text-white">{currentUser.cpf || 'Pendente'}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 dark:text-slate-400 font-medium block text-xs">E-mail</span>
+                  <span className="font-bold text-slate-900 dark:text-white">{currentUser.email}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 dark:text-slate-400 font-medium block text-xs">Telefone</span>
+                  <span className="font-bold text-slate-900 dark:text-white">{currentUser.telefone || 'Pendente'}</span>
+                </div>
+              </div>
+              {isProfileIncomplete(currentUser) && (
+                <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-xl text-amber-800 dark:text-amber-400 text-xs font-bold flex items-center justify-between">
+                  <span>Faltam dados para aprovação rápida de crédito.</span>
+                  <button onClick={() => setIsProfileModalOpen(true)} className="underline cursor-pointer">Completar Agora</button>
+                </div>
+              )}
+            </div>
+
+            {/* ETAPA 2: ENTREGA */}
+            <div className={`p-6 sm:p-8 rounded-[24px] shadow-[0_2px_40px_rgba(0,0,0,0.02)] transition-all ${isDark ? 'bg-[#1c1c1e]' : 'bg-white'}`}>
+              <h2 className={`text-lg font-semibold tracking-tight border-b pb-4 mb-5 border-slate-100 dark:border-white/5 ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                2. Entrega
+              </h2>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
+                {/* Entrega Caxias */}
+                <button
+                  type="button"
+                  onClick={() => setDeliveryType('Entrega em Caxias-MA')}
+                  className={`p-4 rounded-2xl text-left flex flex-col justify-between transition-all cursor-pointer border ${
+                    deliveryType === 'Entrega em Caxias-MA'
+                      ? 'border-emerald-600 bg-emerald-50 dark:bg-emerald-500/10 shadow-sm'
+                      : isDark ? 'border-white/10 hover:bg-white/5' : 'border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  <span className="font-semibold text-sm flex items-center justify-between">
+                    Caxias - MA
+                    {deliveryType === 'Entrega em Caxias-MA' && <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />}
+                  </span>
+                  <span className="text-[11px] text-slate-500 mt-1 block font-medium">Motoboy local</span>
+                </button>
+
+                {/* Outras Cidades */}
+                <button
+                  type="button"
+                  onClick={() => setDeliveryType('Entrega para Outras Cidades')}
+                  className={`p-4 rounded-2xl text-left flex flex-col justify-between transition-all cursor-pointer border ${
+                    deliveryType === 'Entrega para Outras Cidades'
+                      ? 'border-emerald-600 bg-emerald-50 dark:bg-emerald-500/10 shadow-sm'
+                      : isDark ? 'border-white/10 hover:bg-white/5' : 'border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  <span className="font-semibold text-sm flex items-center justify-between">
+                    Outras Cidades
+                    {deliveryType === 'Entrega para Outras Cidades' && <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />}
+                  </span>
+                  <span className="text-[11px] text-slate-500 mt-1 block font-medium">Correios / Transportadora</span>
+                </button>
+
+                {/* Retirada */}
+                <button
+                  type="button"
+                  onClick={() => setDeliveryType('Retirada na Loja')}
+                  className={`p-4 rounded-2xl text-left flex flex-col justify-between transition-all cursor-pointer border ${
+                    deliveryType === 'Retirada na Loja'
+                      ? 'border-emerald-600 bg-emerald-50 dark:bg-emerald-500/10 shadow-sm'
+                      : isDark ? 'border-white/10 hover:bg-white/5' : 'border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  <span className="font-semibold text-sm flex items-center justify-between">
+                    Retirar na Loja
+                    {deliveryType === 'Retirada na Loja' && <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />}
+                  </span>
+                  <span className="text-[11px] text-slate-500 mt-1 block font-medium">Grátis - Caxias MA</span>
+                </button>
+              </div>
+
+              {/* Endereço Detalhes */}
+              {deliveryType !== 'Retirada na Loja' && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-semibold">Endereço de Entrega</h3>
+                    <button 
+                      onClick={() => setIsAddingNewAddress(!isAddingNewAddress)}
+                      className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 cursor-pointer hover:underline"
+                    >
+                      <Plus className="h-3 w-3" /> {isAddingNewAddress ? 'Cancelar' : 'Novo Endereço'}
+                    </button>
+                  </div>
+
+                  {isAddingNewAddress ? (
+                    <div className="space-y-4 p-5 rounded-[20px] bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/5">
+                      <div>
+                        <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">CEP</label>
+                        <input
+                          type="text"
+                          value={checkoutCep}
+                          onChange={(e) => handleCheckoutCepChange(e.target.value)}
+                          className="w-full md:w-1/2 px-4 py-3 rounded-xl border-slate-200 dark:border-white/10 bg-white dark:bg-[#1c1c1e] text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none"
+                          placeholder="00000-000"
+                        />
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div className="sm:col-span-2">
+                          <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">Rua</label>
+                          <input type="text" value={newAddrForm.rua} onChange={e => setNewAddrForm({...newAddrForm, rua: e.target.value})} className="w-full px-4 py-3 rounded-xl border-slate-200 dark:border-white/10 bg-white dark:bg-[#1c1c1e] text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none" />
+                        </div>
+                        <div>
+                          <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">Número</label>
+                          <input type="text" value={newAddrForm.numero} onChange={e => setNewAddrForm({...newAddrForm, numero: e.target.value})} className="w-full px-4 py-3 rounded-xl border-slate-200 dark:border-white/10 bg-white dark:bg-[#1c1c1e] text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none" />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">Bairro</label>
+                          <input type="text" value={newAddrForm.bairro} onChange={e => setNewAddrForm({...newAddrForm, bairro: e.target.value})} className="w-full px-4 py-3 rounded-xl border-slate-200 dark:border-white/10 bg-white dark:bg-[#1c1c1e] text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none" />
+                        </div>
+                        <div>
+                          <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">Cidade / UF</label>
+                          {deliveryType === 'Entrega em Caxias-MA' ? (
+                            <input type="text" value="Caxias / MA" disabled className="w-full px-4 py-3 rounded-xl border-transparent bg-slate-200/50 dark:bg-black/20 text-sm opacity-70" />
+                          ) : (
+                            <input type="text" placeholder="São Luís / MA" value={otherCityName} onChange={e => setOtherCityName(e.target.value)} className="w-full px-4 py-3 rounded-xl border-slate-200 dark:border-white/10 bg-white dark:bg-[#1c1c1e] text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none" />
+                          )}
+                        </div>
+                      </div>
+                      <div className="pt-2">
+                        <button onClick={handleSaveNewAddress} className="w-full sm:w-auto px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold text-sm cursor-pointer transition-colors shadow-sm">
+                          Salvar e Usar Endereço
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {allAddresses.map(addr => (
+                        <div 
+                          key={addr.id}
+                          onClick={() => setSelectedAddressId(addr.id)}
+                          className={`p-4 rounded-[16px] cursor-pointer flex items-center justify-between transition-all border ${
+                            selectedAddressId === addr.id 
+                            ? 'border-emerald-600 bg-emerald-50 dark:bg-emerald-500/10 shadow-sm' 
+                            : 'border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5'
+                          }`}
+                        >
+                          <div>
+                            <span className="font-semibold text-sm block">{addr.rua}, {addr.numero}</span>
+                            <span className="text-xs text-slate-500 mt-1 block">{addr.bairro} - {addr.cidade}/{addr.uf}</span>
+                          </div>
+                          {selectedAddressId === addr.id && <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {deliveryType === 'Retirada na Loja' && (
+                <div className="mt-4 p-5 rounded-[20px] bg-sky-50/50 dark:bg-sky-500/10 border border-sky-100 dark:border-sky-500/20 text-sky-800 dark:text-sky-300">
+                  <p className="text-sm font-semibold mb-1">Retirada na Loja Física</p>
+                  <p className="text-xs opacity-80 leading-relaxed">
+                    Você pode retirar o seu pedido em nossa loja assim que receber a confirmação por e-mail ou WhatsApp.
+                  </p>
+                </div>
+              )}</div>
+
+            {/* ETAPA 3: PAGAMENTO */}
+            <div className={`p-6 sm:p-8 rounded-[24px] shadow-[0_2px_40px_rgba(0,0,0,0.02)] transition-all ${isDark ? 'bg-[#1c1c1e]' : 'bg-white'}`}>
+              <h2 className={`text-lg font-semibold tracking-tight border-b pb-4 mb-6 border-slate-100 dark:border-white/5 ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                3. Pagamento
+              </h2>
+
+              <div className="flex gap-3 mb-6 bg-slate-100/50 dark:bg-white/5 p-1 rounded-[20px]">
+                <button
+                  type="button"
+                  onClick={() => setPaymentGroup('Online')}
+                  className={`flex-1 py-3 rounded-2xl text-sm font-semibold transition-all cursor-pointer ${
+                    paymentGroup === 'Online'
+                      ? 'bg-white dark:bg-[#2c2c2e] shadow-sm text-slate-900 dark:text-white'
+                      : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                  }`}
+                >
+                  Cartão ou Pix
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (isCrediarioApproved) setPaymentGroup('Crediário');
+                  }}
+                  disabled={!isCrediarioApproved}
+                  className={`flex-1 py-3 rounded-2xl text-sm font-semibold transition-all flex flex-col items-center justify-center cursor-pointer ${
+                    paymentGroup === 'Crediário'
+                      ? 'bg-white dark:bg-[#2c2c2e] shadow-sm text-slate-900 dark:text-white'
+                      : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                  } ${!isCrediarioApproved ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span>Crediário da Loja</span>
+                  </div>
+                  {!isCrediarioApproved && <span className="text-[10px] text-amber-500 mt-0.5">Requer Análise</span>}
+                </button>
+              </div>
+
+              {paymentGroup === 'Online' ? (
+                <div className="p-1">
+                  <PaymentForm
+                    grandTotal={grandTotal}
+                    emailCliente={currentUser.email || ''}
+                    nomeCliente={currentUser.name}
+                    cpfCliente={currentUser.cpf}
+                    externalReference={`ped_${Date.now()}`}
+                    isDark={isDark}
+                    onActiveTabChange={(tab) => setOnlineTab(tab)}
+                    onPaymentApproved={(details) => handleConfirmOrder(details.paymentId)}
+                    onPaymentFailed={(err) => console.error("Payment failed", err)}
+                  />
+                  {/* Info para o usuário que Cartão é preenchido e já confirmado ali dentro (o brick tem botão próprio) */}
+                  {(onlineTab === 'credit' || onlineTab === 'debit') && (
+                    <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 p-4 border border-slate-200 dark:border-slate-700 rounded-xl mt-4 bg-slate-50 dark:bg-slate-800">
+                      ℹ️ O pagamento via Cartão é processado diretamente pelo painel acima. Preencha e clique no botão azul do Mercado Pago acima para finalizar.
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 p-3 bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 rounded-xl text-sm font-bold">
+                    <ShieldCheck className="h-5 w-5" /> Parcelamento Exclusivo
+                  </div>
+                  <label className="block text-sm font-bold">Escolha as parcelas:</label>
+                  <select
+                    value={crediarioInstallments}
+                    onChange={(e) => setCrediarioInstallments(Number(e.target.value))}
+                    className={`w-full p-4 rounded-xl font-bold border focus:outline-none cursor-pointer transition-colors ${
+                      isDark ? 'bg-slate-900 border-slate-700 text-white focus:border-amber-500' : 'bg-white border-slate-300 focus:border-amber-500'
+                    }`}
+                  >
+                    {crediarioInstallmentOptions.map(opt => (
+                      <option key={opt.count} value={opt.count}>{opt.label}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+
+          </div>
+
+          {/* LADO DIREITO: RESUMO DO PEDIDO E BOTÃO FLUTUANTE */}
+          <div className="lg:col-span-5 relative">
+            <div className={`sticky top-24 p-6 sm:p-8 rounded-[24px] shadow-[0_2px_40px_rgba(0,0,0,0.02)] transition-all ${isDark ? 'bg-[#1c1c1e]' : 'bg-white'}`}>
+              <h3 className={`text-lg font-semibold tracking-tight mb-6 ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                Resumo do Pedido
+              </h3>
+
+              <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2 mb-6">
+                {cart.map((item) => (
+                  <div key={`${item.product.id}-${item.selectedSize}`} className="flex gap-4">
+                    <img src={item.product.images?.[0] || item.product.foto_uri} alt="" className="w-16 h-16 rounded-xl object-cover bg-slate-100" />
+                    <div className="flex-1">
+                      <p className="text-xs font-bold line-clamp-2">{item.product.name}</p>
+                      <p className="text-[10px] text-slate-500 mt-1">Tam: {item.selectedSize !== 0 ? item.selectedSize : 'Único'} | Qtd: {item.quantity}</p>
+                    </div>
+                    <p className="text-sm font-black whitespace-nowrap">R$ {(item.product.price * item.quantity).toFixed(2).replace('.', ',')}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="space-y-3 pt-6 border-t border-slate-100 dark:border-white/5 text-sm">
+                <div className="flex justify-between font-medium">
+                  <span className="text-slate-500">Subtotal</span>
+                  <span className="text-slate-900 dark:text-white">R$ {subtotal.toFixed(2).replace('.', ',')}</span>
+                </div>
+                <div className="flex justify-between font-medium">
+                  <span className="text-slate-500">Frete</span>
+                  {freightCost === 0 ? (
+                    <span className="text-emerald-500 font-semibold">Grátis</span>
+                  ) : (
+                    <span className="text-slate-900 dark:text-white">R$ {freightCost.toFixed(2).replace('.', ',')}</span>
+                  )}
+                </div>
+                {cashbackDiscount > 0 && (
+                  <div className="flex justify-between font-medium text-emerald-500">
+                    <span>Cashback Aplicado</span>
+                    <span>- R$ {cashbackDiscount.toFixed(2).replace('.', ',')}</span>
+                  </div>
+                )}
+                
+                <div className="flex justify-between items-center pt-4 border-t border-slate-100 dark:border-white/5">
+                  <span className="text-base font-semibold text-slate-900 dark:text-white">Total</span>
+                  <span className="text-2xl font-semibold text-emerald-600 dark:text-emerald-400">
+                    R$ {grandTotal.toFixed(2).replace('.', ',')}
+                  </span>
+                </div>
+              </div>
+
+              {/* Botão Oficial de Concluir para Pix e Crediário */}
+              <button
+                onClick={() => handleConfirmOrder()}
+                disabled={isProcessing || (paymentGroup === 'Online' && (onlineTab === 'credit' || onlineTab === 'debit'))}
+                className={`w-full mt-8 py-4 rounded-2xl font-semibold text-base transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                  isProcessing || (paymentGroup === 'Online' && (onlineTab === 'credit' || onlineTab === 'debit')) 
+                    ? 'opacity-50 cursor-not-allowed bg-slate-100 dark:bg-white/5 text-slate-400' 
+                    : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm'
+                }`}
+              >
+                {isProcessing ? <Loader2 className="h-5 w-5 animate-spin" /> : <Lock className="h-5 w-5" />}
+                {isProcessing ? 'Processando...' : 'Finalizar Compra'}
+              </button>
+
+              <div className="mt-6 flex flex-col items-center gap-2 text-[10px] text-slate-400 font-medium text-center">
+                <span className="flex items-center gap-1"><ShieldCheck className="h-3 w-3"/> Ambiente 100% Seguro</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <CompleteProfileModal
+        isOpen={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
+      />
+    </div>
+  );
+};

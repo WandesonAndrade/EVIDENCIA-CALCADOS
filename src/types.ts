@@ -217,7 +217,7 @@ export interface MoblinkSyncLogItem {
   message?: string;
 }
 
-export type ViewMode = 'home' | 'cart' | 'admin' | 'admin-login' | 'login' | 'orders' | 'product-detail' | 'portfolio-case' | 'category-page' | 'about' | 'support' | 'favorites' | 'meu-crediario' | 'meus-dados' | 'bio-links';
+export type ViewMode = 'home' | 'cart' | 'checkout' | 'admin' | 'admin-login' | 'login' | 'orders' | 'product-detail' | 'portfolio-case' | 'category-page' | 'about' | 'support' | 'favorites' | 'meu-crediario' | 'meus-dados' | 'bio-links';
 
 export interface MoblinkSyncLog {
   id: string;
@@ -267,7 +267,7 @@ export interface Order {
   freightCost?: number;
   cashbackDiscount?: number;
   total: number;
-  paymentMethod?: 'Pix' | 'Cartão de Crédito' | 'Crediário da Loja';
+  paymentMethod?: 'Pix' | 'Cartão de Crédito' | 'Cartão de Débito' | 'Crediário da Loja';
   paymentStatus?: PaymentStatus;
   installments?: number;
   status: OrderStatus;

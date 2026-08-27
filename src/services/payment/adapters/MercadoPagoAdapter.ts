@@ -8,15 +8,18 @@ import {
 } from '../types';
 import { pixFirestoreService } from '../../pixFirestoreService';
 
-const fetchWithTimeout = async (url: string, options: RequestInit, timeoutMs = 5000): Promise<Response> => {
+const fetchWithTimeout = async (url: string, options: RequestInit, timeoutMs = 8000): Promise<Response> => {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const timer = setTimeout(() => controller.abort(new Error('timeout')), timeoutMs);
   try {
     const res = await fetch(url, { ...options, signal: controller.signal });
     clearTimeout(timer);
     return res;
-  } catch (err) {
+  } catch (err: any) {
     clearTimeout(timer);
+    if (err.name === 'AbortError' || err.message === 'timeout') {
+      throw new Error(`Timeout de ${timeoutMs}ms excedido ao tentar conectar com Mercado Pago`);
+    }
     throw err;
   }
 };
@@ -106,13 +109,10 @@ export class MercadoPagoAdapter implements IPaymentGateway {
       'X-Idempotency-Key': keyToUse,
     };
 
-    const targetEndpoints = import.meta.env.DEV
-      ? ['/mp-api/payments', `https://corsproxy.io/?${encodeURIComponent('https://api.mercadopago.com/v1/payments')}`]
-      : [
-          '/mp-api/payments',
-          `https://corsproxy.io/?${encodeURIComponent('https://api.mercadopago.com/v1/payments')}`,
-          'https://api.mercadopago.com/v1/payments',
-        ];
+    const targetEndpoints = [
+      '/mp-api/payments',
+      'https://api.mercadopago.com/v1/payments'
+    ];
 
     for (const url of targetEndpoints) {
       try {
@@ -120,7 +120,7 @@ export class MercadoPagoAdapter implements IPaymentGateway {
           method: 'POST',
           headers,
           body: JSON.stringify(paymentPayload),
-        }, 4000);
+        }, 8000);
 
         if (mpRes.ok) {
           const data = await mpRes.json();
@@ -221,13 +221,10 @@ export class MercadoPagoAdapter implements IPaymentGateway {
       'X-Idempotency-Key': keyToUse,
     };
 
-    const targetEndpoints = import.meta.env.DEV
-      ? ['/mp-api/payments', `https://corsproxy.io/?${encodeURIComponent('https://api.mercadopago.com/v1/payments')}`]
-      : [
-          '/mp-api/payments',
-          `https://corsproxy.io/?${encodeURIComponent('https://api.mercadopago.com/v1/payments')}`,
-          'https://api.mercadopago.com/v1/payments',
-        ];
+    const targetEndpoints = [
+      '/mp-api/payments',
+      'https://api.mercadopago.com/v1/payments'
+    ];
 
     let lastError = '';
 
@@ -237,7 +234,7 @@ export class MercadoPagoAdapter implements IPaymentGateway {
           method: 'POST',
           headers,
           body: JSON.stringify(paymentPayload),
-        }, 5000);
+        }, 10000);
 
         const data = await mpRes.json().catch(() => ({}));
 
@@ -328,13 +325,10 @@ export class MercadoPagoAdapter implements IPaymentGateway {
       'X-Idempotency-Key': keyToUse,
     };
 
-    const targetEndpoints = import.meta.env.DEV
-      ? ['/mp-api/payments', `https://corsproxy.io/?${encodeURIComponent('https://api.mercadopago.com/v1/payments')}`]
-      : [
-          '/mp-api/payments',
-          `https://corsproxy.io/?${encodeURIComponent('https://api.mercadopago.com/v1/payments')}`,
-          'https://api.mercadopago.com/v1/payments',
-        ];
+    const targetEndpoints = [
+      '/mp-api/payments',
+      'https://api.mercadopago.com/v1/payments'
+    ];
 
     let lastError = '';
 
@@ -344,7 +338,7 @@ export class MercadoPagoAdapter implements IPaymentGateway {
           method: 'POST',
           headers,
           body: JSON.stringify(paymentPayload),
-        }, 5000);
+        }, 10000);
 
         const data = await mpRes.json().catch(() => ({}));
 
@@ -385,19 +379,16 @@ export class MercadoPagoAdapter implements IPaymentGateway {
     ).replace(/['"]/g, '').trim();
 
     if (mpToken) {
-      const endpoints = import.meta.env.DEV
-        ? [`/mp-api/payments/${paymentId}`, `https://corsproxy.io/?${encodeURIComponent(`https://api.mercadopago.com/v1/payments/${paymentId}`)}`]
-        : [
-            `/mp-api/payments/${paymentId}`,
-            `https://corsproxy.io/?${encodeURIComponent(`https://api.mercadopago.com/v1/payments/${paymentId}`)}`,
-            `https://api.mercadopago.com/v1/payments/${paymentId}`,
-          ];
+      const endpoints = [
+        `/mp-api/payments/${paymentId}`,
+        `https://api.mercadopago.com/v1/payments/${paymentId}`
+      ];
 
       for (const url of endpoints) {
         try {
           const res = await fetchWithTimeout(url, {
             headers: { Authorization: `Bearer ${mpToken}` },
-          }, 3000);
+          }, 5000);
 
           if (res.ok) {
             const data = await res.json();
