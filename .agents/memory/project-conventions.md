@@ -8,10 +8,11 @@ updated: 2026-08-27
 
 ## Regras de Negócio da Loja / Vitrine
 
-### 1. Visibilidade de Produtos por Foto Real (`hasProductValidPhoto`)
-- **Critério Obrigatório:** Nenhum produto deve aparecer na frente de loja (vitrine, páginas de categoria, carrosséis ou mega-menus) a não ser que possua **foto real válida** e **estoque positivo** (`stock > 0` ou `saldo_loja > 0`).
-- **Verificação:** Função `hasProductValidPhoto(item)` centralizada em `src/services/moblinkProductsService.ts`.
-- **Campos verificados:** `images`, `imageUrl`, `foto_uri`, `colorImages`, `colorImageMap`. URLs com placeholders (ex: `via.placeholder.com`, `placeholder`) são invalidadas.
+### 1. Visibilidade de Produtos por Foto Real & Ativação Automática no Banco (`hasProductValidPhoto`)
+- **Critério Obrigatório:** Todo produto com **foto real válida** e **estoque positivo** (`stock > 0`) deve possuir a visibilidade ativada (`visible: true`) no Firestore.
+- **Automação de Salvamento:** Ao carregar a lista de produtos, o sistema executa automaticamente em segundo plano a função `handleAutoSetVisibleForProductsWithPhotos`, gravando `visible: true` no Firestore para todos os produtos que possuem foto sem exigir intervenção manual do administrador.
+- **Botão de Acionamento Manual:** O console superior possui o botão **`⚡ Salvar Visível (Todos com Foto)`** para varrer e persistir a visibilidade de 100% do catálogo em 1 clique.
+- **Verificação:** Função `hasProductValidPhoto(item)` em `src/services/moblinkProductsService.ts`. URLs com placeholders são invalidadas.
 
 ### 2. Estoque 100% em Tempo Real direto da API do MobLink ERP (Sem Chamadas Desnecessárias ao Firebase)
 - **Consulta Direta ao Abrir Produto:** Quando o cliente acessa a página de detalhes (`ProductDetail.tsx`) ou quando o administrador abre o modal de edição no painel (`MoblinkProductsManager.tsx`), o sistema consulta a API do MobLink ERP em tempo real (`getSingleProdutoMoblinkFromApi` e `getProdutoGradesFromApi`).
