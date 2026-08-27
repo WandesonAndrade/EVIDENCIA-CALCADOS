@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { ShoppingCart, ShoppingBag, MapPin, Star, ChevronRight, ArrowLeft, Shield, Sparkles, Heart, Share2, Check, CreditCard, CheckCircle2, AlertCircle, ArrowRight, Truck, RefreshCw, Package, MessageSquare, Search, Loader2, X, Tag } from 'lucide-react';
 import { getGradeProdutoById, getProdutoGradesFromApi } from '../services/moblinkGradesService';
-import { getSingleProdutoMoblinkFromApi, sanitizeProductForFirestore, mergeErpSyncWithExistingDbProduct, inferCategoryFromProductName, hasProductValidPhoto } from '../services/moblinkProductsService';
+import { getSingleProdutoMoblinkFromApi, sanitizeProductForFirestore, mergeErpSyncWithExistingDbProduct, inferCategoryFromProductName, hasProductValidPhoto, hasProductChanged } from '../services/moblinkProductsService';
 import { normalizeCategoryName, normalizeSubcategoryName } from '../services/moblinkCategoriesService';
 import { isSaldaoProduct, getSaldaoProductPrice } from '../services/saldaoService';
 import { getApplicablePromotion } from '../services/promotionsService';
@@ -62,7 +62,6 @@ export const ProductDetail: React.FC = () => {
     setFreightError('');
     const cleanCep = rawInput.replace(/\D/g, '');
 
-    // Se o usuário digitou um CEP de 8 dígitos, faz a busca via API
     if (cleanCep.length === 8) {
       setIsCalculatingFreight(true);
       try {
@@ -98,13 +97,11 @@ export const ProductDetail: React.FC = () => {
           return;
         }
       } catch {
-        // Se falhar a busca por CEP, prossegue tratando como nome da cidade
       } finally {
         setIsCalculatingFreight(false);
       }
     }
 
-    // Tratamento direto para Nome de Cidade digitado (ex: "São Luís", "Teresina", "Imperatriz")
     const isCaxiasName = rawInput.toLowerCase().includes('caxias');
     if (isCaxiasName) {
       setSelectedDeliveryType('Entrega em Caxias-MA');
@@ -145,14 +142,13 @@ export const ProductDetail: React.FC = () => {
   const idGrade = p?.id_grade ?? p?.gradeId ?? null;
   const hasGrade = idGrade !== null && idGrade !== undefined && idGrade !== '' && idGrade !== 0 && idGrade !== '0';
 
-  // 1. Auto-scroll ao topo no carregamento do produto
   useEffect(() => {
     if (p?.id) {
       window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
     }
   }, [p?.id]);
 
-  // 2. Sincronização AUTOMÁTICA do produto e grades do ERP MobLink no momento do acesso
+  // 2. Sincronização AUTOMÁTICA do produto e estoque 100% em Tempo Real direto do ERP MobLink no momento do acesso
   useEffect(() => {
     if (!p?.id) return;
     let isMounted = true;
@@ -161,19 +157,25 @@ export const ProductDetail: React.FC = () => {
     setMessage('');
     setLoadingGrade(true);
 
-    // Atualização silenciosa e automática diretamente da API do ERP (Preço, Estoque, Grade e Visibilidade)
+    // Consulta direta e prioritária à API do MobLink ERP (sem requisições excessivas ao Firebase)
     getSingleProdutoMoblinkFromApi(String(p.id))
       .then(updated => {
         if (isMounted && updated) {
           const merged = mergeErpSyncWithExistingDbProduct(p, updated) as Product;
-          const sanitized = sanitizeProductForFirestore(merged) as Product;
-          setDoc(doc(db, 'products', String(sanitized.id)), sanitized, { merge: true }).catch(() => {});
+          
+          // Atualiza a interface do cliente instantaneamente com o estoque e preço real do ERP
           setSelectedProduct(merged);
+
+          // REGRA DE OTIMIZAÇÃO: Apenas realiza escrita no Firestore se o estoque ou preço REALMENTE sofreu alteração no ERP
+          if (hasProductChanged(p, updated)) {
+            const sanitized = sanitizeProductForFirestore(merged) as Product;
+            setDoc(doc(db, 'products', String(sanitized.id)), sanitized, { merge: true }).catch(() => {});
+          }
         }
       })
-      .catch(err => console.warn('Sincronização automática do ERP:', err));
+      .catch(err => console.warn('Consulta em tempo real MobLink ERP:', err));
 
-    // Carrega grades e opções de tamanho em segundo plano
+    // Carrega grades e tamanhos em tempo real do ERP
     getProdutoGradesFromApi(p.id)
       .then(gradeResult => {
         if (isMounted) {
@@ -185,9 +187,13 @@ export const ProductDetail: React.FC = () => {
               sizes: gradeResult.tamanhos,
               hasGrade: true,
             };
-            const sanitized = sanitizeProductForFirestore(updatedWithGrades) as Product;
-            setDoc(doc(db, 'products', String(sanitized.id)), sanitized, { merge: true }).catch(() => {});
             setSelectedProduct(updatedWithGrades as Product);
+            
+            // Gravação condicional no Firebase apenas em mudanças reais
+            if (hasProductChanged(p, updatedWithGrades)) {
+              const sanitized = sanitizeProductForFirestore(updatedWithGrades) as Product;
+              setDoc(doc(db, 'products', String(sanitized.id)), sanitized, { merge: true }).catch(() => {});
+            }
           }
         }
       })

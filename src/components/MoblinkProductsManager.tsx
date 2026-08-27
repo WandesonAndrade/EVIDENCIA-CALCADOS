@@ -961,47 +961,76 @@ export const MoblinkProductsManager: React.FC = () => {
     setFeedback(null);
     setIsLoadingProductGrade(true);
 
-    // Consulta de confirmação em tempo real da grade no ERP
-    let itemHasGrade = hasProductValidGrade(item) || Boolean(existing?.hasGrade);
+    // Consulta de confirmação 100% em tempo real direto da API do MobLink ERP
+    let liveErpItem: MoblinkRawProduct | null = null;
+    let liveGradeRes: ProdutoGradesResult | null = null;
+
     try {
-      const gradeRes = await getProdutoGradesFromApi(mobId);
-      setSelectedProductGrade(gradeRes);
-      if (gradeRes) {
-        itemHasGrade = gradeRes.hasGrade || (Array.isArray(gradeRes.tamanhos) && gradeRes.tamanhos.length > 0) || (Array.isArray(gradeRes.variacoes) && gradeRes.variacoes.length > 0);
+      const [freshErp, gradeRes] = await Promise.all([
+        getSingleProdutoMoblinkFromApi(mobId),
+        getProdutoGradesFromApi(mobId).catch(() => null),
+      ]);
+
+      if (freshErp) {
+        liveErpItem = freshErp;
+        const merged = mergeErpSyncWithExistingDbProduct(existing || item, freshErp) as Product;
+        setSelectedProduct(merged as any);
+
+        // Apenas realiza escrita no Firestore se o estoque ou preço REALMENTE sofreu alteração no ERP
+        if (hasProductChanged(existing, freshErp)) {
+          const sanitized = sanitizeProductForFirestore(merged);
+          setDoc(doc(db, 'products', mobId), sanitized, { merge: true }).catch(() => {});
+        }
       }
-    } catch {
-      setSelectedProductGrade(null);
+
+      if (gradeRes) {
+        liveGradeRes = gradeRes;
+        setSelectedProductGrade(gradeRes);
+      }
+    } catch (err) {
+      console.warn('[MoblinkProductsManager] Consulta em tempo real MobLink:', err);
     } finally {
       setIsLoadingProductGrade(false);
     }
 
-    // Initialize Edit Form Input States
-    const initialName = existing?.name || item.nome || item.name || item.descricao || '';
-    const initialSku = existing?.sku || item.sku || item.codigo || mobId;
-    const initialModelCode = existing?.modelCode || existing?.referenceCode || (existing as any)?.referencia || item.modelCode || item.referenceCode || item.referencia || '';
-    // Preço de tabela (carnê) como preço principal a ser editado
-    const initialPrice = existing?.price ?? extractPrecoTabelaMoblink(item) ?? item.preco_venda ?? item.price ?? 0;
-    // Preço à vista como originalPrice (referência de desconto)
-    const initialOrigPrice = existing?.originalPrice ?? item.precoOriginal ?? '';
-    const initialStock = existing?.stock ?? extractSaldoLojaMoblink(item) ?? 0;
-    const initialCategory = (existing?.category && existing.category !== 'Geral') ? existing.category : (item.categoria && item.categoria !== 'Geral' ? normalizeCategoryName(item.categoria) : extractClassificacaoCategoria(item).category || 'Calçados');
-    
-    // REGRA MANDATÓRIA: Se NÃO possui foto real cadastrada, a visibilidade NUNCA é ativada por padrão
-    const itemHasPhoto = hasProductValidPhoto(item) || hasProductValidPhoto(existing);
-    const initialVisible = (initialStock > 0 && itemHasPhoto) ? (existing?.visible ?? false) : false;
-    const initialSizes = existing?.sizes && Array.isArray(existing.sizes) && existing.sizes.length > 0
-      ? existing.sizes.join(', ')
-      : (Array.isArray(item.tamanhos) ? item.tamanhos.join(', ') : '37, 38, 39, 40, 41, 42, 43');
+    const currentItem = liveErpItem || item;
 
-    const rawVariant = extractBaseNameAndVariant(item.nome || item.name || item.descricao || '').variant;
-    const initialColor = existing?.color || existing?.cor || item.cor || item.color || (rawVariant !== 'Padrão' ? rawVariant : 'Preto');
+    // Initialize Edit Form Input States com valores em tempo real do ERP
+    const initialName = existing?.name || currentItem.nome || currentItem.name || currentItem.descricao || '';
+    const initialSku = existing?.sku || currentItem.sku || currentItem.codigo || mobId;
+    const initialModelCode = existing?.modelCode || existing?.referenceCode || (existing as any)?.referencia || currentItem.modelCode || currentItem.referenceCode || currentItem.referencia || '';
+    
+    // Preço e Estoque em Tempo Real consultados no MobLink ERP
+    const liveStockVal = liveErpItem ? extractSaldoLojaMoblink(liveErpItem) : (existing?.stock ?? extractSaldoLojaMoblink(currentItem));
+    const livePriceVal = liveErpItem ? extractPrecoTabelaMoblink(liveErpItem) : (existing?.price ?? extractPrecoTabelaMoblink(currentItem));
+
+    const initialPrice = livePriceVal > 0 ? livePriceVal : (currentItem.preco_venda ?? currentItem.price ?? 0);
+    const initialOrigPrice = existing?.originalPrice ?? currentItem.precoOriginal ?? '';
+    const initialStock = liveStockVal;
+
+    const initialCategory = (existing?.category && existing.category !== 'Geral') 
+      ? existing.category 
+      : (currentItem.categoria && currentItem.categoria !== 'Geral' 
+        ? normalizeCategoryName(currentItem.categoria) 
+        : extractClassificacaoCategoria(currentItem).category || 'Calçados');
+    
+    const itemHasPhoto = hasProductValidPhoto(currentItem) || hasProductValidPhoto(existing);
+    const initialVisible = (initialStock > 0 && itemHasPhoto) ? (existing?.visible ?? false) : false;
+    
+    const initialSizes = liveGradeRes && liveGradeRes.tamanhos && liveGradeRes.tamanhos.length > 0
+      ? liveGradeRes.tamanhos.join(', ')
+      : (existing?.sizes && Array.isArray(existing.sizes) && existing.sizes.length > 0
+        ? existing.sizes.join(', ')
+        : (Array.isArray(currentItem.tamanhos) ? currentItem.tamanhos.join(', ') : '37, 38, 39, 40, 41, 42, 43'));
+
+    const rawVariant = extractBaseNameAndVariant(currentItem.nome || currentItem.name || currentItem.descricao || '').variant;
+    const initialColor = existing?.color || existing?.cor || currentItem.cor || currentItem.color || (rawVariant !== 'Padrão' ? rawVariant : 'Preto');
 
     // Inicialização da Grade de Estoque por Tamanho
     const initialStockMap: Record<string, number> = existing?.stockBySize || existing?.sizeStockMap || {};
     const parsedSizeArray = initialSizes.split(',').map(s => s.trim()).filter(Boolean);
     const finalStockMap: Record<string, number> = { ...initialStockMap };
     
-    // Se não existir mapa detalhado anterior, inicializa com o estoque do MobLink ou distribui para edição
     if (Object.keys(finalStockMap).length === 0 && parsedSizeArray.length > 0) {
       const avgPerSize = Math.floor(initialStock / parsedSizeArray.length);
       let remainder = initialStock % parsedSizeArray.length;
@@ -1011,7 +1040,7 @@ export const MoblinkProductsManager: React.FC = () => {
       });
     }
 
-    const initialNewArrival = Boolean(existing?.newArrival || (item as any)?.newArrival || false);
+    const initialNewArrival = Boolean(existing?.newArrival || (currentItem as any)?.newArrival || false);
 
     setEditName(initialName);
     setEditSku(initialSku);
