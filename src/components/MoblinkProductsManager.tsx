@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useApp, DEFAULT_CATEGORIES } from '../context/AppContext';
 import { Product, ProdutoGradesResult } from '../types';
 import { 
@@ -372,6 +372,88 @@ export const MoblinkProductsManager: React.FC = () => {
     }
   };
 
+  // Automação: Varre o banco de dados e salva automaticamente visible: true para todos os produtos com foto real
+  const [isAutoActivatingVisible, setIsAutoActivatingVisible] = useState(false);
+
+  const handleAutoSetVisibleForProductsWithPhotos = async (silent: boolean = false) => {
+    if (!products || products.length === 0) return;
+
+    const targets = products.filter(p => {
+      const stock = (p.stock !== undefined ? p.stock : (p.saldo_loja ?? 0));
+      if (stock <= 0) return false;
+      const hasPhoto = hasProductValidPhoto(p);
+      return hasPhoto && p.visible !== true;
+    });
+
+    if (targets.length === 0) {
+      if (!silent) {
+        setFeedback({
+          success: true,
+          message: 'Todos os produtos com foto já estão salvos e visíveis no banco de dados!',
+        });
+        setTimeout(() => setFeedback(null), 4000);
+      }
+      return;
+    }
+
+    setIsAutoActivatingVisible(true);
+    if (!silent) {
+      setFeedback({
+        success: true,
+        message: `Automatizando: Salvando visibilidade no banco de dados para ${targets.length} produto(s) com foto...`,
+      });
+    }
+
+    let updatedCount = 0;
+    try {
+      const chunkSize = 15;
+      for (let i = 0; i < targets.length; i += chunkSize) {
+        const chunk = targets.slice(i, i + chunkSize);
+        await Promise.all(
+          chunk.map(async (prod) => {
+            const id = String(prod.id || prod.moblinkId).trim();
+            if (!id) return;
+
+            const updatedFields = {
+              visible: true,
+              updatedAt: new Date().toISOString(),
+            };
+
+            updateProduct(id, updatedFields);
+
+            try {
+              await setDoc(doc(db, 'products', id), updatedFields, { merge: true });
+              updatedCount++;
+            } catch (e) {
+              console.warn(`[AutoVisible] Falha ao salvar visibilidade para produto ${id}:`, e);
+            }
+          })
+        );
+      }
+
+      if (!silent) {
+        setFeedback({
+          success: true,
+          message: `✅ Sucesso! ${updatedCount} produto(s) com foto foram ativados e salvos no banco de dados automaticamente!`,
+        });
+        setTimeout(() => setFeedback(null), 5000);
+      }
+    } catch (err: any) {
+      console.warn('[AutoVisible] Erro na automação de salvamento de visibilidade:', err);
+    } finally {
+      setIsAutoActivatingVisible(false);
+    }
+  };
+
+  // Executa a automação silenciosamente em segundo plano ao carregar os produtos
+  const hasAutoRunRef = useRef(false);
+  useEffect(() => {
+    if (products && products.length > 0 && !hasAutoRunRef.current) {
+      hasAutoRunRef.current = true;
+      handleAutoSetVisibleForProductsWithPhotos(true).catch(() => {});
+    }
+  }, [products]);
+
   /**
    * Sincronização Unificada do ERP MobLink:
    * Atualiza estoque + valida variações de grades de tamanho em 1 clique
@@ -379,6 +461,7 @@ export const MoblinkProductsManager: React.FC = () => {
   const handleUnifiedErpSync = async () => {
     await fetchMoblinkProducts();
     await handleAuditAndApplyGradesToStockProducts();
+    await handleAutoSetVisibleForProductsWithPhotos(true);
   };
 
   // Sincronização de UM ÚNICO produto por ID (Solicitado pelo Administrador)
@@ -2279,6 +2362,16 @@ export const MoblinkProductsManager: React.FC = () => {
               >
                 <ImageIcon className={`h-4.5 w-4.5 text-purple-200 ${isAuditingPhotos || isLinkingSupabase ? 'animate-spin' : ''}`} />
                 <span>{isAuditingPhotos || isLinkingSupabase ? 'Sincronizando Fotos...' : '📸 Sincronizar & Auditar Fotos (Supabase)'}</span>
+              </button>
+
+              <button
+                onClick={() => handleAutoSetVisibleForProductsWithPhotos(false)}
+                disabled={isAutoActivatingVisible || isLoading}
+                className="px-5 py-3 bg-amber-500 hover:bg-amber-600 text-white font-extrabold rounded-2xl text-xs transition-all flex items-center gap-2.5 cursor-pointer shadow-md active:scale-95 disabled:opacity-50 shadow-amber-500/20 shrink-0"
+                title="Varre automaticamente todo o catálogo e salva visible: true no banco de dados para todos os produtos com foto real"
+              >
+                <CheckCircle2 className={`h-4.5 w-4.5 text-amber-100 ${isAutoActivatingVisible ? 'animate-spin' : ''}`} />
+                <span>{isAutoActivatingVisible ? 'Salvando Visíveis no Banco...' : '⚡ Salvar Visível (Todos com Foto)'}</span>
               </button>
             </div>
           </div>

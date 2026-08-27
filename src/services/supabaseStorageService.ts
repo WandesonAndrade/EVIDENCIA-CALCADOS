@@ -537,12 +537,14 @@ export async function autoLinkSupabasePhotosToFirestore(productsList: any[]): Pr
       });
 
       const coverUrl = newImages[0];
+      const stockVal = prod.stock !== undefined ? prod.stock : (prod.saldo_loja ?? 0);
       try {
         const prodRef = doc(db, 'products', rawId);
         await setDoc(prodRef, {
           images: newImages,
           imageUrl: coverUrl,
           foto_uri: coverUrl,
+          visible: stockVal > 0 ? true : false,
           hasMedia: true,
           hasCustomData: true,
           updatedAt: new Date().toISOString()
@@ -551,6 +553,7 @@ export async function autoLinkSupabasePhotosToFirestore(productsList: any[]): Pr
         prod.images = newImages;
         prod.imageUrl = coverUrl;
         prod.foto_uri = coverUrl;
+        prod.visible = stockVal > 0 ? true : false;
         prod.hasMedia = true;
         updatedCount++;
       } catch (e) {
