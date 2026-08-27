@@ -94,10 +94,10 @@ export const PixPaymentModal: React.FC<PixPaymentModalProps> = ({
       }
     };
 
-    // Poll every 5 seconds
-    pollingRef.current = setInterval(checkStatus, 5_000);
+    // Poll every 3.5 seconds (Intelligent Polling)
+    pollingRef.current = setInterval(checkStatus, 3_500);
     // Also check immediately after a short delay
-    setTimeout(checkStatus, 2_000);
+    setTimeout(checkStatus, 1_500);
   }, [stopPolling, stopTimer, onPaymentSuccess, externalReference, parcelDescription]);
 
   // Fetch / Generate Pix
@@ -110,6 +110,7 @@ export const PixPaymentModal: React.FC<PixPaymentModalProps> = ({
     stopTimer();
 
     try {
+      const idempotencyKey = `pix-modal-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
       const data = await pixPaymentService.generatePix({
         valor: parcelValue,
         descricao: parcelDescription,
@@ -118,6 +119,7 @@ export const PixPaymentModal: React.FC<PixPaymentModalProps> = ({
         cpfCliente,
         externalReference,
         forceNew,
+        idempotencyKey,
       });
 
       if (!data.success) {
