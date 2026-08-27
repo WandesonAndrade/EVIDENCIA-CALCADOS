@@ -1,7 +1,7 @@
 ---
 type: tech
 created: 2026-08-26
-updated: 2026-08-26
+updated: 2026-08-27
 ---
 
 # Decisões Tecnológicas & Arquitetura
@@ -16,5 +16,11 @@ updated: 2026-08-26
 - Centralizada a validação de fotos reais em `moblinkProductsService.ts` (`hasProductValidPhoto`).
 - Qualquer componente que exiba listagens na storefront deve obrigatoriamente aplicar o filtro `hasProductValidPhoto(item)` para evitar a exibição de quadros vazios ou com imagens quebradas/placeholders.
 
-## 3. Validação do Código
+## 3. Sincronização Individual por ID (`MoblinkProductsManager.tsx` / `moblinkProductsService.ts`)
+- **Sincronização de Produto Único (`getSingleProdutoMoblink`):**
+  - O administrador pode informar o ID numérico do produto (ex: `1250` ou `MOB-1250`).
+  - A API consulta os endpoints do MobLink ERP por ID sem a necessidade de varrer todos os 1.800+ produtos da loja.
+  - Atualiza saldo de estoque, preços e disponibilidade no Firestore instantaneamente.
+
+## 4. Validação do Código
 - Execução de `npm run lint` (`tsc --noEmit`) e `npm run build` após alterações de estrutura/tipagem para garantir 0 erros de build em produção.
