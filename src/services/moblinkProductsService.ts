@@ -1236,6 +1236,82 @@ export const getProdutosMoblink = async (
 };
 
 /**
+ * Busca e sincroniza um ÚNICO produto por ID a partir da API oficial do MobLink ERP.
+ */
+export const getSingleProdutoMoblink = async (
+  productId: string,
+): Promise<MoblinkProduto | null> => {
+  if (!productId || typeof productId !== "string") return null;
+  const cleanId = productId.trim().replace(/^MOB-/i, "");
+  if (!cleanId) return null;
+
+  try {
+    const baseApiUrl = MOBLINK_OFFICIAL_API_URL.replace(/[\?&]page=\d+/, "");
+    const endpointsToTry = [
+      `${baseApiUrl}/${cleanId}`,
+      `/api/v1/produtos/${cleanId}`,
+      `${baseApiUrl}?id=${cleanId}`,
+      `/api/v1/produtos?id=${cleanId}`,
+      `${baseApiUrl}?codigo=${cleanId}`,
+      `/api/v1/produtos?codigo=${cleanId}`,
+    ];
+
+    let foundRawItem: any = null;
+
+    for (const url of endpointsToTry) {
+      try {
+        const response = await evidenciaAuthService.fetchWithAuth(url, {
+          method: "GET",
+          headers: { Accept: "application/json" },
+        });
+
+        if (response.ok) {
+          const contentType = response.headers.get("content-type");
+          if (contentType && contentType.includes("application/json")) {
+            const data = await response.json();
+            const list = Array.isArray(data)
+              ? data
+              : data.produtos || data.data || data.items || (data && (data.id || data.codigo) ? [data] : []);
+
+            const match = list.find((item: any) => {
+              const mobId = String(item.id || item.moblinkId || item.codigo || "").trim();
+              return mobId === cleanId || mobId === productId;
+            }) || (list.length === 1 && (data.id || data.codigo) ? list[0] : null);
+
+            if (match) {
+              foundRawItem = match;
+              break;
+            }
+          }
+        }
+      } catch (err) {
+        // Continua para a próxima tentativa de URL
+      }
+    }
+
+    // Fallback: Se não encontrou pelo endpoint direto de ID, busca na lista geral do ERP
+    if (!foundRawItem) {
+      const allItems = await getProdutosMoblink();
+      foundRawItem = allItems.find((item) => {
+        const mobId = String(item.id || (item as any).moblinkId || "").trim();
+        return mobId === cleanId || mobId === productId;
+      });
+      if (foundRawItem) {
+        return foundRawItem;
+      }
+    } else {
+      const mapped = mapMoblinkProdutoToClean([foundRawItem]);
+      if (mapped.length > 0) return mapped[0];
+    }
+
+    return null;
+  } catch (error) {
+    console.error(`[moblinkProductsService] Erro ao buscar produto individual ${productId}:`, error);
+    return null;
+  }
+};
+
+/**
  * Converte e limpa uma lista de itens da API do MobLink ERP para a estrutura MoblinkProduto.
  */
 export const mapMoblinkProdutoToClean = (items: any[]): MoblinkProduto[] => {

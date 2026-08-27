@@ -3,6 +3,7 @@ import { useApp, DEFAULT_CATEGORIES } from '../context/AppContext';
 import { Product, ProdutoGradesResult } from '../types';
 import { 
   getProdutosMoblink, 
+  getSingleProdutoMoblink,
   getSingleProdutoMoblinkFromApi,
   extractPrecoTabelaMoblink,
   extractPrecoVistaMoblink,
@@ -378,6 +379,121 @@ export const MoblinkProductsManager: React.FC = () => {
   const handleUnifiedErpSync = async () => {
     await fetchMoblinkProducts();
     await handleAuditAndApplyGradesToStockProducts();
+  };
+
+  // Sincronização de UM ÚNICO produto por ID (Solicitado pelo Administrador)
+  const [singleSyncId, setSingleSyncId] = useState('');
+  const [showSingleSyncModal, setShowSingleSyncModal] = useState(false);
+  const [isSyncingSingle, setIsSyncingSingle] = useState(false);
+
+  const handleSyncSingleProduct = async (targetIdInput?: string) => {
+    const rawTarget = targetIdInput || singleSyncId;
+    const targetId = rawTarget.trim().replace(/^MOB-/i, '');
+    if (!targetId) {
+      setFeedback({ success: false, message: 'Por favor, informe um ID de produto válido para sincronizar.' });
+      return;
+    }
+
+    setIsSyncingSingle(true);
+    setFetchError(null);
+    setFeedback(null);
+    setSyncProgress({ current: 1, total: 1, phase: `Consultando produto ID ${targetId} no ERP MobLink...` });
+
+    try {
+      const erpItem = await getSingleProdutoMoblink(targetId);
+
+      if (!erpItem) {
+        setFeedback({
+          success: false,
+          message: `❌ Produto com ID "${targetId}" não foi localizado no ERP MobLink.`
+        });
+        return;
+      }
+
+      const mobId = String(erpItem.id || targetId);
+      const existingDb = getExistingDbProduct(mobId);
+
+      const precoTabela = extractPrecoTabelaMoblink(erpItem);
+      const precoVista = extractPrecoVistaMoblink(erpItem);
+      const estoqueAtual = extractSaldoLojaMoblink(erpItem);
+      const itemHasGrade = hasProductValidGrade(erpItem);
+      const itemHasPhoto = hasProductValidPhoto(erpItem) || hasProductValidPhoto(existingDb);
+
+      const updatedProductPayload: any = {
+        id: mobId,
+        moblinkId: mobId,
+        name: erpItem.nome || erpItem.name || erpItem.descricao,
+        descricao: erpItem.descricao || erpItem.nome,
+        description: existingDb?.description || erpItem.compl_descr || erpItem.descricao || '',
+        price: precoTabela,
+        preco_venda: precoTabela,
+        precoVista: precoVista,
+        preco_vista: precoVista,
+        preco_promocao: erpItem.preco_promocao,
+        classificacao: erpItem.classificacao,
+        category: (erpItem.categoria && erpItem.categoria !== 'Geral') ? erpItem.categoria : (existingDb?.category || erpItem.categoria || erpItem.category || 'Geral'),
+        subcategory: erpItem.subcategoria || existingDb?.subcategory || '',
+        nome_grupo: erpItem.nome_grupo || existingDb?.nome_grupo || '',
+        nome_subgrupo: erpItem.nome_subgrupo || existingDb?.nome_subgrupo || '',
+        foto_uri: erpItem.foto_uri,
+        images: (existingDb?.images && existingDb.images.length > 0) ? existingDb.images : (erpItem.foto_uri ? [erpItem.foto_uri] : []),
+        sizes: existingDb?.sizes || (Array.isArray(erpItem.tamanhos) ? erpItem.tamanhos : []),
+        crediarioProprio: true,
+        hasGrade: itemHasGrade,
+        visible: (estoqueAtual > 0 && itemHasPhoto) ? (existingDb?.visible ?? true) : false,
+        stockControl: true,
+        stock: estoqueAtual,
+        saldo_loja: estoqueAtual,
+        stockBySize: existingDb?.stockBySize || existingDb?.sizeStockMap,
+        sizeStockMap: existingDb?.sizeStockMap || existingDb?.stockBySize,
+        lastMoblinkSync: new Date().toISOString(),
+        moblinkSyncStatus: 'synced',
+        modelCode: existingDb?.modelCode || existingDb?.referenceCode,
+        referenceCode: existingDb?.referenceCode || existingDb?.modelCode,
+        color: existingDb?.color || erpItem.cor || undefined,
+        cor: existingDb?.cor || erpItem.cor || undefined,
+      };
+
+      try {
+        const sanitizedPayload = sanitizeProductForFirestore(updatedProductPayload);
+        await setDoc(doc(db, 'products', mobId), sanitizedPayload, { merge: true });
+
+        if (existingDb) {
+          await updateProduct(mobId, updatedProductPayload);
+        } else {
+          await addProduct(updatedProductPayload);
+        }
+      } catch (writeErr) {
+        console.warn(`[MoblinkProductsManager] Aviso ao salvar produto individual no Firestore: ${mobId}`, writeErr);
+        if (existingDb) {
+          try { await updateProduct(mobId, updatedProductPayload); } catch {}
+        }
+      }
+
+      setMoblinkList(prev => {
+        const exists = prev.some(p => String(p.id || p.moblinkId) === mobId);
+        if (exists) {
+          return prev.map(p => String(p.id || p.moblinkId) === mobId ? { ...p, ...erpItem } : p);
+        } else {
+          return [erpItem, ...prev];
+        }
+      });
+
+      setFeedback({
+        success: true,
+        message: `⚡ Produto ID ${mobId} ("${erpItem.nome || erpItem.descricao}") sincronizado com sucesso!`
+      });
+      setShowSingleSyncModal(false);
+      setSingleSyncId('');
+    } catch (err: any) {
+      setFeedback({
+        success: false,
+        message: `Falha ao sincronizar produto ID "${targetId}": ${err.message || 'Erro de conexão'}`
+      });
+    } finally {
+      setSyncProgress(null);
+      setIsSyncingSingle(false);
+    }
   };
 
   const handleDeleteAuditOrphan = async (item: SupabaseAuditItem) => {
@@ -2101,7 +2217,17 @@ export const MoblinkProductsManager: React.FC = () => {
                 title="Sincroniza saldos de estoque e valida disponibilidade de variações/tamanhos do MobLink ERP"
               >
                 <RefreshCw className={`h-4.5 w-4.5 ${isLoading ? 'animate-spin text-white' : ''}`} />
-                <span>{isLoading ? 'Sincronizando ERP & Grades...' : '⚡ Sincronizar ERP & Grades (Estoque + Tamanhos)'}</span>
+                <span>{isLoading ? 'Sincronizando ERP & Grades...' : '⚡ Sincronizar ERP & Grades (Todos)'}</span>
+              </button>
+
+              <button
+                onClick={() => setShowSingleSyncModal(true)}
+                disabled={isLoading || isSyncingSingle}
+                className="px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-2xl text-xs transition-all flex items-center gap-2.5 cursor-pointer shadow-md active:scale-95 disabled:opacity-50 shadow-emerald-500/20 shrink-0"
+                title="Sincroniza apenas 1 produto específico digitando o ID cadastrado no MobLink ERP"
+              >
+                <Zap className={`h-4.5 w-4.5 text-emerald-200 ${isSyncingSingle ? 'animate-spin' : ''}`} />
+                <span>{isSyncingSingle ? 'Sincronizando Produto...' : '🎯 Sincronizar 1 Produto (por ID)'}</span>
               </button>
 
               <button
@@ -3801,6 +3927,81 @@ export const MoblinkProductsManager: React.FC = () => {
                 Fechar Auditoria
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE SINCRONIZAÇÃO DE PRODUTO ÚNICO POR ID */}
+      {showSingleSyncModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in">
+          <div className="bg-white dark:bg-[#0f172a] rounded-3xl max-w-md w-full p-6 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-6">
+            <div className="flex items-center justify-between border-b pb-4 dark:border-slate-800">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold">
+                  <Zap className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-base text-slate-900 dark:text-white">
+                    Sincronizar 1 Produto por ID
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Sincronize estoque e dados de um produto específico do MobLink ERP.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowSingleSyncModal(false)}
+                className="p-2 rounded-xl text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSyncSingleProduct();
+              }}
+              className="space-y-4"
+            >
+              <div>
+                <label className="block text-xs font-extrabold uppercase text-slate-500 dark:text-slate-400 mb-2">
+                  ID ou Código do Produto no ERP MobLink
+                </label>
+                <input
+                  type="text"
+                  value={singleSyncId}
+                  onChange={(e) => setSingleSyncId(e.target.value)}
+                  placeholder="Ex: 1250 ou MOB-1250"
+                  autoFocus
+                  required
+                  className="w-full px-4 py-3 rounded-2xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white text-sm font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">
+                  Informe o ID retornado pelo sistema ERP. O produto terá seu estoque, tabela de preço e cadastro sincronizados sem a necessidade de atualizar o catálogo inteiro.
+                </p>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-4 border-t dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setShowSingleSyncModal(false)}
+                  disabled={isSyncingSingle}
+                  className="px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-extrabold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSyncingSingle || !singleSyncId.trim()}
+                  className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold inline-flex items-center gap-2 cursor-pointer shadow-md disabled:opacity-50"
+                >
+                  <RefreshCw className={`h-4 w-4 ${isSyncingSingle ? 'animate-spin' : ''}`} />
+                  <span>{isSyncingSingle ? 'Sincronizando...' : 'Sincronizar Produto'}</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
