@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 import { UserProfile, SavedAddress } from '../types';
 import { firebaseAuthService } from '../services/firebaseAuthService';
 import { CompleteProfileModal } from './CompleteProfileModal';
-import { PixPaymentModal } from './PixPaymentModal';
+import { PaymentForm } from './PaymentForm';
 import { 
   X, CheckCircle2, Truck, ShoppingBag, Zap, CreditCard, 
   ShieldCheck, MapPin, Info, ArrowRight, MessageSquare, Sparkles, User, Edit3, Plus, Loader2
@@ -210,13 +210,15 @@ export const CheckoutConfirmationModal: React.FC<CheckoutConfirmationModalProps>
     }
   };
 
-  const [paymentMethod, setPaymentMethod] = useState<'Pix' | 'Cartão de Crédito' | 'Crediário da Loja'>('Pix');
+  const [paymentGroup, setPaymentGroup] = useState<'Online' | 'Crediário'>('Online');
+  const [onlineTab, setOnlineTab] = useState<'pix' | 'credit' | 'debit'>('credit');
   const [installments, setInstallments] = useState<number>(1);
   const [crediarioInstallments, setCrediarioInstallments] = useState<number>(1);
   const [selectedSellerName, setSelectedSellerName] = useState<string>('Atendimento Direto da Loja');
   const [teamSellers, setTeamSellers] = useState<UserProfile[]>([]);
-  const [isPixModalOpen, setIsPixModalOpen] = useState(false);
-  const pixExternalRef = React.useMemo(() => `ped_${Date.now()}`, [isPixModalOpen]);
+  
+  const paymentMethod = paymentGroup === 'Crediário' ? 'Crediário da Loja' 
+    : (onlineTab === 'pix' ? 'Pix' : onlineTab === 'debit' ? 'Cartão de Débito' : 'Cartão de Crédito');
 
   useEffect(() => {
     let isMounted = true;
@@ -236,7 +238,7 @@ export const CheckoutConfirmationModal: React.FC<CheckoutConfirmationModalProps>
   // - Pix / À Vista: precoVista se cadastrado, senão subtotal (preço de venda).
   // - Cartão: precoCartao se cadastrado, senão subtotal (preço de venda).
   // - Crediário: precoCrediario se cadastrado, senão subtotal (preço de venda).
-  const activeSubtotal = paymentMethod === 'Pix'
+  const activeSubtotal = paymentMethod === 'Pix' || paymentMethod === 'Cartão de Débito'
     ? (precoVista ?? subtotal)
     : paymentMethod === 'Cartão de Crédito'
     ? (precoCartao ?? subtotal)
@@ -307,10 +309,6 @@ export const CheckoutConfirmationModal: React.FC<CheckoutConfirmationModalProps>
   };
 
   const handleConfirmClick = () => {
-    if (paymentMethod === 'Pix') {
-      setIsPixModalOpen(true);
-      return;
-    }
     executeConfirmOrder();
   };
 
@@ -684,149 +682,85 @@ export const CheckoutConfirmationModal: React.FC<CheckoutConfirmationModalProps>
               <span>2. Escolha a Forma de Pagamento</span>
             </h4>
 
-            <div className="space-y-2">
-              {/* Pix */}
+            {/* TOGGLE ONLINE VS CREDIÁRIO */}
+            <div className="flex gap-2">
               <button
                 type="button"
-                onClick={() => setPaymentMethod('Pix')}
-                className={`w-full flex items-center justify-between p-3.5 rounded-2xl border text-xs font-extrabold transition-all cursor-pointer ${
-                  paymentMethod === 'Pix'
-                    ? 'border-2 border-emerald-500 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 shadow-xs'
-                    : isDark ? 'border-white/10 bg-[#1d1d1f] text-slate-200 hover:border-white/20' : 'border-slate-200 bg-white text-slate-800 hover:border-slate-300'
+                onClick={() => setPaymentGroup('Online')}
+                className={`flex-1 py-3 rounded-xl text-xs font-bold transition-all border ${
+                  paymentGroup === 'Online'
+                    ? 'border-[#0071e3] bg-[#0071e3]/10 text-[#0071e3] dark:text-sky-400'
+                    : isDark ? 'border-white/10 text-slate-400 hover:border-white/20' : 'border-slate-200 text-slate-500 hover:border-slate-300'
                 }`}
               >
-                <div className="flex items-center space-x-2.5">
-                  <Zap className="h-4 w-4 text-emerald-500" />
-                  <span>Pix (Aprovação Instantânea)</span>
-                </div>
-                {paymentMethod === 'Pix' && <CheckCircle2 className="h-4 w-4 text-emerald-500" />}
+                Pagamento Online (Cartão/Pix)
               </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (isCrediarioApproved) setPaymentGroup('Crediário');
+                }}
+                disabled={!isCrediarioApproved}
+                className={`flex-1 py-3 rounded-xl text-xs font-bold transition-all border flex flex-col items-center justify-center ${
+                  paymentGroup === 'Crediário'
+                    ? 'border-amber-500 bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                    : isDark ? 'border-white/10 text-slate-400 hover:border-white/20' : 'border-slate-200 text-slate-500 hover:border-slate-300'
+                } ${!isCrediarioApproved ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                <div className="flex items-center gap-1.5">
+                  <ShieldCheck className="h-3.5 w-3.5" />
+                  <span>Crediário da Loja</span>
+                </div>
+                {!isCrediarioApproved && <span className="text-[9px] text-amber-500 mt-1 uppercase font-black">Requer Análise</span>}
+              </button>
+            </div>
 
-              {/* Cartão de Crédito */}
-              <div className="space-y-2">
-                <button
-                  type="button"
-                  onClick={() => setPaymentMethod('Cartão de Crédito')}
-                  className={`w-full flex items-center justify-between p-3.5 rounded-2xl border text-xs font-extrabold transition-all cursor-pointer ${
-                    paymentMethod === 'Cartão de Crédito'
-                      ? 'border-2 border-[#0071e3] bg-[#0071e3]/10 text-[#0071e3] dark:text-sky-400 shadow-xs'
-                      : isDark ? 'border-white/10 bg-[#1d1d1f] text-slate-200 hover:border-white/20' : 'border-slate-200 bg-white text-slate-800 hover:border-slate-300'
-                  }`}
-                >
-                  <div className="flex items-center space-x-2.5">
-                    <CreditCard className="h-4 w-4 text-[#0071e3]" />
-                    <span>Cartão de Crédito (até 10x sem juros)</span>
-                  </div>
-                  {paymentMethod === 'Cartão de Crédito' && <CheckCircle2 className="h-4 w-4 text-[#0071e3]" />}
-                </button>
-
-                {/* Sub-Seletor de Parcelamento */}
-                {paymentMethod === 'Cartão de Crédito' && (
-                  <motion.div 
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    className={`p-3.5 rounded-2xl border space-y-2 ${
-                      isDark ? 'bg-[#0071e3]/10 border-[#0071e3]/30' : 'bg-sky-50 border-sky-200'
-                    }`}
-                  >
-                    <label className="block text-xs font-extrabold text-[#0071e3] dark:text-sky-400">
-                      Selecione o Parcelamento no Cartão:
-                    </label>
-                    <select
-                      value={installments}
-                      onChange={(e) => setInstallments(Number(e.target.value))}
-                      className={`w-full p-2.5 rounded-xl text-xs font-bold border focus:outline-none cursor-pointer ${
-                        isDark 
-                          ? 'bg-slate-950 border-sky-500/40 text-slate-100' 
-                          : 'bg-white border-sky-300 text-slate-900'
-                      }`}
-                    >
-                      {installmentOptions.map((opt) => (
-                        <option key={opt.count} value={opt.count}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </select>
-                    <p className="text-[10px] text-sky-700 dark:text-sky-300 font-medium">
-                      ✓ Parcelamento sem juros em até 10x exclusivo Evidência Calçados.
-                    </p>
-                  </motion.div>
-                )}
-              </div>
-
-              {/* Crediário da Loja */}
-              <div className="space-y-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (isCrediarioApproved) {
-                      setPaymentMethod('Crediário da Loja');
-                    }
+            <div className="mt-4">
+              {paymentGroup === 'Online' ? (
+                <PaymentForm
+                  grandTotal={grandTotal}
+                  emailCliente={currentUser.email || ''}
+                  nomeCliente={currentUser.name}
+                  cpfCliente={currentUser.cpf}
+                  externalReference={`ped_${Date.now()}`}
+                  isDark={isDark}
+                  onActiveTabChange={(tab) => setOnlineTab(tab)}
+                  onPaymentApproved={(details) => {
+                    executeConfirmOrder(details.paymentId);
                   }}
-                  disabled={!isCrediarioApproved}
-                  className={`w-full flex flex-col items-start p-3.5 rounded-2xl border text-xs transition-all ${
-                    paymentMethod === 'Crediário da Loja'
-                      ? 'border-2 border-amber-500 bg-amber-500/10 text-amber-700 dark:text-amber-400 shadow-xs'
-                      : isDark ? 'border-white/10 bg-[#1d1d1f] text-slate-200' : 'border-slate-200 bg-white text-slate-800'
-                  } ${!isCrediarioApproved ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
-                >
-                  <div className="w-full flex items-center justify-between font-bold">
-                    <div className="flex items-center space-x-2.5">
-                      <ShieldCheck className="h-4 w-4 text-amber-500" />
-                      <span>Crediário Próprio Evidência (até 6x sem juros)</span>
-                    </div>
-
-                    {isCrediarioApproved ? (
-                      <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-emerald-500 text-white shadow-xs">
-                        Aprovado
-                      </span>
-                    ) : (
-                      <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30">
-                        Requer Análise no Admin
-                      </span>
-                    )}
+                  onPaymentFailed={(err) => {
+                    console.error("Payment failed", err);
+                  }}
+                />
+              ) : (
+                <div className={`p-4 rounded-2xl border ${isDark ? 'bg-amber-400/10 border-amber-400/30 text-amber-400' : 'bg-amber-50 border-amber-200 text-amber-700'}`}>
+                  <div className="flex items-center space-x-2 mb-2 text-amber-600 dark:text-amber-400">
+                    <ShieldCheck className="h-5 w-5" />
+                    <span className="font-extrabold uppercase">Crediário Próprio Evidência (até 6x sem juros)</span>
                   </div>
-
-                  {!isCrediarioApproved && (
-                    <p className="mt-1.5 text-[10px] text-amber-700 dark:text-amber-300 font-medium leading-relaxed">
-                      Opção bloqueada. Seu crediário precisa ser analisado e aprovado pelo administrador.
-                    </p>
-                  )}
-                </button>
-
-                {/* Sub-Seletor de Parcelamento no Crediário */}
-                {paymentMethod === 'Crediário da Loja' && isCrediarioApproved && (
-                  <motion.div 
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    className={`p-3.5 rounded-2xl border space-y-2 ${
-                      isDark ? 'bg-amber-400/10 border-amber-400/30' : 'bg-amber-50 border-amber-200'
+                  <label className="block text-xs font-bold mt-4 mb-1.5 text-amber-700 dark:text-amber-300">
+                    Selecione o Parcelamento no Crediário:
+                  </label>
+                  <select
+                    value={crediarioInstallments}
+                    onChange={(e) => setCrediarioInstallments(Number(e.target.value))}
+                    className={`w-full p-3 rounded-xl text-xs font-bold border focus:outline-none cursor-pointer transition-colors ${
+                      isDark 
+                        ? 'bg-slate-950 border-amber-400/40 text-slate-100 focus:border-amber-400' 
+                        : 'bg-white border-amber-300 text-slate-900 focus:border-amber-500'
                     }`}
                   >
-                    <label className="block text-xs font-bold text-amber-600 dark:text-amber-400">
-                      Selecione o Parcelamento no Crediário:
-                    </label>
-                    <select
-                      value={crediarioInstallments}
-                      onChange={(e) => setCrediarioInstallments(Number(e.target.value))}
-                      className={`w-full p-2.5 rounded-xl text-xs font-bold border focus:outline-none cursor-pointer ${
-                        isDark 
-                          ? 'bg-slate-950 border-amber-400/40 text-slate-100' 
-                          : 'bg-white border-amber-300 text-slate-900'
-                      }`}
-                    >
-                      {crediarioInstallmentOptions.map((opt) => (
-                        <option key={opt.count} value={opt.count}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </select>
-                    <p className="text-[10px] text-amber-700 dark:text-amber-300 font-medium">
-                      ✓ Parcelamento sem juros em até 6x no carnê exclusivo Evidência Calçados.
-                    </p>
-                  </motion.div>
-                )}
-              </div>
+                    {crediarioInstallmentOptions.map((opt) => (
+                      <option key={opt.count} value={opt.count}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-[10px] mt-2.5 font-medium opacity-90 leading-snug">
+                    ✓ Parcelamento sem juros no carnê exclusivo Evidência Calçados. A compra será finalizada via WhatsApp com a loja.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 
@@ -915,18 +849,20 @@ export const CheckoutConfirmationModal: React.FC<CheckoutConfirmationModalProps>
             )}
           </div>
 
-          {/* Confirm Button */}
-          <div className="pt-2">
-            <button
-              type="button"
-              onClick={handleConfirmClick}
-              disabled={isProcessing}
-              className="w-full py-4 px-6 bg-[#00a650] hover:bg-[#009146] text-white font-extrabold text-xs sm:text-sm uppercase tracking-wide rounded-2xl shadow-md disabled:opacity-50 transition-all cursor-pointer flex items-center justify-center space-x-2.5"
-            >
-              <MessageSquare className="h-5 w-5" />
-              <span>{isProcessing ? 'Gerando Pedido...' : 'CONFIRMAR E GERAR PEDIDO NO WHATSAPP'}</span>
-            </button>
-          </div>
+          {/* Confirm Button for Crediário ONLY (Online has its own button in PaymentForm) */}
+          {paymentGroup === 'Crediário' && (
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={handleConfirmClick}
+                disabled={isProcessing}
+                className="w-full py-4 px-6 bg-[#00a650] hover:bg-[#009146] text-white font-extrabold text-xs sm:text-sm uppercase tracking-wide rounded-2xl shadow-md disabled:opacity-50 transition-all cursor-pointer flex items-center justify-center space-x-2.5"
+              >
+                <MessageSquare className="h-5 w-5" />
+                <span>{isProcessing ? 'Gerando Pedido...' : 'CONFIRMAR E GERAR PEDIDO NO WHATSAPP'}</span>
+              </button>
+            </div>
+          )}
 
         </div>
       </motion.div>
@@ -934,22 +870,6 @@ export const CheckoutConfirmationModal: React.FC<CheckoutConfirmationModalProps>
       <CompleteProfileModal
         isOpen={isProfileModalOpen}
         onClose={() => setIsProfileModalOpen(false)}
-      />
-
-      <PixPaymentModal
-        isOpen={isPixModalOpen}
-        onClose={() => setIsPixModalOpen(false)}
-        isDark={isDark}
-        parcelDescription={`Pedido Evidência Calçados (${cartItemsCount} ${cartItemsCount === 1 ? 'item' : 'itens'})`}
-        parcelValue={grandTotal}
-        emailCliente={currentUser?.email || 'cliente@evidencia.com.br'}
-        nomeCliente={currentUser?.name || 'Cliente'}
-        cpfCliente={currentUser?.cpf || ''}
-        externalReference={pixExternalRef}
-        onPaymentSuccess={(paymentId) => {
-          setIsPixModalOpen(false);
-          executeConfirmOrder(paymentId);
-        }}
       />
     </div>
   );

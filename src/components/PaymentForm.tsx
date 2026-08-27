@@ -31,6 +31,7 @@ interface PaymentFormProps {
   isDark?: boolean;
   onPaymentApproved: (details: { method: string; paymentId: string | number; installments?: number }) => void;
   onPaymentFailed?: (errorMsg: string) => void;
+  onActiveTabChange?: (tab: 'pix' | 'credit' | 'debit') => void;
 }
 
 type TabType = 'pix' | 'credit' | 'debit';
@@ -44,8 +45,15 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({
   isDark = true,
   onPaymentApproved,
   onPaymentFailed,
+  onActiveTabChange,
 }) => {
   const [activeTab, setActiveTab] = useState<TabType>('credit');
+
+  useEffect(() => {
+    if (onActiveTabChange) {
+      onActiveTabChange(activeTab);
+    }
+  }, [activeTab, onActiveTabChange]);
 
   // Estado dos Campos do Cartão (PCI-DSS: Jamais enviados ao backend raw)
   const [cardNumber, setCardNumber] = useState('');
