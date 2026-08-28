@@ -94,13 +94,19 @@ export const userDataService = {
     if (!uid) return;
 
     const totalCount = cart.reduce((sum, item) => sum + item.quantity, 0);
-    const lightCartItems = cart.map(i => ({
-      productId: i.product.id,
-      name: i.product.name,
-      price: i.product.price,
-      selectedSize: i.selectedSize,
-      quantity: i.quantity
-    }));
+    const lightCartItems = cart.map(i => {
+      const itemToSave: any = {
+        productId: i.product.id,
+        name: i.product.name,
+        price: i.product.price,
+        selectedSize: i.selectedSize,
+        quantity: i.quantity
+      };
+      if (i.product.originalPrice && i.product.originalPrice > i.product.price) {
+        itemToSave.originalPrice = i.product.originalPrice;
+      }
+      return itemToSave;
+    });
 
     const userRef = doc(db, 'users', uid);
     const cartSubRef = doc(db, 'users', uid, 'cart', 'active');

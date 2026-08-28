@@ -410,14 +410,14 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({
       isDark ? 'bg-[#1c1c1e] border-white/10 text-white' : 'bg-white border-slate-200 text-slate-900 shadow-md'
     }`}>
       {/* SELETOR DE ABAS DE PAGAMENTO */}
-      <div className="grid grid-cols-3 gap-2 p-1.5 mb-5 rounded-xl bg-slate-900/40 border border-white/5">
+      <div className="grid grid-cols-3 gap-2 p-1.5 mb-5 rounded-xl bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/5">
         <button
           type="button"
           onClick={() => setActiveTab('credit')}
-          className={`py-2.5 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+          className={`py-2.5 px-3 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
             activeTab === 'credit'
-              ? 'bg-[#0071e3] text-white shadow-md'
-              : 'text-slate-400 hover:text-white hover:bg-white/5'
+              ? 'bg-white dark:bg-emerald-600 text-slate-900 dark:text-white shadow-sm'
+              : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-white'
           }`}
         >
           <CreditCard className="h-4 w-4" />
@@ -427,10 +427,10 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({
         <button
           type="button"
           onClick={() => setActiveTab('debit')}
-          className={`py-2.5 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+          className={`py-2.5 px-3 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
             activeTab === 'debit'
-              ? 'bg-[#0071e3] text-white shadow-md'
-              : 'text-slate-400 hover:text-white hover:bg-white/5'
+              ? 'bg-white dark:bg-emerald-600 text-slate-900 dark:text-white shadow-sm'
+              : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-white'
           }`}
         >
           <DollarSign className="h-4 w-4" />
@@ -440,10 +440,10 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({
         <button
           type="button"
           onClick={() => setActiveTab('pix')}
-          className={`py-2.5 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+          className={`py-2.5 px-3 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
             activeTab === 'pix'
-              ? 'bg-emerald-600 text-white shadow-md'
-              : 'text-slate-400 hover:text-white hover:bg-white/5'
+              ? 'bg-white dark:bg-emerald-600 text-slate-900 dark:text-white shadow-sm'
+              : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-white'
           }`}
         >
           <QrCode className="h-4 w-4" />
@@ -470,7 +470,7 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({
       {activeTab === 'credit' && (
         <form onSubmit={handleSubmitCreditCard} className="space-y-4">
           <div>
-            <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+            <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
               Número do Cartão
             </label>
             <div className="relative">
@@ -480,16 +480,16 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({
                 value={cardNumber}
                 onChange={handleCardNumberChange}
                 required
-                className="w-full px-3.5 py-2.5 rounded-xl border text-sm bg-slate-900/60 border-white/10 text-white placeholder-slate-500 focus:outline-none focus:border-[#0071e3]"
+                className="w-full px-4 py-3 rounded-xl border text-sm bg-slate-50 dark:bg-[#1c1c1e] border-slate-200 dark:border-white/10 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
               />
-              <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs uppercase font-extrabold px-2 py-0.5 rounded bg-white/10 text-slate-300">
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-slate-200 text-slate-600 dark:bg-white/10 dark:text-slate-300">
                 {cardBrand}
               </div>
             </div>
           </div>
 
           <div>
-            <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+            <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
               Nome Impresso no Cartão
             </label>
             <input
@@ -498,13 +498,13 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({
               value={cardName}
               onChange={(e) => setCardName(e.target.value.toUpperCase())}
               required
-              className="w-full px-3.5 py-2.5 rounded-xl border text-sm bg-slate-900/60 border-white/10 text-white placeholder-slate-500 focus:outline-none focus:border-[#0071e3]"
+              className="w-full px-4 py-3 rounded-xl border text-sm bg-slate-50 dark:bg-[#1c1c1e] border-slate-200 dark:border-white/10 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+              <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
                 Validade (MM/AA)
               </label>
               <input
@@ -514,12 +514,12 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({
                 onChange={handleExpiryChange}
                 required
                 maxLength={5}
-                className="w-full px-3.5 py-2.5 rounded-xl border text-sm bg-slate-900/60 border-white/10 text-white placeholder-slate-500 focus:outline-none focus:border-[#0071e3]"
+                className="w-full px-4 py-3 rounded-xl border text-sm bg-slate-50 dark:bg-[#1c1c1e] border-slate-200 dark:border-white/10 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
               />
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+              <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
                 CVV
               </label>
               <input
@@ -529,13 +529,13 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({
                 onChange={(e) => setCardCvv(e.target.value.replace(/\D/g, '').slice(0, 4))}
                 required
                 maxLength={4}
-                className="w-full px-3.5 py-2.5 rounded-xl border text-sm bg-slate-900/60 border-white/10 text-white placeholder-slate-500 focus:outline-none focus:border-[#0071e3]"
+                className="w-full px-4 py-3 rounded-xl border text-sm bg-slate-50 dark:bg-[#1c1c1e] border-slate-200 dark:border-white/10 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+            <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
               CPF do Titular
             </label>
             <input
@@ -544,21 +544,21 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({
               value={holderCpf}
               onChange={handleCpfChange}
               required
-              className="w-full px-3.5 py-2.5 rounded-xl border text-sm bg-slate-900/60 border-white/10 text-white placeholder-slate-500 focus:outline-none focus:border-[#0071e3]"
+              className="w-full px-4 py-3 rounded-xl border text-sm bg-slate-50 dark:bg-[#1c1c1e] border-slate-200 dark:border-white/10 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
             />
           </div>
 
           <div>
-            <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+            <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
               Parcelamento no Cartão
             </label>
             <select
               value={installments}
               onChange={(e) => setInstallments(Number(e.target.value))}
-              className="w-full px-3.5 py-2.5 rounded-xl border text-sm bg-slate-900/60 border-white/10 text-white focus:outline-none focus:border-[#0071e3]"
+              className="w-full px-4 py-3 rounded-xl border text-sm bg-slate-50 dark:bg-[#1c1c1e] border-slate-200 dark:border-white/10 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
             >
               {installmentOptions.map((opt) => (
-                <option key={opt.count} value={opt.count} className="bg-slate-900 text-white">
+                <option key={opt.count} value={opt.count} className="bg-white text-slate-900 dark:bg-[#1c1c1e] dark:text-white">
                   {opt.label}
                 </option>
               ))}
@@ -568,16 +568,16 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({
           <button
             type="submit"
             disabled={isProcessing}
-            className="w-full py-3.5 px-4 bg-[#0071e3] hover:bg-[#00509e] text-white font-extrabold text-sm rounded-xl transition-all shadow-lg active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer mt-4"
+            className="w-full py-4 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-base rounded-2xl transition-all shadow-sm active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer mt-4"
           >
             {isProcessing ? (
               <>
-                <Loader2 className="h-4 w-4 animate-spin text-white" />
+                <Loader2 className="h-5 w-5 animate-spin text-white" />
                 <span>Processando com Criptografia SSL...</span>
               </>
             ) : (
               <>
-                <Lock className="h-4 w-4 text-white/90" />
+                <Lock className="h-5 w-5 text-white/90" />
                 <span>Pagar R$ {grandTotal.toFixed(2).replace('.', ',')} no Cartão</span>
               </>
             )}
@@ -594,7 +594,7 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({
           </div>
 
           <div>
-            <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+            <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
               Número do Cartão de Débito
             </label>
             <input
@@ -603,12 +603,12 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({
               value={cardNumber}
               onChange={handleCardNumberChange}
               required
-              className="w-full px-3.5 py-2.5 rounded-xl border text-sm bg-slate-900/60 border-white/10 text-white placeholder-slate-500 focus:outline-none focus:border-[#0071e3]"
+              className="w-full px-4 py-3 rounded-xl border text-sm bg-slate-50 dark:bg-[#1c1c1e] border-slate-200 dark:border-white/10 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
             />
           </div>
 
           <div>
-            <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+            <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
               Nome no Cartão
             </label>
             <input
@@ -617,13 +617,13 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({
               value={cardName}
               onChange={(e) => setCardName(e.target.value.toUpperCase())}
               required
-              className="w-full px-3.5 py-2.5 rounded-xl border text-sm bg-slate-900/60 border-white/10 text-white placeholder-slate-500 focus:outline-none focus:border-[#0071e3]"
+              className="w-full px-4 py-3 rounded-xl border text-sm bg-slate-50 dark:bg-[#1c1c1e] border-slate-200 dark:border-white/10 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+              <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
                 Validade (MM/AA)
               </label>
               <input
@@ -633,12 +633,12 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({
                 onChange={handleExpiryChange}
                 required
                 maxLength={5}
-                className="w-full px-3.5 py-2.5 rounded-xl border text-sm bg-slate-900/60 border-white/10 text-white placeholder-slate-500 focus:outline-none focus:border-[#0071e3]"
+                className="w-full px-4 py-3 rounded-xl border text-sm bg-slate-50 dark:bg-[#1c1c1e] border-slate-200 dark:border-white/10 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
               />
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+              <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
                 CVV
               </label>
               <input
@@ -648,13 +648,13 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({
                 onChange={(e) => setCardCvv(e.target.value.replace(/\D/g, '').slice(0, 4))}
                 required
                 maxLength={4}
-                className="w-full px-3.5 py-2.5 rounded-xl border text-sm bg-slate-900/60 border-white/10 text-white placeholder-slate-500 focus:outline-none focus:border-[#0071e3]"
+                className="w-full px-4 py-3 rounded-xl border text-sm bg-slate-50 dark:bg-[#1c1c1e] border-slate-200 dark:border-white/10 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+            <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
               CPF do Titular
             </label>
             <input
@@ -663,23 +663,23 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({
               value={holderCpf}
               onChange={handleCpfChange}
               required
-              className="w-full px-3.5 py-2.5 rounded-xl border text-sm bg-slate-900/60 border-white/10 text-white placeholder-slate-500 focus:outline-none focus:border-[#0071e3]"
+              className="w-full px-4 py-3 rounded-xl border text-sm bg-slate-50 dark:bg-[#1c1c1e] border-slate-200 dark:border-white/10 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
             />
           </div>
 
           <button
             type="submit"
             disabled={isProcessing}
-            className="w-full py-3.5 px-4 bg-[#0071e3] hover:bg-[#00509e] text-white font-extrabold text-sm rounded-xl transition-all shadow-lg active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer mt-4"
+            className="w-full py-4 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-base rounded-2xl transition-all shadow-sm active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer mt-4"
           >
             {isProcessing ? (
               <>
-                <Loader2 className="h-4 w-4 animate-spin text-white" />
+                <Loader2 className="h-5 w-5 animate-spin text-white" />
                 <span>Processando Débito...</span>
               </>
             ) : (
               <>
-                <Lock className="h-4 w-4 text-white/90" />
+                <Lock className="h-5 w-5 text-white/90" />
                 <span>Pagar R$ {grandTotal.toFixed(2).replace('.', ',')} no Débito</span>
               </>
             )}
@@ -720,24 +720,49 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({
                 </p>
               </div>
 
-              {/* Botão Copia e Cola */}
+            <div className="pt-4 flex flex-col gap-3">
               <button
                 type="button"
                 onClick={handleCopyPix}
-                className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl transition-all shadow-md active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full py-3.5 px-4 bg-slate-100 hover:bg-slate-200 dark:bg-white/10 dark:hover:bg-white/20 text-slate-800 dark:text-white font-semibold text-sm rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
                 {copiedPix ? (
                   <>
-                    <Check className="h-4 w-4 text-white" />
-                    <span>Chave Pix Copiada com Sucesso!</span>
+                    <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                    <span>Código Pix Copiado!</span>
                   </>
                 ) : (
                   <>
-                    <Copy className="h-4 w-4 text-white" />
+                    <Copy className="h-5 w-5" />
                     <span>Copiar Código Pix (Copia e Cola)</span>
                   </>
                 )}
               </button>
+              
+              <button
+                type="button"
+                onClick={() => {
+                  if (activeTab === 'pix' && !isGeneratingPix && pixQrCode) {
+                    onPaymentApproved({ method: 'pix', paymentId: pixPaymentId || Date.now() });
+                  } else {
+                    handleGeneratePix();
+                  }
+                }}
+                className="w-full py-4 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-base rounded-2xl transition-all shadow-sm active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
+              >
+                {pixQrCode ? (
+                  <>
+                    <CheckCircle2 className="h-5 w-5" />
+                    <span>Já Paguei - Concluir Pedido</span>
+                  </>
+                ) : (
+                  <>
+                    <QrCode className="h-5 w-5 text-white/90" />
+                    <span>Gerar Código Pix de R$ {grandTotal.toFixed(2).replace('.', ',')}</span>
+                  </>
+                )}
+              </button>
+            </div>
             </div>
           ) : null}
         </div>

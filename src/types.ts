@@ -246,6 +246,7 @@ export interface OrderItem {
   quantity: number;
   selectedSize: number | string;
   image: string;
+  originalPrice?: number;
 }
 
 export type OrderStatus = 'Pendente' | 'Confirmado' | 'Cancelado' | 'Entregue';
@@ -264,6 +265,8 @@ export interface Order {
   deliveryType?: 'Entrega em Caxias-MA' | 'Entrega para Outras Cidades' | 'Retirada na Loja';
   items: OrderItem[];
   subtotal?: number;
+  originalSubtotal?: number;
+  totalDiscount?: number;
   freightCost?: number;
   cashbackDiscount?: number;
   total: number;

@@ -27,7 +27,9 @@ Este documento centraliza todas as regras de negócio, decisões de arquitetura 
   - **Online:** Cartão de Crédito, Cartão de Débito e Pix.
   - **Crediário da Loja:** Disponível apenas para clientes com cadastro aprovado (regra de validação `isCrediarioApproved`).
 - **Gateway de Pagamento:** Mercado Pago (As requisições de pagamento são roteadas pelo `/mp-api/payments` no `server.ts` local/produção).
-- **Gerenciamento de Estado:** O carrinho e pedidos são coordenados através do `AppContext.tsx`, garantindo tipagem forte (`types.ts`). A função `createOrder` é a autoridade central que registra o pedido final.
+- **Gerenciamento de Estado e Preços:** 
+  - O carrinho e pedidos são coordenados através do `AppContext.tsx`, garantindo tipagem forte (`types.ts`). A função `createOrder` é a autoridade central que registra o pedido final.
+  - **Variação de Preços (NOVO):** Produtos podem ter diferentes preços fornecidos pela API baseados na forma de pagamento (`precoVista`, `precoCartao`, ou o preço base `price` para Crediário). O Carrinho exibe o preço PIX/À Vista em destaque. O Checkout e a geração do pedido no Firebase (`createOrder`) **recalculam** o total ativamente sempre que o método de pagamento (PIX, Cartão, Crediário) é alterado, capturando as diferenças de valor fornecidas pelo MobLink.
 
 ## 4. UI / UX Design Guidelines
 - **Anti-slop:** Evitar componentes genéricos. A UI deve passar uma sensação de produto premium.

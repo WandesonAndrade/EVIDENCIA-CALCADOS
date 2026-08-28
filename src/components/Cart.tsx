@@ -28,8 +28,30 @@ export const Cart: React.FC = () => {
 
   const isDark = theme === 'dark';
   
+  const getPixPrice = (p: any) => {
+    const pVista = p.precoVista ?? p.preco_vista ?? p.precoAvista ?? p.priceCash ?? p.pricePix;
+    return typeof pVista === 'number' && pVista > 0 ? pVista : (p.price > 0 ? Math.round(p.price * 0.9 * 100) / 100 : p.price);
+  };
+  
+  const getCartaoPrice = (p: any) => {
+    const pCartao = p.precoCartao ?? p.preco_cartao ?? p.priceCard;
+    return typeof pCartao === 'number' && pCartao > 0 ? pCartao : (p.price > 0 ? Math.round(p.price * 0.9 * 100) / 100 : p.price);
+  };
+
+  const getActiveDisplayPrice = (p: any) => {
+    return getPixPrice(p);
+  };
+
   // Freight calculation rules for Caxias - MA
-  const subtotal = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+  const subtotal = cart.reduce((sum, item) => sum + getActiveDisplayPrice(item.product) * item.quantity, 0);
+  const originalSubtotal = cart.reduce((sum, item) => {
+    const activePrice = getActiveDisplayPrice(item.product);
+    const origPrice = item.product.originalPrice && item.product.originalPrice > activePrice 
+      ? item.product.originalPrice 
+      : activePrice;
+    return sum + origPrice * item.quantity;
+  }, 0);
+  const totalDiscount = originalSubtotal - subtotal;
   const isFreeFreight = subtotal > 100;
   const remainingForFreeFreight = Math.max(0, 100.01 - subtotal);
 
@@ -206,13 +228,37 @@ export const Cart: React.FC = () => {
                   </div>
 
                   {/* Price & Delete Action */}
-                  <div className="text-right space-y-3">
-                    <p className={`text-base font-black ${isDark ? 'text-amber-400' : 'text-slate-900'}`}>
-                      R$ {(item.product.price * item.quantity).toFixed(2).replace('.', ',')}
-                    </p>
+                  <div className="text-right space-y-2.5">
+                    <div className="flex flex-col items-end">
+                      {item.product.originalPrice && item.product.originalPrice > getActiveDisplayPrice(item.product) && (
+                        <p className={`text-xs line-through mb-0.5 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                          De: R$ {(item.product.originalPrice * item.quantity).toFixed(2).replace('.', ',')}
+                        </p>
+                      )}
+                      <p className={`text-base font-black flex items-baseline gap-1 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
+                        R$ {(getPixPrice(item.product) * item.quantity).toFixed(2).replace('.', ',')}
+                        <span className="text-[10px] font-bold uppercase">À Vista</span>
+                      </p>
+                      <p className={`text-xs font-semibold mt-0.5 ${isDark ? 'text-amber-400' : 'text-slate-900'}`}>
+                        Cartão: R$ {(getCartaoPrice(item.product) * item.quantity).toFixed(2).replace('.', ',')}
+                      </p>
+                      <p className={`text-[11px] font-medium mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                        Crediário: R$ {(item.product.price * item.quantity).toFixed(2).replace('.', ',')}
+                      </p>
+                      {item.product.originalPrice && item.product.originalPrice > getActiveDisplayPrice(item.product) && (
+                        <p className="text-[10px] font-bold text-emerald-500 bg-emerald-500/10 px-1.5 py-0.5 rounded uppercase mt-1">
+                          -{Math.round(((item.product.originalPrice - getActiveDisplayPrice(item.product)) / item.product.originalPrice) * 100)}% OFF
+                        </p>
+                      )}
+                    </div>
                     <motion.button
                       whileTap={{ scale: 0.8 }}
-                      onClick={() => removeFromCart(item.product.id, item.selectedSize)}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        console.log("Deletando item:", item.product.id, item.selectedSize);
+                        removeFromCart(item.product.id, item.selectedSize);
+                      }}
                       className={`p-2 rounded-xl border transition-all cursor-pointer ${
                         isDark
                           ? 'border-slate-800 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10'
@@ -254,9 +300,16 @@ export const Cart: React.FC = () => {
               <div className="flex justify-between">
                 <span>Subtotal ({cart.length} itens)</span>
                 <span className={isDark ? 'text-slate-200' : 'text-slate-900'}>
-                  R$ {subtotal.toFixed(2).replace('.', ',')}
+                  R$ {originalSubtotal.toFixed(2).replace('.', ',')}
                 </span>
               </div>
+
+              {totalDiscount > 0 && (
+                <div className="flex justify-between text-emerald-500 font-bold">
+                  <span>Descontos Aplicados</span>
+                  <span>- R$ {totalDiscount.toFixed(2).replace('.', ',')}</span>
+                </div>
+              )}
 
               <div className="flex justify-between items-center">
                 <span>Estimativa de Frete</span>
@@ -268,7 +321,7 @@ export const Cart: React.FC = () => {
               <div className={`flex justify-between text-base font-black border-t pt-4 ${
                 isDark ? 'text-amber-400 border-slate-800' : 'text-slate-900 border-slate-200'
               }`}>
-                <span>Subtotal dos Produtos</span>
+                <span>Total a Pagar</span>
                 <span>R$ {subtotal.toFixed(2).replace('.', ',')}</span>
               </div>
             </div>

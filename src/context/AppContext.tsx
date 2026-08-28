@@ -825,17 +825,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           // Restaura Carrinho diretamente do perfil do Firestore
           const rawCart = fullProfile.cart || fullProfile.cartItems;
           if (Array.isArray(rawCart) && rawCart.length > 0) {
-            const restoredCart: CartItem[] = rawCart.map((item: any) => ({
-              product: products.find(p => p.id === item.productId) || {
-                id: item.productId,
-                name: item.name,
-                price: item.price,
-                images: [],
-                sizes: [String(item.selectedSize)]
-              } as Product,
-              selectedSize: item.selectedSize,
-              quantity: item.quantity
-            }));
+            const restoredCart: CartItem[] = rawCart.map((item: any) => {
+              const baseProduct = products.find(p => p.id === item.productId);
+              return {
+                product: baseProduct ? {
+                  ...baseProduct,
+                  price: item.price !== undefined ? item.price : baseProduct.price,
+                  originalPrice: item.originalPrice !== undefined ? item.originalPrice : baseProduct.originalPrice
+                } : {
+                  id: item.productId,
+                  name: item.name,
+                  price: item.price,
+                  originalPrice: item.originalPrice,
+                  images: [],
+                  sizes: [String(item.selectedSize)]
+                } as Product,
+                selectedSize: item.selectedSize,
+                quantity: item.quantity
+              };
+            });
             setCart(restoredCart);
             userDataService.saveLocalCart(fullProfile.uid, restoredCart);
           }
@@ -1367,7 +1375,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setCart((prevCart) => {
       const existingIndex = prevCart.findIndex(
-        (item) => item.product.id === product.id && item.selectedSize === size
+        (item) => String(item.product.id) === String(product.id) && String(item.selectedSize) === String(size)
       );
 
       if (existingIndex > -1) {
@@ -1383,7 +1391,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const removeFromCart = (productId: string, size: number | string) => {
     setCart((prevCart) =>
-      prevCart.filter((item) => !(item.product.id === productId && item.selectedSize === size))
+      prevCart.filter((item) => !(String(item.product.id) === String(productId) && String(item.selectedSize) === String(size)))
     );
   };
 
@@ -1394,7 +1402,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     setCart((prevCart) =>
       prevCart.map((item) =>
-        item.product.id === productId && item.selectedSize === size
+        String(item.product.id) === String(productId) && String(item.selectedSize) === String(size)
           ? { ...item, quantity }
           : item
       )
@@ -1461,17 +1469,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setFavorites(profile.favoriteIds);
         }
         if (Array.isArray(profile.cartItems) && profile.cartItems.length > 0) {
-          const restored = profile.cartItems.map((item: any) => ({
-            product: products.find(p => p.id === item.productId) || {
-              id: item.productId,
-              name: item.name,
-              price: item.price,
-              images: ['https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?q=80&w=600&auto=format&fit=crop'],
-              sizes: [String(item.selectedSize)]
-            } as Product,
-            selectedSize: item.selectedSize,
-            quantity: item.quantity
-          }));
+          const restored = profile.cartItems.map((item: any) => {
+            const baseProduct = products.find(p => p.id === item.productId);
+            return {
+              product: baseProduct ? {
+                ...baseProduct,
+                price: item.price !== undefined ? item.price : baseProduct.price,
+                originalPrice: item.originalPrice !== undefined ? item.originalPrice : baseProduct.originalPrice
+              } : {
+                id: item.productId,
+                name: item.name,
+                price: item.price,
+                images: ['https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?q=80&w=600&auto=format&fit=crop'],
+                sizes: [String(item.selectedSize)]
+              } as Product,
+              selectedSize: item.selectedSize,
+              quantity: item.quantity
+            };
+          });
           setCart(restored);
         }
         return profile;
@@ -1742,7 +1757,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   ): Promise<Order> => {
     const targetItems = options?.overrideItems && options.overrideItems.length > 0 ? options.overrideItems : cart;
-    const subtotal = targetItems.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+    const paymentMethod = options?.paymentMethod || 'Pix';
+    
+    const getCalculatedPrice = (item: any, pMethod: string) => {
+      const p = item.product;
+      if (pMethod === 'Pix') {
+        const pVista = p.precoVista ?? p.preco_vista ?? p.precoAvista ?? p.priceCash ?? p.pricePix;
+        return typeof pVista === 'number' && pVista > 0 ? pVista : (p.price > 0 ? Math.round(p.price * 0.9 * 100) / 100 : p.price);
+      } else if (pMethod === 'Cartão de Crédito' || pMethod === 'Cartão de Débito') {
+        const pCartao = p.precoCartao ?? p.preco_cartao ?? p.priceCard;
+        return typeof pCartao === 'number' && pCartao > 0 ? pCartao : (p.price > 0 ? Math.round(p.price * 0.9 * 100) / 100 : p.price);
+      } else {
+        return p.price; // Crediário / Default
+      }
+    };
+
+    const subtotal = targetItems.reduce((sum, item) => sum + getCalculatedPrice(item, paymentMethod) * item.quantity, 0);
+    const originalSubtotal = targetItems.reduce((sum, item) => {
+      const calcPrice = getCalculatedPrice(item, paymentMethod);
+      const origPrice = item.product.originalPrice && item.product.originalPrice > calcPrice 
+        ? item.product.originalPrice 
+        : calcPrice;
+      return sum + origPrice * item.quantity;
+    }, 0);
+    const totalDiscount = originalSubtotal - subtotal;
     const deliveryType = options?.deliveryType || 'Entrega em Caxias-MA';
     const isOtherCities = deliveryType === 'Entrega para Outras Cidades';
     
@@ -1758,7 +1796,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
     const cashbackDiscount = isCashbackValid ? Math.min(currentUser.cashbackBalance || 0, subtotal + freightCost) : 0;
     const grandTotal = Math.max(0, subtotal + freightCost - cashbackDiscount);
-    const paymentMethod = options?.paymentMethod || 'Pix';
     const installments = options?.installments || 1;
     const numSeq = Math.floor(1000 + Math.random() * 9000);
     const orderNumber = `#EV-${numSeq}`;
@@ -1770,10 +1807,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const orderItems = targetItems.map((item) => ({
       productId: item.product.id,
       name: item.product.name,
-      price: item.product.price,
+      price: getCalculatedPrice(item, paymentMethod),
       quantity: item.quantity,
       selectedSize: item.selectedSize,
-      image: item.product.images?.[0] || item.product.foto_uri || NO_PHOTO_SVG
+      image: item.product.images?.[0] || item.product.foto_uri || NO_PHOTO_SVG,
+      originalPrice: item.product.originalPrice && item.product.originalPrice > getCalculatedPrice(item, paymentMethod) ? item.product.originalPrice : undefined
     }));
 
     const paymentMethodStr = (paymentMethod === 'Cartão de Crédito' && installments > 1)
@@ -1807,7 +1845,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     
     message += `\n💳 *Forma de Pagamento:* ${paymentMethodStr}\n`;
     message += `🚚 *Taxa de Frete:* ${freightStr}\n`;
-    message += `💰 *Subtotal:* R$ ${subtotal.toFixed(2).replace('.', ',')}\n`;
+    if (totalDiscount > 0) {
+      message += `💸 *Descontos Aplicados:* - R$ ${totalDiscount.toFixed(2).replace('.', ',')}\n`;
+    }
+    message += `💰 *Subtotal dos Produtos:* R$ ${subtotal.toFixed(2).replace('.', ',')}\n`;
     message += `💵 *TOTAL GERAL:* R$ ${grandTotal.toFixed(2).replace('.', ',')}${isOtherCities ? ' + Frete a combinar' : ''}\n\n`;
     if (isOtherCities) {
       message += `⚠️ *Observação:* Frete para outra localidade a ser alinhado diretamente com a equipe Evidência via WhatsApp.\n\n`;
@@ -1832,6 +1873,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       deliveryType,
       items: orderItems,
       subtotal,
+      originalSubtotal,
+      totalDiscount,
       freightCost,
       cashbackDiscount,
       total: grandTotal,

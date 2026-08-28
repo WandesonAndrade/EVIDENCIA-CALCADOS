@@ -189,8 +189,30 @@ export const CheckoutPage: React.FC = () => {
     return null;
   }
 
+  const getCalculatedPrice = (item: any, pMethod: string) => {
+    const p = item.product;
+    if (pMethod === 'Pix') {
+      const pVista = p.precoVista ?? p.preco_vista ?? p.precoAvista ?? p.priceCash ?? p.pricePix;
+      return typeof pVista === 'number' && pVista > 0 ? pVista : (p.price > 0 ? Math.round(p.price * 0.9 * 100) / 100 : p.price);
+    } else if (pMethod === 'Cartão de Crédito' || pMethod === 'Cartão de Débito') {
+      const pCartao = p.precoCartao ?? p.preco_cartao ?? p.priceCard;
+      return typeof pCartao === 'number' && pCartao > 0 ? pCartao : (p.price > 0 ? Math.round(p.price * 0.9 * 100) / 100 : p.price);
+    } else {
+      return p.price; // Crediário / Default
+    }
+  };
+
   // Preço Base
-  const subtotal = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+  const subtotal = cart.reduce((sum, item) => sum + getCalculatedPrice(item, paymentMethod) * item.quantity, 0);
+  const originalSubtotal = cart.reduce((sum, item) => {
+    const calcPrice = getCalculatedPrice(item, paymentMethod);
+    const origPrice = item.product.originalPrice && item.product.originalPrice > calcPrice 
+      ? item.product.originalPrice 
+      : calcPrice;
+    return sum + origPrice * item.quantity;
+  }, 0);
+  const totalDiscount = originalSubtotal - subtotal;
+  
   const activeSubtotal = subtotal;
 
   const isOtherCities = deliveryType === 'Entrega para Outras Cidades';
@@ -627,16 +649,29 @@ export const CheckoutPage: React.FC = () => {
                       <p className="text-xs font-bold line-clamp-2">{item.product.name}</p>
                       <p className="text-[10px] text-slate-500 mt-1">Tam: {item.selectedSize !== 0 ? item.selectedSize : 'Único'} | Qtd: {item.quantity}</p>
                     </div>
-                    <p className="text-sm font-black whitespace-nowrap">R$ {(item.product.price * item.quantity).toFixed(2).replace('.', ',')}</p>
+                    <div className="flex flex-col items-end">
+                      {item.product.originalPrice && item.product.originalPrice > item.product.price && (
+                        <p className="text-[10px] line-through text-slate-400">
+                          R$ {(item.product.originalPrice * item.quantity).toFixed(2).replace('.', ',')}
+                        </p>
+                      )}
+                      <p className="text-sm font-black whitespace-nowrap">R$ {(item.product.price * item.quantity).toFixed(2).replace('.', ',')}</p>
+                    </div>
                   </div>
                 ))}
               </div>
 
               <div className="space-y-3 pt-6 border-t border-slate-100 dark:border-white/5 text-sm">
                 <div className="flex justify-between font-medium">
-                  <span className="text-slate-500">Subtotal</span>
-                  <span className="text-slate-900 dark:text-white">R$ {subtotal.toFixed(2).replace('.', ',')}</span>
+                  <span className="text-slate-500">Subtotal dos Produtos</span>
+                  <span className="text-slate-900 dark:text-white">R$ {originalSubtotal.toFixed(2).replace('.', ',')}</span>
                 </div>
+                {totalDiscount > 0 && (
+                  <div className="flex justify-between font-medium text-emerald-500">
+                    <span>Descontos Aplicados</span>
+                    <span>- R$ {totalDiscount.toFixed(2).replace('.', ',')}</span>
+                  </div>
+                )}
                 <div className="flex justify-between font-medium">
                   <span className="text-slate-500">Frete</span>
                   {freightCost === 0 ? (
