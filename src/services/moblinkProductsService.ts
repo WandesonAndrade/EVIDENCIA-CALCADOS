@@ -642,13 +642,15 @@ export const mapMoblinkToProduct = (item: MoblinkProduto | any): Product => {
   // Checagem obrigatória de Grade (Apenas produtos com grade estarão disponíveis para venda)
   const hasGrade = hasProductValidGrade(item);
 
-  // Visibilidade na vitrine: Apenas produtos COM GRADE e COM ESTOQUE estarão disponíveis para venda!
+  const hasPhoto = hasProductValidPhoto(item);
+
+  // Visibilidade na vitrine: Apenas produtos COM FOTO REAL, COM GRADE e COM ESTOQUE estarão disponíveis para venda!
   const visible =
     item.visible !== undefined
-      ? (stock <= 0 || !hasGrade)
+      ? (stock <= 0 || !hasGrade || !hasPhoto)
         ? false
         : Boolean(item.visible)
-      : (stock > 0 && hasGrade);
+      : (stock > 0 && hasGrade && hasPhoto);
 
   const catInfo = extractClassificacaoCategoria({
     classificacao: cleanClassificacao,
@@ -929,13 +931,15 @@ export const sanitizeProductForFirestore = (
   // Checagem de Grade de Produto (Apenas produtos COM GRADE e ESTOQUE > 0 são marcados como visíveis/disponíveis para venda!)
   const hasGrade = product.hasGrade !== undefined ? Boolean(product.hasGrade) : hasProductValidGrade(product);
 
-  // Visibilidade estrita: Apenas visível para venda se tiver grade e estoque > 0
+  const hasPhoto = hasProductValidPhoto(product);
+
+  // Visibilidade estrita: Apenas visível para venda se tiver foto válida, grade e estoque > 0
   const visible =
     product.visible !== undefined
-      ? (stock <= 0 || !hasGrade)
+      ? (stock <= 0 || !hasGrade || !hasPhoto)
         ? false
         : Boolean(product.visible)
-      : (stock > 0 && hasGrade);
+      : (stock > 0 && hasGrade && hasPhoto);
 
   const updatedAt = product.updatedAt || new Date().toISOString();
 

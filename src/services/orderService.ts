@@ -20,28 +20,23 @@ export const orderService = {
     onError: (error: Error) => void,
   ): Unsubscribe {
     const ordersRef = collection(db, "orders");
-    let ordersQuery = query(ordersRef);
-
-    // Se for cliente comum, filtra estritamente por UID
-    if (currentUser.role === "customer") {
-      ordersQuery = query(ordersRef, where("userId", "==", currentUser.uid));
-    }
+    const userEmail = (currentUser.email || "").toLowerCase().trim();
 
     return onSnapshot(
-      ordersQuery,
+      ordersRef,
       (snapshot) => {
         const orderList: Order[] = [];
         snapshot.forEach((docSnap) => {
           const data = docSnap.data() as Order;
-          // Dupla verificação de segurança de dados
-          if (
+          const orderEmail = (data.customerEmail || "").toLowerCase().trim();
+
+          const isOwner =
             currentUser.role === "admin" ||
             currentUser.role === "seller" ||
-            data.userId === currentUser.uid ||
-            (data.customerEmail &&
-              data.customerEmail.toLowerCase() ===
-                currentUser.email.toLowerCase())
-          ) {
+            (Boolean(currentUser.uid) && data.userId === currentUser.uid) ||
+            (userEmail !== "" && orderEmail === userEmail);
+
+          if (isOwner) {
             orderList.push({ id: docSnap.id, ...data });
           }
         });
@@ -69,5 +64,14 @@ export const orderService = {
   async saveOrder(order: Order): Promise<void> {
     const orderRef = doc(db, "orders", order.id);
     await setDoc(orderRef, order);
+  },
+
+  /**
+   * Exclui um pedido do Firestore
+   */
+  async deleteOrder(orderId: string): Promise<void> {
+    const orderRef = doc(db, "orders", orderId);
+    const { deleteDoc } = await import("firebase/firestore");
+    await deleteDoc(orderRef);
   },
 };

@@ -28,5 +28,11 @@ updated: 2026-08-27
   - Implementada a função `safeSetLocalStorage` com expurgo automático de chaves legadas/redundantes (`evidencia_firestore_products_backup`, `evidencia_local_products`, `moblink_products_cache`) e captura silenciosa de estouros de cota (`QuotaExceededError`).
   - Cópia secundária comprimida enviada ao `localStorage` contendo apenas os atributos visuais essenciais para visualizações instantâneas a 0ms.
 
-## 5. Validação do Código
+## 5. Gestão de Pedidos, Resiliência Offline & Autoridade do Firestore (`orderService.ts` / `AppContext.tsx`)
+- **Firestore como Autoridade Primária:** Quando o listener do Firestore emite uma lista atualizada de pedidos, ela substitui e sanitiza o cache local (`localStorage`). Pedidos excluídos do banco de dados são purgados definitivamente, evitando que mesclagens locais "ressuscitem" pedidos deletados.
+- **Modo Offline de Contingência:** O `localStorage` é utilizado como fallback apenas se ocorrer falha real de rede ou conexão com o Firestore.
+- **Sincronização de Pagamento e Etapa:** Ao avançar o pedido para `Pagamento OK` ou etapas posteriores no painel admin, o status financeiro do pedido é automaticamente marcado como `Confirmado`.
+- **Exclusão Segura:** Implementada a função `deleteOrder(orderId)` com confirmação prévia no AdminPanel, removendo o documento do Firestore via `deleteDoc` e atualizando o estado local instantaneamente.
+
+## 6. Validação do Código
 - Execução de `npm run lint` (`tsc --noEmit`) e `npm run build` após alterações de estrutura/tipagem para garantir 0 erros de build em produção.

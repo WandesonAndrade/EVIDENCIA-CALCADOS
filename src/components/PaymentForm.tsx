@@ -31,10 +31,10 @@ interface PaymentFormProps {
   isDark?: boolean;
   onPaymentApproved: (details: { method: string; paymentId: string | number; installments?: number }) => void;
   onPaymentFailed?: (errorMsg: string) => void;
-  onActiveTabChange?: (tab: 'pix' | 'credit' | 'debit') => void;
+  onActiveTabChange?: (tab: 'pix' | 'credit') => void;
 }
 
-type TabType = 'pix' | 'credit' | 'debit';
+type TabType = 'pix' | 'credit';
 
 export const PaymentForm: React.FC<PaymentFormProps> = ({
   grandTotal,
@@ -308,94 +308,7 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({
     }
   };
 
-  // Processamento do Cartão de Débito
-  const handleSubmitDebitCard = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMessage('');
-    setSuccessMessage('');
 
-    if (cardNumber.replace(/\D/g, '').length < 13) {
-      setErrorMessage('Por favor, informe um número de cartão válido.');
-      return;
-    }
-
-    const cleanExpiry = cardExpiry.replace(/\D/g, '');
-    if (cleanExpiry.length !== 4) {
-      setErrorMessage('Informe a validade no formato MM/AA.');
-      return;
-    }
-
-    if (cardCvv.trim().length < 3) {
-      setErrorMessage('Informe o código CVV.');
-      return;
-    }
-
-    const cleanCpf = holderCpf.replace(/\D/g, '');
-    if (cleanCpf.length !== 11) {
-      setErrorMessage('Informe o CPF do titular.');
-      return;
-    }
-
-    setIsProcessing(true);
-
-    try {
-      const token = await createCardTokenClientSide({
-        cardNumber,
-        cardholderName: cardName,
-        cardExpirationMonth: cleanExpiry.slice(0, 2),
-        cardExpirationYear: cleanExpiry.slice(2, 4),
-        securityCode: cardCvv,
-        identificationType: 'CPF',
-        identificationNumber: cleanCpf,
-      });
-
-      const idempotencyKey = `card-deb-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-
-      const res = await paymentProcessor.processarCartaoDebito({
-        valor: grandTotal,
-        descricao: 'Compra Evidência Calçados - Débito',
-        emailCliente,
-        nomeCliente: cardName,
-        cpfCliente: cleanCpf,
-        cardToken: token,
-        paymentMethodId: cardBrand,
-        externalReference: externalReference || `ped_${Date.now()}`,
-        idempotencyKey,
-      });
-
-      if (res.success) {
-        setSuccessMessage('🎉 Pagamento no Débito Aprovado!');
-
-        bankMigrationService.recordTransaction({
-          orderId: externalReference || `ped_${Date.now()}`,
-          paymentId: res.paymentId,
-          provider: res.provider || 'Mercado Pago',
-          amount: grandTotal,
-          method: 'debit_card',
-          status: 'approved',
-          idempotencyKey,
-        });
-
-        setTimeout(() => {
-          onPaymentApproved({
-            method: 'Cartão de Débito',
-            paymentId: res.paymentId,
-            installments: 1,
-          });
-        }, 1200);
-      } else {
-        const errorText = res.message || 'Débito recusado pelo banco emissor.';
-        setErrorMessage(errorText);
-        if (onPaymentFailed) onPaymentFailed(errorText);
-      }
-    } catch (err: any) {
-      const msg = err.message || 'Erro ao processar o cartão no débito.';
-      setErrorMessage(msg);
-      if (onPaymentFailed) onPaymentFailed(msg);
-    } finally {
-      setIsProcessing(false);
-    }
-  };
 
   const handleCopyPix = () => {
     if (pixQrCode) {
@@ -410,7 +323,7 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({
       isDark ? 'bg-[#1c1c1e] border-white/10 text-white' : 'bg-white border-slate-200 text-slate-900 shadow-md'
     }`}>
       {/* SELETOR DE ABAS DE PAGAMENTO */}
-      <div className="grid grid-cols-3 gap-2 p-1.5 mb-5 rounded-xl bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/5">
+      <div className="grid grid-cols-2 gap-2 p-1.5 mb-5 rounded-xl bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/5">
         <button
           type="button"
           onClick={() => setActiveTab('credit')}
@@ -421,20 +334,7 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({
           }`}
         >
           <CreditCard className="h-4 w-4" />
-          <span>Crédito</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('debit')}
-          className={`py-2.5 px-3 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-            activeTab === 'debit'
-              ? 'bg-white dark:bg-emerald-600 text-slate-900 dark:text-white shadow-sm'
-              : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-white'
-          }`}
-        >
-          <DollarSign className="h-4 w-4" />
-          <span>Débito</span>
+          <span>Cartão de Crédito</span>
         </button>
 
         <button
@@ -447,7 +347,7 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({
           }`}
         >
           <QrCode className="h-4 w-4" />
-          <span>Pix</span>
+          <span>Pix Instantâneo</span>
         </button>
       </div>
 
@@ -585,107 +485,7 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({
         </form>
       )}
 
-      {/* CONTEÚDO DA ABA CARTÃO DE DÉBITO */}
-      {activeTab === 'debit' && (
-        <form onSubmit={handleSubmitDebitCard} className="space-y-4">
-          <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 text-xs text-blue-300 flex items-start gap-2 mb-2">
-            <Info className="h-4 w-4 text-blue-400 shrink-0 mt-0.5" />
-            <span>O pagamento em débito é debitado instantaneamente da sua conta bancária sem parcelamento.</span>
-          </div>
 
-          <div>
-            <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-              Número do Cartão de Débito
-            </label>
-            <input
-              type="text"
-              placeholder="0000 0000 0000 0000"
-              value={cardNumber}
-              onChange={handleCardNumberChange}
-              required
-              className="w-full px-4 py-3 rounded-xl border text-sm bg-slate-50 dark:bg-[#1c1c1e] border-slate-200 dark:border-white/10 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
-            />
-          </div>
-
-          <div>
-            <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-              Nome no Cartão
-            </label>
-            <input
-              type="text"
-              placeholder="NOME COMO NO CARTÃO"
-              value={cardName}
-              onChange={(e) => setCardName(e.target.value.toUpperCase())}
-              required
-              className="w-full px-4 py-3 rounded-xl border text-sm bg-slate-50 dark:bg-[#1c1c1e] border-slate-200 dark:border-white/10 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-                Validade (MM/AA)
-              </label>
-              <input
-                type="text"
-                placeholder="MM/AA"
-                value={cardExpiry}
-                onChange={handleExpiryChange}
-                required
-                maxLength={5}
-                className="w-full px-4 py-3 rounded-xl border text-sm bg-slate-50 dark:bg-[#1c1c1e] border-slate-200 dark:border-white/10 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-                CVV
-              </label>
-              <input
-                type="password"
-                placeholder="123"
-                value={cardCvv}
-                onChange={(e) => setCardCvv(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                required
-                maxLength={4}
-                className="w-full px-4 py-3 rounded-xl border text-sm bg-slate-50 dark:bg-[#1c1c1e] border-slate-200 dark:border-white/10 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-              CPF do Titular
-            </label>
-            <input
-              type="text"
-              placeholder="000.000.000-00"
-              value={holderCpf}
-              onChange={handleCpfChange}
-              required
-              className="w-full px-4 py-3 rounded-xl border text-sm bg-slate-50 dark:bg-[#1c1c1e] border-slate-200 dark:border-white/10 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={isProcessing}
-            className="w-full py-4 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-base rounded-2xl transition-all shadow-sm active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer mt-4"
-          >
-            {isProcessing ? (
-              <>
-                <Loader2 className="h-5 w-5 animate-spin text-white" />
-                <span>Processando Débito...</span>
-              </>
-            ) : (
-              <>
-                <Lock className="h-5 w-5 text-white/90" />
-                <span>Pagar R$ {grandTotal.toFixed(2).replace('.', ',')} no Débito</span>
-              </>
-            )}
-          </button>
-        </form>
-      )}
 
       {/* CONTEÚDO DA ABA PIX */}
       {activeTab === 'pix' && (

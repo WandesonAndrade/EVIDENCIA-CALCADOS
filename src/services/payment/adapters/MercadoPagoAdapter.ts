@@ -24,6 +24,23 @@ const fetchWithTimeout = async (url: string, options: RequestInit, timeoutMs = 8
   }
 };
 
+const translateStatusDetail = (detail?: string): string => {
+  if (!detail) return 'Pagamento não autorizado pela operadora do cartão. Por favor, revise os dados ou tente outro cartão.';
+  const map: Record<string, string> = {
+    cc_rejected_other_reason: 'Transação não autorizada pela operadora do cartão. Verifique os dados ou tente outra forma de pagamento.',
+    cc_rejected_insufficient_amount: 'Cartão recusado por saldo ou limite insuficiente.',
+    cc_rejected_bad_filled_security_code: 'Código de segurança (CVV) incorreto. Por favor, verifique o verso do cartão.',
+    cc_rejected_bad_filled_date: 'Data de validade do cartão incorreta ou expirada.',
+    cc_rejected_bad_filled_other: 'Dados do cartão incorretos. Verifique o número, nome e validade digitados.',
+    cc_rejected_call_for_authorize: 'Pagamento necessita de autorização prévia junto à administradora do seu cartão.',
+    cc_rejected_card_disabled: 'Cartão bloqueado ou não habilitado para compras online. Entre em contato com seu banco.',
+    cc_rejected_duplicated_payment: 'Pagamento idêntico identificado recentemente. Aguarde alguns instantes antes de tentar novamente.',
+    cc_rejected_high_risk: 'Transação não autorizada pela análise de segurança. Recomendamos utilizar o pagamento via Pix.',
+    cc_rejected_max_attempts: 'Limite de tentativas excedido para este cartão. Por favor, utilize outro cartão ou Pix.',
+  };
+  return map[detail] || `Pagamento não aprovado: ${detail}`;
+};
+
 export class MercadoPagoAdapter implements IPaymentGateway {
   readonly providerName = 'Mercado Pago';
 
@@ -92,8 +109,11 @@ export class MercadoPagoAdapter implements IPaymentGateway {
       }
     }
 
+    const cleanAmount = Number(Number(valor || 0).toFixed(2));
+    const finalAmount = Math.max(1.0, cleanAmount);
+
     const paymentPayload = {
-      transaction_amount: Number(valor),
+      transaction_amount: finalAmount,
       description: String(descricao || 'Pagamento Evidência Calçados').slice(0, 200),
       payment_method_id: 'pix',
       date_of_expiration: dateOfExpirationIso,
@@ -199,8 +219,11 @@ export class MercadoPagoAdapter implements IPaymentGateway {
       }
     }
 
+    const cleanAmount = Number(Number(valor || 0).toFixed(2));
+    const finalAmount = Math.max(1.0, cleanAmount);
+
     const paymentPayload: Record<string, any> = {
-      transaction_amount: Number(valor),
+      transaction_amount: finalAmount,
       token: cardToken,
       description: String(descricao || 'Compra Evidência Calçados - Cartão de Crédito').slice(0, 200),
       installments: Number(installments) || 1,
@@ -245,12 +268,15 @@ export class MercadoPagoAdapter implements IPaymentGateway {
             paymentId: data.id,
             status: data.status,
             statusDetail: data.status_detail,
-            message: isApproved ? 'Pagamento com Cartão Aprovado com Sucesso!' : `Status do Pagamento: ${data.status_detail || data.status}`,
+            message: isApproved ? 'Pagamento com Cartão Aprovado com Sucesso!' : translateStatusDetail(data.status_detail || data.status),
             provider: this.providerName,
             rawProviderData: data,
           };
         } else {
-          const errorDesc = data.message || (data.cause && data.cause[0]?.description) || 'Transação não autorizada pela operadora do cartão.';
+          let errorDesc = data.message || (data.cause && data.cause[0]?.description) || 'Transação não autorizada pela operadora do cartão.';
+          if (errorDesc.toLowerCase().includes('card token not found') || errorDesc.toLowerCase().includes('token not found')) {
+            errorDesc = 'Token de cartão não encontrado ou incompatível com o ambiente. Lembre-se de reiniciar o servidor (npm run dev) para recarregar as chaves do .env e use um Cartão de Teste oficial do Mercado Pago (ex: 5031 7557 3453 0451 ou 4509 9500 0000 0000, validade futura e CVV 123).';
+          }
           throw new Error(`Mercado Pago: ${errorDesc}`);
         }
       } catch (endpointErr: any) {
@@ -349,7 +375,7 @@ export class MercadoPagoAdapter implements IPaymentGateway {
             paymentId: data.id,
             status: data.status,
             statusDetail: data.status_detail,
-            message: isApproved ? 'Pagamento no Débito Aprovado com Sucesso!' : `Status: ${data.status_detail || data.status}`,
+            message: isApproved ? 'Pagamento no Débito Aprovado com Sucesso!' : translateStatusDetail(data.status_detail || data.status),
             provider: this.providerName,
             rawProviderData: data,
           };

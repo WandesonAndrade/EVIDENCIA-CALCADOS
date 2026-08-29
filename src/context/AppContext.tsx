@@ -61,6 +61,8 @@ interface AppContextProps {
   updateOrderPaymentStatus: (orderId: string, paymentStatus: PaymentStatus) => Promise<void>;
   updateOrderFreight: (orderId: string, freightCost: number) => Promise<void>;
   assignOrderSeller: (orderId: string, sellerEmail: string, sellerName: string) => Promise<void>;
+  deleteOrder: (orderId: string) => Promise<void>;
+  clearLocalOrders: () => void;
   addProduct: (product: Product) => Promise<void>;
   deleteProduct: (productId: string) => Promise<void>;
   updateProduct: (productId: string, updatedFields: Partial<Product>) => Promise<void>;
@@ -1273,35 +1275,62 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Listen to orders with strict user UID isolation using orderService
+  // Escuta os pedidos com suporte SWR (Stale-While-Revalidate) para eliminar o pisca-pisca na UI
+  const userUid = currentUser?.uid || '';
+  const userEmail = (currentUser?.email || '').toLowerCase().trim();
+  const userRole = currentUser?.role || '';
+
   useEffect(() => {
-    setIsLoadingOrders(true);
-    if (!currentUser) {
+    if (!userUid && !userEmail) {
       setOrders([]);
       setIsLoadingOrders(false);
       return;
     }
 
+    // Se já existem pedidos em cache para o usuário atual, evitamos acionar skeleton
+    const cachedAtStart = getLocalOrders();
+    const hasCacheForUser = cachedAtStart.some(o => (o.userId && o.userId === userUid) || (o.customerEmail && o.customerEmail.toLowerCase().trim() === userEmail));
+    if (!hasCacheForUser) {
+      setIsLoadingOrders(true);
+    }
+
     const unsubscribe = orderService.subscribeUserOrders(
-      currentUser,
+      currentUser!,
       (fetchedOrders) => {
-        setOrders(fetchedOrders);
+        // Quando o Firestore responde com sucesso, ele é a autoridade máxima.
+        // Se um pedido foi deletado do banco de dados, ele NÃO deve mais aparecer nem ser ressuscitado pelo cache local.
+        fetchedOrders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+        setOrders(prevOrders => {
+          if (JSON.stringify(prevOrders) === JSON.stringify(fetchedOrders)) {
+            return prevOrders;
+          }
+          return fetchedOrders;
+        });
+
         saveLocalOrders(fetchedOrders);
         setIsLoadingOrders(false);
       },
       (error) => {
+        // Apenas em caso de falha de conexão/erro no Firestore recorremos ao cache local
+        console.warn("Recorrendo ao cache local de pedidos após erro de sincronização:", error);
         const cached = getLocalOrders();
-        const filtered = currentUser.role === 'customer' 
-          ? cached.filter(o => o.userId === currentUser.uid || (o.customerEmail && o.customerEmail.toLowerCase() === currentUser.email.toLowerCase()))
-          : cached;
+        const filtered = (userRole === 'admin' || userRole === 'seller')
+          ? cached
+          : cached.filter(o => (o.userId && o.userId === userUid) || (o.customerEmail && o.customerEmail.toLowerCase().trim() === userEmail));
         filtered.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-        setOrders(filtered);
+        setOrders(prevOrders => {
+          if (JSON.stringify(prevOrders) === JSON.stringify(filtered)) {
+            return prevOrders;
+          }
+          return filtered;
+        });
         setIsLoadingOrders(false);
       }
     );
 
     return () => unsubscribe();
-  }, [currentUser]);
+  }, [userUid, userEmail, userRole]);
 
 
   // Detecção de parâmetros de URL para compartilhar links (Produtos e Link da Bio Instagram)
@@ -1868,7 +1897,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       customerEmail: customerEmail.toLowerCase().trim(),
       customerName,
       customerPhone: options?.customerPhone || currentUser?.telefone || '',
-      city: 'Caxias - MA',
+      customerCpf: currentUser?.cpf || '',
+      customerRg: currentUser?.rg || '',
+      customerCep: currentUser?.cep || '',
+      customerBairro: currentUser?.bairro || '',
+      customerNumero: currentUser?.numero || '',
+      customerComplemento: currentUser?.complemento || '',
+      city: currentUser?.cidade || 'Caxias - MA',
       deliveryAddress: deliveryAddressStr,
       deliveryType,
       items: orderItems,
@@ -2008,6 +2043,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (error) {
       console.warn("Firestore order seller assignment failed, updated locally:", error);
     }
+  };
+
+  const deleteOrder = async (orderId: string) => {
+    // Remove do estado e do cache local
+    const localOrders = getLocalOrders();
+    const updated = localOrders.filter(o => o.id !== orderId);
+    saveLocalOrders(updated);
+    setOrders(updated);
+
+    // Remove do Firestore
+    try {
+      await orderService.deleteOrder(orderId);
+    } catch (error) {
+      console.warn("Falha ao deletar pedido do Firestore:", error);
+    }
+  };
+
+  const clearLocalOrders = () => {
+    saveLocalOrders([]);
+    setOrders([]);
   };
 
   // Centralized Product Catalog mutations
@@ -2409,6 +2464,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateOrderPaymentStatus,
         updateOrderFreight,
         assignOrderSeller,
+        deleteOrder,
+        clearLocalOrders,
         addProduct,
         deleteProduct,
         updateProduct,

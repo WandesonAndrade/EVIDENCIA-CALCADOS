@@ -249,7 +249,7 @@ export interface OrderItem {
   originalPrice?: number;
 }
 
-export type OrderStatus = 'Pendente' | 'Confirmado' | 'Cancelado' | 'Entregue';
+export type OrderStatus = 'Pendente' | 'Confirmado' | 'Em Preparação' | 'Entregue' | 'Cancelado';
 
 export type PaymentStatus = 'Pendente' | 'Confirmado' | 'Em Análise' | 'Recusado';
 
@@ -260,6 +260,12 @@ export interface Order {
   customerEmail: string;
   customerName: string;
   customerPhone?: string;
+  customerCpf?: string;
+  customerRg?: string;
+  customerCep?: string;
+  customerBairro?: string;
+  customerNumero?: string;
+  customerComplemento?: string;
   city?: string;
   deliveryAddress?: string;
   deliveryType?: 'Entrega em Caxias-MA' | 'Entrega para Outras Cidades' | 'Retirada na Loja';

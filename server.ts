@@ -398,8 +398,11 @@ app.post("/gerar-pix-parcela", async (req, res) => {
     }
   }
 
+  const cleanAmount = Number(Number(valor || 0).toFixed(2));
+  const finalAmount = Math.max(1.0, cleanAmount);
+
   const paymentBody: Record<string, any> = {
-    transaction_amount: Number(valor),
+    transaction_amount: finalAmount,
     description: String(descricao).slice(0, 200),
     payment_method_id: "pix",
     date_of_expiration: dateOfExpirationIso,
@@ -411,7 +414,7 @@ app.post("/gerar-pix-parcela", async (req, res) => {
           title: String(descricao).slice(0, 255),
           description: String(descricao).slice(0, 255),
           quantity: 1,
-          unit_price: Number(valor),
+          unit_price: finalAmount,
         },
       ],
     },

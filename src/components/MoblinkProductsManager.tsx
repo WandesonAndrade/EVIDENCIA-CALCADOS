@@ -946,9 +946,10 @@ export const MoblinkProductsManager: React.FC = () => {
           }
 
           // APLICAÇÃO DA REGRA SOLICITADA:
-          // Se estoque > 0 e TEM GRADE => visible = true (Visível nas vitrines da loja virtual)
-          // Se estoque > 0 e NÃO TEM GRADE => visible = false (Desmarcado/Oculto nas vitrines da loja virtual)
-          const isVisibleInStore = hasGrade;
+          // Se estoque > 0, TEM GRADE e TEM FOTO REAL => visible = true (Visível nas vitrines da loja virtual)
+          // Caso contrário => visible = false (Desmarcado/Oculto nas vitrines da loja virtual)
+          const itemHasPhoto = hasProductValidPhoto(item) || (existingDb ? hasProductValidPhoto(existingDb) : false);
+          const isVisibleInStore = hasGrade && itemHasPhoto;
 
           if (hasGrade) {
             withGradeCount++;

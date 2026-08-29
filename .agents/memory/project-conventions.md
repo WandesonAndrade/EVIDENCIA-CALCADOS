@@ -25,3 +25,10 @@ updated: 2026-08-27
 
 ### 4. Escopo de Filtros na Vitrine (`CategoryPage.tsx` e `ProductList.tsx`)
 - Ao navegar em uma categoria (ex: *Perfumes*) e selecionar uma subcategoria (ex: *Feminino*), o filtro aplica a subcategoria estritamente **dentro do escopo da categoria pai** (`isProductInCategory(prod, parentCategory)`), evitando o vazamento de produtos de outras categorias como calçados ou roupas.
+
+### 5. Ciclo de Vida de Pedidos em 4 Etapas Visuais
+- **Fluxo do Pedido:** `1. Pedido Recebido` → `2. Pagamento OK` → `3. Em Preparação` → `4. Entregue` (e estado terminal `❌ Cancelado`).
+- **Sincronização em Tempo Real:** O painel administrativo possui seletor único da Etapa do Pedido. Qualquer mudança reflete instantaneamente na régua visual do cliente em `OrderHistory.tsx`.
+- **Rastreamento Transparente:** A régua visual exibe marcadores nítidos com indicação de progresso preenchido e pulse/ring na etapa corrente.
+- **Informações Completas do Comprador:** Cada pedido armazena e exibe Nome, E-mail, Telefone (com link direto de WhatsApp `wa.me`), CPF, RG e Endereço detalhado para entrega ou retirada na loja.
+- **Visualização de Itens Comprados:** Os produtos do pedido vêm abertos por padrão na visualização tanto do cliente quanto do administrador, exibindo miniatura, numeração/tamanho, quantidade, valor unitário e subtotal da linha.

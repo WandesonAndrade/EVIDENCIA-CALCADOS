@@ -30,7 +30,7 @@ import {
   Info, Sliders, Zap, Barcode, Image, ArrowUp, ArrowDown,
   BookOpen, PhoneCall, Globe, CheckCircle2, Sparkles, Layout, HelpCircle,
   FileText, Briefcase, MapPin, Gift, Heart, ShoppingCart, Cake, AlertTriangle, LogOut, Shield,
-  FolderTree, Tag, X
+  FolderTree, Tag, X, ExternalLink
 } from 'lucide-react';
 import { moblinkCategoriesService, normalizeCategoryName, normalizeSubcategoryName } from '../services/moblinkCategoriesService';
 
@@ -70,6 +70,7 @@ export const AdminPanel: React.FC = () => {
     updateOrderPaymentStatus,
     updateOrderFreight,
     assignOrderSeller,
+    deleteOrder,
     theme,
     toggleTheme,
     categories,
@@ -1297,7 +1298,7 @@ export const AdminPanel: React.FC = () => {
                   <span className="text-xs font-bold uppercase tracking-wider">Faturamento Total</span>
                   <DollarSign className="h-5 w-5" />
                 </div>
-                <p className="text-2xl font-black">R$ {totalRevenue.toFixed(2).replace('.', ',')}</p>
+                <p className="text-2xl font-black">R$ {(totalRevenue || 0).toFixed(2).replace('.', ',')}</p>
                 <p className="text-[11px] text-slate-400">Baseado em {orders.length} pedido(s)</p>
               </div>
 
@@ -1376,7 +1377,7 @@ export const AdminPanel: React.FC = () => {
                 </div>
 
                 <div className="flex items-center space-x-1">
-                  <span className="text-[10px] text-slate-400 uppercase font-bold">Entrega:</span>
+                  <span className="text-[10px] text-slate-400 uppercase font-bold">Etapa:</span>
                   <select
                     value={ordersStatusFilter}
                     onChange={(e) => setOrdersStatusFilter(e.target.value as any)}
@@ -1384,10 +1385,11 @@ export const AdminPanel: React.FC = () => {
                       isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-300 text-slate-900'
                     }`}
                   >
-                    <option value="Todos">Todas Entregas</option>
-                    <option value="Pendente">Pendente</option>
-                    <option value="Confirmado">Confirmado</option>
-                    <option value="Entregue">Entregue</option>
+                    <option value="Todos">Todas Etapas</option>
+                    <option value="Pendente">1. Pedido Recebido</option>
+                    <option value="Confirmado">2. Pagamento OK</option>
+                    <option value="Em Preparação">3. Em Preparação</option>
+                    <option value="Entregue">4. Entregue</option>
                     <option value="Cancelado">Cancelado</option>
                   </select>
                 </div>
@@ -1453,7 +1455,7 @@ export const AdminPanel: React.FC = () => {
                 <span className="text-xl font-black text-amber-400">
                   R$ {orders
                     .filter(o => o.paymentStatus === 'Confirmado' || o.status === 'Entregue')
-                    .reduce((sum, o) => sum + o.total, 0)
+                    .reduce((sum, o) => sum + (o.total || 0), 0)
                     .toFixed(2).replace('.', ',')}
                 </span>
               </div>
@@ -1467,7 +1469,7 @@ export const AdminPanel: React.FC = () => {
                   <span>Filtrando Vendas Atribuídas a <strong>{ordersSellerFilter}</strong></span>
                 </div>
                 <span>
-                  {orders.filter(o => o.sellerName === ordersSellerFilter).length} pedido(s) (R$ {orders.filter(o => o.sellerName === ordersSellerFilter).reduce((sum, o) => sum + o.total, 0).toFixed(2).replace('.', ',')})
+                  {orders.filter(o => o.sellerName === ordersSellerFilter).length} pedido(s) (R$ {orders.filter(o => o.sellerName === ordersSellerFilter).reduce((sum, o) => sum + (o.total || 0), 0).toFixed(2).replace('.', ',')})
                 </span>
               </div>
             )}
@@ -1517,11 +1519,12 @@ export const AdminPanel: React.FC = () => {
                             <span className="font-mono text-sm font-black text-amber-400">{o.orderNumber || o.id}</span>
                             <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${
                               o.status === 'Confirmado' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' :
+                              o.status === 'Em Preparação' ? 'bg-sky-500/20 text-sky-400 border border-sky-500/30' :
                               o.status === 'Entregue' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
                               o.status === 'Cancelado' ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' :
                               'bg-amber-400/20 text-amber-400 border border-amber-400/30'
                             }`}>
-                              {o.status}
+                              {o.status || 'Pendente'}
                             </span>
                             {o.sellerName && (
                               <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-400/10 text-amber-400 border border-amber-400/30 flex items-center space-x-1">
@@ -1533,55 +1536,91 @@ export const AdminPanel: React.FC = () => {
 
 
                           <div className="flex flex-wrap items-center space-x-4 text-xs font-semibold gap-2">
-                            <span className="text-slate-400">Data: {new Date(o.createdAt).toLocaleDateString('pt-BR')}</span>
-                            
-                            <div className="flex items-center space-x-1.5">
-                              <span className="text-[10px] text-slate-400 uppercase font-bold">Pagamento:</span>
-                              <select
-                                value={o.paymentStatus || 'Pendente'}
-                                onChange={(e) => {
-                                  updateOrderPaymentStatus(o.id, e.target.value as PaymentStatus);
-                                  addToast('Pagamento Atualizado!', `O status do pagamento do pedido ${o.orderNumber || o.id} foi alterado para ${e.target.value}.`, 'success');
-                                }}
-                                className={`p-1.5 rounded-lg text-xs font-bold border focus:outline-none cursor-pointer ${
-                                  o.paymentStatus === 'Confirmado' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' :
-                                  o.paymentStatus === 'Em Análise' ? 'bg-purple-500/20 text-purple-400 border-purple-500/40' :
-                                  o.paymentStatus === 'Recusado' ? 'bg-rose-500/20 text-rose-400 border-rose-500/40' :
-                                  'bg-amber-400/20 text-amber-400 border-amber-400/40'
-                                }`}
-                              >
-                                <option value="Pendente">⏳ Pendente</option>
-                                <option value="Em Análise">🔍 Em Análise</option>
-                                <option value="Confirmado">✅ Confirmado</option>
-                                <option value="Recusado">❌ Recusado</option>
-                              </select>
-                            </div>
+                            <span className="text-slate-400">
+                              Data: {o.createdAt ? (!isNaN(new Date(o.createdAt).getTime()) ? new Date(o.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : o.createdAt) : 'Hoje'}
+                            </span>
 
                             <div className="flex items-center space-x-1.5">
-                              <span className="text-[10px] text-slate-400 uppercase font-bold">Entrega:</span>
+                              <span className="text-[10px] text-slate-400 uppercase font-bold">Etapa do Pedido:</span>
                               <select
                                 value={o.status}
-                                onChange={(e) => updateOrderStatus(o.id, e.target.value as OrderStatus)}
+                                onChange={async (e) => {
+                                  const newStatus = e.target.value as OrderStatus;
+                                  await updateOrderStatus(o.id, newStatus);
+                                  // Se avançar para Pagamento OK ou além, já sincroniza o status financeiro para Confirmado
+                                  if (['Confirmado', 'Em Preparação', 'Entregue'].includes(newStatus) && o.paymentStatus !== 'Confirmado') {
+                                    await updateOrderPaymentStatus(o.id, 'Confirmado');
+                                  } else if (newStatus === 'Cancelado') {
+                                    await updateOrderPaymentStatus(o.id, 'Recusado');
+                                  }
+                                  addToast('Etapa Atualizada!', `O pedido foi movido para "${newStatus}".`, 'success');
+                                }}
                                 className={`p-1.5 rounded-lg text-xs font-bold border focus:outline-none cursor-pointer ${
                                   isDark ? 'bg-slate-950 border-slate-700 text-slate-100' : 'bg-slate-100 border-slate-300 text-slate-900'
                                 }`}
                               >
-                                <option value="Pendente">Pendente</option>
-                                <option value="Confirmado">Confirmado</option>
-                                <option value="Entregue">Entregue</option>
-                                <option value="Cancelado">Cancelado</option>
+                                <option value="Pendente">1. Pedido Recebido</option>
+                                <option value="Confirmado">2. Pagamento OK</option>
+                                <option value="Em Preparação">3. Em Preparação</option>
+                                <option value="Entregue">4. Entregue</option>
+                                <option value="Cancelado">❌ Cancelado</option>
                               </select>
                             </div>
+
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                if (window.confirm(`Tem certeza que deseja excluir permanentemente o pedido ${o.orderNumber || o.id}?`)) {
+                                  await deleteOrder(o.id);
+                                  addToast('Pedido Excluído', `O pedido ${o.orderNumber || o.id} foi excluído com sucesso.`, 'info');
+                                }
+                              }}
+                              title="Excluir Pedido"
+                              className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 transition-all cursor-pointer flex items-center justify-center"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
                           </div>
                         </div>
 
                         {/* Customer, Payment & Shipping Grid */}
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs">
-                          <div>
+                          <div className="space-y-1">
                             <span className="text-[10px] text-slate-400 uppercase font-bold block">Cliente & Contato</span>
-                            <p className="font-bold text-sm text-slate-200 mt-0.5">{o.customerName}</p>
-                            <p className="text-slate-400">{o.customerEmail}</p>
-                            <p className="text-amber-400 font-mono mt-0.5">{o.customerPhone || 'Telefone não informado'}</p>
+                            <p className="font-bold text-sm text-slate-100 flex items-center space-x-1.5">
+                              <span>{o.customerName}</span>
+                            </p>
+                            <p className="text-slate-400 text-[11px] truncate" title={o.customerEmail}>{o.customerEmail}</p>
+                            
+                            {o.customerPhone ? (
+                              <a
+                                href={`https://wa.me/55${o.customerPhone.replace(/\D/g, '')}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-emerald-400 hover:text-emerald-300 font-mono font-bold flex items-center space-x-1 pt-0.5"
+                                title="Abrir conversa no WhatsApp com o cliente"
+                              >
+                                <span>📱 {o.customerPhone}</span>
+                                <ExternalLink className="h-3 w-3 inline" />
+                              </a>
+                            ) : (
+                              <p className="text-slate-500 font-mono text-[11px]">Telefone não informado</p>
+                            )}
+
+                            {/* Informações Complementares: CPF / Documentos */}
+                            {o.customerCpf && (
+                              <div className="pt-1 border-t border-slate-800/40 text-[11px] text-slate-300 flex items-center gap-1.5">
+                                <span className="text-[10px] text-slate-400 font-bold">CPF:</span>
+                                <span className="font-mono">{o.customerCpf}</span>
+                              </div>
+                            )}
+
+                            {o.customerRg && (
+                              <div className="text-[11px] text-slate-300 flex items-center gap-1.5">
+                                <span className="text-[10px] text-slate-400 font-bold">RG:</span>
+                                <span className="font-mono">{o.customerRg}</span>
+                              </div>
+                            )}
                           </div>
 
                           {/* Payment Method & Admin Action */}
@@ -1723,7 +1762,7 @@ export const AdminPanel: React.FC = () => {
                             <div className="pt-2 border-t border-slate-800/50 space-y-1 text-[11px]">
                               <div className="flex justify-between text-slate-400">
                                 <span>Subtotal Produtos:</span>
-                                <span className="font-bold text-slate-300">R$ ${(o.subtotal || (o.total - (o.freightCost || 0))).toFixed(2).replace('.', ',')}</span>
+                                <span className="font-bold text-slate-300">R$ ${(o.subtotal || ((o.total || 0) - (o.freightCost || 0))).toFixed(2).replace('.', ',')}</span>
                               </div>
                               <div className="flex justify-between text-slate-400">
                                 <span>Taxa de Frete:</span>
@@ -1735,26 +1774,55 @@ export const AdminPanel: React.FC = () => {
                               </div>
                               <div className="flex justify-between font-black text-amber-400 pt-1 border-t border-slate-800/40 text-xs">
                                 <span>Total Geral:</span>
-                                <span>R$ {o.total.toFixed(2).replace('.', ',')}</span>
+                                <span>R$ {(o.total || 0).toFixed(2).replace('.', ',')}</span>
                               </div>
                             </div>
                           </div>
                         </div>
 
                         {/* Order Items Table */}
-                        <div className={`p-3 rounded-2xl border text-xs space-y-1.5 ${
-                          isDark ? 'bg-slate-950/40 border-slate-800/60' : 'bg-slate-50 border-slate-200'
+                        <div className={`p-4 rounded-2xl border text-xs space-y-2.5 ${
+                          isDark ? 'bg-slate-950/60 border-slate-800' : 'bg-slate-50 border-slate-200'
                         }`}>
-                          <span className="text-[10px] text-slate-400 uppercase font-bold block mb-1">Itens Adquiridos:</span>
-                          <div className="divide-y divide-slate-800/40">
-                            {o.items.map((item, idx) => (
-                              <div key={idx} className="py-1.5 flex items-center justify-between">
-                                <div className="flex items-center space-x-2">
-                                  <img src={item.image} alt={item.name} className="w-7 h-7 object-cover rounded-lg border border-slate-800" />
-                                  <span className="font-semibold text-slate-200">{item.name}</span>
-                                  <span className="text-[10px] text-slate-400">(Tam: {item.selectedSize || 'Único'})</span>
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-black uppercase text-amber-400 flex items-center space-x-1.5">
+                              <ShoppingBag className="h-3.5 w-3.5" />
+                              <span>Produtos do Pedido ({(o.items || []).reduce((acc, i) => acc + (i.quantity || 1), 0)} itens):</span>
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                            {(o.items || []).map((item, idx) => (
+                              <div 
+                                key={idx} 
+                                className={`p-2.5 rounded-xl border flex items-center justify-between gap-3 ${
+                                  isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
+                                }`}
+                              >
+                                <div className="flex items-center space-x-3 min-w-0">
+                                  <img 
+                                    src={item.image} 
+                                    alt={item.name} 
+                                    className="w-12 h-12 object-contain p-1 rounded-lg border border-slate-700/50 bg-slate-800/40 shrink-0" 
+                                  />
+                                  <div className="min-w-0 space-y-0.5">
+                                    <span className="font-bold text-xs text-slate-100 block truncate">{item.name}</span>
+                                    <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
+                                      <span className="px-1.5 py-0.2 rounded bg-amber-400/10 text-amber-400 border border-amber-400/20 font-black text-[10px]">
+                                        {item.selectedSize !== 0 ? `Tam: ${item.selectedSize}` : 'Acessório'}
+                                      </span>
+                                      <span>Qtd: <strong className="text-white">{item.quantity || 1}</strong></span>
+                                      <span>• Un: <strong>R$ {(item.price || 0).toFixed(2).replace('.', ',')}</strong></span>
+                                    </div>
+                                  </div>
                                 </div>
-                                <span className="font-bold">x{item.quantity} - R$ {(item.price * item.quantity).toFixed(2).replace('.', ',')}</span>
+
+                                <div className="text-right shrink-0">
+                                  <span className="text-[9px] uppercase font-bold text-slate-400 block">Subtotal</span>
+                                  <span className="font-black text-amber-400 text-xs">
+                                    R$ {((item.price || 0) * (item.quantity || 1)).toFixed(2).replace('.', ',')}
+                                  </span>
+                                </div>
                               </div>
                             ))}
                           </div>
@@ -2870,13 +2938,13 @@ export const AdminPanel: React.FC = () => {
                                     </span>
                                   </td>
                                   <td className="p-4 text-right text-slate-400 line-through font-medium">
-                                    R$ {calc.originalPrice.toFixed(2).replace('.', ',')}
+                                    R$ {(calc.originalPrice || 0).toFixed(2).replace('.', ',')}
                                   </td>
                                   <td className="p-4 text-right font-black text-emerald-400 text-sm">
-                                    R$ {calc.price.toFixed(2).replace('.', ',')}
+                                    R$ {(calc.price || 0).toFixed(2).replace('.', ',')}
                                   </td>
                                   <td className="p-4 text-right font-bold text-amber-400">
-                                    - R$ {calc.savedAmount.toFixed(2).replace('.', ',')}
+                                    - R$ {(calc.savedAmount || 0).toFixed(2).replace('.', ',')}
                                   </td>
                                 </tr>
                               );
@@ -3021,7 +3089,7 @@ export const AdminPanel: React.FC = () => {
                                 </span>
 
                                 <span className="text-[10px] font-black uppercase text-amber-400 px-2 py-0.5 bg-amber-400/10 rounded-md border border-amber-400/20">
-                                  {promo.discountType === 'percentage' ? `-${promo.discountValue}% OFF` : `-R$ ${promo.discountValue.toFixed(2).replace('.', ',')}`}
+                                  {promo.discountType === 'percentage' ? `-${promo.discountValue}% OFF` : `-R$ ${(promo.discountValue || 0).toFixed(2).replace('.', ',')}`}
                                 </span>
                               </div>
 
@@ -3595,8 +3663,8 @@ export const AdminPanel: React.FC = () => {
                         </div>
 
                         <div className="text-right shrink-0">
-                          <div className="text-xs font-black text-amber-400">R$ {calcPrice.toFixed(2).replace('.', ',')}</div>
-                          <div className="text-[10px] text-slate-500 line-through">De: R$ {prod.price.toFixed(2).replace('.', ',')}</div>
+                          <div className="text-xs font-black text-amber-400">R$ {(calcPrice || 0).toFixed(2).replace('.', ',')}</div>
+                          <div className="text-[10px] text-slate-500 line-through">De: R$ {(prod.price || 0).toFixed(2).replace('.', ',')}</div>
                         </div>
                       </div>
                     );

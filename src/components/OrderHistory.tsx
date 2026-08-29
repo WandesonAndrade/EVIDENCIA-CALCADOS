@@ -11,7 +11,8 @@ import { OrderStatus, Order, OrderItem, Product } from '../types';
 
 export const OrderHistory: React.FC = () => {
   const { currentUser, orders, isLoadingOrders, theme, products, setSelectedProduct, setCurrentView } = useApp();
-  const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
+  // Armazena IDs dos pedidos recolhidos manualmente (por padrão todos começam visíveis)
+  const [collapsedOrderIds, setCollapsedOrderIds] = useState<Record<string, boolean>>({});
 
   // Exigir autenticação se o usuário não estiver logado
   if (!currentUser) {
@@ -21,7 +22,10 @@ export const OrderHistory: React.FC = () => {
   const isDark = theme === 'dark';
 
   const toggleExpand = (id: string) => {
-    setExpandedOrderId(prev => prev === id ? null : id);
+    setCollapsedOrderIds(prev => ({
+      ...prev,
+      [id]: !prev[id]
+    }));
   };
 
   const handleNavigateToProduct = (item: OrderItem) => {
@@ -53,9 +57,15 @@ export const OrderHistory: React.FC = () => {
     switch (status) {
       case 'Confirmado':
         return {
-          label: 'Confirmado',
+          label: 'Pagamento Confirmado',
           style: isDark ? 'bg-[#006EDB]/20 text-[#DDF1FF] border-[#006EDB]/40' : 'bg-[#DDF1FF] text-[#003B73] border-[#006EDB]/30',
           icon: CheckCircle2
+        };
+      case 'Em Preparação':
+        return {
+          label: 'Em Preparação / Envio',
+          style: isDark ? 'bg-sky-500/20 text-sky-400 border-sky-500/40' : 'bg-sky-50 text-sky-800 border-sky-200',
+          icon: Truck
         };
       case 'Entregue':
         return {
@@ -71,7 +81,7 @@ export const OrderHistory: React.FC = () => {
         };
       default:
         return {
-          label: status || 'Pendente',
+          label: status || 'Pedido Recebido',
           style: isDark ? 'bg-amber-400/20 text-amber-400 border-amber-400/40' : 'bg-amber-50 text-amber-900 border-amber-200',
           icon: Clock
         };
@@ -93,18 +103,17 @@ export const OrderHistory: React.FC = () => {
     }
   };
 
-  // Apple Timeline Progress Calculator (4 Etapas de acompanhamento)
-  const getOrderProgressStep = (status: OrderStatus) => {
-    switch (status) {
-      case 'Entregue':
-        return 4;
-      case 'Confirmado':
-        return 2;
-      case 'Cancelado':
-        return 0;
-      default:
-        return 1;
-    }
+  // Cálculo das 4 Etapas Visuais:
+  // 1: Pedido Recebido
+  // 2: Pagamento OK (Confirmado no status ou pagamento)
+  // 3: Em Preparação
+  // 4: Entregue
+  const getOrderProgressStep = (order: Order) => {
+    if (order.status === 'Cancelado') return 0;
+    if (order.status === 'Entregue') return 4;
+    if (order.status === 'Em Preparação') return 3;
+    if (order.status === 'Confirmado' || order.paymentStatus === 'Confirmado') return 2;
+    return 1;
   };
 
   return (
@@ -140,7 +149,7 @@ export const OrderHistory: React.FC = () => {
       </div>
 
       {/* Carregamento Skeleton */}
-      {isLoadingOrders ? (
+      {isLoadingOrders && orders.length === 0 ? (
         <div className="space-y-4">
           {[1, 2, 3].map((n) => (
             <div key={n} className={`border rounded-3xl p-6 animate-pulse space-y-4 ${
@@ -186,10 +195,10 @@ export const OrderHistory: React.FC = () => {
             const StatusIcon = badge.icon;
             const isOtherCities = order.deliveryType === 'Entrega para Outras Cidades';
             const isPendingFreight = isOtherCities && (!order.freightCost || order.freightCost === 0);
-            const isExpanded = expandedOrderId === order.id || orders.length === 1;
-            const progressStep = getOrderProgressStep(order.status);
+            const isExpanded = !collapsedOrderIds[order.id];
+            const progressStep = getOrderProgressStep(order);
 
-            const itemsTotalCount = order.items.reduce((sum, item) => sum + item.quantity, 0);
+            const itemsTotalCount = (order.items || []).reduce((sum, item) => sum + (item.quantity || 1), 0);
 
             return (
               <div
@@ -251,7 +260,7 @@ export const OrderHistory: React.FC = () => {
                     <div className="text-left md:text-right">
                       <span className="text-[10px] font-bold uppercase text-[#52708F] block">Total do Pedido</span>
                       <span className="text-lg sm:text-xl font-black text-[#003B73] dark:text-white">
-                        R$ {order.total.toFixed(2).replace('.', ',')}
+                        R$ {(order.total || 0).toFixed(2).replace('.', ',')}
                       </span>
                     </div>
 
@@ -262,23 +271,24 @@ export const OrderHistory: React.FC = () => {
                           ? 'border-slate-800 bg-slate-900 text-slate-300 hover:text-white' 
                           : 'border-blue-900/15 bg-white text-[#003B73] hover:bg-[#DDF1FF]'
                       }`}
-                      title={isExpanded ? "Ocultar detalhes" : "Ver detalhes"}
+                      title={isExpanded ? "Ocultar itens comprados" : "Ver itens comprados"}
                     >
-                      <span className="hidden sm:inline">{isExpanded ? 'Recolher' : 'Detalhes'}</span>
+                      <span className="hidden sm:inline">{isExpanded ? 'Ocultar Itens' : 'Ver Itens'}</span>
                       {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                     </button>
                   </div>
                 </div>
 
-                {/* TIMELINE DE ACOMPANHAMENTO DO PEDIDO (ESTILO APPLE ORDER TRACKER) */}
+                {/* TIMELINE DE ACOMPANHAMENTO DO PEDIDO (FEEDBACK VISUAL 4 ETAPAS) */}
                 {order.status !== 'Cancelado' && (
-                  <div className="px-6 py-4 bg-[#F8FAFC] dark:bg-slate-950/40 border-b border-blue-900/10">
+                  <div className="px-4 sm:px-8 py-5 bg-[#F8FAFC] dark:bg-slate-950/40 border-b border-blue-900/10">
                     <div className="max-w-3xl mx-auto flex items-center justify-between relative py-2">
-                      {/* Linha Conectora de Progresso */}
-                      <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-1 bg-slate-200 dark:bg-slate-800 z-0" />
+                      {/* Linha Conectora de Fundo */}
+                      <div className="absolute left-4 right-4 sm:left-6 sm:right-6 top-6 sm:top-5 -translate-y-1/2 h-1 bg-slate-200 dark:bg-slate-800 z-0" />
+                      {/* Linha Conectora de Progresso Ativo */}
                       <div 
-                        className="absolute left-0 top-1/2 -translate-y-1/2 h-1 bg-[#006EDB] transition-all duration-500 z-0"
-                        style={{ width: `${((progressStep - 1) / 3) * 100}%` }}
+                        className="absolute left-4 sm:left-6 top-6 sm:top-5 -translate-y-1/2 h-1 bg-gradient-to-r from-[#003B73] to-[#006EDB] transition-all duration-500 z-0"
+                        style={{ width: `calc(${((Math.max(1, progressStep) - 1) / 3) * 100}% - ${progressStep === 4 ? '0px' : '10px'})` }}
                       />
 
                       {/* Passos da Linha do Tempo */}
@@ -289,18 +299,22 @@ export const OrderHistory: React.FC = () => {
                         { step: 4, label: 'Entregue', icon: PackageCheck },
                       ].map(({ step, label, icon: StepIcon }) => {
                         const isCompleted = progressStep >= step;
+                        const isCurrent = progressStep === step;
+
                         return (
                           <div key={step} className="relative z-10 flex flex-col items-center group">
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all shadow-xs ${
+                            <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-xs font-bold transition-all shadow-md ${
                               isCompleted 
-                                ? 'bg-[#003B73] text-white ring-4 ring-[#DDF1FF]' 
-                                : 'bg-white text-slate-400 border border-slate-300'
-                            }`}>
-                              {isCompleted ? <Check className="h-4 w-4 stroke-[3]" /> : <StepIcon className="h-4 w-4" />}
+                                ? 'bg-[#003B73] text-white ring-4 ring-[#DDF1FF] dark:ring-blue-900/30' 
+                                : 'bg-white dark:bg-slate-900 text-slate-400 border border-slate-300 dark:border-slate-700'
+                            } ${isCurrent ? 'scale-110 ring-4 ring-amber-300 dark:ring-amber-400/40' : ''}`}>
+                              {isCompleted ? <Check className="h-4 w-4 sm:h-5 sm:w-5 stroke-[3]" /> : <StepIcon className="h-4 w-4 sm:h-5 sm:w-5" />}
                             </div>
-                            <span className={`text-[10px] font-bold mt-1.5 hidden sm:block ${
-                              isCompleted ? 'text-[#003B73] font-black' : 'text-slate-400'
-                            }`}>
+                            <span className={`text-[10px] sm:text-xs font-extrabold mt-2 text-center transition-all ${
+                              isCompleted 
+                                ? 'text-[#003B73] dark:text-blue-400 font-black' 
+                                : 'text-slate-400 dark:text-slate-500'
+                            } ${isCurrent ? 'text-amber-600 dark:text-amber-400' : ''}`}>
                               {label}
                             </span>
                           </div>
@@ -325,6 +339,10 @@ export const OrderHistory: React.FC = () => {
                     <p className="text-[#52708F] leading-snug font-medium text-[11px]">
                       {order.deliveryAddress || 'Endereço cadastrado no seu perfil'}
                     </p>
+                    <div className="pt-1.5 border-t border-blue-900/10 text-[10px] text-[#52708F] space-y-0.5">
+                      <p>Destinatário: <strong className="text-[#003B73] dark:text-slate-200">{order.customerName}</strong></p>
+                      {order.customerPhone && <p>Contato: <strong>{order.customerPhone}</strong></p>}
+                    </div>
                   </div>
 
                   {/* Card 2: Status do Frete */}
@@ -417,8 +435,8 @@ export const OrderHistory: React.FC = () => {
 
                     {/* Grid dos Produtos do Pedido */}
                     <div className="space-y-3">
-                      {order.items.map((item, idx) => {
-                        const itemSubtotal = item.price * item.quantity;
+                      {(order.items || []).map((item, idx) => {
+                        const itemSubtotal = (item.price || 0) * (item.quantity || 1);
 
                         return (
                           <div
@@ -447,8 +465,8 @@ export const OrderHistory: React.FC = () => {
                                   <span className="px-2 py-0.5 rounded-md bg-[#DDF1FF] text-[#003B73] font-bold">
                                     {item.selectedSize !== 0 ? `Tam: ${item.selectedSize}` : 'Acessório'}
                                   </span>
-                                  <span>Qtd: <strong className="text-[#003B73]">{item.quantity}</strong></span>
-                                  <span>• Unitário: <strong className="text-[#003B73]">R$ {item.price.toFixed(2).replace('.', ',')}</strong></span>
+                                  <span>Qtd: <strong className="text-[#003B73]">{item.quantity || 1}</strong></span>
+                                  <span>• Unitário: <strong className="text-[#003B73]">R$ {(item.price || 0).toFixed(2).replace('.', ',')}</strong></span>
                                 </div>
                               </div>
                             </div>

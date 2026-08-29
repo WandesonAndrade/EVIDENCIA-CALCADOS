@@ -29,8 +29,13 @@ export function loadMercadoPagoSDK(): Promise<any> {
     const publicKey = (
       import.meta.env.VITE_MERCADO_PAGO_PUBLIC_KEY ||
       import.meta.env.VITE_MP_PUBLIC_KEY ||
-      'TEST-e940733a-18e3-4d6d-88b4-[#publickey]'
+      ''
     ).replace(/['"]/g, '').trim();
+
+    if (!publicKey || publicKey.includes('[#publickey]') || publicKey.includes('publickey')) {
+      reject(new Error('Chave pública do Mercado Pago (VITE_MERCADO_PAGO_PUBLIC_KEY) não configurada no arquivo .env. Obtenha a Public Key no painel do Mercado Pago (devs.mercadopago.com) e adicione ao seu arquivo .env.'));
+      return;
+    }
 
     if (window.MercadoPago) {
       try {
@@ -106,14 +111,21 @@ export async function createCardTokenClientSide(params: CardTokenParams): Promis
 
     if (tokenResult && tokenResult.error) {
       const firstErr = Array.isArray(tokenResult.error) ? tokenResult.error[0] : tokenResult.error;
-      const msg = firstErr?.message || firstErr?.description || 'Dados do cartão inválidos. Verifique o número, validade e CVV.';
+      let msg = firstErr?.message || firstErr?.description || 'Dados do cartão inválidos. Verifique o número, validade e CVV.';
+      if (msg.includes('developers.mercadopago.com') || msg.includes('recursos de la API')) {
+        msg = 'Chave Pública (VITE_MERCADO_PAGO_PUBLIC_KEY) não configurada ou inválida no .env. Acesse o painel de desenvolvedores do Mercado Pago (devs.mercadopago.com) e adicione a Public Key válida ao arquivo .env.';
+      }
       throw new Error(msg);
     }
 
     throw new Error('Não foi possível tokenizar o cartão. Verifique os dados digitados.');
   } catch (err: any) {
     console.error('[CardTokenization] Erro ao tokenizar cartão:', err);
-    throw new Error(err.message || 'Erro ao validar o cartão com a operadora.');
+    let errMsg = err.message || 'Erro ao validar o cartão com a operadora.';
+    if (errMsg.includes('developers.mercadopago.com') || errMsg.includes('recursos de la API')) {
+      errMsg = 'Chave Pública (VITE_MERCADO_PAGO_PUBLIC_KEY) não configurada ou inválida no .env. Acesse o painel de desenvolvedores do Mercado Pago (devs.mercadopago.com) e adicione a Public Key válida ao arquivo .env.';
+    }
+    throw new Error(errMsg);
   }
 }
 
