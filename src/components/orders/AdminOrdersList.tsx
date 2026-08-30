@@ -16,6 +16,7 @@ export const AdminOrdersList: React.FC<Props> = ({ isDark }) => {
     updateOrderStatus,
     updateOrderPaymentStatus,
     updateOrderFreight,
+    updateOrderLocalSaleId,
     deleteOrder,
     addToast,
   } = useApp();
@@ -25,6 +26,7 @@ export const AdminOrdersList: React.FC<Props> = ({ isDark }) => {
   const [ordersPaymentFilter, setOrdersPaymentFilter] = useState<'Todos' | PaymentStatus>('Todos');
   const [ordersSellerFilter, setOrdersSellerFilter] = useState<string>('Todos');
   const [editingFreightMap, setEditingFreightMap] = useState<{ [orderId: string]: string }>({});
+  const [editingLocalSaleIdMap, setEditingLocalSaleIdMap] = useState<{ [orderId: string]: string }>({});
 
   const sellersList = Array.from(
     new Set([
@@ -44,7 +46,8 @@ export const AdminOrdersList: React.FC<Props> = ({ isDark }) => {
         o.customerEmail?.toLowerCase().includes(q) ||
         o.customerPhone?.includes(q) ||
         o.orderNumber?.toLowerCase().includes(q) ||
-        o.id?.toLowerCase().includes(q);
+        o.id?.toLowerCase().includes(q) ||
+        o.localSaleId?.toLowerCase().includes(q);
       const matchesStatus = ordersStatusFilter === 'Todos' || o.status === ordersStatusFilter;
       const matchesPayment = ordersPaymentFilter === 'Todos' || o.paymentStatus === ordersPaymentFilter;
       const matchesSeller = ordersSellerFilter === 'Todos' || o.sellerName === ordersSellerFilter;
@@ -85,6 +88,13 @@ export const AdminOrdersList: React.FC<Props> = ({ isDark }) => {
     await updateOrderFreight(orderId, isNaN(val) ? 0 : val);
     const o = orders.find((x) => x.id === orderId);
     addToast('Frete Atualizado', `O valor do frete do pedido #${o?.orderNumber || orderId} foi salvo.`, 'success');
+  };
+
+  const handleLocalSaleIdSave = async (orderId: string) => {
+    const val = editingLocalSaleIdMap[orderId] ?? '';
+    await updateOrderLocalSaleId(orderId, val.trim());
+    const o = orders.find((x) => x.id === orderId);
+    addToast('Sistema Local', `ID do ERP vinculado ao pedido #${o?.orderNumber || orderId}.`, 'success');
   };
 
   const handleDelete = async (orderId: string) => {
@@ -330,11 +340,16 @@ export const AdminOrdersList: React.FC<Props> = ({ isDark }) => {
               order={order}
               isDark={isDark}
               editingFreight={editingFreightMap[order.id]}
+              editingLocalSaleId={editingLocalSaleIdMap[order.id]}
               onStatusChange={handleStatusChange}
               onFreightChange={(orderId, val) =>
                 setEditingFreightMap((prev) => ({ ...prev, [orderId]: val }))
               }
               onFreightSave={handleFreightSave}
+              onLocalSaleIdChange={(orderId, val) =>
+                setEditingLocalSaleIdMap((prev) => ({ ...prev, [orderId]: val }))
+              }
+              onLocalSaleIdSave={handleLocalSaleIdSave}
               onDelete={handleDelete}
             />
           ))}

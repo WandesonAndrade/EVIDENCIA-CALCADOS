@@ -1,5 +1,5 @@
 ﻿import React, { useState } from 'react';
-import { CreditCard, Zap, FileText, ShieldCheck, Copy, Check, Info } from 'lucide-react';
+import { CreditCard, Zap, FileText, ShieldCheck, Copy, Check, Save, Receipt } from 'lucide-react';
 import { Order } from '../../types';
 import { PaymentStatusBadge } from './PaymentStatusBadge';
 import { formatCurrency } from '../../utils/orderUtils';
@@ -8,9 +8,20 @@ interface Props {
   order: Order;
   isDark: boolean;
   variant?: 'client' | 'admin';
+  // admin only: vínculo com o sistema local/ERP
+  editingLocalSaleId?: string;
+  onEditingLocalSaleIdChange?: (val: string) => void;
+  onSaveLocalSaleId?: () => void;
 }
 
-export const PaymentInfoCard: React.FC<Props> = ({ order, isDark: _isDark, variant = 'client' }) => {
+export const PaymentInfoCard: React.FC<Props> = ({
+  order,
+  isDark: _isDark,
+  variant = 'client',
+  editingLocalSaleId,
+  onEditingLocalSaleIdChange,
+  onSaveLocalSaleId,
+}) => {
   const [copiedId, setCopiedId] = useState(false);
 
   const method = order.paymentMethod || 'Pix';
@@ -96,15 +107,15 @@ export const PaymentInfoCard: React.FC<Props> = ({ order, isDark: _isDark, varia
           )}
         </div>
 
-        {/* Transação Mercado Pago / ID */}
+        {/* Transação Mercado Pago / ID Gateway */}
         {order.paymentId && (
           <div className="pt-2 border-t border-black/[0.04] dark:border-white/[0.06] flex items-center justify-between text-[10px]">
-            <span className="text-[#86868B]">ID Transação:</span>
+            <span className="text-[#86868B]">ID Gateway:</span>
             <button
               type="button"
               onClick={() => handleCopyId(order.paymentId!)}
               className="inline-flex items-center space-x-1 font-mono text-slate-700 dark:text-slate-300 hover:text-[#0071E3] dark:hover:text-[#0A84FF] transition-colors cursor-pointer"
-              title="Copiar ID da Transação"
+              title="Copiar ID do Gateway"
             >
               <span>#{order.paymentId}</span>
               {copiedId ? (
@@ -115,6 +126,51 @@ export const PaymentInfoCard: React.FC<Props> = ({ order, isDark: _isDark, varia
             </button>
           </div>
         )}
+
+        {/* Campo do Administrador: ID da Venda no Sistema Local (ERP / PDV) */}
+        <div className="pt-2.5 border-t border-black/[0.04] dark:border-white/[0.06] space-y-1.5">
+          <div className="flex items-center justify-between text-[10px]">
+            <span className="font-medium text-[#86868B] uppercase tracking-wider flex items-center space-x-1">
+              <Receipt className="h-3 w-3 text-slate-400" />
+              <span>ID no Sistema Local (ERP)</span>
+            </span>
+            {order.localSaleId ? (
+              <span className="px-2 py-0.5 rounded-full text-[9px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                Lançado
+              </span>
+            ) : (
+              <span className="px-2 py-0.5 rounded-full text-[9px] font-medium bg-black/[0.04] dark:bg-white/[0.06] text-slate-500 border border-black/[0.04]">
+                Não Lançado
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center space-x-1.5">
+            <input
+              type="text"
+              value={editingLocalSaleId !== undefined ? editingLocalSaleId : (order.localSaleId || '')}
+              onChange={(e) => onEditingLocalSaleIdChange?.(e.target.value)}
+              placeholder="Ex: 10452 ou PV-99"
+              className="w-full px-2.5 py-1 rounded-xl text-xs font-mono font-medium bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.08] dark:border-white/[0.1] text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0071E3]/30 transition-all"
+            />
+            {onSaveLocalSaleId && (
+              <button
+                type="button"
+                onClick={onSaveLocalSaleId}
+                title="Salvar ID do Sistema Local no Pedido"
+                className="px-2.5 py-1 rounded-xl bg-[#0071E3] hover:bg-[#0077ED] active:scale-[0.98] text-white text-xs font-medium transition-all shadow-sm cursor-pointer flex items-center space-x-1 shrink-0"
+              >
+                <Save className="h-3 w-3" />
+                <span>Salvar</span>
+              </button>
+            )}
+          </div>
+          {order.localSaleId && (
+            <p className="text-[10px] text-slate-400 font-mono">
+              Registrado no ERP: <strong className="text-slate-700 dark:text-slate-200">#{order.localSaleId}</strong>
+            </p>
+          )}
+        </div>
       </div>
     );
   }

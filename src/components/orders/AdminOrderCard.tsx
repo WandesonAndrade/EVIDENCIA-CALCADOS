@@ -14,15 +14,19 @@ interface Props {
   order: Order;
   isDark: boolean;
   editingFreight?: string;
+  editingLocalSaleId?: string;
   onStatusChange: (orderId: string, status: OrderStatus) => void;
   onFreightChange: (orderId: string, val: string) => void;
   onFreightSave: (orderId: string) => void;
+  onLocalSaleIdChange?: (orderId: string, val: string) => void;
+  onLocalSaleIdSave?: (orderId: string) => void;
   onDelete: (orderId: string) => void;
 }
 
 export const AdminOrderCard: React.FC<Props> = ({
-  order, isDark, editingFreight,
-  onStatusChange, onFreightChange, onFreightSave, onDelete,
+  order, isDark, editingFreight, editingLocalSaleId,
+  onStatusChange, onFreightChange, onFreightSave,
+  onLocalSaleIdChange, onLocalSaleIdSave, onDelete,
 }) => {
   const isStorePickup = order.deliveryType === 'Retirada na Loja';
 
@@ -41,6 +45,15 @@ export const AdminOrderCard: React.FC<Props> = ({
           <span className="font-mono text-xs font-semibold px-2.5 py-1 rounded-xl bg-black/[0.03] dark:bg-white/[0.06] text-slate-700 dark:text-slate-200 border border-black/[0.05] dark:border-white/[0.08]">
             #{order.orderNumber || order.id}
           </span>
+
+          {order.localSaleId && (
+            <span
+              className="font-mono text-xs font-semibold px-2.5 py-1 rounded-xl bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 flex items-center space-x-1"
+              title="ID da Venda vinculada no Sistema Local / ERP"
+            >
+              <span>🖥️ ERP: #{order.localSaleId}</span>
+            </span>
+          )}
 
           {/* Seletor Customizado de Etapa Apple Style (sem o select nativo feio) */}
           <AdminStageSelector
@@ -91,6 +104,9 @@ export const AdminOrderCard: React.FC<Props> = ({
           order={order}
           isDark={isDark}
           variant="admin"
+          editingLocalSaleId={editingLocalSaleId}
+          onEditingLocalSaleIdChange={(val) => onLocalSaleIdChange?.(order.id, val)}
+          onSaveLocalSaleId={() => onLocalSaleIdSave?.(order.id)}
         />
         <ShippingInfoCard order={order} isDark={isDark} variant="admin" />
         <FreightStatusCard

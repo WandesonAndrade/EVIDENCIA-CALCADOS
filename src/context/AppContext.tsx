@@ -60,6 +60,7 @@ interface AppContextProps {
   updateOrderStatus: (orderId: string, status: Order['status']) => Promise<void>;
   updateOrderPaymentStatus: (orderId: string, paymentStatus: PaymentStatus) => Promise<void>;
   updateOrderFreight: (orderId: string, freightCost: number) => Promise<void>;
+  updateOrderLocalSaleId: (orderId: string, localSaleId: string) => Promise<void>;
   assignOrderSeller: (orderId: string, sellerEmail: string, sellerName: string) => Promise<void>;
   deleteOrder: (orderId: string) => Promise<void>;
   clearLocalOrders: () => void;
@@ -2094,6 +2095,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const updateOrderLocalSaleId = async (orderId: string, localSaleId: string) => {
+    let targetOrder: Order | undefined;
+    setOrders(prev => {
+      const pool = prev.length > 0 ? prev : getLocalOrders();
+      const updated = pool.map(o => {
+        if (o.id === orderId) {
+          targetOrder = { ...o, localSaleId };
+          return targetOrder;
+        }
+        return o;
+      });
+      saveLocalOrders(updated);
+      return updated;
+    });
+
+    try {
+      const orderRef = doc(db, 'orders', orderId);
+      const fullOrder = targetOrder || orders.find(o => o.id === orderId) || getLocalOrders().find(o => o.id === orderId);
+      if (fullOrder && fullOrder.customerName) {
+        await setDoc(orderRef, cleanUndefinedProperties({ ...fullOrder, localSaleId }), { merge: true });
+      } else {
+        await setDoc(orderRef, { localSaleId }, { merge: true });
+      }
+    } catch (error) {
+      console.warn("Firestore order localSaleId update failed, updated locally:", error);
+    }
+  };
+
   const assignOrderSeller = async (orderId: string, sellerEmail: string, sellerName: string) => {
     // Update locally
     const localOrders = getLocalOrders();
@@ -2528,6 +2557,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateOrderStatus,
         updateOrderPaymentStatus,
         updateOrderFreight,
+        updateOrderLocalSaleId,
         assignOrderSeller,
         deleteOrder,
         clearLocalOrders,

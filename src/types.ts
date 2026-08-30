@@ -285,6 +285,7 @@ export interface Order {
   whatsappUrl: string;
   sellerEmail?: string;
   sellerName?: string;
+  localSaleId?: string;
 }
 
 export type UserRole = 'admin' | 'seller' | 'customer';
