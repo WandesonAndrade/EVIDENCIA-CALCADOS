@@ -1298,17 +1298,44 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       currentUser!,
       (fetchedOrders) => {
         // Quando o Firestore responde com sucesso, ele é a autoridade máxima.
-        // Se um pedido foi deletado do banco de dados, ele NÃO deve mais aparecer nem ser ressuscitado pelo cache local.
         fetchedOrders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
         setOrders(prevOrders => {
-          if (JSON.stringify(prevOrders) === JSON.stringify(fetchedOrders)) {
+          const cached = getLocalOrders();
+          const mergedOrders = fetchedOrders.map(fetched => {
+            const fallback = prevOrders.find(p => p.id === fetched.id) || cached.find(c => c.id === fetched.id);
+            if (fallback && (!fetched.customerName || !fetched.items || fetched.items.length === 0)) {
+              const healed: Order = {
+                ...fallback,
+                ...fetched,
+                customerName: fetched.customerName || fallback.customerName || 'Cliente',
+                customerEmail: fetched.customerEmail || fallback.customerEmail || '',
+                customerPhone: fetched.customerPhone || fallback.customerPhone || '',
+                customerCpf: fetched.customerCpf || fallback.customerCpf || '',
+                customerRg: fetched.customerRg || fallback.customerRg || '',
+                deliveryAddress: fetched.deliveryAddress || fallback.deliveryAddress || '',
+                deliveryType: fetched.deliveryType || fallback.deliveryType || 'Entrega em Caxias-MA',
+                items: (fetched.items && fetched.items.length > 0) ? fetched.items : (fallback.items || []),
+                total: fetched.total || fallback.total || 0,
+                subtotal: fetched.subtotal || fallback.subtotal || 0,
+                orderNumber: fetched.orderNumber || fallback.orderNumber || fetched.id,
+                createdAt: fetched.createdAt || fallback.createdAt || new Date().toISOString(),
+              };
+              // Sincroniza de volta no Firestore para curar o documento permanentemente
+              const orderDocRef = doc(db, 'orders', fetched.id);
+              setDoc(orderDocRef, cleanUndefinedProperties(healed), { merge: true }).catch(() => {});
+              return healed;
+            }
+            return fetched;
+          });
+
+          if (JSON.stringify(prevOrders) === JSON.stringify(mergedOrders)) {
             return prevOrders;
           }
-          return fetchedOrders;
+          saveLocalOrders(mergedOrders);
+          return mergedOrders;
         });
 
-        saveLocalOrders(fetchedOrders);
         setIsLoadingOrders(false);
       },
       (error) => {
@@ -1954,7 +1981,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Try Firestore
     try {
-      await setDoc(doc(db, 'orders', orderId), newOrder);
+      const sanitizedOrder = cleanUndefinedProperties(newOrder);
+      await setDoc(doc(db, 'orders', orderId), sanitizedOrder);
       for (const item of targetItems) {
         if (item.product.stockControl) {
           const prodRef = doc(db, 'products', item.product.id);
@@ -1975,57 +2003,90 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
 
   const updateOrderStatus = async (orderId: string, status: Order['status']) => {
-    // Update locally
-    const localOrders = getLocalOrders();
-    const updated = localOrders.map(o => o.id === orderId ? { ...o, status } : o);
-    saveLocalOrders(updated);
-    setOrders(updated);
+    let targetOrder: Order | undefined;
+    setOrders(prev => {
+      const pool = prev.length > 0 ? prev : getLocalOrders();
+      const updated = pool.map(o => {
+        if (o.id === orderId) {
+          targetOrder = { ...o, status };
+          return targetOrder;
+        }
+        return o;
+      });
+      saveLocalOrders(updated);
+      return updated;
+    });
 
-    // Try Firestore
     try {
       const orderRef = doc(db, 'orders', orderId);
-      await setDoc(orderRef, { status }, { merge: true });
+      const fullOrder = targetOrder || orders.find(o => o.id === orderId) || getLocalOrders().find(o => o.id === orderId);
+      if (fullOrder && fullOrder.customerName) {
+        await setDoc(orderRef, cleanUndefinedProperties({ ...fullOrder, status }), { merge: true });
+      } else {
+        await setDoc(orderRef, { status }, { merge: true });
+      }
     } catch (error) {
       console.warn("Firestore order status update failed, updated locally:", error);
     }
   };
 
   const updateOrderPaymentStatus = async (orderId: string, paymentStatus: PaymentStatus) => {
-    // Update locally
-    const localOrders = getLocalOrders();
-    const updated = localOrders.map(o => o.id === orderId ? { ...o, paymentStatus } : o);
-    saveLocalOrders(updated);
-    setOrders(updated);
+    let targetOrder: Order | undefined;
+    setOrders(prev => {
+      const pool = prev.length > 0 ? prev : getLocalOrders();
+      const updated = pool.map(o => {
+        if (o.id === orderId) {
+          targetOrder = { ...o, paymentStatus };
+          return targetOrder;
+        }
+        return o;
+      });
+      saveLocalOrders(updated);
+      return updated;
+    });
 
-    // Try Firestore
     try {
       const orderRef = doc(db, 'orders', orderId);
-      await setDoc(orderRef, { paymentStatus }, { merge: true });
+      const fullOrder = targetOrder || orders.find(o => o.id === orderId) || getLocalOrders().find(o => o.id === orderId);
+      if (fullOrder && fullOrder.customerName) {
+        await setDoc(orderRef, cleanUndefinedProperties({ ...fullOrder, paymentStatus }), { merge: true });
+      } else {
+        await setDoc(orderRef, { paymentStatus }, { merge: true });
+      }
     } catch (error) {
       console.warn("Firestore order payment status update failed, updated locally:", error);
     }
   };
 
   const updateOrderFreight = async (orderId: string, freightCost: number) => {
-    // Update locally first
-    const target = orders.find(o => o.id === orderId);
-    if (!target) return;
+    let targetOrder: Order | undefined;
+    setOrders(prev => {
+      const pool = prev.length > 0 ? prev : getLocalOrders();
+      const target = pool.find(o => o.id === orderId);
+      if (!target) return prev;
 
-    const subtotal = target.subtotal || target.items.reduce((s, i) => s + i.price * i.quantity, 0);
-    const newTotal = subtotal + freightCost;
-    const updates = {
-      freightCost,
-      total: newTotal
-    };
+      const subtotal = target.subtotal ?? target.items?.reduce((s, i) => s + (i.price || 0) * (i.quantity || 1), 0) ?? 0;
+      const newTotal = subtotal + freightCost;
 
-    const updated = orders.map(o => o.id === orderId ? { ...o, ...updates } : o);
-    saveLocalOrders(updated);
-    setOrders(updated);
+      const updated = pool.map(o => {
+        if (o.id === orderId) {
+          targetOrder = { ...o, freightCost, total: newTotal };
+          return targetOrder;
+        }
+        return o;
+      });
+      saveLocalOrders(updated);
+      return updated;
+    });
 
-    // Try Firestore
     try {
       const orderRef = doc(db, 'orders', orderId);
-      await setDoc(orderRef, updates, { merge: true });
+      const fullOrder = targetOrder || orders.find(o => o.id === orderId) || getLocalOrders().find(o => o.id === orderId);
+      if (fullOrder && fullOrder.customerName) {
+        await setDoc(orderRef, cleanUndefinedProperties(fullOrder), { merge: true });
+      } else {
+        await setDoc(orderRef, { freightCost }, { merge: true });
+      }
     } catch (error) {
       console.warn("Firestore order freight update failed, updated locally:", error);
     }

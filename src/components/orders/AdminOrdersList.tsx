@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { ShoppingBag, Search, User, CheckCircle2, ShieldCheck, ArrowUpRight, X, Layers } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { OrderStatus, PaymentStatus } from '../../types';
@@ -63,12 +63,20 @@ export const AdminOrdersList: React.FC<Props> = ({ isDark }) => {
     } else if (newStatus === 'Cancelado') {
       await updateOrderPaymentStatus(orderId, 'Recusado');
     }
+    // Se o filtro de etapa atual for diferente do novo status, voltamos para 'Todos' para o pedido permanecer na tela
+    if (ordersStatusFilter !== 'Todos' && ordersStatusFilter !== newStatus) {
+      setOrdersStatusFilter('Todos');
+    }
     addToast('Etapa Atualizada', `O pedido foi alterado para "${newStatus}".`, 'success');
   };
 
   const handlePaymentConfirm = async (orderId: string) => {
     const o = orders.find((x) => x.id === orderId);
     await updateOrderPaymentStatus(orderId, 'Confirmado');
+    // Se o filtro ativo era 'Pendente' ou 'Em Análise', voltamos para 'Todos' para o pedido não sumir da visualização
+    if (ordersPaymentFilter !== 'Todos' && ordersPaymentFilter !== 'Confirmado') {
+      setOrdersPaymentFilter('Todos');
+    }
     addToast('Pagamento Aprovado', `O pagamento do pedido #${o?.orderNumber || orderId} foi confirmado.`, 'success');
   };
 
