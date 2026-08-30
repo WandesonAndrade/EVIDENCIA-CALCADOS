@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
-import { Product, CartItem, Order, PaymentStatus, UserProfile, UserRole, CrediarioStatus, Category, MoblinkConfig, MoblinkSyncLog, MoblinkSyncLogItem, EvidenciaAuthSession, HeroBanner, HomeSectionConfig, AboutConfig, ContactConfig, StoreConfig, ViewMode, SaldaoConfig, PromoCampaign, Seller } from '../types';
+import { Product, CartItem, Order, PaymentStatus, OrderStatus, UserProfile, UserRole, CrediarioStatus, Category, MoblinkConfig, MoblinkSyncLog, MoblinkSyncLogItem, EvidenciaAuthSession, HeroBanner, HomeSectionConfig, AboutConfig, ContactConfig, StoreConfig, ViewMode, SaldaoConfig, PromoCampaign, Seller } from '../types';
 import { loadSaldaoConfig, saveSaldaoConfig, DEFAULT_SALDAO_CONFIG, getSaldaoProductPrice } from '../services/saldaoService';
 import { loadPromotionsFromLocalStorage, savePromotionsToLocalStorage, savePromotionToFirestore, deletePromotionFromFirestore, PROMOTIONS_COLLECTION, getApplicablePromotion } from '../services/promotionsService';
 import { loadSellersFromLocalStorage, saveSellersToLocalStorage, saveSellerToFirestore, deleteSellerFromFirestore, SELLERS_COLLECTION } from '../services/sellersService';
@@ -53,7 +53,7 @@ interface AppContextProps {
 
   orders: Order[];
   isLoadingOrders: boolean;
-  createOrder: (customerName: string, customerEmail: string, options?: { paymentMethod?: 'Pix' | 'Cartão de Crédito' | 'Cartão de Débito' | 'Crediário da Loja'; deliveryType?: 'Entrega em Caxias-MA' | 'Entrega para Outras Cidades' | 'Retirada na Loja'; installments?: number; customerPhone?: string; deliveryAddress?: string; sellerName?: string; sellerEmail?: string; overrideItems?: any[] }) => Promise<Order>;
+  createOrder: (customerName: string, customerEmail: string, options?: { paymentMethod?: 'Pix' | 'Cartão de Crédito' | 'Cartão de Débito' | 'Crediário da Loja'; deliveryType?: 'Entrega em Caxias-MA' | 'Entrega para Outras Cidades' | 'Retirada na Loja'; installments?: number; customerPhone?: string; deliveryAddress?: string; sellerName?: string; sellerEmail?: string; overrideItems?: any[]; paymentStatus?: PaymentStatus; status?: OrderStatus }) => Promise<Order>;
   solicitarCrediario: (dados: Partial<UserProfile>) => Promise<void>;
   atualizarStatusCrediario: (uid: string, novoStatus: CrediarioStatus, motivo?: string) => Promise<void>;
   updateUserCashback: (uid: string, cashbackBalance: number, cashbackValidUntil: string) => Promise<void>;
@@ -1783,6 +1783,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       overrideItems?: CartItem[];
       sellerName?: string;
       sellerEmail?: string;
+      paymentStatus?: PaymentStatus;
+      status?: OrderStatus;
     }
   ): Promise<Order> => {
     const targetItems = options?.overrideItems && options.overrideItems.length > 0 ? options.overrideItems : cart;
@@ -1914,9 +1916,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       cashbackDiscount,
       total: grandTotal,
       paymentMethod,
-      paymentStatus: 'Pendente',
+      paymentStatus: options?.paymentStatus || 'Pendente',
       installments,
-      status: 'Pendente',
+      status: options?.status || (options?.paymentStatus === 'Confirmado' ? 'Confirmado' : 'Pendente'),
       createdAt: new Date().toISOString(),
       whatsappUrl,
       sellerName: options?.sellerName || '',

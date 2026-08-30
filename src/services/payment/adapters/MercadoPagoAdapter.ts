@@ -27,6 +27,16 @@ const fetchWithTimeout = async (url: string, options: RequestInit, timeoutMs = 8
 const translateStatusDetail = (detail?: string): string => {
   if (!detail) return 'Pagamento não autorizado pela operadora do cartão. Por favor, revise os dados ou tente outro cartão.';
   const map: Record<string, string> = {
+    // Aprovado
+    accredited: 'Pagamento aprovado com sucesso!',
+
+    // Pendente / Em Análise
+    pending_contingency: 'Estamos processando o pagamento com a operadora do seu cartão. O pedido foi registrado e será atualizado assim que a análise for concluída.',
+    pending_review_manual: 'Seu pagamento está em análise preventiva de segurança. O pedido foi registrado e será atualizado em breve.',
+    pending_waiting_payment: 'Aguardando confirmação do pagamento.',
+    pending_waiting_transfer: 'Aguardando transferência do valor.',
+
+    // Recusados
     cc_rejected_other_reason: 'Transação não autorizada pela operadora do cartão. Verifique os dados ou tente outra forma de pagamento.',
     cc_rejected_insufficient_amount: 'Cartão recusado por saldo ou limite insuficiente.',
     cc_rejected_bad_filled_security_code: 'Código de segurança (CVV) incorreto. Por favor, verifique o verso do cartão.',
@@ -37,8 +47,9 @@ const translateStatusDetail = (detail?: string): string => {
     cc_rejected_duplicated_payment: 'Pagamento idêntico identificado recentemente. Aguarde alguns instantes antes de tentar novamente.',
     cc_rejected_high_risk: 'Transação não autorizada pela análise de segurança. Recomendamos utilizar o pagamento via Pix.',
     cc_rejected_max_attempts: 'Limite de tentativas excedido para este cartão. Por favor, utilize outro cartão ou Pix.',
+    cc_rejected_blacklist: 'Não foi possível processar o pagamento com este cartão. Tente outro cartão ou Pix.',
   };
-  return map[detail] || `Pagamento não aprovado: ${detail}`;
+  return map[detail] || `Status do pagamento: ${detail}`;
 };
 
 export class MercadoPagoAdapter implements IPaymentGateway {
@@ -263,12 +274,18 @@ export class MercadoPagoAdapter implements IPaymentGateway {
 
         if (mpRes.ok && data.id) {
           const isApproved = data.status === 'approved';
+          const isInProcess = data.status === 'in_process';
+          const isPending = data.status === 'pending';
+          const isSuccess = isApproved || isInProcess || isPending;
+
           return {
-            success: isApproved,
+            success: isSuccess,
             paymentId: data.id,
             status: data.status,
             statusDetail: data.status_detail,
-            message: isApproved ? 'Pagamento com Cartão Aprovado com Sucesso!' : translateStatusDetail(data.status_detail || data.status),
+            message: isApproved
+              ? 'Pagamento com Cartão Aprovado com Sucesso!'
+              : translateStatusDetail(data.status_detail || data.status),
             provider: this.providerName,
             rawProviderData: data,
           };
@@ -370,12 +387,18 @@ export class MercadoPagoAdapter implements IPaymentGateway {
 
         if (mpRes.ok && data.id) {
           const isApproved = data.status === 'approved';
+          const isInProcess = data.status === 'in_process';
+          const isPending = data.status === 'pending';
+          const isSuccess = isApproved || isInProcess || isPending;
+
           return {
-            success: isApproved,
+            success: isSuccess,
             paymentId: data.id,
             status: data.status,
             statusDetail: data.status_detail,
-            message: isApproved ? 'Pagamento no Débito Aprovado com Sucesso!' : translateStatusDetail(data.status_detail || data.status),
+            message: isApproved
+              ? 'Pagamento no Débito Aprovado com Sucesso!'
+              : translateStatusDetail(data.status_detail || data.status),
             provider: this.providerName,
             rawProviderData: data,
           };

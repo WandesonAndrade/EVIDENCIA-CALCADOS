@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { UserProfile, SavedAddress } from '../types';
+import { UserProfile, SavedAddress, PaymentStatus } from '../types';
 import { firebaseAuthService } from '../services/firebaseAuthService';
 import { CompleteProfileModal } from './CompleteProfileModal';
 import { PaymentForm } from './PaymentForm';
@@ -242,7 +242,7 @@ export const CheckoutPage: React.FC = () => {
     };
   });
 
-  const handleConfirmOrder = async (pixPaymentId?: number | string) => {
+  const handleConfirmOrder = async (pixPaymentId?: number | string, customPaymentStatus?: PaymentStatus) => {
     const selectedInstallments = paymentMethod === 'Cartão de Crédito' 
       ? installments 
       : (paymentMethod === 'Crediário da Loja' ? crediarioInstallments : 1);
@@ -257,13 +257,20 @@ export const CheckoutPage: React.FC = () => {
 
     try {
       setIsProcessing(true);
+      const determinedPaymentStatus: PaymentStatus = customPaymentStatus || (
+        paymentMethod === 'Pix' ? 'Pendente' : (paymentMethod === 'Crediário da Loja' ? 'Pendente' : 'Confirmado')
+      );
+      const determinedStatus = determinedPaymentStatus === 'Confirmado' ? 'Confirmado' : 'Pendente';
+
       const order = await createOrder(currentUser.name, currentUser.email, {
         paymentMethod,
         deliveryType,
         installments: selectedInstallments,
         sellerName: selectedSellerName !== 'Atendimento Direto da Loja' ? selectedSellerName : undefined,
         customerPhone: currentUser.telefone || '',
-        deliveryAddress: formattedAddress
+        deliveryAddress: formattedAddress,
+        paymentStatus: determinedPaymentStatus,
+        status: determinedStatus,
       });
 
       setCreatedOrder(order);
@@ -601,7 +608,7 @@ export const CheckoutPage: React.FC = () => {
                     externalReference={`ped_${Date.now()}`}
                     isDark={isDark}
                     onActiveTabChange={(tab) => setOnlineTab(tab)}
-                    onPaymentApproved={(details) => handleConfirmOrder(details.paymentId)}
+                    onPaymentApproved={(details) => handleConfirmOrder(details.paymentId, details.status)}
                     onPaymentFailed={(err) => console.error("Payment failed", err)}
                   />
                   {/* Info para o usuário que Cartão é preenchido e já confirmado ali dentro (o brick tem botão próprio) */}

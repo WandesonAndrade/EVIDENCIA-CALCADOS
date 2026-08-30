@@ -29,7 +29,7 @@ interface PaymentFormProps {
   cpfCliente?: string;
   externalReference?: string;
   isDark?: boolean;
-  onPaymentApproved: (details: { method: string; paymentId: string | number; installments?: number }) => void;
+  onPaymentApproved: (details: { method: string; paymentId: string | number; installments?: number; status?: 'Confirmado' | 'Em Análise' }) => void;
   onPaymentFailed?: (errorMsg: string) => void;
   onActiveTabChange?: (tab: 'pix' | 'credit') => void;
 }
@@ -75,6 +75,7 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({
   const [pixPaymentId, setPixPaymentId] = useState<string | number | null>(null);
   const [copiedPix, setCopiedPix] = useState(false);
   const [isGeneratingPix, setIsGeneratingPix] = useState(false);
+  const isTestMode = Boolean((import.meta.env.VITE_MERCADO_PAGO_PUBLIC_KEY || '').startsWith('TEST-'));
 
   // Formatação do Número do Cartão (0000 0000 0000 0000)
   const handleCardNumberChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -275,7 +276,13 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({
       });
 
       if (res.success) {
-        setSuccessMessage('🎉 Pagamento Aprovado com Sucesso!');
+        const isApproved = res.status === 'approved';
+
+        if (isApproved) {
+          setSuccessMessage('🎉 Pagamento Aprovado com Sucesso!');
+        } else {
+          setSuccessMessage(`⏳ ${res.message || 'Pagamento em Análise: Seu pedido foi registrado!'}`);
+        }
 
         bankMigrationService.recordTransaction({
           orderId: externalReference || `ped_${Date.now()}`,
@@ -283,7 +290,7 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({
           provider: res.provider || 'Mercado Pago',
           amount: grandTotal,
           method: 'credit_card',
-          status: 'approved',
+          status: isApproved ? 'approved' : 'pending',
           idempotencyKey,
         });
 
@@ -292,8 +299,9 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({
             method: 'Cartão de Crédito',
             paymentId: res.paymentId,
             installments,
+            status: isApproved ? 'Confirmado' : 'Em Análise',
           });
-        }, 1200);
+        }, 1500);
       } else {
         const errorText = res.message || 'Transação recusada pela administradora do cartão.';
         setErrorMessage(errorText);
@@ -369,6 +377,31 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({
       {/* CONTEÚDO DA ABA CARTÃO DE CRÉDITO */}
       {activeTab === 'credit' && (
         <form onSubmit={handleSubmitCreditCard} className="space-y-4">
+          {isTestMode && (
+            <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300 text-xs space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="font-semibold flex items-center gap-1.5">
+                  🧪 Modo Teste (Sandbox) Ativo
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCardNumber('5031 7557 3453 0451');
+                    setCardName('APRO TESTE');
+                    setCardExpiry('12/30');
+                    setCardCvv('123');
+                    setCardBrand('master');
+                  }}
+                  className="px-2.5 py-1 rounded-full bg-amber-500/20 hover:bg-amber-500/30 text-amber-800 dark:text-amber-200 font-semibold text-[10px] cursor-pointer transition-colors"
+                >
+                  Preencher Cartão Aprovado
+                </button>
+              </div>
+              <p className="text-[11px] opacity-85 leading-tight">
+                Em modo teste do Mercado Pago, utilize o cartão de teste com aprovação imediata ou clique no botão acima para preencher.
+              </p>
+            </div>
+          )}
           <div>
             <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
               Número do Cartão
