@@ -38,9 +38,9 @@ export const OrderHistory: React.FC = () => {
   };
 
   return (
-    <div id="order-history-page" className="max-w-5xl mx-auto px-4 py-8 space-y-8">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b pb-6 border-black/[0.06] dark:border-white/[0.08]">
+    <div id="order-history-page" className="max-w-5xl mx-auto px-4 py-8 space-y-6">
+      {/* Header da Página */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-3 pb-5 border-b border-black/[0.06] dark:border-white/[0.08]">
         <div className="space-y-1">
           <h2 className="text-2xl sm:text-3xl font-bold tracking-tight flex items-center space-x-2.5 text-slate-900 dark:text-white">
             <ReceiptText className="h-7 w-7 text-[#0071E3] dark:text-[#0A84FF]" />
@@ -50,29 +50,29 @@ export const OrderHistory: React.FC = () => {
             Acompanhe o status, rastreio e histórico das suas compras em tempo real.
           </p>
         </div>
-        <div className="px-3.5 py-1.5 rounded-full bg-black/[0.03] dark:bg-white/[0.06] text-slate-700 dark:text-slate-300 font-semibold text-xs border border-black/[0.06] dark:border-white/[0.08]">
+        <div className="px-3.5 py-1 rounded-full bg-black/[0.03] dark:bg-white/[0.06] text-slate-700 dark:text-slate-300 font-semibold text-xs border border-black/[0.06] dark:border-white/[0.08]">
           Total de Pedidos: <span className="font-mono font-bold text-[#0071E3] dark:text-[#0A84FF]">{orders.length}</span>
         </div>
       </div>
 
       {isLoadingOrders && orders.length === 0 ? (
-        <div className="space-y-6">
+        <div className="space-y-5">
           {[1, 2, 3].map(i => (
-            <div key={i} className="h-48 rounded-3xl bg-black/[0.04] dark:bg-white/[0.04] animate-pulse" />
+            <div key={i} className="h-44 rounded-3xl bg-black/[0.04] dark:bg-white/[0.04] animate-pulse" />
           ))}
         </div>
       ) : orders.length === 0 ? (
         <div className="text-center py-20 px-4">
-          <div className="bg-black/[0.03] dark:bg-white/[0.05] w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6">
-            <ShoppingBag className="h-10 w-10 text-[#0071E3] opacity-80" />
+          <div className="bg-black/[0.03] dark:bg-white/[0.05] w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-5">
+            <ShoppingBag className="h-9 w-9 text-[#0071E3] opacity-80" />
           </div>
           <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Nenhum pedido encontrado</h3>
-          <p className="text-sm text-slate-500 dark:text-[#86868B] max-w-sm mx-auto mb-8 font-normal">
+          <p className="text-sm text-slate-500 dark:text-[#86868B] max-w-sm mx-auto mb-7 font-normal">
             Você ainda não realizou nenhuma compra. Explore nosso catálogo e encontre o calçado perfeito!
           </p>
           <button
             onClick={() => setCurrentView('category-page')}
-            className="inline-flex items-center justify-center px-8 py-3 rounded-full bg-[#0071E3] hover:bg-[#0077ED] active:scale-[0.98] text-white font-medium text-sm transition-all shadow-sm cursor-pointer"
+            className="inline-flex items-center justify-center px-7 py-2.5 rounded-full bg-[#0071E3] hover:bg-[#0077ED] active:scale-[0.98] text-white font-medium text-sm transition-all shadow-sm cursor-pointer"
           >
             Explorar Catálogo
           </button>
@@ -92,46 +92,49 @@ export const OrderHistory: React.FC = () => {
                 key={order.id}
                 className="border border-black/[0.06] dark:border-white/[0.08] rounded-3xl overflow-hidden bg-white dark:bg-[#161617]/90 shadow-[0_2px_16px_rgba(0,0,0,0.03)] backdrop-blur-xl transition-all"
               >
-                {/* CABEÇALHO DO CARD (Apple Card Style) */}
-                <div className="p-5 sm:p-6 border-b border-black/[0.04] dark:border-white/[0.06] flex flex-col md:flex-row md:items-center justify-between gap-4 bg-black/[0.015] dark:bg-white/[0.015]">
-                  <div className="space-y-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-mono text-xs font-bold text-slate-800 dark:text-slate-200 bg-black/[0.04] dark:bg-white/[0.06] px-2.5 py-1 rounded-xl border border-black/[0.05] dark:border-white/[0.08]">
-                        {displayOrderNumber}
-                      </span>
-                      <OrderStatusBadge status={order.status} isDark={isDark} size="sm" />
-                      <PaymentStatusBadge status={order.paymentStatus} variant="client" size="sm" />
-                      
-                      {isOtherCities && (
-                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-medium border ${
-                          isPendingFreight
-                            ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20 animate-pulse'
-                            : 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20'
-                        }`}>
-                          {isPendingFreight ? 'Frete: A Combinar' : `Frete: R$ ${formatCurrency(order.freightCost)}`}
-                        </span>
-                      )}
+                {/* CABEÇALHO DO CARD (Apple Unified Header) */}
+                <div className="px-5 sm:px-6 py-4 border-b border-black/[0.04] dark:border-white/[0.06] flex flex-wrap items-center justify-between gap-3.5 bg-black/[0.015] dark:bg-white/[0.015]">
+                  <div className="flex flex-wrap items-center gap-2.5">
+                    <span className="font-mono text-xs font-bold text-slate-800 dark:text-slate-200 bg-black/[0.04] dark:bg-white/[0.06] px-2.5 py-1 rounded-xl border border-black/[0.05] dark:border-white/[0.08]">
+                      {displayOrderNumber}
+                    </span>
+
+                    <div className="flex items-center space-x-1.5 text-xs text-slate-500 dark:text-[#86868B] font-normal">
+                      <Calendar className="h-3.5 w-3.5 opacity-60" />
+                      <span>{formatDateBR(order.createdAt)}</span>
                     </div>
 
-                    <div className="flex items-center space-x-2 text-xs text-slate-500 dark:text-[#86868B] font-normal">
-                      <Calendar className="h-3.5 w-3.5 text-slate-400" />
-                      <span>Realizado em {formatDateBR(order.createdAt)}</span>
-                    </div>
+                    <div className="h-3.5 w-[1px] bg-black/[0.08] dark:bg-white/[0.1] hidden sm:block" />
+
+                    <OrderStatusBadge status={order.status} isDark={isDark} size="sm" />
+                    <PaymentStatusBadge status={order.paymentStatus} variant="client" size="sm" />
+
+                    {isOtherCities && (
+                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-medium border ${
+                        isPendingFreight
+                          ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20 animate-pulse'
+                          : 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20'
+                      }`}>
+                        {isPendingFreight ? 'Frete: A Combinar' : `Frete: R$ ${formatCurrency(order.freightCost)}`}
+                      </span>
+                    )}
                   </div>
 
-                  <div className="flex items-center justify-between md:justify-end space-x-4">
-                    <div className="text-left md:text-right">
+                  <div className="flex items-center space-x-3.5">
+                    <div className="text-right">
                       <span className="text-[10px] font-medium uppercase tracking-wider text-[#86868B] block leading-tight">
-                        Total do Pedido
+                        Total Pedido
                       </span>
-                      <span className="text-lg sm:text-xl font-bold font-mono tracking-tight text-[#0071E3] dark:text-[#0A84FF]">
+                      <span className="text-base sm:text-lg font-bold font-mono tracking-tight text-[#0071E3] dark:text-[#0A84FF]">
                         R$ {formatCurrency(order.total)}
                       </span>
                     </div>
 
+                    <div className="h-6 w-[1px] bg-black/[0.06] dark:bg-white/[0.08]" />
+
                     <button
                       onClick={() => toggleExpand(order.id)}
-                      className="px-3 py-1.5 rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1D1D1F] hover:bg-black/[0.03] dark:hover:bg-white/[0.05] text-xs font-medium text-slate-700 dark:text-slate-200 transition-all cursor-pointer flex items-center space-x-1.5"
+                      className="px-3 py-1.5 rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1D1D1F] hover:bg-black/[0.03] dark:hover:bg-white/[0.05] text-xs font-medium text-slate-700 dark:text-slate-200 transition-all cursor-pointer flex items-center space-x-1.5 shadow-2xs"
                       title={isExpanded ? "Ocultar itens comprados" : "Ver itens comprados"}
                     >
                       <span>{isExpanded ? 'Ocultar Itens' : 'Ver Itens'}</span>
@@ -181,14 +184,14 @@ export const OrderHistory: React.FC = () => {
                 )}
 
                 {/* DETALHES DE ENVIO E PAGAMENTO (GRID BALANCEADA EM 2 COLUNAS) */}
-                <div className="p-5 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch text-xs">
+                <div className="p-5 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-4 items-start text-xs">
                   <ShippingInfoCard order={order} isDark={isDark} variant="client" />
                   <PaymentInfoCard order={order} isDark={isDark} variant="client" />
                 </div>
 
                 {/* LISTA EXPANSÍVEL DE PRODUTOS */}
                 {isExpanded && (
-                  <div className="border-t border-black/[0.04] dark:border-white/[0.06]">
+                  <div className="px-5 sm:px-6 pb-5 pt-1 border-t border-black/[0.04] dark:border-white/[0.06]">
                     <OrderItemsGrid
                       items={order.items || []}
                       isDark={isDark}
@@ -199,7 +202,7 @@ export const OrderHistory: React.FC = () => {
                 )}
 
                 {/* AÇÕES INFERIORES: ACOMPANHAMENTO WHATSAPP */}
-                <div className="p-4 sm:px-6 border-t border-black/[0.04] dark:border-white/[0.06] flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-black/[0.01] dark:bg-white/[0.01]">
+                <div className="px-5 sm:px-6 py-3.5 border-t border-black/[0.04] dark:border-white/[0.06] flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-black/[0.01] dark:bg-white/[0.01]">
                   {order.status === 'Entregue' ? (
                     <div className="flex items-center space-x-2 text-emerald-700 dark:text-emerald-400 font-medium text-xs">
                       <CheckCircle2 className="h-4 w-4 text-emerald-600" />

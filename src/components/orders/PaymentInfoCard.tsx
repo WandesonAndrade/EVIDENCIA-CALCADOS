@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { CreditCard, Zap, FileText, ShieldCheck, Copy, Check, Save, Receipt, Edit2, X } from 'lucide-react';
 import { Order } from '../../types';
 import { PaymentStatusBadge } from './PaymentStatusBadge';
@@ -203,9 +203,9 @@ export const PaymentInfoCard: React.FC<Props> = ({
     );
   }
 
-  // Client variant
+  // Client variant - Apple Compact & Natural Spacing
   return (
-    <div className="p-4 rounded-2xl bg-black/[0.02] dark:bg-white/[0.02] border border-black/[0.04] dark:border-white/[0.06] space-y-3">
+    <div className="p-5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.02] border border-black/[0.04] dark:border-white/[0.06] space-y-3.5">
       <div className="flex items-center justify-between">
         <span className="text-[10px] font-medium uppercase tracking-wider text-[#86868B] flex items-center space-x-1.5">
           <MethodIcon className="h-3.5 w-3.5 text-[#0071E3] dark:text-[#0A84FF]" />
