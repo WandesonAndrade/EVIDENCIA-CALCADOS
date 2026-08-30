@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { AuthScreen } from './AuthScreen';
 import { ShoppingBag, MessageSquare, Calendar, ExternalLink, ReceiptText, ChevronDown, ChevronUp, CheckCircle2, Store } from 'lucide-react';

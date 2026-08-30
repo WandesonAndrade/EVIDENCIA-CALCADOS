@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { Truck, MapPin, Store, Clock, CheckCircle2 } from 'lucide-react';
 import { Order } from '../../types';
 import { formatCurrency } from '../../utils/orderUtils';
