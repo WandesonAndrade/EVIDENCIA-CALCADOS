@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { Truck, MapPin, Store, Clock } from 'lucide-react';
 import { Order } from '../../types';
 
@@ -14,8 +14,9 @@ export const ShippingInfoCard: React.FC<Props> = ({ order, isDark: _isDark, vari
 
   if (variant === 'admin') {
     return (
-      <div className="p-3.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.02] border border-black/[0.04] dark:border-white/[0.06] space-y-3">
-        {/* Header Apple Maps / Store */}
+      <div className="h-full flex flex-col justify-between p-4 rounded-2xl bg-black/[0.02] dark:bg-white/[0.02] border border-black/[0.04] dark:border-white/[0.06] space-y-3">
+        <div className="space-y-2.5">
+          {/* Header Apple Maps / Store */}
         <div className="flex items-center space-x-2">
           <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
             isStorePickup
@@ -54,6 +55,7 @@ export const ShippingInfoCard: React.FC<Props> = ({ order, isDark: _isDark, vari
               <span>Cliente retira no balcão da loja</span>
             </span>
           )}
+        </div>
         </div>
       </div>
     );

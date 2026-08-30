@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { ExternalLink, MessageCircle } from 'lucide-react';
 import { Order } from '../../types';
 import { buildWhatsAppUrl } from '../../utils/orderUtils';
@@ -19,8 +19,9 @@ export const CustomerInfoCard: React.FC<Props> = ({ order, isDark: _isDark }) =>
   const initials = getInitials(order.customerName);
 
   return (
-    <div className="p-3.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.02] border border-black/[0.04] dark:border-white/[0.06] space-y-3">
-      {/* Header com Monograma Apple */}
+    <div className="h-full flex flex-col justify-between p-4 rounded-2xl bg-black/[0.02] dark:bg-white/[0.02] border border-black/[0.04] dark:border-white/[0.06] space-y-3">
+      <div className="space-y-2.5">
+        {/* Header com Monograma Apple */}
       <div className="flex items-center space-x-2.5">
         <div className="w-8 h-8 rounded-full bg-[#0071E3]/10 dark:bg-[#0A84FF]/15 text-[#0071E3] dark:text-[#0A84FF] border border-[#0071E3]/20 flex items-center justify-center font-semibold text-xs shrink-0 select-none">
           {initials}
@@ -58,6 +59,7 @@ export const CustomerInfoCard: React.FC<Props> = ({ order, isDark: _isDark }) =>
         ) : (
           <p className="text-slate-400 dark:text-slate-600 text-[11px]">Telefone não cadastrado</p>
         )}
+      </div>
       </div>
 
       {/* Documentos (CPF / RG) */}

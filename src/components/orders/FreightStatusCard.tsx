@@ -23,8 +23,9 @@ export const FreightStatusCard: React.FC<Props> = ({
 
   if (variant === 'admin') {
     return (
-      <div className="p-3.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.02] border border-black/[0.04] dark:border-white/[0.06] space-y-3">
-        {/* Header Apple Financial */}
+      <div className="h-full flex flex-col justify-between p-4 rounded-2xl bg-black/[0.02] dark:bg-white/[0.02] border border-black/[0.04] dark:border-white/[0.06] space-y-3">
+        <div className="space-y-2.5">
+          {/* Header Apple Financial */}
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <div className="w-8 h-8 rounded-full bg-slate-500/10 text-slate-700 dark:text-slate-300 flex items-center justify-center shrink-0">
@@ -92,6 +93,7 @@ export const FreightStatusCard: React.FC<Props> = ({
             </div>
           </div>
         )}
+        </div>
 
         {/* Resumo Financeiro Apple Clean */}
         <div className="pt-2 border-t border-black/[0.04] dark:border-white/[0.06] space-y-1 text-[11px]">

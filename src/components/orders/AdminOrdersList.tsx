@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ShoppingBag, Search, User, CheckCircle2, ShieldCheck, ArrowUpRight, X, Layers } from 'lucide-react';
+import { ShoppingBag, Search, User, CheckCircle2, ShieldCheck, ArrowUpRight, X, Layers, ChevronDown } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { OrderStatus, PaymentStatus } from '../../types';
 import { AdminOrderCard } from './AdminOrderCard';
@@ -227,16 +227,17 @@ export const AdminOrdersList: React.FC<Props> = ({ isDark }) => {
         </div>
 
         {/* Segmented Selectors */}
+        {/* Segmented Selectors */}
         <div className="flex flex-wrap items-center gap-2 text-xs">
           {/* Etapa */}
-          <div className="flex items-center space-x-1 px-2.5 py-1 rounded-xl bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.06] dark:border-white/[0.08]">
-            <span className="text-[10px] text-[#86868B] font-medium uppercase tracking-wider">
+          <div className="relative flex items-center px-3 py-1 rounded-xl bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.06] dark:border-white/[0.08] hover:border-black/[0.12] dark:hover:border-white/[0.15] transition-colors">
+            <span className="text-[10px] text-[#86868B] font-medium uppercase tracking-wider mr-1.5 shrink-0">
               Etapa:
             </span>
             <select
               value={ordersStatusFilter}
               onChange={(e) => setOrdersStatusFilter(e.target.value as any)}
-              className="bg-transparent text-xs font-medium text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer py-1"
+              className="appearance-none bg-transparent text-xs font-medium text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer py-1 pr-5"
             >
               <option value="Todos">Todas</option>
               <option value="Pendente">1. Pedido Recebido</option>
@@ -245,17 +246,18 @@ export const AdminOrdersList: React.FC<Props> = ({ isDark }) => {
               <option value="Entregue">4. Entregue</option>
               <option value="Cancelado">Cancelado</option>
             </select>
+            <ChevronDown className="h-3 w-3 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
           </div>
 
           {/* Pagamento */}
-          <div className="flex items-center space-x-1 px-2.5 py-1 rounded-xl bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.06] dark:border-white/[0.08]">
-            <span className="text-[10px] text-[#86868B] font-medium uppercase tracking-wider">
+          <div className="relative flex items-center px-3 py-1 rounded-xl bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.06] dark:border-white/[0.08] hover:border-black/[0.12] dark:hover:border-white/[0.15] transition-colors">
+            <span className="text-[10px] text-[#86868B] font-medium uppercase tracking-wider mr-1.5 shrink-0">
               Pagamento:
             </span>
             <select
               value={ordersPaymentFilter}
               onChange={(e) => setOrdersPaymentFilter(e.target.value as any)}
-              className="bg-transparent text-xs font-medium text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer py-1"
+              className="appearance-none bg-transparent text-xs font-medium text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer py-1 pr-5"
             >
               <option value="Todos">Todos</option>
               <option value="Pendente">Pendente</option>
@@ -263,17 +265,18 @@ export const AdminOrdersList: React.FC<Props> = ({ isDark }) => {
               <option value="Confirmado">Aprovado</option>
               <option value="Recusado">Recusado</option>
             </select>
+            <ChevronDown className="h-3 w-3 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
           </div>
 
           {/* Vendedor */}
-          <div className="flex items-center space-x-1 px-2.5 py-1 rounded-xl bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.06] dark:border-white/[0.08]">
-            <span className="text-[10px] text-[#86868B] font-medium uppercase tracking-wider">
+          <div className="relative flex items-center px-3 py-1 rounded-xl bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.06] dark:border-white/[0.08] hover:border-black/[0.12] dark:hover:border-white/[0.15] transition-colors">
+            <span className="text-[10px] text-[#86868B] font-medium uppercase tracking-wider mr-1.5 shrink-0">
               Vendedor:
             </span>
             <select
               value={ordersSellerFilter}
               onChange={(e) => setOrdersSellerFilter(e.target.value)}
-              className="bg-transparent text-xs font-medium text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer py-1"
+              className="appearance-none bg-transparent text-xs font-medium text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer py-1 pr-5"
             >
               <option value="Todos">Todos</option>
               {sellersList.map((sellerName) => (
@@ -282,6 +285,7 @@ export const AdminOrdersList: React.FC<Props> = ({ isDark }) => {
                 </option>
               ))}
             </select>
+            <ChevronDown className="h-3 w-3 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
           </div>
         </div>
       </div>

@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { Trash2, User, Calendar } from 'lucide-react';
 import { Order, OrderStatus } from '../../types';
 import { CustomerInfoCard } from './CustomerInfoCard';
@@ -8,7 +8,7 @@ import { FreightStatusCard } from './FreightStatusCard';
 import { OrderItemsGrid } from './OrderItemsGrid';
 import { AdminStageSelector } from './AdminStageSelector';
 import { AdminStageStepper } from './AdminStageStepper';
-import { formatDateBR } from '../../utils/orderUtils';
+import { formatDateBR, formatCurrency } from '../../utils/orderUtils';
 
 interface Props {
   order: Order;
@@ -29,6 +29,8 @@ export const AdminOrderCard: React.FC<Props> = ({
   onLocalSaleIdChange, onLocalSaleIdSave, onDelete,
 }) => {
   const isStorePickup = order.deliveryType === 'Retirada na Loja';
+  const rawNumber = order.orderNumber || order.id;
+  const displayOrderNumber = rawNumber.startsWith('#') ? rawNumber : `#${rawNumber}`;
 
   return (
     <div
@@ -42,8 +44,8 @@ export const AdminOrderCard: React.FC<Props> = ({
       <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-black/[0.04] dark:border-white/[0.06]">
         {/* Identificação do Pedido & Seletor de Etapa Profissional */}
         <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
-          <span className="font-mono text-xs font-semibold px-2.5 py-1 rounded-xl bg-black/[0.03] dark:bg-white/[0.06] text-slate-700 dark:text-slate-200 border border-black/[0.05] dark:border-white/[0.08]">
-            #{order.orderNumber || order.id}
+          <span className="font-mono text-xs font-bold px-2.5 py-1 rounded-xl bg-black/[0.04] dark:bg-white/[0.06] text-slate-800 dark:text-slate-200 border border-black/[0.06] dark:border-white/[0.08]">
+            {displayOrderNumber}
           </span>
 
           {order.localSaleId && (
@@ -55,7 +57,7 @@ export const AdminOrderCard: React.FC<Props> = ({
             </span>
           )}
 
-          {/* Seletor Customizado de Etapa Apple Style (sem o select nativo feio) */}
+          {/* Seletor Customizado de Etapa Apple Style */}
           <AdminStageSelector
             currentStatus={order.status}
             isDark={isDark}
@@ -71,8 +73,20 @@ export const AdminOrderCard: React.FC<Props> = ({
           )}
         </div>
 
-        {/* Data & Ação de Excluir */}
-        <div className="flex items-center space-x-3 text-xs">
+        {/* Total em Destaque, Data & Ação de Excluir */}
+        <div className="flex items-center space-x-3.5 text-xs">
+          {/* Total do Pedido no Header */}
+          <div className="text-right">
+            <span className="text-[10px] text-[#86868B] uppercase tracking-wider block font-medium leading-tight">
+              Total Pedido
+            </span>
+            <span className="text-sm sm:text-base font-bold text-[#0071E3] dark:text-[#0A84FF] font-mono tracking-tight">
+              R$ {formatCurrency(order.total)}
+            </span>
+          </div>
+
+          <div className="h-6 w-[1px] bg-black/[0.06] dark:bg-white/[0.08]" />
+
           <div className="flex items-center space-x-1.5 text-slate-500 dark:text-[#86868B]">
             <Calendar className="h-3.5 w-3.5" />
             <span className="font-normal">{order.createdAt ? formatDateBR(order.createdAt) : 'Hoje'}</span>
@@ -89,7 +103,7 @@ export const AdminOrderCard: React.FC<Props> = ({
         </div>
       </div>
 
-      {/* Régua Interativa de Etapas (Avanço com 1 clique direto no card) */}
+      {/* Régua Interativa de Etapas */}
       <AdminStageStepper
         currentStatus={order.status}
         isDark={isDark}
@@ -97,8 +111,8 @@ export const AdminOrderCard: React.FC<Props> = ({
         onStatusChange={(newStatus) => onStatusChange(order.id, newStatus)}
       />
 
-      {/* Grid com 4 Micro-Cards Especializados */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+      {/* Grid com 4 Micro-Cards Especializados (Altura Balanceada) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 items-stretch">
         <CustomerInfoCard order={order} isDark={isDark} />
         <PaymentInfoCard
           order={order}
