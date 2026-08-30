@@ -7,73 +7,85 @@ interface Props {
   deliveryType?: string;
 }
 
-export const OrderTimeline: React.FC<Props> = ({ currentStep, isDark, deliveryType }) => {
+export const OrderTimeline: React.FC<Props> = ({ currentStep, isDark: _isDark, deliveryType }) => {
   const isStorePickup = deliveryType === 'Retirada na Loja';
 
   const steps = isStorePickup
     ? [
-        { step: 1, label: 'Pedido Recebido', icon: Box },
-        { step: 2, label: 'Pagamento OK', icon: ShieldCheck },
-        { step: 3, label: 'Pronto p/ Retirada', icon: Store },
-        { step: 4, label: 'Retirado', icon: ShoppingBag },
+        { step: 1, label: 'Pedido Recebido', shortLabel: 'Recebido', icon: Box },
+        { step: 2, label: 'Pagamento Aprovado', shortLabel: 'Pago', icon: ShieldCheck },
+        { step: 3, label: 'Pronto p/ Retirada', shortLabel: 'No Balcão', icon: Store },
+        { step: 4, label: 'Retirado', shortLabel: 'Retirado', icon: ShoppingBag },
       ]
     : [
-        { step: 1, label: 'Pedido Recebido', icon: Box },
-        { step: 2, label: 'Pagamento OK', icon: ShieldCheck },
-        { step: 3, label: 'Em Preparação', icon: Truck },
-        { step: 4, label: 'Entregue', icon: PackageCheck },
+        { step: 1, label: 'Pedido Recebido', shortLabel: 'Recebido', icon: Box },
+        { step: 2, label: 'Pagamento Aprovado', shortLabel: 'Pago', icon: ShieldCheck },
+        { step: 3, label: 'Em Preparação', shortLabel: 'Preparando', icon: Truck },
+        { step: 4, label: 'Entregue', shortLabel: 'Entregue', icon: PackageCheck },
       ];
 
   const progressPct = ((Math.max(1, currentStep) - 1) / 3) * 100;
-  const rightOffset = currentStep === 4 ? '0px' : '8px';
 
   return (
-    <div className={`px-4 sm:px-8 py-5 border-b border-black/[0.04] dark:border-white/[0.06] ${
-      isDark ? 'bg-black/[0.02]' : 'bg-black/[0.01]'
-    }`}>
-      <div className="max-w-3xl mx-auto flex items-center justify-between relative py-2">
-        {/* Linha Conectora de Fundo */}
-        <div className="absolute left-4 right-4 sm:left-6 sm:right-6 top-5 sm:top-4.5 -translate-y-1/2 h-0.5 bg-black/[0.06] dark:bg-white/[0.08] z-0" />
+    <div className="py-4 px-4 sm:px-8 border-b border-black/[0.04] dark:border-white/[0.06] bg-black/[0.015] dark:bg-white/[0.015] select-none">
+      <div className="max-w-3xl mx-auto relative">
+        {/* Linha Conectora de Fundo - alinhada no centro do círculo de 32px (top-4 = 16px) */}
+        <div className="absolute left-5 right-5 sm:left-6 sm:right-6 top-4 -translate-y-1/2 h-[3px] bg-slate-200/80 dark:bg-white/[0.08] rounded-full z-0" />
 
         {/* Linha de Progresso Ativa (Apple Blue) */}
         <div
-          className={`absolute left-4 sm:left-6 top-5 sm:top-4.5 -translate-y-1/2 h-0.5 transition-all duration-500 z-0 ${
-            isStorePickup ? 'bg-[#0071E3] dark:bg-[#0A84FF]' : 'bg-[#0071E3] dark:bg-[#0A84FF]'
-          }`}
-          style={{ width: `calc(${progressPct}% - ${rightOffset})` }}
+          className="absolute left-5 sm:left-6 top-4 -translate-y-1/2 h-[3px] bg-[#0071E3] dark:bg-[#0A84FF] rounded-full transition-all duration-500 ease-out z-0"
+          style={{ width: `calc(${progressPct}% - ${currentStep === 4 ? 0 : 12}px)` }}
         />
 
-        {steps.map(({ step, label, icon: StepIcon }) => {
-          const isCompleted = currentStep >= step;
-          const isCurrent = currentStep === step;
+        <div className="flex items-start justify-between relative z-10">
+          {steps.map(({ step, label, shortLabel, icon: StepIcon }) => {
+            const isCompleted = currentStep > step;
+            const isCurrent = currentStep === step;
 
-          return (
-            <div key={step} className="relative z-10 flex flex-col items-center group">
-              <div
-                className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center text-xs font-medium transition-all duration-300 ${
-                  isCompleted
-                    ? 'bg-[#0071E3] dark:bg-[#0A84FF] text-white shadow-sm ring-4 ring-[#0071E3]/15 dark:ring-[#0A84FF]/20'
-                    : 'bg-white dark:bg-[#1C1C1E] text-slate-400 dark:text-slate-500 border border-black/[0.08] dark:border-white/[0.1]'
-                } ${isCurrent ? 'scale-110 ring-4 ring-amber-500/20' : ''}`}
-              >
-                {isCompleted ? (
-                  <Check className="h-3.5 w-3.5 sm:h-4 sm:w-4 stroke-[2.5]" />
-                ) : (
-                  <StepIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 stroke-[1.75]" />
-                )}
+            return (
+              <div key={step} className="flex flex-col items-center group">
+                {/* Círculo do Nó */}
+                <div
+                  className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium transition-all duration-300 shadow-sm ${
+                    isCurrent
+                      ? 'bg-[#0071E3] dark:bg-[#0A84FF] text-white ring-4 ring-[#0071E3]/20 dark:ring-[#0A84FF]/30 scale-110 shadow-md'
+                      : isCompleted
+                      ? 'bg-[#0071E3] dark:bg-[#0A84FF] text-white'
+                      : 'bg-white dark:bg-[#2C2C2E] text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-white/10'
+                  }`}
+                >
+                  {isCompleted ? (
+                    <Check className="h-4 w-4 stroke-[3]" />
+                  ) : (
+                    <StepIcon className="h-4 w-4 stroke-[2]" />
+                  )}
+                </div>
+
+                {/* Rótulo da Etapa */}
+                <div className="mt-2 text-center max-w-[85px] sm:max-w-none">
+                  <span
+                    className={`text-[11px] sm:text-xs font-medium tracking-tight block transition-colors leading-tight ${
+                      isCurrent
+                        ? 'text-[#0071E3] dark:text-[#0A84FF] font-bold'
+                        : isCompleted
+                        ? 'text-slate-800 dark:text-slate-200 font-semibold'
+                        : 'text-slate-400 dark:text-[#86868B]'
+                    }`}
+                  >
+                    <span className="hidden sm:inline">{label}</span>
+                    <span className="sm:hidden">{shortLabel}</span>
+                  </span>
+                  {isCurrent && (
+                    <span className="inline-block mt-0.5 text-[9px] font-semibold uppercase tracking-wider text-[#0071E3] dark:text-[#0A84FF] bg-[#0071E3]/10 dark:bg-[#0A84FF]/15 px-1.5 py-0.2 rounded-md">
+                      Em Andamento
+                    </span>
+                  )}
+                </div>
               </div>
-              <span
-                className={`text-[10px] sm:text-[11px] font-medium mt-2 text-center transition-colors tracking-tight ${
-                  isCompleted
-                    ? 'text-slate-900 dark:text-white font-semibold'
-                    : 'text-slate-400 dark:text-[#86868B]'
-                } ${isCurrent ? 'text-[#0071E3] dark:text-[#0A84FF]' : ''}`}
-              >
-                {label}
-              </span>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
     </div>
   );

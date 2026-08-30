@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { AuthScreen } from './AuthScreen';
 import { ShoppingBag, MessageSquare, Calendar, ExternalLink, ReceiptText, ChevronDown, ChevronUp, CheckCircle2, Store } from 'lucide-react';
@@ -6,7 +6,6 @@ import { OrderItem } from '../types';
 import { OrderStatusBadge } from './orders/OrderStatusBadge';
 import { OrderTimeline } from './orders/OrderTimeline';
 import { ShippingInfoCard } from './orders/ShippingInfoCard';
-import { FreightStatusCard } from './orders/FreightStatusCard';
 import { PaymentInfoCard } from './orders/PaymentInfoCard';
 import { OrderItemsGrid } from './orders/OrderItemsGrid';
 import { PaymentStatusBadge } from './orders/PaymentStatusBadge';
@@ -41,108 +40,102 @@ export const OrderHistory: React.FC = () => {
   return (
     <div id="order-history-page" className="max-w-5xl mx-auto px-4 py-8 space-y-8">
       {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b pb-6 border-blue-900/10 dark:border-slate-800">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b pb-6 border-black/[0.06] dark:border-white/[0.08]">
         <div className="space-y-1">
-          <h2 className="text-2xl sm:text-3xl font-black tracking-tight flex items-center space-x-2 text-[#003B73] dark:text-white">
-            <ReceiptText className="h-7 w-7 sm:h-8 sm:w-8 text-[#006EDB]" />
+          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight flex items-center space-x-2.5 text-slate-900 dark:text-white">
+            <ReceiptText className="h-7 w-7 text-[#0071E3] dark:text-[#0A84FF]" />
             <span>Meus Pedidos</span>
           </h2>
-          <p className="text-xs sm:text-sm text-[#52708F] font-medium">
-            Acompanhe o status, rastreio e histórico das suas compras.
+          <p className="text-xs sm:text-sm text-slate-500 dark:text-[#86868B] font-normal">
+            Acompanhe o status, rastreio e histórico das suas compras em tempo real.
           </p>
         </div>
-        <div className="px-4 py-1.5 rounded-full bg-[#EEF8FF] dark:bg-slate-900 text-[#006EDB] dark:text-amber-400 font-extrabold text-xs border border-[#006EDB]/20 shadow-sm">
-          Total de Pedidos: {orders.length}
+        <div className="px-3.5 py-1.5 rounded-full bg-black/[0.03] dark:bg-white/[0.06] text-slate-700 dark:text-slate-300 font-semibold text-xs border border-black/[0.06] dark:border-white/[0.08]">
+          Total de Pedidos: <span className="font-mono font-bold text-[#0071E3] dark:text-[#0A84FF]">{orders.length}</span>
         </div>
       </div>
 
       {isLoadingOrders && orders.length === 0 ? (
         <div className="space-y-6">
           {[1, 2, 3].map(i => (
-            <div key={i} className="h-48 rounded-3xl bg-slate-200 dark:bg-slate-800 animate-pulse" />
+            <div key={i} className="h-48 rounded-3xl bg-black/[0.04] dark:bg-white/[0.04] animate-pulse" />
           ))}
         </div>
       ) : orders.length === 0 ? (
         <div className="text-center py-20 px-4">
-          <div className="bg-[#EEF8FF] dark:bg-slate-900 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
-            <ShoppingBag className="h-10 w-10 text-[#006EDB] opacity-80" />
+          <div className="bg-black/[0.03] dark:bg-white/[0.05] w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6">
+            <ShoppingBag className="h-10 w-10 text-[#0071E3] opacity-80" />
           </div>
-          <h3 className="text-xl font-black text-[#003B73] dark:text-white mb-2">Nenhum pedido encontrado</h3>
-          <p className="text-sm text-[#52708F] max-w-sm mx-auto mb-8 font-medium">
+          <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Nenhum pedido encontrado</h3>
+          <p className="text-sm text-slate-500 dark:text-[#86868B] max-w-sm mx-auto mb-8 font-normal">
             Você ainda não realizou nenhuma compra. Explore nosso catálogo e encontre o calçado perfeito!
           </p>
           <button
             onClick={() => setCurrentView('category-page')}
-            className="inline-flex items-center justify-center px-8 py-3.5 rounded-full bg-[#006EDB] text-white font-black text-sm uppercase tracking-wide hover:bg-[#00509E] transition-all shadow-lg hover:shadow-[#006EDB]/25 hover:-translate-y-0.5 active:translate-y-0"
+            className="inline-flex items-center justify-center px-8 py-3 rounded-full bg-[#0071E3] hover:bg-[#0077ED] active:scale-[0.98] text-white font-medium text-sm transition-all shadow-sm cursor-pointer"
           >
             Explorar Catálogo
           </button>
         </div>
       ) : (
-        <div className="space-y-8">
+        <div className="space-y-6">
           {orders.map((order) => {
             const isExpanded = !collapsedOrderIds[order.id];
             const progressStep = getOrderProgressStep(order);
             const isOtherCities = order.deliveryType === 'Entrega para Outras Cidades';
             const isPendingFreight = isOtherCities && (!order.freightCost || order.freightCost === 0);
+            const rawNum = order.orderNumber || order.id;
+            const displayOrderNumber = rawNum.startsWith('#') ? rawNum : `#${rawNum}`;
 
             return (
               <div
                 key={order.id}
-                className={`border rounded-3xl overflow-hidden backdrop-blur-md transition-all shadow-md hover:shadow-xl ${
-                  isDark
-                    ? 'bg-slate-900/90 border-slate-800 text-white'
-                    : 'bg-white border-blue-900/10 text-[#003B73]'
-                }`}
+                className="border border-black/[0.06] dark:border-white/[0.08] rounded-3xl overflow-hidden bg-white dark:bg-[#161617]/90 shadow-[0_2px_16px_rgba(0,0,0,0.03)] backdrop-blur-xl transition-all"
               >
-                {/* CABEÇALHO DO CARD */}
-                <div className={`p-5 sm:p-6 border-b flex flex-col md:flex-row md:items-center justify-between gap-4 ${
-                  isDark ? 'bg-slate-950/60 border-slate-800' : 'bg-[#EEF8FF]/80 border-blue-900/10'
-                }`}>
+                {/* CABEÇALHO DO CARD (Apple Card Style) */}
+                <div className="p-5 sm:p-6 border-b border-black/[0.04] dark:border-white/[0.06] flex flex-col md:flex-row md:items-center justify-between gap-4 bg-black/[0.015] dark:bg-white/[0.015]">
                   <div className="space-y-2">
-                    <div className="flex flex-wrap items-center gap-2.5">
-                      <span className="font-mono text-sm font-black text-[#003B73] dark:text-amber-400 bg-white dark:bg-slate-900 px-3 py-1 rounded-xl border border-blue-900/15 shadow-2xs">
-                        {order.orderNumber || order.id}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-mono text-xs font-bold text-slate-800 dark:text-slate-200 bg-black/[0.04] dark:bg-white/[0.06] px-2.5 py-1 rounded-xl border border-black/[0.05] dark:border-white/[0.08]">
+                        {displayOrderNumber}
                       </span>
                       <OrderStatusBadge status={order.status} isDark={isDark} size="sm" />
                       <PaymentStatusBadge status={order.paymentStatus} variant="client" size="sm" />
                       
                       {isOtherCities && (
-                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase border ${
+                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-medium border ${
                           isPendingFreight
-                            ? 'bg-amber-100 text-amber-900 border-amber-300 animate-pulse'
-                            : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                            ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20 animate-pulse'
+                            : 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20'
                         }`}>
                           {isPendingFreight ? 'Frete: A Combinar' : `Frete: R$ ${formatCurrency(order.freightCost)}`}
                         </span>
                       )}
                     </div>
 
-                    <div className="flex items-center space-x-2 text-xs text-[#52708F] font-medium">
-                      <Calendar className="h-3.5 w-3.5 text-[#006EDB]" />
+                    <div className="flex items-center space-x-2 text-xs text-slate-500 dark:text-[#86868B] font-normal">
+                      <Calendar className="h-3.5 w-3.5 text-slate-400" />
                       <span>Realizado em {formatDateBR(order.createdAt)}</span>
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between md:justify-end space-x-6">
+                  <div className="flex items-center justify-between md:justify-end space-x-4">
                     <div className="text-left md:text-right">
-                      <span className="text-[10px] font-bold uppercase text-[#52708F] block">Total do Pedido</span>
-                      <span className="text-lg sm:text-xl font-black text-[#003B73] dark:text-white">
+                      <span className="text-[10px] font-medium uppercase tracking-wider text-[#86868B] block leading-tight">
+                        Total do Pedido
+                      </span>
+                      <span className="text-lg sm:text-xl font-bold font-mono tracking-tight text-[#0071E3] dark:text-[#0A84FF]">
                         R$ {formatCurrency(order.total)}
                       </span>
                     </div>
 
                     <button
                       onClick={() => toggleExpand(order.id)}
-                      className={`p-2.5 rounded-2xl border text-xs font-bold transition-all cursor-pointer flex items-center space-x-1.5 ${
-                        isDark 
-                          ? 'border-slate-800 bg-slate-900 text-slate-300 hover:text-white' 
-                          : 'border-blue-900/15 bg-white text-[#003B73] hover:bg-[#DDF1FF]'
-                      }`}
+                      className="px-3 py-1.5 rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#1D1D1F] hover:bg-black/[0.03] dark:hover:bg-white/[0.05] text-xs font-medium text-slate-700 dark:text-slate-200 transition-all cursor-pointer flex items-center space-x-1.5"
                       title={isExpanded ? "Ocultar itens comprados" : "Ver itens comprados"}
                     >
-                      <span className="hidden sm:inline">{isExpanded ? 'Ocultar Itens' : 'Ver Itens'}</span>
-                      {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                      <span>{isExpanded ? 'Ocultar Itens' : 'Ver Itens'}</span>
+                      {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
                     </button>
                   </div>
                 </div>
@@ -161,15 +154,15 @@ export const OrderHistory: React.FC = () => {
                   <div className="px-5 sm:px-6 pt-4">
                     {order.status === 'Em Preparação' ? (
                       <div className="p-3.5 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center space-x-3 text-xs">
-                        <div className="w-8 h-8 rounded-xl bg-purple-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+                        <div className="w-8 h-8 rounded-full bg-purple-500/20 text-purple-700 dark:text-purple-300 flex items-center justify-center shrink-0">
                           <Store className="h-4 w-4" />
                         </div>
                         <div>
-                          <p className="font-bold text-purple-900 dark:text-purple-300">
+                          <p className="font-semibold text-purple-900 dark:text-purple-300">
                             🛍️ Seus calçados já estão disponíveis para retirada no balcão da loja!
                           </p>
-                          <p className="text-[11px] text-purple-700/80 dark:text-purple-300/70 font-medium">
-                            Compareça à Rua Afonso Pena, 295 - Centro, Caxias - MA. Basta informar o seu nome ou pedido #{order.orderNumber || order.id}.
+                          <p className="text-[11px] text-purple-700/80 dark:text-purple-300/70 font-normal">
+                            Compareça à Rua Afonso Pena, 295 - Centro, Caxias - MA. Basta informar o seu nome ou pedido {displayOrderNumber}.
                           </p>
                         </div>
                       </div>
@@ -187,39 +180,38 @@ export const OrderHistory: React.FC = () => {
                   </div>
                 )}
 
-                {/* DETALHES DE ENVIO, FRETE E PAGAMENTO */}
-                <div className="p-5 sm:p-6 grid grid-cols-1 md:grid-cols-3 gap-4 border-b border-blue-900/10 text-xs">
+                {/* DETALHES DE ENVIO E PAGAMENTO (GRID BALANCEADA EM 2 COLUNAS) */}
+                <div className="p-5 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch text-xs">
                   <ShippingInfoCard order={order} isDark={isDark} variant="client" />
-                  <FreightStatusCard order={order} isDark={isDark} variant="client" />
                   <PaymentInfoCard order={order} isDark={isDark} variant="client" />
                 </div>
 
                 {/* LISTA EXPANSÍVEL DE PRODUTOS */}
                 {isExpanded && (
-                  <OrderItemsGrid
-                    items={order.items || []}
-                    isDark={isDark}
-                    variant="client"
-                    onItemClick={handleNavigateToProduct}
-                  />
+                  <div className="border-t border-black/[0.04] dark:border-white/[0.06]">
+                    <OrderItemsGrid
+                      items={order.items || []}
+                      isDark={isDark}
+                      variant="client"
+                      onItemClick={handleNavigateToProduct}
+                    />
+                  </div>
                 )}
 
                 {/* AÇÕES INFERIORES: ACOMPANHAMENTO WHATSAPP */}
-                <div className={`p-4 sm:px-6 border-t flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 ${
-                  isDark ? 'bg-slate-950/40 border-slate-800' : 'bg-[#EEF8FF]/60 border-blue-900/10'
-                }`}>
+                <div className="p-4 sm:px-6 border-t border-black/[0.04] dark:border-white/[0.06] flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-black/[0.01] dark:bg-white/[0.01]">
                   {order.status === 'Entregue' ? (
-                    <div className="flex items-center space-x-2 text-emerald-700 font-bold text-xs">
+                    <div className="flex items-center space-x-2 text-emerald-700 dark:text-emerald-400 font-medium text-xs">
                       <CheckCircle2 className="h-4 w-4 text-emerald-600" />
                       <span>Entrega Concluída com Sucesso!</span>
                     </div>
                   ) : order.sellerName ? (
-                    <p className="text-[11px] font-medium text-[#52708F]">
-                      Atendido por: <span className="text-[#003B73] font-bold">{order.sellerName}</span> ({order.sellerEmail})
+                    <p className="text-[11px] font-normal text-slate-500 dark:text-[#86868B]">
+                      Atendido por: <span className="text-slate-900 dark:text-white font-semibold">{order.sellerName}</span> ({order.sellerEmail})
                     </p>
                   ) : (
-                    <p className="text-[11px] text-[#52708F] font-medium">
-                      Status do atendimento: <span className="text-[#006EDB] font-extrabold">Atendimento ativo via WhatsApp</span>
+                    <p className="text-[11px] text-slate-500 dark:text-[#86868B] font-normal">
+                      Status do atendimento: <span className="text-[#0071E3] dark:text-[#0A84FF] font-semibold">Atendimento ativo via WhatsApp</span>
                     </p>
                   )}
 
@@ -230,11 +222,11 @@ export const OrderHistory: React.FC = () => {
                         const msg = `Olá! Gostaria de consultar o status e detalhes do meu pedido *${order.orderNumber || order.id}* na Evidência Calçados.`;
                         window.open(buildWhatsAppUrl('5599984684867', msg), '_blank');
                       }}
-                      className="w-full sm:w-auto inline-flex items-center justify-center space-x-2 py-2.5 px-5 bg-[#006EDB] hover:bg-[#00509E] text-white font-extrabold text-xs rounded-full shadow-md transition-all cursor-pointer"
+                      className="w-full sm:w-auto inline-flex items-center justify-center space-x-2 py-2 px-4.5 bg-[#0071E3] hover:bg-[#0077ED] active:scale-[0.98] text-white font-medium text-xs rounded-full shadow-sm transition-all cursor-pointer"
                     >
-                      <MessageSquare className="h-4 w-4" />
+                      <MessageSquare className="h-3.5 w-3.5" />
                       <span>Consultar no WhatsApp</span>
-                      <ExternalLink className="h-3.5 w-3.5" />
+                      <ExternalLink className="h-3 w-3 opacity-70" />
                     </button>
                   )}
                 </div>
