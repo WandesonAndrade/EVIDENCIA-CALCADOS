@@ -1,19 +1,29 @@
 ﻿import React from 'react';
-import { Box, ShieldCheck, Truck, PackageCheck, Check } from 'lucide-react';
+import { Box, ShieldCheck, Truck, PackageCheck, Check, Store, ShoppingBag } from 'lucide-react';
 
 interface Props {
   currentStep: number;
   isDark: boolean;
+  deliveryType?: string;
 }
 
-const STEPS = [
-  { step: 1, label: 'Pedido Recebido', icon: Box },
-  { step: 2, label: 'Pagamento Aprovado', icon: ShieldCheck },
-  { step: 3, label: 'Em Preparação', icon: Truck },
-  { step: 4, label: 'Entregue', icon: PackageCheck },
-];
+export const OrderTimeline: React.FC<Props> = ({ currentStep, isDark, deliveryType }) => {
+  const isStorePickup = deliveryType === 'Retirada na Loja';
 
-export const OrderTimeline: React.FC<Props> = ({ currentStep, isDark }) => {
+  const steps = isStorePickup
+    ? [
+        { step: 1, label: 'Pedido Recebido', icon: Box },
+        { step: 2, label: 'Pagamento OK', icon: ShieldCheck },
+        { step: 3, label: 'Pronto p/ Retirada', icon: Store },
+        { step: 4, label: 'Retirado', icon: ShoppingBag },
+      ]
+    : [
+        { step: 1, label: 'Pedido Recebido', icon: Box },
+        { step: 2, label: 'Pagamento OK', icon: ShieldCheck },
+        { step: 3, label: 'Em Preparação', icon: Truck },
+        { step: 4, label: 'Entregue', icon: PackageCheck },
+      ];
+
   const progressPct = ((Math.max(1, currentStep) - 1) / 3) * 100;
   const rightOffset = currentStep === 4 ? '0px' : '8px';
 
@@ -27,11 +37,13 @@ export const OrderTimeline: React.FC<Props> = ({ currentStep, isDark }) => {
 
         {/* Linha de Progresso Ativa (Apple Blue) */}
         <div
-          className="absolute left-4 sm:left-6 top-5 sm:top-4.5 -translate-y-1/2 h-0.5 bg-[#0071E3] dark:bg-[#0A84FF] transition-all duration-500 z-0"
+          className={`absolute left-4 sm:left-6 top-5 sm:top-4.5 -translate-y-1/2 h-0.5 transition-all duration-500 z-0 ${
+            isStorePickup ? 'bg-[#0071E3] dark:bg-[#0A84FF]' : 'bg-[#0071E3] dark:bg-[#0A84FF]'
+          }`}
           style={{ width: `calc(${progressPct}% - ${rightOffset})` }}
         />
 
-        {STEPS.map(({ step, label, icon: StepIcon }) => {
+        {steps.map(({ step, label, icon: StepIcon }) => {
           const isCompleted = currentStep >= step;
           const isCurrent = currentStep === step;
 

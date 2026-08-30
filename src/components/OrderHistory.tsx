@@ -1,7 +1,7 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { AuthScreen } from './AuthScreen';
-import { ShoppingBag, MessageSquare, Calendar, ExternalLink, ReceiptText, ChevronDown, ChevronUp, CheckCircle2 } from 'lucide-react';
+import { ShoppingBag, MessageSquare, Calendar, ExternalLink, ReceiptText, ChevronDown, ChevronUp, CheckCircle2, Store } from 'lucide-react';
 import { OrderItem } from '../types';
 import { OrderStatusBadge } from './orders/OrderStatusBadge';
 import { OrderTimeline } from './orders/OrderTimeline';
@@ -149,7 +149,42 @@ export const OrderHistory: React.FC = () => {
 
                 {/* TIMELINE DE ACOMPANHAMENTO DO PEDIDO */}
                 {order.status !== 'Cancelado' && (
-                  <OrderTimeline currentStep={progressStep} isDark={isDark} />
+                  <OrderTimeline
+                    currentStep={progressStep}
+                    isDark={isDark}
+                    deliveryType={order.deliveryType}
+                  />
+                )}
+
+                {/* FEEDBACK VISUAL ESPECÍFICO PARA RETIRADA NA LOJA */}
+                {order.deliveryType === 'Retirada na Loja' && (
+                  <div className="px-5 sm:px-6 pt-4">
+                    {order.status === 'Em Preparação' ? (
+                      <div className="p-3.5 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center space-x-3 text-xs">
+                        <div className="w-8 h-8 rounded-xl bg-purple-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+                          <Store className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <p className="font-bold text-purple-900 dark:text-purple-300">
+                            🛍️ Seus calçados já estão disponíveis para retirada no balcão da loja!
+                          </p>
+                          <p className="text-[11px] text-purple-700/80 dark:text-purple-300/70 font-medium">
+                            Compareça à Rua Afonso Pena, 295 - Centro, Caxias - MA. Basta informar o seu nome ou pedido #{order.orderNumber || order.id}.
+                          </p>
+                        </div>
+                      </div>
+                    ) : order.status === 'Entregue' ? (
+                      <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center space-x-2.5 text-xs text-emerald-700 dark:text-emerald-400 font-medium">
+                        <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                        <span>Pedido retirado com sucesso na loja física. Obrigado pela preferência!</span>
+                      </div>
+                    ) : (
+                      <div className="p-3 rounded-2xl bg-purple-500/5 border border-purple-500/15 flex items-center space-x-2.5 text-xs text-purple-700 dark:text-purple-300 font-medium">
+                        <Store className="h-4 w-4 text-purple-600 dark:text-purple-400 shrink-0" />
+                        <span>Modalidade selecionada: <strong>Retirada na Loja Física</strong> (Rua Afonso Pena, 295 - Centro). Você será avisado quando estiver pronto!</span>
+                      </div>
+                    )}
+                  </div>
                 )}
 
                 {/* DETALHES DE ENVIO, FRETE E PAGAMENTO */}

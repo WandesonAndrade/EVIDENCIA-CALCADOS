@@ -24,6 +24,8 @@ export const AdminOrderCard: React.FC<Props> = ({
   order, isDark, editingFreight,
   onStatusChange, onFreightChange, onFreightSave, onDelete,
 }) => {
+  const isStorePickup = order.deliveryType === 'Retirada na Loja';
+
   return (
     <div
       className={`rounded-3xl border p-5 sm:p-6 space-y-5 transition-all duration-200 ${
@@ -44,6 +46,7 @@ export const AdminOrderCard: React.FC<Props> = ({
           <AdminStageSelector
             currentStatus={order.status}
             isDark={isDark}
+            isStorePickup={isStorePickup}
             onStatusChange={(newStatus) => onStatusChange(order.id, newStatus)}
           />
 
@@ -77,6 +80,7 @@ export const AdminOrderCard: React.FC<Props> = ({
       <AdminStageStepper
         currentStatus={order.status}
         isDark={isDark}
+        isStorePickup={isStorePickup}
         onStatusChange={(newStatus) => onStatusChange(order.id, newStatus)}
       />
 

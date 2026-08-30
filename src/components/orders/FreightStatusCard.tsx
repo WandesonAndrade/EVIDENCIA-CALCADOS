@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { Save, Calculator } from 'lucide-react';
 import { Order } from '../../types';
 import { formatCurrency } from '../../utils/orderUtils';
@@ -17,6 +17,7 @@ export const FreightStatusCard: React.FC<Props> = ({
   order, isDark: _isDark, variant = 'client',
   editingFreight, onEditingChange, onSaveFreight,
 }) => {
+  const isStorePickup = order.deliveryType === 'Retirada na Loja';
   const isOtherCities = order.deliveryType === 'Entrega para Outras Cidades';
   const isPendingFreight = isOtherCities && (!order.freightCost || order.freightCost === 0);
 
@@ -31,16 +32,20 @@ export const FreightStatusCard: React.FC<Props> = ({
             </div>
             <div>
               <span className="text-[10px] font-medium uppercase tracking-wider text-[#86868B] block">
-                {isOtherCities ? 'Frete Negociado' : 'Taxa de Envio'}
+                {isStorePickup ? 'Custo de Envio' : isOtherCities ? 'Frete Negociado' : 'Taxa de Envio'}
               </span>
               <span className="text-xs font-semibold text-slate-900 dark:text-slate-100">
-                {isOtherCities ? 'Outras Cidades' : 'Entrega Local'}
+                {isStorePickup ? 'Retirada Loja' : isOtherCities ? 'Outras Cidades' : 'Entrega Local'}
               </span>
             </div>
           </div>
 
           <div>
-            {isOtherCities ? (
+            {isStorePickup ? (
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-500/20">
+                🏬 Isento
+              </span>
+            ) : isOtherCities ? (
               isPendingFreight ? (
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
                   A Combinar

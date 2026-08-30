@@ -1,10 +1,11 @@
 ﻿import React from 'react';
-import { Box, ShieldCheck, Truck, PackageCheck, Check, RotateCcw } from 'lucide-react';
+import { Box, ShieldCheck, Truck, PackageCheck, Check, RotateCcw, Store, ShoppingBag } from 'lucide-react';
 import { OrderStatus } from '../../types';
 
 interface Props {
   currentStatus: OrderStatus;
   isDark: boolean;
+  isStorePickup?: boolean;
   onStatusChange: (status: OrderStatus) => void;
 }
 
@@ -16,14 +17,7 @@ interface StepDef {
   icon: React.ComponentType<{ className?: string }>;
 }
 
-const STEPS: StepDef[] = [
-  { step: 1, status: 'Pendente', label: 'Pedido Recebido', shortLabel: 'Recebido', icon: Box },
-  { step: 2, status: 'Confirmado', label: 'Pagamento Aprovado', shortLabel: 'Pago', icon: ShieldCheck },
-  { step: 3, status: 'Em Preparação', label: 'Em Preparação', shortLabel: 'Preparando', icon: Truck },
-  { step: 4, status: 'Entregue', label: 'Entregue', shortLabel: 'Entregue', icon: PackageCheck },
-];
-
-export const AdminStageStepper: React.FC<Props> = ({ currentStatus, isDark: _isDark, onStatusChange }) => {
+export const AdminStageStepper: React.FC<Props> = ({ currentStatus, isDark: _isDark, isStorePickup = false, onStatusChange }) => {
   if (currentStatus === 'Cancelado') {
     return (
       <div className="p-3 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-between gap-3 text-xs">
@@ -42,6 +36,20 @@ export const AdminStageStepper: React.FC<Props> = ({ currentStatus, isDark: _isD
       </div>
     );
   }
+
+  const steps: StepDef[] = isStorePickup
+    ? [
+        { step: 1, status: 'Pendente', label: 'Pedido Recebido', shortLabel: 'Recebido', icon: Box },
+        { step: 2, status: 'Confirmado', label: 'Pagamento OK', shortLabel: 'Pago', icon: ShieldCheck },
+        { step: 3, status: 'Em Preparação', label: 'Pronto p/ Retirada', shortLabel: 'No Balcão', icon: Store },
+        { step: 4, status: 'Entregue', label: 'Retirado na Loja', shortLabel: 'Retirado', icon: ShoppingBag },
+      ]
+    : [
+        { step: 1, status: 'Pendente', label: 'Pedido Recebido', shortLabel: 'Recebido', icon: Box },
+        { step: 2, status: 'Confirmado', label: 'Pagamento OK', shortLabel: 'Pago', icon: ShieldCheck },
+        { step: 3, status: 'Em Preparação', label: 'Em Preparação', shortLabel: 'Preparando', icon: Truck },
+        { step: 4, status: 'Entregue', label: 'Entregue', shortLabel: 'Entregue', icon: PackageCheck },
+      ];
 
   const currentStepNum = currentStatus === 'Entregue'
     ? 4
@@ -65,7 +73,7 @@ export const AdminStageStepper: React.FC<Props> = ({ currentStatus, isDark: _isD
           style={{ width: `calc(${progressPct}% - ${currentStepNum === 4 ? 0 : 8}px)` }}
         />
 
-        {STEPS.map((s) => {
+        {steps.map((s) => {
           const isCompleted = currentStepNum >= s.step;
           const isCurrent = currentStepNum === s.step;
           const StepIcon = s.icon;

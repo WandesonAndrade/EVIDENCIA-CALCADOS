@@ -1,10 +1,11 @@
 ﻿import React, { useState, useRef, useEffect } from 'react';
-import { Clock, ShieldCheck, Truck, PackageCheck, AlertCircle, ChevronDown, Check } from 'lucide-react';
+import { Clock, ShieldCheck, Truck, PackageCheck, AlertCircle, ChevronDown, Check, Store, ShoppingBag } from 'lucide-react';
 import { OrderStatus } from '../../types';
 
 interface Props {
   currentStatus: OrderStatus;
   isDark: boolean;
+  isStorePickup?: boolean;
   onStatusChange: (status: OrderStatus) => void;
 }
 
@@ -18,50 +19,94 @@ interface StageOption {
   badgeStyle: string;
 }
 
-const STAGES: StageOption[] = [
-  {
-    status: 'Pendente',
-    stepNum: 1,
-    label: 'Pedido Recebido',
-    subtitle: 'Aguardando validação ou pagamento',
-    icon: Clock,
-    dotColor: 'bg-[#FF9500]',
-    badgeStyle: 'text-amber-600 dark:text-amber-400 bg-amber-500/10 border-amber-500/20',
-  },
-  {
-    status: 'Confirmado',
-    stepNum: 2,
-    label: 'Pagamento Aprovado',
-    subtitle: 'Pagamento validado, pronto para separação',
-    icon: ShieldCheck,
-    dotColor: 'bg-[#34C759]',
-    badgeStyle: 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
-  },
-  {
-    status: 'Em Preparação',
-    stepNum: 3,
-    label: 'Em Preparação',
-    subtitle: 'Separando calçados e embalando p/ envio',
-    icon: Truck,
-    dotColor: 'bg-[#0071E3]',
-    badgeStyle: 'text-[#0071E3] dark:text-[#0A84FF] bg-[#0071E3]/10 border-[#0071E3]/20',
-  },
-  {
-    status: 'Entregue',
-    stepNum: 4,
-    label: 'Entregue',
-    subtitle: 'Concluído e entregue com sucesso ao cliente',
-    icon: PackageCheck,
-    dotColor: 'bg-[#34C759]',
-    badgeStyle: 'text-emerald-700 dark:text-emerald-300 bg-emerald-500/15 border-emerald-500/25',
-  },
-];
-
-export const AdminStageSelector: React.FC<Props> = ({ currentStatus, isDark: _isDark, onStatusChange }) => {
+export const AdminStageSelector: React.FC<Props> = ({
+  currentStatus,
+  isDark: _isDark,
+  isStorePickup = false,
+  onStatusChange,
+}) => {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const currentStage = STAGES.find((s) => s.status === currentStatus) || {
+  const stages: StageOption[] = isStorePickup
+    ? [
+        {
+          status: 'Pendente',
+          stepNum: 1,
+          label: 'Pedido Recebido',
+          subtitle: 'Aguardando validação ou pagamento',
+          icon: Clock,
+          dotColor: 'bg-[#FF9500]',
+          badgeStyle: 'text-amber-600 dark:text-amber-400 bg-amber-500/10 border-amber-500/20',
+        },
+        {
+          status: 'Confirmado',
+          stepNum: 2,
+          label: 'Pagamento Aprovado',
+          subtitle: 'Pagamento validado, pronto para separação',
+          icon: ShieldCheck,
+          dotColor: 'bg-[#34C759]',
+          badgeStyle: 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
+        },
+        {
+          status: 'Em Preparação',
+          stepNum: 3,
+          label: 'Pronto p/ Retirada',
+          subtitle: 'Calçados separados e disponíveis no balcão da loja',
+          icon: Store,
+          dotColor: 'bg-[#0071E3]',
+          badgeStyle: 'text-[#0071E3] dark:text-[#0A84FF] bg-[#0071E3]/10 border-[#0071E3]/20',
+        },
+        {
+          status: 'Entregue',
+          stepNum: 4,
+          label: 'Retirado na Loja',
+          subtitle: 'Calçados retirados com sucesso pelo cliente',
+          icon: ShoppingBag,
+          dotColor: 'bg-[#34C759]',
+          badgeStyle: 'text-emerald-700 dark:text-emerald-300 bg-emerald-500/15 border-emerald-500/25',
+        },
+      ]
+    : [
+        {
+          status: 'Pendente',
+          stepNum: 1,
+          label: 'Pedido Recebido',
+          subtitle: 'Aguardando validação ou pagamento',
+          icon: Clock,
+          dotColor: 'bg-[#FF9500]',
+          badgeStyle: 'text-amber-600 dark:text-amber-400 bg-amber-500/10 border-amber-500/20',
+        },
+        {
+          status: 'Confirmado',
+          stepNum: 2,
+          label: 'Pagamento Aprovado',
+          subtitle: 'Pagamento validado, pronto para separação',
+          icon: ShieldCheck,
+          dotColor: 'bg-[#34C759]',
+          badgeStyle: 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
+        },
+        {
+          status: 'Em Preparação',
+          stepNum: 3,
+          label: 'Em Preparação',
+          subtitle: 'Separando calçados e embalando p/ envio',
+          icon: Truck,
+          dotColor: 'bg-[#0071E3]',
+          badgeStyle: 'text-[#0071E3] dark:text-[#0A84FF] bg-[#0071E3]/10 border-[#0071E3]/20',
+        },
+        {
+          status: 'Entregue',
+          stepNum: 4,
+          label: 'Entregue',
+          subtitle: 'Concluído e entregue com sucesso ao cliente',
+          icon: PackageCheck,
+          dotColor: 'bg-[#34C759]',
+          badgeStyle: 'text-emerald-700 dark:text-emerald-300 bg-emerald-500/15 border-emerald-500/25',
+        },
+      ];
+
+  const currentStage = stages.find((s) => s.status === currentStatus) || {
     status: currentStatus,
     stepNum: 0,
     label: currentStatus || 'Pendente',
@@ -126,14 +171,14 @@ export const AdminStageSelector: React.FC<Props> = ({ currentStatus, isDark: _is
         <div className="absolute right-0 mt-2 w-72 rounded-2xl p-1.5 z-50 bg-white/95 dark:bg-[#1C1C1E]/95 backdrop-blur-2xl border border-black/[0.08] dark:border-white/[0.1] shadow-2xl space-y-1 animate-in fade-in zoom-in-95 duration-150">
           <div className="px-3 py-1.5 border-b border-black/[0.04] dark:border-white/[0.06] flex items-center justify-between">
             <span className="text-[10px] font-semibold uppercase tracking-wider text-[#86868B]">
-              Etapa do Pedido
+              {isStorePickup ? 'Etapa (Retirada na Loja)' : 'Etapa do Pedido'}
             </span>
             <span className="text-[10px] text-slate-400 font-mono">1 a 4</span>
           </div>
 
           {/* 4 Etapas Principais */}
           <div className="space-y-0.5">
-            {STAGES.map((stage) => {
+            {stages.map((stage) => {
               const isSelected = currentStatus === stage.status;
               const Icon = stage.icon;
 
