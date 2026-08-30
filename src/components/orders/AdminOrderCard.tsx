@@ -6,7 +6,8 @@ import { PaymentInfoCard } from './PaymentInfoCard';
 import { ShippingInfoCard } from './ShippingInfoCard';
 import { FreightStatusCard } from './FreightStatusCard';
 import { OrderItemsGrid } from './OrderItemsGrid';
-import { OrderStatusBadge } from './OrderStatusBadge';
+import { AdminStageSelector } from './AdminStageSelector';
+import { AdminStageStepper } from './AdminStageStepper';
 import { formatDateBR } from '../../utils/orderUtils';
 
 interface Props {
@@ -34,12 +35,19 @@ export const AdminOrderCard: React.FC<Props> = ({
     >
       {/* Barra Superior do Pedido (macOS Window Header) */}
       <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-black/[0.04] dark:border-white/[0.06]">
-        {/* Identificação do Pedido */}
-        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+        {/* Identificação do Pedido & Seletor de Etapa Profissional */}
+        <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
           <span className="font-mono text-xs font-semibold px-2.5 py-1 rounded-xl bg-black/[0.03] dark:bg-white/[0.06] text-slate-700 dark:text-slate-200 border border-black/[0.05] dark:border-white/[0.08]">
             #{order.orderNumber || order.id}
           </span>
-          <OrderStatusBadge status={order.status} isDark={isDark} size="sm" />
+
+          {/* Seletor Customizado de Etapa Apple Style (sem o select nativo feio) */}
+          <AdminStageSelector
+            currentStatus={order.status}
+            isDark={isDark}
+            onStatusChange={(newStatus) => onStatusChange(order.id, newStatus)}
+          />
+
           {order.sellerName && (
             <span className="px-2.5 py-1 rounded-full text-[10px] font-medium bg-black/[0.03] dark:bg-white/[0.05] text-slate-600 dark:text-slate-300 border border-black/[0.05] dark:border-white/[0.08] flex items-center space-x-1">
               <User className="h-3 w-3 text-slate-400" />
@@ -48,44 +56,30 @@ export const AdminOrderCard: React.FC<Props> = ({
           )}
         </div>
 
-        {/* Controles de Status e Ações */}
-        <div className="flex flex-wrap items-center gap-3 text-xs">
+        {/* Data & Ação de Excluir */}
+        <div className="flex items-center space-x-3 text-xs">
           <div className="flex items-center space-x-1.5 text-slate-500 dark:text-[#86868B]">
             <Calendar className="h-3.5 w-3.5" />
             <span className="font-normal">{order.createdAt ? formatDateBR(order.createdAt) : 'Hoje'}</span>
           </div>
 
-          <div className="flex items-center space-x-1.5">
-            <span className="text-[10px] uppercase font-medium text-[#86868B] tracking-wider">
-              Etapa:
-            </span>
-            <select
-              value={order.status}
-              onChange={(e) => onStatusChange(order.id, e.target.value as OrderStatus)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-medium border focus:outline-none focus:ring-2 focus:ring-[#0071E3]/30 transition-all cursor-pointer ${
-                isDark
-                  ? 'bg-white/[0.06] border-white/[0.1] text-slate-100'
-                  : 'bg-black/[0.03] border-black/[0.08] text-slate-900'
-              }`}
-            >
-              <option value="Pendente">1. Pedido Recebido</option>
-              <option value="Confirmado">2. Pagamento Aprovado</option>
-              <option value="Em Preparação">3. Em Preparação</option>
-              <option value="Entregue">4. Entregue</option>
-              <option value="Cancelado">Cancelado</option>
-            </select>
-          </div>
-
           <button
             type="button"
             onClick={() => onDelete(order.id)}
-            title="Excluir Pedido"
+            title="Excluir Pedido Permanentemente"
             className="p-1.5 rounded-xl text-slate-400 hover:text-[#FF3B30] dark:hover:text-[#FF453A] hover:bg-[#FF3B30]/10 dark:hover:bg-[#FF453A]/10 transition-colors cursor-pointer flex items-center justify-center"
           >
             <Trash2 className="h-4 w-4" />
           </button>
         </div>
       </div>
+
+      {/* Régua Interativa de Etapas (Avanço com 1 clique direto no card) */}
+      <AdminStageStepper
+        currentStatus={order.status}
+        isDark={isDark}
+        onStatusChange={(newStatus) => onStatusChange(order.id, newStatus)}
+      />
 
       {/* Grid com 4 Micro-Cards Especializados */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
