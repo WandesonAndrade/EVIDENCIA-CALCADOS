@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { Trash2, User, Calendar } from 'lucide-react';
 import { Order, OrderStatus } from '../../types';
 import { CustomerInfoCard } from './CustomerInfoCard';
@@ -15,7 +15,6 @@ interface Props {
   isDark: boolean;
   editingFreight?: string;
   onStatusChange: (orderId: string, status: OrderStatus) => void;
-  onPaymentConfirm: (orderId: string) => void;
   onFreightChange: (orderId: string, val: string) => void;
   onFreightSave: (orderId: string) => void;
   onDelete: (orderId: string) => void;
@@ -23,7 +22,7 @@ interface Props {
 
 export const AdminOrderCard: React.FC<Props> = ({
   order, isDark, editingFreight,
-  onStatusChange, onPaymentConfirm, onFreightChange, onFreightSave, onDelete,
+  onStatusChange, onFreightChange, onFreightSave, onDelete,
 }) => {
   return (
     <div
@@ -88,7 +87,6 @@ export const AdminOrderCard: React.FC<Props> = ({
           order={order}
           isDark={isDark}
           variant="admin"
-          onConfirmPayment={() => onPaymentConfirm(order.id)}
         />
         <ShippingInfoCard order={order} isDark={isDark} variant="admin" />
         <FreightStatusCard

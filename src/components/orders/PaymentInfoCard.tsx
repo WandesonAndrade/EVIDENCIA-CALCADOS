@@ -1,5 +1,5 @@
-﻿import React from 'react';
-import { CreditCard, Check, ShieldCheck } from 'lucide-react';
+import React from 'react';
+import { CreditCard } from 'lucide-react';
 import { Order } from '../../types';
 import { PaymentStatusBadge } from './PaymentStatusBadge';
 
@@ -7,10 +7,9 @@ interface Props {
   order: Order;
   isDark: boolean;
   variant?: 'client' | 'admin';
-  onConfirmPayment?: () => void;
 }
 
-export const PaymentInfoCard: React.FC<Props> = ({ order, isDark: _isDark, variant = 'client', onConfirmPayment }) => {
+export const PaymentInfoCard: React.FC<Props> = ({ order, isDark: _isDark, variant = 'client' }) => {
   if (variant === 'admin') {
     return (
       <div className="p-3.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.02] border border-black/[0.04] dark:border-white/[0.06] space-y-3">
@@ -48,17 +47,6 @@ export const PaymentInfoCard: React.FC<Props> = ({ order, isDark: _isDark, varia
           </p>
         )}
 
-        {/* Botão de Ação Apple Style */}
-        {order.paymentStatus !== 'Confirmado' && onConfirmPayment && (
-          <button
-            type="button"
-            onClick={onConfirmPayment}
-            className="w-full mt-1 px-3 py-1.5 rounded-full bg-[#0071E3] hover:bg-[#0077ED] active:scale-[0.98] text-white text-[11px] font-medium transition-all shadow-sm cursor-pointer flex items-center justify-center space-x-1.5"
-          >
-            <Check className="h-3.5 w-3.5 stroke-[2.5]" />
-            <span>Aprovar Pagamento</span>
-          </button>
-        )}
       </div>
     );
   }

@@ -331,7 +331,6 @@ export const AdminOrdersList: React.FC<Props> = ({ isDark }) => {
               isDark={isDark}
               editingFreight={editingFreightMap[order.id]}
               onStatusChange={handleStatusChange}
-              onPaymentConfirm={handlePaymentConfirm}
               onFreightChange={(orderId, val) =>
                 setEditingFreightMap((prev) => ({ ...prev, [orderId]: val }))
               }
