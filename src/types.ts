@@ -278,6 +278,7 @@ export interface Order {
   total: number;
   paymentMethod?: 'Pix' | 'Cartão de Crédito' | 'Cartão de Débito' | 'Crediário da Loja';
   paymentStatus?: PaymentStatus;
+  paymentId?: string | number;
   installments?: number;
   status: OrderStatus;
   createdAt: string;

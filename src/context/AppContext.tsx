@@ -53,7 +53,7 @@ interface AppContextProps {
 
   orders: Order[];
   isLoadingOrders: boolean;
-  createOrder: (customerName: string, customerEmail: string, options?: { paymentMethod?: 'Pix' | 'Cartão de Crédito' | 'Cartão de Débito' | 'Crediário da Loja'; deliveryType?: 'Entrega em Caxias-MA' | 'Entrega para Outras Cidades' | 'Retirada na Loja'; installments?: number; customerPhone?: string; deliveryAddress?: string; sellerName?: string; sellerEmail?: string; overrideItems?: any[]; paymentStatus?: PaymentStatus; status?: OrderStatus }) => Promise<Order>;
+  createOrder: (customerName: string, customerEmail: string, options?: { paymentMethod?: 'Pix' | 'Cartão de Crédito' | 'Cartão de Débito' | 'Crediário da Loja'; deliveryType?: 'Entrega em Caxias-MA' | 'Entrega para Outras Cidades' | 'Retirada na Loja'; installments?: number; customerPhone?: string; deliveryAddress?: string; sellerName?: string; sellerEmail?: string; overrideItems?: any[]; paymentStatus?: PaymentStatus; status?: OrderStatus; paymentId?: string | number }) => Promise<Order>;
   solicitarCrediario: (dados: Partial<UserProfile>) => Promise<void>;
   atualizarStatusCrediario: (uid: string, novoStatus: CrediarioStatus, motivo?: string) => Promise<void>;
   updateUserCashback: (uid: string, cashbackBalance: number, cashbackValidUntil: string) => Promise<void>;
@@ -1812,6 +1812,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       sellerEmail?: string;
       paymentStatus?: PaymentStatus;
       status?: OrderStatus;
+      paymentId?: string | number;
     }
   ): Promise<Order> => {
     const targetItems = options?.overrideItems && options.overrideItems.length > 0 ? options.overrideItems : cart;
@@ -1944,6 +1945,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       total: grandTotal,
       paymentMethod,
       paymentStatus: options?.paymentStatus || 'Pendente',
+      paymentId: options?.paymentId ? String(options.paymentId) : '',
       installments,
       status: options?.status || (options?.paymentStatus === 'Confirmado' ? 'Confirmado' : 'Pendente'),
       createdAt: new Date().toISOString(),

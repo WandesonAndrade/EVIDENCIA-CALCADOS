@@ -271,6 +271,7 @@ export const CheckoutPage: React.FC = () => {
         deliveryAddress: formattedAddress,
         paymentStatus: determinedPaymentStatus,
         status: determinedStatus,
+        paymentId: pixPaymentId,
       });
 
       setCreatedOrder(order);
