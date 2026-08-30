@@ -1,7 +1,7 @@
 ﻿import React from 'react';
-import { CreditCard, Check } from 'lucide-react';
+import { CreditCard, Check, ShieldCheck } from 'lucide-react';
 import { Order } from '../../types';
-import { getPaymentStatusStyle } from '../../utils/orderUtils';
+import { PaymentStatusBadge } from './PaymentStatusBadge';
 
 interface Props {
   order: Order;
@@ -10,59 +10,81 @@ interface Props {
   onConfirmPayment?: () => void;
 }
 
-export const PaymentInfoCard: React.FC<Props> = ({ order, isDark, variant = 'client', onConfirmPayment }) => {
-  const payStyle = getPaymentStatusStyle(order.paymentStatus, variant);
-
+export const PaymentInfoCard: React.FC<Props> = ({ order, isDark: _isDark, variant = 'client', onConfirmPayment }) => {
   if (variant === 'admin') {
     return (
-      <div>
-        <span className="text-[10px] text-slate-400 uppercase font-bold block">Forma de Pagamento</span>
-        <div className="mt-1 space-y-1">
+      <div className="p-3.5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.02] border border-black/[0.04] dark:border-white/[0.06] space-y-3">
+        {/* Header Apple Wallet */}
+        <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <span className="font-bold text-sm text-slate-200">{order.paymentMethod || 'Pix'}</span>
-            <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${payStyle}`}>
-              {order.paymentStatus || 'Pendente'}
-            </span>
+            <div className="w-8 h-8 rounded-full bg-slate-500/10 text-slate-700 dark:text-slate-300 flex items-center justify-center shrink-0">
+              <CreditCard className="h-4 w-4" />
+            </div>
+            <div>
+              <span className="text-[10px] font-medium uppercase tracking-wider text-[#86868B] block">
+                Pagamento
+              </span>
+              <span className="text-xs font-semibold text-slate-900 dark:text-slate-100">
+                {order.paymentMethod || 'Pix'}
+              </span>
+            </div>
           </div>
-          {order.installments && order.installments > 1 && (
-            <p className="text-sky-400 font-bold text-[11px]">Parcelado em {order.installments}x sem juros</p>
-          )}
-          {order.paymentMethod === 'Crediário da Loja' && (
-            <p className="text-amber-400 font-bold text-[11px]">Carnê Crediário Evidência em até 6x</p>
-          )}
-          {order.paymentStatus !== 'Confirmado' && onConfirmPayment && (
-            <button
-              type="button" onClick={onConfirmPayment}
-              className="mt-1.5 px-3 py-1 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-[10px] uppercase tracking-wider transition-all cursor-pointer flex items-center space-x-1"
-            >
-              <Check className="h-3 w-3" />
-              <span>Confirmar Pagamento</span>
-            </button>
-          )}
         </div>
+
+        {/* Status Badge */}
+        <div className="flex flex-wrap items-center gap-2">
+          <PaymentStatusBadge status={order.paymentStatus} variant="admin" size="sm" />
+        </div>
+
+        {/* Detalhes de Parcelamento */}
+        {order.installments && order.installments > 1 && (
+          <p className="text-[11px] text-[#0071E3] dark:text-[#0A84FF] font-medium">
+            Parcelado em {order.installments}x sem juros
+          </p>
+        )}
+        {order.paymentMethod === 'Crediário da Loja' && (
+          <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">
+            Carnê Crediário Evidência em até 6x
+          </p>
+        )}
+
+        {/* Botão de Ação Apple Style */}
+        {order.paymentStatus !== 'Confirmado' && onConfirmPayment && (
+          <button
+            type="button"
+            onClick={onConfirmPayment}
+            className="w-full mt-1 px-3 py-1.5 rounded-full bg-[#0071E3] hover:bg-[#0077ED] active:scale-[0.98] text-white text-[11px] font-medium transition-all shadow-sm cursor-pointer flex items-center justify-center space-x-1.5"
+          >
+            <Check className="h-3.5 w-3.5 stroke-[2.5]" />
+            <span>Aprovar Pagamento</span>
+          </button>
+        )}
       </div>
     );
   }
 
+  // Client variant
   return (
-    <div className={`p-4 rounded-2xl border space-y-2 ${
-      isDark ? 'bg-slate-950/40 border-slate-800' : 'bg-[#EEF8FF]/60 border-blue-900/10'
-    }`}>
-      <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#006EDB] flex items-center space-x-1.5">
-        <CreditCard className="h-3.5 w-3.5" />
-        <span>Forma &amp; Pagamento</span>
+    <div className="p-4 rounded-2xl bg-black/[0.02] dark:bg-white/[0.02] border border-black/[0.04] dark:border-white/[0.06] space-y-2.5">
+      <span className="text-[10px] font-medium uppercase tracking-wider text-[#86868B] flex items-center space-x-1.5">
+        <CreditCard className="h-3.5 w-3.5 text-[#0071E3] dark:text-[#0A84FF]" />
+        <span>Forma de Pagamento</span>
       </span>
       <div className="flex items-center justify-between">
-        <p className="font-bold text-[#003B73] dark:text-white">{order.paymentMethod || 'Pix'}</p>
-        <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase border ${payStyle}`}>
-          {order.paymentStatus || 'Pendente'}
-        </span>
+        <p className="font-semibold text-sm text-slate-900 dark:text-white">
+          {order.paymentMethod || 'Pix'}
+        </p>
+        <PaymentStatusBadge status={order.paymentStatus} variant="client" size="sm" />
       </div>
       {order.installments && order.installments > 1 && (
-        <p className="text-[#006EDB] font-bold text-[11px]">Parcelado em {order.installments}x sem juros no cartão</p>
+        <p className="text-[11px] text-[#0071E3] dark:text-[#0A84FF] font-medium">
+          Parcelado em {order.installments}x sem juros no cartão
+        </p>
       )}
       {order.paymentMethod === 'Crediário da Loja' && (
-        <p className="text-[#003B73] font-bold text-[11px]">Carnê Crediário Evidência em até 6x</p>
+        <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">
+          Carnê Crediário Evidência em até 6x
+        </p>
       )}
     </div>
   );

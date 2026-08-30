@@ -1,5 +1,5 @@
 ﻿import React, { useState } from 'react';
-import { ShoppingBag, Search, User } from 'lucide-react';
+import { ShoppingBag, Search, User, CheckCircle2, ShieldCheck, ArrowUpRight, X, Layers } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { OrderStatus, PaymentStatus } from '../../types';
 import { AdminOrderCard } from './AdminOrderCard';
@@ -37,7 +37,7 @@ export const AdminOrdersList: React.FC<Props> = ({ isDark }) => {
     .slice()
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     .filter((o) => {
-      const q = ordersSearch.toLowerCase();
+      const q = ordersSearch.toLowerCase().trim();
       const matchesSearch =
         !q ||
         o.customerName?.toLowerCase().includes(q) ||
@@ -63,158 +63,257 @@ export const AdminOrdersList: React.FC<Props> = ({ isDark }) => {
     } else if (newStatus === 'Cancelado') {
       await updateOrderPaymentStatus(orderId, 'Recusado');
     }
-    addToast('Etapa Atualizada!', `O pedido foi movido para "${newStatus}".`, 'success');
+    addToast('Etapa Atualizada', `O pedido foi alterado para "${newStatus}".`, 'success');
   };
 
   const handlePaymentConfirm = async (orderId: string) => {
     const o = orders.find((x) => x.id === orderId);
     await updateOrderPaymentStatus(orderId, 'Confirmado');
-    addToast('Pagamento Confirmado!', `O pagamento do pedido ${o?.orderNumber || orderId} foi confirmado.`, 'success');
+    addToast('Pagamento Aprovado', `O pagamento do pedido #${o?.orderNumber || orderId} foi confirmado.`, 'success');
   };
 
   const handleFreightSave = async (orderId: string) => {
     const val = parseFloat(editingFreightMap[orderId] ?? '0');
     await updateOrderFreight(orderId, isNaN(val) ? 0 : val);
     const o = orders.find((x) => x.id === orderId);
-    addToast('Frete Atualizado!', `O valor do frete do pedido ${o?.orderNumber || orderId} foi salvo.`, 'success');
+    addToast('Frete Atualizado', `O valor do frete do pedido #${o?.orderNumber || orderId} foi salvo.`, 'success');
   };
 
   const handleDelete = async (orderId: string) => {
     const o = orders.find((x) => x.id === orderId);
-    if (window.confirm(`Tem certeza que deseja excluir permanentemente o pedido ${o?.orderNumber || orderId}?`)) {
+    if (window.confirm(`Tem certeza que deseja excluir permanentemente o pedido #${o?.orderNumber || orderId}?`)) {
       await deleteOrder(orderId);
-      addToast('Pedido Excluído', `O pedido ${o?.orderNumber || orderId} foi excluído com sucesso.`, 'info');
+      addToast('Pedido Excluído', `O pedido #${o?.orderNumber || orderId} foi removido.`, 'info');
     }
   };
 
+  const resetFilters = () => {
+    setOrdersSearch('');
+    setOrdersStatusFilter('Todos');
+    setOrdersPaymentFilter('Todos');
+    setOrdersSellerFilter('Todos');
+  };
+
+  const hasActiveFilters =
+    Boolean(ordersSearch) ||
+    ordersStatusFilter !== 'Todos' ||
+    ordersPaymentFilter !== 'Todos' ||
+    ordersSellerFilter !== 'Todos';
+
   return (
-    <div className="space-y-6">
-      {/* Header & Filters */}
-      <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
-        <div>
-          <h2 className="text-2xl font-black tracking-tight flex items-center space-x-2">
-            <ShoppingBag className="h-6 w-6 text-amber-400" />
-            <span>Gestão Global de Vendas & Pedidos ({orders.length})</span>
-          </h2>
-          <p className="text-xs text-slate-400">
-            Visão completa de todos os pedidos da loja. Altere status de entrega, confirme pagamentos e gerencie fretes.
+    <div className="space-y-8">
+      {/* Header Apple Pro */}
+      <div className="flex flex-col md:flex-row justify-between md:items-end gap-4 pb-2">
+        <div className="space-y-1">
+          <div className="flex items-center space-x-2.5">
+            <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight text-slate-900 dark:text-white">
+              Vendas &amp; Pedidos
+            </h2>
+            <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-black/[0.04] dark:bg-white/[0.06] text-slate-700 dark:text-slate-300 border border-black/[0.05] dark:border-white/[0.08]">
+              {orders.length}
+            </span>
+          </div>
+          <p className="text-xs sm:text-sm text-slate-500 dark:text-[#86868B] font-normal">
+            Acompanhe métricas em tempo real, etapas de entrega e controle de pagamentos com precisão.
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative">
-            <Search className="h-4 w-4 absolute left-3 top-2.5 text-slate-400" />
-            <input
-              type="text"
-              value={ordersSearch}
-              onChange={(e) => setOrdersSearch(e.target.value)}
-              placeholder="Buscar cliente, e-mail, tel ou nº..."
-              className={`pl-9 pr-3 py-1.5 rounded-xl text-xs border focus:outline-none w-56 ${
-                isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-300 text-slate-900'
-              }`}
-            />
-          </div>
+        {hasActiveFilters && (
+          <button
+            type="button"
+            onClick={resetFilters}
+            className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-full bg-black/[0.03] dark:bg-white/[0.05] hover:bg-black/[0.06] dark:hover:bg-white/[0.08] text-xs font-medium text-slate-600 dark:text-slate-300 border border-black/[0.05] dark:border-white/[0.08] transition-colors self-start md:self-auto"
+          >
+            <X className="h-3.5 w-3.5" />
+            <span>Limpar Filtros</span>
+          </button>
+        )}
+      </div>
 
-          <div className="flex items-center space-x-1">
-            <span className="text-[10px] text-slate-400 uppercase font-bold">Etapa:</span>
+      {/* Cards de Métricas (Apple Health / Stocks Style) */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+        <div className="p-5 rounded-3xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#161617]/90 shadow-[0_2px_12px_rgba(0,0,0,0.03)] backdrop-blur-xl space-y-1">
+          <div className="flex items-center justify-between text-[#86868B]">
+            <span className="text-[11px] font-medium uppercase tracking-wider">Volume Total</span>
+            <Layers className="h-4 w-4 opacity-70" />
+          </div>
+          <p className="text-2xl sm:text-3xl font-semibold tracking-tight text-slate-900 dark:text-white">
+            {orders.length}
+          </p>
+          <span className="text-[11px] text-slate-400 dark:text-[#86868B] block pt-0.5">
+            Pedidos registrados
+          </span>
+        </div>
+
+        <div className="p-5 rounded-3xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#161617]/90 shadow-[0_2px_12px_rgba(0,0,0,0.03)] backdrop-blur-xl space-y-1">
+          <div className="flex items-center justify-between text-[#86868B]">
+            <span className="text-[11px] font-medium uppercase tracking-wider">Concluídos</span>
+            <CheckCircle2 className="h-4 w-4 text-emerald-500 opacity-80" />
+          </div>
+          <p className="text-2xl sm:text-3xl font-semibold tracking-tight text-emerald-600 dark:text-emerald-400">
+            {orders.filter((o) => o.status === 'Entregue').length}
+          </p>
+          <span className="text-[11px] text-slate-400 dark:text-[#86868B] block pt-0.5">
+            Entregues ao cliente
+          </span>
+        </div>
+
+        <div className="p-5 rounded-3xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#161617]/90 shadow-[0_2px_12px_rgba(0,0,0,0.03)] backdrop-blur-xl space-y-1">
+          <div className="flex items-center justify-between text-[#86868B]">
+            <span className="text-[11px] font-medium uppercase tracking-wider">Aprovados</span>
+            <ShieldCheck className="h-4 w-4 text-[#0071E3] dark:text-[#0A84FF] opacity-80" />
+          </div>
+          <p className="text-2xl sm:text-3xl font-semibold tracking-tight text-[#0071E3] dark:text-[#0A84FF]">
+            {orders.filter((o) => o.paymentStatus === 'Confirmado').length}
+          </p>
+          <span className="text-[11px] text-slate-400 dark:text-[#86868B] block pt-0.5">
+            Pagamentos validados
+          </span>
+        </div>
+
+        <div className="p-5 rounded-3xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#161617]/90 shadow-[0_2px_12px_rgba(0,0,0,0.03)] backdrop-blur-xl space-y-1">
+          <div className="flex items-center justify-between text-[#86868B]">
+            <span className="text-[11px] font-medium uppercase tracking-wider">Receita Total</span>
+            <ArrowUpRight className="h-4 w-4 text-emerald-500 opacity-80" />
+          </div>
+          <p className="text-2xl sm:text-3xl font-semibold tracking-tight text-slate-900 dark:text-white font-mono">
+            R$ {formatCurrency(totalFaturado)}
+          </p>
+          <span className="text-[11px] text-slate-400 dark:text-[#86868B] block pt-0.5">
+            Faturamento acumulado
+          </span>
+        </div>
+      </div>
+
+      {/* Barra de Controles: Spotlight Search & macOS Segmented Filters */}
+      <div className="p-3.5 rounded-2xl bg-white dark:bg-[#161617]/80 border border-black/[0.06] dark:border-white/[0.08] shadow-[0_2px_10px_rgba(0,0,0,0.02)] backdrop-blur-xl flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+        {/* Spotlight Search Input */}
+        <div className="relative flex-1 max-w-md">
+          <Search className="h-4 w-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-[#86868B]" />
+          <input
+            type="text"
+            value={ordersSearch}
+            onChange={(e) => setOrdersSearch(e.target.value)}
+            placeholder="Buscar por cliente, e-mail, tel ou nº do pedido..."
+            className="w-full pl-9.5 pr-8 py-2 rounded-xl text-xs font-normal bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.06] dark:border-white/[0.08] text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-[#86868B] focus:outline-none focus:ring-2 focus:ring-[#0071E3]/30 transition-all"
+          />
+          {ordersSearch && (
+            <button
+              type="button"
+              onClick={() => setOrdersSearch('')}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          )}
+        </div>
+
+        {/* Segmented Selectors */}
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          {/* Etapa */}
+          <div className="flex items-center space-x-1 px-2.5 py-1 rounded-xl bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.06] dark:border-white/[0.08]">
+            <span className="text-[10px] text-[#86868B] font-medium uppercase tracking-wider">
+              Etapa:
+            </span>
             <select
               value={ordersStatusFilter}
               onChange={(e) => setOrdersStatusFilter(e.target.value as any)}
-              className={`p-1.5 rounded-xl text-xs font-bold border focus:outline-none cursor-pointer ${
-                isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-300 text-slate-900'
-              }`}
+              className="bg-transparent text-xs font-medium text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer py-1"
             >
-              <option value="Todos">Todas Etapas</option>
+              <option value="Todos">Todas</option>
               <option value="Pendente">1. Pedido Recebido</option>
-              <option value="Confirmado">2. Pagamento OK</option>
+              <option value="Confirmado">2. Pagamento Aprovado</option>
               <option value="Em Preparação">3. Em Preparação</option>
               <option value="Entregue">4. Entregue</option>
               <option value="Cancelado">Cancelado</option>
             </select>
           </div>
 
-          <div className="flex items-center space-x-1">
-            <span className="text-[10px] text-slate-400 uppercase font-bold">Pagamento:</span>
+          {/* Pagamento */}
+          <div className="flex items-center space-x-1 px-2.5 py-1 rounded-xl bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.06] dark:border-white/[0.08]">
+            <span className="text-[10px] text-[#86868B] font-medium uppercase tracking-wider">
+              Pagamento:
+            </span>
             <select
               value={ordersPaymentFilter}
               onChange={(e) => setOrdersPaymentFilter(e.target.value as any)}
-              className={`p-1.5 rounded-xl text-xs font-bold border focus:outline-none cursor-pointer ${
-                isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-300 text-slate-900'
-              }`}
+              className="bg-transparent text-xs font-medium text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer py-1"
             >
-              <option value="Todos">Todos Pagamentos</option>
-              <option value="Pendente">⏳ Pendente</option>
-              <option value="Em Análise">🔍 Em Análise</option>
-              <option value="Confirmado">✅ Confirmado</option>
-              <option value="Recusado">❌ Recusado</option>
+              <option value="Todos">Todos</option>
+              <option value="Pendente">Pendente</option>
+              <option value="Em Análise">Em Análise</option>
+              <option value="Confirmado">Aprovado</option>
+              <option value="Recusado">Recusado</option>
             </select>
           </div>
 
-          <div className="flex items-center space-x-1">
-            <span className="text-[10px] text-slate-400 uppercase font-bold">Vendedor:</span>
+          {/* Vendedor */}
+          <div className="flex items-center space-x-1 px-2.5 py-1 rounded-xl bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.06] dark:border-white/[0.08]">
+            <span className="text-[10px] text-[#86868B] font-medium uppercase tracking-wider">
+              Vendedor:
+            </span>
             <select
               value={ordersSellerFilter}
               onChange={(e) => setOrdersSellerFilter(e.target.value)}
-              className={`p-1.5 rounded-xl text-xs font-bold border focus:outline-none cursor-pointer ${
-                isDark ? 'bg-slate-900 border-slate-800 text-amber-400' : 'bg-white border-slate-300 text-slate-900'
-              }`}
+              className="bg-transparent text-xs font-medium text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer py-1"
             >
-              <option value="Todos">Todos Vendedores</option>
+              <option value="Todos">Todos</option>
               {sellersList.map((sellerName) => (
-                <option key={sellerName} value={sellerName}>👤 {sellerName}</option>
+                <option key={sellerName} value={sellerName}>
+                  {sellerName}
+                </option>
               ))}
             </select>
           </div>
         </div>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className={`p-4 rounded-2xl border ${isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
-          <span className="text-[10px] uppercase font-black text-slate-400 block">Total de Pedidos</span>
-          <span className="text-xl font-black text-white">{orders.length}</span>
-        </div>
-        <div className={`p-4 rounded-2xl border ${isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
-          <span className="text-[10px] uppercase font-black text-slate-400 block">Pedidos Entregues</span>
-          <span className="text-xl font-black text-emerald-400">
-            {orders.filter((o) => o.status === 'Entregue').length}
-          </span>
-        </div>
-        <div className={`p-4 rounded-2xl border ${isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
-          <span className="text-[10px] uppercase font-black text-slate-400 block">Pagamentos Confirmados</span>
-          <span className="text-xl font-black text-sky-400">
-            {orders.filter((o) => o.paymentStatus === 'Confirmado').length}
-          </span>
-        </div>
-        <div className={`p-4 rounded-2xl border ${isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
-          <span className="text-[10px] uppercase font-black text-slate-400 block">Total Faturado</span>
-          <span className="text-xl font-black text-amber-400">R$ {formatCurrency(totalFaturado)}</span>
-        </div>
-      </div>
-
-      {/* Seller Filter Banner */}
+      {/* Banner Informativo de Vendedor Selecionado */}
       {ordersSellerFilter !== 'Todos' && (
-        <div className="p-3.5 rounded-2xl bg-amber-400/10 border border-amber-400/30 text-amber-400 flex items-center justify-between text-xs font-bold shadow-sm">
+        <div className="px-4 py-2.5 rounded-2xl bg-[#0071E3]/10 border border-[#0071E3]/20 text-[#0071E3] dark:text-[#0A84FF] flex items-center justify-between text-xs font-medium">
           <div className="flex items-center space-x-2">
-            <User className="h-4 w-4 text-amber-400" />
-            <span>Filtrando Vendas Atribuídas a <strong>{ordersSellerFilter}</strong></span>
+            <User className="h-4 w-4 shrink-0" />
+            <span>
+              Filtrando pedidos do vendedor <strong>{ordersSellerFilter}</strong>
+            </span>
           </div>
-          <span>
-            {orders.filter((o) => o.sellerName === ordersSellerFilter).length} pedido(s) (R${' '}
-            {formatCurrency(orders.filter((o) => o.sellerName === ordersSellerFilter).reduce((sum, o) => sum + (o.total || 0), 0))})
-          </span>
+          <button
+            type="button"
+            onClick={() => setOrdersSellerFilter('Todos')}
+            className="hover:underline cursor-pointer text-[11px]"
+          >
+            Remover filtro
+          </button>
         </div>
       )}
 
       {/* Empty State */}
-      {orders.length === 0 && (
-        <div className="text-center py-16 text-slate-500">
-          <ShoppingBag className="h-12 w-12 mx-auto mb-4 opacity-30" />
-          <p className="font-bold text-sm">Nenhum pedido registrado ainda</p>
+      {filteredOrders.length === 0 && (
+        <div className="text-center py-16 px-4 rounded-3xl border border-black/[0.05] dark:border-white/[0.06] bg-black/[0.01] dark:bg-white/[0.01]">
+          <div className="w-14 h-14 rounded-full bg-black/[0.03] dark:bg-white/[0.05] flex items-center justify-center mx-auto mb-3 text-slate-400 dark:text-slate-500">
+            <ShoppingBag className="h-6 w-6 stroke-[1.5]" />
+          </div>
+          <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-1">
+            Nenhum pedido encontrado
+          </h3>
+          <p className="text-xs text-slate-500 dark:text-[#86868B] max-w-sm mx-auto">
+            {hasActiveFilters
+              ? 'Tente ajustar ou limpar os filtros para encontrar o que está procurando.'
+              : 'Nenhum pedido foi realizado ainda na loja.'}
+          </p>
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="mt-4 px-4 py-1.5 rounded-full bg-[#0071E3] hover:bg-[#0077ED] text-white text-xs font-medium transition-all shadow-sm cursor-pointer"
+            >
+              Limpar Todos os Filtros
+            </button>
+          )}
         </div>
       )}
 
-      {/* Orders List */}
+      {/* Lista de Pedidos (Apple Card Windows) */}
       {filteredOrders.length > 0 && (
         <div className="space-y-4">
           {filteredOrders.map((order) => (
@@ -225,7 +324,9 @@ export const AdminOrdersList: React.FC<Props> = ({ isDark }) => {
               editingFreight={editingFreightMap[order.id]}
               onStatusChange={handleStatusChange}
               onPaymentConfirm={handlePaymentConfirm}
-              onFreightChange={(orderId, val) => setEditingFreightMap((prev) => ({ ...prev, [orderId]: val }))}
+              onFreightChange={(orderId, val) =>
+                setEditingFreightMap((prev) => ({ ...prev, [orderId]: val }))
+              }
               onFreightSave={handleFreightSave}
               onDelete={handleDelete}
             />

@@ -14,19 +14,15 @@ export const OrderItemsGrid: React.FC<Props> = ({ items, isDark, variant = 'clie
   const totalCount = (items || []).reduce((sum, item) => sum + (item.quantity || 1), 0);
 
   return (
-    <div className="p-5 sm:p-6 space-y-4">
+    <div className="space-y-3 pt-1">
       <div className="flex items-center justify-between">
-        <span className={`text-xs font-extrabold uppercase tracking-wider flex items-center space-x-1.5 ${
-          variant === 'admin' ? 'text-amber-400' : 'text-[#003B73]'
-        }`}>
-          <ShoppingBag className={`h-4 w-4 ${variant === 'admin' ? 'text-amber-400' : 'text-[#006EDB]'}`} />
-          <span>
-            {variant === 'admin' ? 'Produtos do Pedido' : 'Itens do Pedido'} ({totalCount} item{totalCount !== 1 ? 's' : ''})
-          </span>
+        <span className="text-[11px] font-medium tracking-tight text-[#86868B] flex items-center space-x-1.5 uppercase">
+          <ShoppingBag className="h-3.5 w-3.5 text-slate-500 dark:text-[#86868B]" />
+          <span>Itens do Pedido ({totalCount} {totalCount === 1 ? 'item' : 'itens'})</span>
         </span>
       </div>
 
-      <div className={variant === 'admin' ? 'grid grid-cols-1 sm:grid-cols-2 gap-2.5' : 'space-y-3'}>
+      <div className={variant === 'admin' ? 'grid grid-cols-1 sm:grid-cols-2 gap-2.5' : 'space-y-2.5'}>
         {(items || []).map((item, idx) => (
           <OrderItemCard
             key={idx}
