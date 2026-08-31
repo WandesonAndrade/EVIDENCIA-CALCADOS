@@ -1,4 +1,4 @@
-﻿# Contexto e Regras de Negócio - Evidência Calçados
+# Contexto e Regras de Negócio - Evidência Calçados
 
 Este documento centraliza todas as regras de negócio, decisões de arquitetura, integrações e convenções de interface do projeto E-commerce Evidência Calçados, facilitando o desenvolvimento contínuo em diferentes máquinas ou por novos desenvolvedores.
 
@@ -33,9 +33,8 @@ Este documento centraliza todas as regras de negócio, decisões de arquitetura,
   - O MobLink fornece preços diferenciados conforme o meio de pagamento (`precoVista`, `precoCartao`, ou o preço base `price` para Crediário).
   - O carrinho e o checkout recalculam o valor total ativamente sempre que o cliente alterna entre Pix, Cartão ou Crediário.
 - **Modalidades de Entrega:**
-  1. **Caxias - MA:** Entrega expressa local (Frete Grátis acima de R$ 100 ou taxa fixa de R$ 10,00).
-  2. **Outras Cidades:** Envio interestadual/regional. Valor de frete a combinar via WhatsApp com o lojista (`freightCost` configurável no painel administrativo).
-  3. **Retirada na Loja:** Grátis. O cliente retira diretamente no balcão da loja física no Centro de Caxias - MA.
+  1. **Entrega no Endereço (Cálculo Automático por CEP):** Cotação em tempo real via provedor ativo (Melhor Envio / Correios / Jadlog / Motoboy Local para Caxias-MA). O frete da opção escolhida é somado diretamente ao valor final da compra.
+  2. **Retirada na Loja Física:** Frete GRÁTIS (R$ 0,00). O cliente retira diretamente no balcão da loja física no Centro de Caxias - MA.
 - **Formas de Pagamento e Gateway:**
   - **Pix:** QR Code dinâmico e Pix Copia e Cola gerados via Mercado Pago, com verificação e conciliação em tempo real.
   - **Cartão de Crédito:** Processamento seguro tokenizado via Mercado Pago SDK v2 com suporte a parcelamento sem juros.
@@ -44,7 +43,38 @@ Este documento centraliza todas as regras de negócio, decisões de arquitetura,
 
 ---
 
-## 4. Gestão de Pedidos (Vendas & Pedidos / Meus Pedidos)
+## 4. Sistema Integrado de Frete e Logística (Melhor Envio)
+
+### A. Arquitetura Desacoplada de Provedores (`src/services/shipping/`)
+- **Interface Base (`IShippingProvider`):** Define o contrato de frete (cotação, autenticação, etiquetas e rastreamento), permitindo alternar de provedor via variável de ambiente (`ACTIVE_SHIPPING_PROVIDER`) sem alterar telas.
+- **Factory Pattern (`ShippingService`):** Retorna o provedor ativo (padrão: `MelhorEnvioAdapter`).
+- **Adapter do Melhor Envio (`MelhorEnvioAdapter`):**
+  - Integração com API REST v2 do Melhor Envio (`POST /api/v2/me/shipment/calculate`).
+  - **Fallback Regional Dinâmico Inteligente:** Caso a API esteja em modo sandbox sem conexão externa ou com credenciais indisponíveis, calcula preços e prazos dinâmicos por faixas de CEP com base na distância de Caxias-MA:
+    - *Caxias-MA (6560)*: Opção Motoboy Local R$ 10,00 (1 dia), Jadlog R$ 16,90, PAC R$ 18,50, SEDEX R$ 26,00.
+    - *Maranhão (65)*: Jadlog R$ 20,50, PAC R$ 22,00, SEDEX R$ 32,00 (2 a 4 dias).
+    - *Piauí (64)*: Jadlog R$ 19,50, PAC R$ 21,00, SEDEX R$ 30,00.
+    - *Nordeste (40-63)*: Jadlog R$ 26,00, PAC R$ 28,50, SEDEX R$ 42,00.
+    - *Sudeste (01-39)*: Jadlog R$ 31,50, PAC R$ 34,90, SEDEX R$ 58,00.
+    - *Centro-Oeste (70-79)*: Jadlog R$ 33,00, PAC R$ 36,00, SEDEX R$ 62,00.
+    - *Sul (80-99)*: Jadlog R$ 39,00, PAC R$ 42,00, SEDEX R$ 74,00.
+    - *Norte (66-69)*: Jadlog R$ 36,00, PAC R$ 39,00, SEDEX R$ 68,00.
+  - **Selo Inteligente:** `enrichOptionsWithBadges` destaca automaticamente a opção "Mais Barato" (Sparkles) e "Mais Rápido" (⚡).
+
+### B. Gestão de Caixas e Cubagem (`src/services/boxService.ts` e `AdminBoxManager.tsx`)
+- **Coleção `boxes` no Firestore:** Cadastro e personalização de caixas de envio pelo lojista (Dimensões em cm: Altura, Largura, Comprimento, Peso em kg e capacidade máxima de pares de calçado).
+- **Caixa Padrão Automática:** Caixa de calçados convencional (12 x 20 x 30 cm, 0.8 kg) para cálculo inicial.
+- **Painel Administrativo:** Aba "Caixas de Envio" integrada no `AdminPanel.tsx` para gerenciar embalagens ativas.
+
+### C. Experiência de Checkout (`CheckoutPage.tsx` e `ShippingCalculator.tsx`)
+- **Sem Redundâncias de Formulário:** Os botões do topo guiam entre 🚚 **Entregar no meu Endereço** e 🏬 **Retirar na Loja Física (Grátis)**.
+- **Preferência pelo Endereço Cadastrado:** Se o cliente já possui endereço salvo, ele é selecionado e seu CEP dispara automaticamente a cotação de frete limpa (com `hideInput={true}`).
+- **Soma Real:** O frete selecionado é somado diretamente ao subtotal dos produtos no total da compra.
+- **Segurança de Variáveis:** O token da API reside estritamente no backend Node.js (`server.ts`), impedindo vazamento de tokens para o bundle do navegador.
+
+---
+
+## 5. Gestão de Pedidos (Vendas & Pedidos / Meus Pedidos)
 
 ### A. Ciclo de Vida e Etapas de Rastreio (4 Etapas Sincronizadas)
 O ciclo do pedido segue uma régua de 4 etapas perfeitamente alinhada entre a visão do Cliente (`OrderTimeline.tsx`) e do Administrador (`AdminStageStepper.tsx`):
@@ -79,7 +109,7 @@ O ciclo do pedido segue uma régua de 4 etapas perfeitamente alinhada entre a vi
 
 ---
 
-## 5. UI / UX Design Guidelines (Padrão Apple HIG)
+## 6. UI / UX Design Guidelines (Padrão Apple HIG)
 - **Design System Inspirado na Apple:**
   - Tipografia de alta legibilidade, números tabulares para moedas (`font-mono font-bold`).
   - Cantos arredondados generosos (`rounded-2xl`, `rounded-3xl`, `rounded-full`).
@@ -93,7 +123,7 @@ O ciclo do pedido segue uma régua de 4 etapas perfeitamente alinhada entre a vi
 
 ---
 
-## 6. Estrutura Modular dos Componentes de Pedidos (`src/components/orders/`)
+## 7. Estrutura Modular dos Componentes de Pedidos (`src/components/orders/`)
 A arquitetura de pedidos foi completamente modularizada em componentes atômicos e reutilizáveis:
 - `OrderStatusBadge.tsx`: Badge semântica de status do pedido com ícone e cores temáticas.
 - `PaymentStatusBadge.tsx`: Badge de status de liquidação do pagamento.
@@ -111,8 +141,8 @@ A arquitetura de pedidos foi completamente modularizada em componentes atômicos
 
 ---
 
-## 7. Workflow de Desenvolvimento & Git
-- **Branch de Desenvolvimento:** Todo o código implementado deve ser testado e commitado na branch `dev`.
+## 8. Workflow de Desenvolvimento & Git
+- **Branch de Desenvolvimento:** Todo o código implementado deve ser testado e commitado na branch `api` (ou `dev`).
 - **Verificação Contínua:**
   - Tipagem rigorosa: `npm run lint` (`tsc --noEmit`) deve passar com 0 erros.
   - Compilação de produção: `npm run build` deve compilar todos os chunks e o proxy `server.ts` sem falhas.
