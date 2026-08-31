@@ -1,13 +1,26 @@
-﻿import React from 'react';
-import { Box, ShieldCheck, Truck, PackageCheck, Check, Store, ShoppingBag } from 'lucide-react';
+import React from 'react';
+import { Box, ShieldCheck, Truck, PackageCheck, Check, Store, ShoppingBag, ExternalLink, RefreshCw } from 'lucide-react';
+import { ITrackingEvent } from '../../services/shipping/shippingProvider.interface';
 
 interface Props {
   currentStep: number;
   isDark: boolean;
   deliveryType?: string;
+  trackingCode?: string;
+  trackingEvents?: ITrackingEvent[];
+  onRefreshTracking?: () => void;
+  isSyncing?: boolean;
 }
 
-export const OrderTimeline: React.FC<Props> = ({ currentStep, isDark: _isDark, deliveryType }) => {
+export const OrderTimeline: React.FC<Props> = ({
+  currentStep,
+  isDark: _isDark,
+  deliveryType,
+  trackingCode,
+  trackingEvents = [],
+  onRefreshTracking,
+  isSyncing = false,
+}) => {
   const isStorePickup = deliveryType === 'Retirada na Loja';
 
   const steps = isStorePickup
@@ -25,11 +38,12 @@ export const OrderTimeline: React.FC<Props> = ({ currentStep, isDark: _isDark, d
       ];
 
   const progressPct = ((Math.max(1, currentStep) - 1) / 3) * 100;
+  const latestEvent = trackingEvents.length > 0 ? trackingEvents[trackingEvents.length - 1] : null;
 
   return (
-    <div className="py-5 px-5 sm:px-12 border-b border-black/[0.04] dark:border-white/[0.06] bg-black/[0.01] dark:bg-white/[0.01] select-none">
+    <div className="py-5 px-5 sm:px-12 border-b border-black/[0.04] dark:border-white/[0.06] bg-black/[0.01] dark:bg-white/[0.01] select-none space-y-4">
       <div className="max-w-2xl mx-auto relative">
-        {/* Linha Conectora de Fundo - alinhada no centro exato do nó de 36px (top-[18px]) */}
+        {/* Linha Conectora de Fundo */}
         <div className="absolute left-6 right-6 top-[18px] -translate-y-1/2 h-[2.5px] bg-slate-200/90 dark:bg-white/[0.08] rounded-full z-0" />
 
         {/* Linha de Progresso Ativa no Azul Apple */}
@@ -87,6 +101,49 @@ export const OrderTimeline: React.FC<Props> = ({ currentStep, isDark: _isDark, d
           })}
         </div>
       </div>
+
+      {/* Caixa de Rastreamento Automático Melhor Envio/Melhor Rastreio */}
+      {trackingCode && !isStorePickup && (
+        <div className="max-w-2xl mx-auto p-3 rounded-2xl bg-blue-50/60 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/40 flex flex-col sm:flex-row items-center justify-between gap-2.5 text-xs">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-full bg-blue-500/10 text-[#0071E3] dark:text-[#0A84FF] flex items-center justify-center shrink-0">
+              <Truck className="w-3.5 h-3.5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-slate-800 dark:text-slate-200">
+                  Rastreio: <strong className="font-mono text-[#0071E3]">{trackingCode}</strong>
+                </span>
+                {onRefreshTracking && (
+                  <button
+                    onClick={onRefreshTracking}
+                    disabled={isSyncing}
+                    className="p-1 text-slate-400 hover:text-[#0071E3] transition rounded-full"
+                    title="Atualizar Rastreamento"
+                  >
+                    <RefreshCw className={`w-3 h-3 ${isSyncing ? 'animate-spin' : ''}`} />
+                  </button>
+                )}
+              </div>
+              {latestEvent && (
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 font-normal">
+                  {latestEvent.description} • {latestEvent.location}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <a
+            href={`https://www.melhorrastreio.com.br/rastreio/${trackingCode}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-3 py-1.5 rounded-xl bg-[#0071E3] hover:bg-[#005bb5] text-white font-medium text-[11px] transition flex items-center gap-1 shrink-0"
+          >
+            <span>Ver no Melhor Rastreio</span>
+            <ExternalLink className="w-3 h-3" />
+          </a>
+        </div>
+      )}
     </div>
   );
 };

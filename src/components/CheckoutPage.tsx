@@ -6,10 +6,12 @@ import { CompleteProfileModal } from './CompleteProfileModal';
 import { PaymentForm } from './PaymentForm';
 import { 
   CheckCircle2, Truck, ShoppingBag, CreditCard, 
-  ShieldCheck, MapPin, MessageSquare, User, Edit3, Plus, Loader2, ArrowLeft, Lock
+  ShieldCheck, MapPin, MessageSquare, User, Edit3, Plus, Loader2, ArrowLeft, Lock, Package, Store
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cepService } from '../services/cepService';
+import { ShippingCalculator } from './common/ShippingCalculator';
+import { IShippingOption } from '../services/shipping/shippingProvider.interface';
 import { isProfileIncomplete } from '../App';
 
 export const CheckoutPage: React.FC = () => {
@@ -27,7 +29,7 @@ export const CheckoutPage: React.FC = () => {
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [createdOrder, setCreatedOrder] = useState<any | null>(null);
-  const [deliveryType, setDeliveryType] = useState<'Entrega em Caxias-MA' | 'Entrega para Outras Cidades' | 'Retirada na Loja'>('Entrega em Caxias-MA');
+  const [deliveryType, setDeliveryType] = useState<'Entrega no Endereço' | 'Retirada na Loja'>('Entrega no Endereço');
 
   // Se não houver carrinho, redireciona para a home
   useEffect(() => {
@@ -39,6 +41,7 @@ export const CheckoutPage: React.FC = () => {
   // Estado para edição de dados do perfil e gestão de múltiplos endereços
   const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false);
   const [selectedAddressId, setSelectedAddressId] = useState<string>('default');
+  const [selectedShippingOption, setSelectedShippingOption] = useState<IShippingOption | null>(null);
   const [isAddingNewAddress, setIsAddingNewAddress] = useState<boolean>(false);
   const [newAddrForm, setNewAddrForm] = useState({
     label: '',
@@ -93,6 +96,7 @@ export const CheckoutPage: React.FC = () => {
     bairro: currentUser?.bairro || 'Centro',
     cidade: currentUser?.cidade || 'Caxias',
     uf: currentUser?.uf || 'MA',
+    cep: currentUser?.cep || '',
   };
 
   const userSavedList: SavedAddress[] = currentUser?.savedAddresses || [];
@@ -116,9 +120,7 @@ export const CheckoutPage: React.FC = () => {
       return;
     }
 
-    const targetCity = deliveryType === 'Entrega para Outras Cidades' 
-      ? (otherCityName.trim() || newAddrForm.cidade.trim() || 'Outra Cidade')
-      : (newAddrForm.cidade.trim() || 'Caxias');
+    const targetCity = newAddrForm.cidade.trim() || otherCityName.trim() || 'Caxias';
 
     const newAddrObj: SavedAddress = {
       id: 'addr_' + Date.now(),
@@ -215,9 +217,9 @@ export const CheckoutPage: React.FC = () => {
   
   const activeSubtotal = subtotal;
 
-  const isOtherCities = deliveryType === 'Entrega para Outras Cidades';
-  const isFreeFreight = (activeSubtotal > 100 && deliveryType === 'Entrega em Caxias-MA') || deliveryType === 'Retirada na Loja';
-  const freightCost = (deliveryType === 'Retirada na Loja' || isOtherCities) ? 0 : (activeSubtotal > 100 ? 0 : 10);
+  const freightCost = deliveryType === 'Retirada na Loja'
+    ? 0
+    : (selectedShippingOption ? selectedShippingOption.price : 0);
   
   const todayStr = new Date().toISOString().split('T')[0];
   const isCashbackValid = Boolean(
@@ -251,9 +253,7 @@ export const CheckoutPage: React.FC = () => {
 
     const formattedAddress = deliveryType === 'Retirada na Loja'
       ? 'Retirada na Loja: Rua Afonso Pena, 295 - Centro, Caxias - MA'
-      : deliveryType === 'Entrega para Outras Cidades'
-      ? `${activeAddressObj?.rua ? `${activeAddressObj.rua}, Nº ${activeAddressObj.numero || 'S/N'} - ${activeAddressObj.bairro || ''}, ` : ''}${otherCityName || activeAddressObj?.cidade || 'Outra Cidade'}/${activeAddressObj?.uf || 'MA'}`
-      : `${activeAddressObj?.rua || 'Centro'}, Nº ${activeAddressObj?.numero || 'S/N'} - ${activeAddressObj?.bairro || 'Centro'}, Caxias - MA`;
+      : `${activeAddressObj?.rua || ''}, Nº ${activeAddressObj?.numero || 'S/N'} - ${activeAddressObj?.bairro || ''}, ${activeAddressObj?.cidade || otherCityName || 'Caxias'}/${activeAddressObj?.uf || 'MA'}${activeAddressObj?.cep ? ` (CEP: ${activeAddressObj.cep})` : ''}`;
 
     try {
       setIsProcessing(true);
@@ -417,73 +417,85 @@ export const CheckoutPage: React.FC = () => {
 
             {/* ETAPA 2: ENTREGA */}
             <div className={`p-6 sm:p-8 rounded-[24px] shadow-[0_2px_40px_rgba(0,0,0,0.02)] transition-all ${isDark ? 'bg-[#1c1c1e]' : 'bg-white'}`}>
-              <h2 className={`text-lg font-semibold tracking-tight border-b pb-4 mb-5 border-slate-100 dark:border-white/5 ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                2. Entrega
-              </h2>
+              <div className="flex items-center justify-between border-b pb-4 mb-5 border-slate-100 dark:border-white/5">
+                <h2 className={`text-lg font-semibold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                  2. Entrega
+                </h2>
+                <span className="text-xs font-medium text-slate-400">
+                  {deliveryType === 'Retirada na Loja' ? '🏬 Retirada Balcão (Frete Grátis)' : '🚚 Entrega no Endereço'}
+                </span>
+              </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
-                {/* Entrega Caxias */}
+              {/* SELETOR DE MODO: ENTREGA NO ENDEREÇO VS RETIRADA NA LOJA */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
                 <button
                   type="button"
-                  onClick={() => setDeliveryType('Entrega em Caxias-MA')}
-                  className={`p-4 rounded-2xl text-left flex flex-col justify-between transition-all cursor-pointer border ${
-                    deliveryType === 'Entrega em Caxias-MA'
-                      ? 'border-emerald-600 bg-emerald-50 dark:bg-emerald-500/10 shadow-sm'
+                  onClick={() => setDeliveryType('Entrega no Endereço')}
+                  className={`p-4 rounded-2xl text-left flex items-center justify-between transition-all cursor-pointer border ${
+                    deliveryType !== 'Retirada na Loja'
+                      ? 'border-[#0071E3] bg-[#0071E3]/10 dark:bg-[#0071E3]/20 ring-2 ring-[#0071E3]/20'
                       : isDark ? 'border-white/10 hover:bg-white/5' : 'border-slate-200 hover:bg-slate-50'
                   }`}
                 >
-                  <span className="font-semibold text-sm flex items-center justify-between">
-                    Caxias - MA
-                    {deliveryType === 'Entrega em Caxias-MA' && <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />}
-                  </span>
-                  <span className="text-[11px] text-slate-500 mt-1 block font-medium">Motoboy local</span>
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-[#0071E3]/10 text-[#0071E3] flex items-center justify-center font-bold">
+                      <Truck className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <span className="font-bold text-sm text-slate-900 dark:text-white block">
+                        Entregar no meu Endereço
+                      </span>
+                      <span className="text-xs text-slate-500 font-medium block">
+                        Calculado automaticamente pelo CEP
+                      </span>
+                    </div>
+                  </div>
+                  {deliveryType !== 'Retirada na Loja' && <CheckCircle2 className="h-5 w-5 text-[#0071E3] shrink-0" />}
                 </button>
 
-                {/* Outras Cidades */}
                 <button
                   type="button"
-                  onClick={() => setDeliveryType('Entrega para Outras Cidades')}
-                  className={`p-4 rounded-2xl text-left flex flex-col justify-between transition-all cursor-pointer border ${
-                    deliveryType === 'Entrega para Outras Cidades'
-                      ? 'border-emerald-600 bg-emerald-50 dark:bg-emerald-500/10 shadow-sm'
-                      : isDark ? 'border-white/10 hover:bg-white/5' : 'border-slate-200 hover:bg-slate-50'
-                  }`}
-                >
-                  <span className="font-semibold text-sm flex items-center justify-between">
-                    Outras Cidades
-                    {deliveryType === 'Entrega para Outras Cidades' && <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />}
-                  </span>
-                  <span className="text-[11px] text-slate-500 mt-1 block font-medium">Correios / Transportadora</span>
-                </button>
-
-                {/* Retirada */}
-                <button
-                  type="button"
-                  onClick={() => setDeliveryType('Retirada na Loja')}
-                  className={`p-4 rounded-2xl text-left flex flex-col justify-between transition-all cursor-pointer border ${
+                  onClick={() => {
+                    setDeliveryType('Retirada na Loja');
+                    setSelectedShippingOption(null);
+                  }}
+                  className={`p-4 rounded-2xl text-left flex items-center justify-between transition-all cursor-pointer border ${
                     deliveryType === 'Retirada na Loja'
-                      ? 'border-emerald-600 bg-emerald-50 dark:bg-emerald-500/10 shadow-sm'
+                      ? 'border-emerald-600 bg-emerald-50 dark:bg-emerald-500/10 ring-2 ring-emerald-500/20'
                       : isDark ? 'border-white/10 hover:bg-white/5' : 'border-slate-200 hover:bg-slate-50'
                   }`}
                 >
-                  <span className="font-semibold text-sm flex items-center justify-between">
-                    Retirar na Loja
-                    {deliveryType === 'Retirada na Loja' && <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />}
-                  </span>
-                  <span className="text-[11px] text-slate-500 mt-1 block font-medium">Grátis - Caxias MA</span>
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center font-bold">
+                      <Store className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <span className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                        Retirar na Loja
+                        <span className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-black uppercase">Grátis</span>
+                      </span>
+                      <span className="text-xs text-slate-500 font-medium block">
+                        Centro de Caxias - MA
+                      </span>
+                    </div>
+                  </div>
+                  {deliveryType === 'Retirada na Loja' && <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0" />}
                 </button>
               </div>
 
-              {/* Endereço Detalhes */}
+              {/* SELEÇÃO DE ENDEREÇO E OPÇÕES DE FRETE AUTOMÁTICAS */}
               {deliveryType !== 'Retirada na Loja' && (
-                <div className="space-y-4">
+                <div className="space-y-5">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-semibold">Endereço de Entrega</h3>
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                      <MapPin className="w-4 h-4 text-[#0071E3]" />
+                      <span>Endereço de Entrega</span>
+                    </h3>
                     <button 
                       onClick={() => setIsAddingNewAddress(!isAddingNewAddress)}
-                      className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 cursor-pointer hover:underline"
+                      className="text-xs font-semibold text-[#0071E3] hover:underline flex items-center gap-1 cursor-pointer"
                     >
-                      <Plus className="h-3 w-3" /> {isAddingNewAddress ? 'Cancelar' : 'Novo Endereço'}
+                      <Plus className="h-3 w-3" /> {isAddingNewAddress ? 'Usar Cadastrado' : 'Novo Endereço'}
                     </button>
                   </div>
 
@@ -495,72 +507,115 @@ export const CheckoutPage: React.FC = () => {
                           type="text"
                           value={checkoutCep}
                           onChange={(e) => handleCheckoutCepChange(e.target.value)}
-                          className="w-full md:w-1/2 px-4 py-3 rounded-xl border-slate-200 dark:border-white/10 bg-white dark:bg-[#1c1c1e] text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none"
+                          className="w-full md:w-1/2 px-4 py-3 rounded-xl border-slate-200 dark:border-white/10 bg-white dark:bg-[#1c1c1e] text-sm focus:ring-2 focus:ring-[#0071E3]/20 focus:border-[#0071E3] transition-all outline-none font-mono"
                           placeholder="00000-000"
                         />
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div className="sm:col-span-2">
                           <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">Rua</label>
-                          <input type="text" value={newAddrForm.rua} onChange={e => setNewAddrForm({...newAddrForm, rua: e.target.value})} className="w-full px-4 py-3 rounded-xl border-slate-200 dark:border-white/10 bg-white dark:bg-[#1c1c1e] text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none" />
+                          <input type="text" value={newAddrForm.rua} onChange={e => setNewAddrForm({...newAddrForm, rua: e.target.value})} className="w-full px-4 py-3 rounded-xl border-slate-200 dark:border-white/10 bg-white dark:bg-[#1c1c1e] text-sm focus:ring-2 focus:ring-[#0071E3]/20 focus:border-[#0071E3] transition-all outline-none" />
                         </div>
                         <div>
                           <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">Número</label>
-                          <input type="text" value={newAddrForm.numero} onChange={e => setNewAddrForm({...newAddrForm, numero: e.target.value})} className="w-full px-4 py-3 rounded-xl border-slate-200 dark:border-white/10 bg-white dark:bg-[#1c1c1e] text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none" />
+                          <input type="text" value={newAddrForm.numero} onChange={e => setNewAddrForm({...newAddrForm, numero: e.target.value})} className="w-full px-4 py-3 rounded-xl border-slate-200 dark:border-white/10 bg-white dark:bg-[#1c1c1e] text-sm focus:ring-2 focus:ring-[#0071E3]/20 focus:border-[#0071E3] transition-all outline-none" />
                         </div>
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                           <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">Bairro</label>
-                          <input type="text" value={newAddrForm.bairro} onChange={e => setNewAddrForm({...newAddrForm, bairro: e.target.value})} className="w-full px-4 py-3 rounded-xl border-slate-200 dark:border-white/10 bg-white dark:bg-[#1c1c1e] text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none" />
+                          <input type="text" value={newAddrForm.bairro} onChange={e => setNewAddrForm({...newAddrForm, bairro: e.target.value})} className="w-full px-4 py-3 rounded-xl border-slate-200 dark:border-white/10 bg-white dark:bg-[#1c1c1e] text-sm focus:ring-2 focus:ring-[#0071E3]/20 focus:border-[#0071E3] transition-all outline-none" />
                         </div>
                         <div>
                           <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">Cidade / UF</label>
-                          {deliveryType === 'Entrega em Caxias-MA' ? (
-                            <input type="text" value="Caxias / MA" disabled className="w-full px-4 py-3 rounded-xl border-transparent bg-slate-200/50 dark:bg-black/20 text-sm opacity-70" />
-                          ) : (
-                            <input type="text" placeholder="São Luís / MA" value={otherCityName} onChange={e => setOtherCityName(e.target.value)} className="w-full px-4 py-3 rounded-xl border-slate-200 dark:border-white/10 bg-white dark:bg-[#1c1c1e] text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none" />
-                          )}
+                          <input type="text" placeholder="Caxias / MA" value={otherCityName || newAddrForm.cidade} onChange={e => setOtherCityName(e.target.value)} className="w-full px-4 py-3 rounded-xl border-slate-200 dark:border-white/10 bg-white dark:bg-[#1c1c1e] text-sm focus:ring-2 focus:ring-[#0071E3]/20 focus:border-[#0071E3] transition-all outline-none" />
                         </div>
                       </div>
                       <div className="pt-2">
-                        <button onClick={handleSaveNewAddress} className="w-full sm:w-auto px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold text-sm cursor-pointer transition-colors shadow-sm">
+                        <button onClick={handleSaveNewAddress} className="w-full sm:w-auto px-6 py-3 bg-[#0071E3] hover:bg-[#005bb5] text-white rounded-xl font-semibold text-sm cursor-pointer transition-colors shadow-sm">
                           Salvar e Usar Endereço
                         </button>
                       </div>
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      {allAddresses.map(addr => (
-                        <div 
-                          key={addr.id}
-                          onClick={() => setSelectedAddressId(addr.id)}
-                          className={`p-4 rounded-[16px] cursor-pointer flex items-center justify-between transition-all border ${
-                            selectedAddressId === addr.id 
-                            ? 'border-emerald-600 bg-emerald-50 dark:bg-emerald-500/10 shadow-sm' 
-                            : 'border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5'
-                          }`}
-                        >
-                          <div>
-                            <span className="font-semibold text-sm block">{addr.rua}, {addr.numero}</span>
-                            <span className="text-xs text-slate-500 mt-1 block">{addr.bairro} - {addr.cidade}/{addr.uf}</span>
+                      {allAddresses.map(addr => {
+                        const isSelected = selectedAddressId === addr.id;
+                        const hasNumberInRua = addr.rua.toLowerCase().includes('nº') || addr.rua.toLowerCase().includes('nº');
+                        const displayAddress = hasNumberInRua ? addr.rua : `${addr.rua}, Nº ${addr.numero}`;
+
+                        return (
+                          <div 
+                            key={addr.id}
+                            onClick={() => {
+                              setSelectedAddressId(addr.id);
+                              if (addr.cep) setCheckoutCep(addr.cep);
+                            }}
+                            className={`p-4 rounded-[18px] cursor-pointer flex items-center justify-between transition-all border ${
+                              isSelected 
+                              ? 'border-[#0071E3] bg-[#0071E3]/10 dark:bg-[#0071E3]/20 shadow-sm ring-2 ring-[#0071E3]/20' 
+                              : 'border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5'
+                            }`}
+                          >
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-sm text-slate-900 dark:text-white">{displayAddress}</span>
+                                {addr.id === 'default' && (
+                                  <span className="text-[10px] bg-slate-200 dark:bg-white/10 px-2 py-0.5 rounded font-bold text-slate-600 dark:text-slate-300">
+                                    Principal
+                                  </span>
+                                )}
+                              </div>
+                              <span className="text-xs text-slate-500 mt-1 block font-medium">
+                                {addr.bairro} - {addr.cidade}/{addr.uf} {addr.cep ? `• CEP: ${addr.cep}` : ''}
+                              </span>
+                            </div>
+                            {isSelected && <CheckCircle2 className="h-5 w-5 text-[#0071E3] shrink-0" />}
                           </div>
-                          {selectedAddressId === addr.id && <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />}
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
+
+                  {/* COTAÇÃO AUTOMÁTICA DE FRETE BASEADA NO ENDEREÇO SELECIONADO (SEM REPETIÇÕES) */}
+                  <div className="pt-3">
+                    <ShippingCalculator
+                      initialPostalCode={
+                        (allAddresses.find(a => a.id === selectedAddressId)?.cep) || 
+                        checkoutCep || 
+                        currentUser?.cep || 
+                        '65606-020'
+                      }
+                      hideInput={true}
+                      hideHeader={false}
+                      selectedOptionId={selectedShippingOption?.id}
+                      onSelectOption={(opt) => {
+                        setSelectedShippingOption(opt);
+                      }}
+                    />
+                  </div>
                 </div>
               )}
 
+              {/* CARD DE RETIRADA NA LOJA */}
               {deliveryType === 'Retirada na Loja' && (
-                <div className="mt-4 p-5 rounded-[20px] bg-sky-50/50 dark:bg-sky-500/10 border border-sky-100 dark:border-sky-500/20 text-sky-800 dark:text-sky-300">
-                  <p className="text-sm font-semibold mb-1">Retirada na Loja Física</p>
-                  <p className="text-xs opacity-80 leading-relaxed">
-                    Você pode retirar o seu pedido em nossa loja assim que receber a confirmação por e-mail ou WhatsApp.
+                <div className="p-5 rounded-[20px] bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/40 text-emerald-900 dark:text-emerald-200 space-y-2">
+                  <div className="flex items-center justify-between font-bold text-sm">
+                    <span className="flex items-center gap-2">
+                      <Store className="w-5 h-5 text-emerald-600 shrink-0" />
+                      <span>Retirada na Loja Física (Evidência Calçados)</span>
+                    </span>
+                    <span className="text-[10px] font-black uppercase tracking-wider bg-emerald-200 dark:bg-emerald-900 px-2.5 py-0.5 rounded-full text-emerald-900 dark:text-emerald-100">
+                      Frete GRÁTIS
+                    </span>
+                  </div>
+                  <p className="text-xs opacity-90 leading-relaxed font-normal">
+                    Endereço: <strong>Rua Afonso Pena, 295 - Centro, Caxias - MA</strong>.<br />
+                    Você poderá retirar o seu pedido em nossa loja assim que receber a confirmação de pagamento.
                   </p>
                 </div>
-              )}</div>
+              )}
+            </div>
 
             {/* ETAPA 3: PAGAMENTO */}
             <div className={`p-6 sm:p-8 rounded-[24px] shadow-[0_2px_40px_rgba(0,0,0,0.02)] transition-all ${isDark ? 'bg-[#1c1c1e]' : 'bg-white'}`}>

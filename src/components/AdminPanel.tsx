@@ -33,6 +33,7 @@ import {
   FolderTree, Tag, X, ExternalLink
 } from 'lucide-react';
 import { AdminOrdersList } from './orders/AdminOrdersList';
+import { AdminBoxManager } from './AdminBoxManager';
 import { moblinkCategoriesService, normalizeCategoryName, normalizeSubcategoryName } from '../services/moblinkCategoriesService';
 
 type AdminTab = 
@@ -45,6 +46,7 @@ type AdminTab =
   | 'vendedores'
   | 'new-product' 
   | 'categories' 
+  | 'shipping-boxes'
   | 'moblink' 
   | 'banners' 
   | 'home-sections' 
@@ -1072,6 +1074,18 @@ export const AdminPanel: React.FC = () => {
               </button>
 
               <button
+                onClick={() => setActiveTab('shipping-boxes')}
+                className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  activeTab === 'shipping-boxes'
+                    ? isDark ? 'bg-amber-400/10 text-amber-400 border border-amber-400/30' : 'bg-slate-900 text-white shadow-sm'
+                    : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <Package className="h-4 w-4 text-blue-400" />
+                <span>Caixas & Frete (Melhor Envio)</span>
+              </button>
+
+              <button
                 onClick={() => setActiveTab('moblink')}
                 className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                   activeTab === 'moblink'
@@ -1271,6 +1285,11 @@ export const AdminPanel: React.FC = () => {
         {/* TAB FINANCEIRO: DASHBOARD FINANCEIRO */}
         {activeTab === 'financeiro' && (
           <FinancialDashboard />
+        )}
+
+        {/* TAB CAIXAS E FRETE (MELHOR ENVIO) */}
+        {activeTab === 'shipping-boxes' && (
+          <AdminBoxManager />
         )}
 
         {/* TAB 1: VISÃO GERAL */}

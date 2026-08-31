@@ -1,13 +1,14 @@
+import dotenv from "dotenv";
+dotenv.config();
+
 import express from "express";
 import path from "path";
 import fs from "fs";
 import os from "os";
 import { createServer as createViteServer } from "vite";
-import dotenv from "dotenv";
+import { ShippingService } from "./src/services/shipping/shippingService.js";
 import { db } from "./src/lib/firebase.js";
 import { doc, getDoc, setDoc, updateDoc, collection, getDocs, query, where } from "firebase/firestore";
-
-dotenv.config();
 
 export const app = express();
 const PORT = 3000;
@@ -854,6 +855,167 @@ app.use(["/api/v1", "/v1"], async (req, res, next) => {
   } catch (err: any) {
     console.error(`[Backend Proxy Error] ${fullUrl}:`, err.message);
     return res.status(503).json({ success: false, message: err.message });
+  }
+});
+
+// --- ROTA PROXY DE STATUS DA AUTENTICAÇÃO DE FRETE ---
+app.get("/api/shipping/auth/status", async (req, res) => {
+  try {
+    const provider = ShippingService.getProvider();
+    const isAuth = await provider.isAuthenticated();
+    const headers = await provider.getAuthHeaders();
+
+    return res.json({
+      success: true,
+      provider: provider.providerName,
+      environment: provider.environment,
+      authenticated: isAuth,
+      userAgent: headers["User-Agent"],
+    });
+  } catch (error: any) {
+    console.error("[Shipping Auth API Error]:", error.message);
+    return res.status(500).json({
+      success: false,
+      error: error.message || "Erro ao verificar autenticação do serviço de frete",
+    });
+  }
+});
+
+// --- ROTA PROXY DE CONSULTA DE CEP VIA PROVEDOR DE FRETE ---
+app.get("/api/shipping/cep/:cep", async (req, res) => {
+  try {
+    const { cep } = req.params;
+    const provider = ShippingService.getProvider();
+    const location = await provider.fetchAddressByCep(cep);
+
+    if (!location) {
+      return res.status(404).json({ success: false, message: "CEP não encontrado pelo provedor" });
+    }
+
+    return res.json({ success: true, location });
+  } catch (error: any) {
+    console.error("[Shipping CEP API Error]:", error.message);
+    return res.status(500).json({ success: false, error: error.message || "Erro ao consultar CEP" });
+  }
+});
+
+// --- ROTA PROXY DE COTAÇÃO DE FRETE VIA PROVEDOR ATIVO ---
+app.post("/api/shipping/calculate", async (req, res) => {
+  try {
+    const { toPostalCode, fromPostalCode, box } = req.body || {};
+
+    if (!toPostalCode || typeof toPostalCode !== "string") {
+      return res.status(400).json({ success: false, error: "CEP de destino (toPostalCode) é obrigatório." });
+    }
+
+    const cleanToCep = toPostalCode.replace(/\D/g, "");
+    if (cleanToCep.length !== 8) {
+      return res.status(400).json({ success: false, error: "CEP de destino inválido. Deve conter 8 números." });
+    }
+
+    const provider = ShippingService.getProvider();
+    const options = await provider.calculateShipping({
+      toPostalCode: cleanToCep,
+      fromPostalCode,
+      box,
+    });
+
+    return res.json({
+      success: true,
+      provider: provider.providerName,
+      options,
+    });
+  } catch (error: any) {
+    console.error("[Shipping Calculate API Error]:", error?.message || error);
+    return res.status(500).json({
+      success: false,
+      error: error?.message || "Erro ao realizar cotação de frete",
+    });
+  }
+});
+
+// --- ROTA PROXY DE GERAÇÃO E COMPRA DE ETIQUETAS DE FRETE ---
+app.post("/api/shipping/labels/generate", async (req, res) => {
+  try {
+    const { orderId, serviceId, to, products, box, from } = req.body;
+
+    if (!orderId || !to || !products) {
+      return res.status(400).json({ success: false, error: "Dados incompletos para geração de etiqueta (orderId, to, products)." });
+    }
+
+    const provider = ShippingService.getProvider();
+    const result = await provider.createAndBuyLabel({
+      orderId,
+      serviceId,
+      to,
+      products,
+      box,
+      from,
+    });
+
+    return res.json({
+      success: true,
+      provider: provider.providerName,
+      label: result,
+    });
+  } catch (error: any) {
+    console.error("[Shipping Label Generate API Error]:", error.message);
+    return res.status(500).json({
+      success: false,
+      error: error.message || "Erro ao gerar etiqueta no Melhor Envio",
+    });
+  }
+});
+
+// --- ROTA PROXY DE CANCELAMENTO DE ETIQUETAS DE FRETE ---
+app.post("/api/shipping/labels/cancel", async (req, res) => {
+  try {
+    const { shipmentId, reason } = req.body;
+
+    if (!shipmentId) {
+      return res.status(400).json({ success: false, error: "shipmentId é obrigatório para cancelamento." });
+    }
+
+    const provider = ShippingService.getProvider();
+    const success = await provider.cancelLabel(shipmentId, reason);
+
+    return res.json({
+      success,
+      provider: provider.providerName,
+      message: "Solicitação de cancelamento enviada.",
+    });
+  } catch (error: any) {
+    console.error("[Shipping Label Cancel API Error]:", error.message);
+    return res.status(500).json({
+      success: false,
+      error: error.message || "Erro ao cancelar etiqueta de frete",
+    });
+  }
+});
+
+// --- ROTA PROXY DE RASTREAMENTO EM TEMPO REAL ---
+app.post("/api/shipping/track", async (req, res) => {
+  try {
+    const { trackingCode } = req.body;
+
+    if (!trackingCode || typeof trackingCode !== "string") {
+      return res.status(400).json({ success: false, error: "trackingCode é obrigatório." });
+    }
+
+    const provider = ShippingService.getProvider();
+    const tracking = await provider.trackShipment(trackingCode);
+
+    return res.json({
+      success: true,
+      provider: provider.providerName,
+      tracking,
+    });
+  } catch (error: any) {
+    console.error("[Shipping Track API Error]:", error.message);
+    return res.status(500).json({
+      success: false,
+      error: error.message || "Erro ao rastrear envio no Melhor Envio",
+    });
   }
 });
 

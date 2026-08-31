@@ -98,6 +98,12 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    // Regra para Embalagens e Caixas de Frete
+    match /shipping_boxes/{boxId} {
+      allow read: if true;
+      allow write: if isAuth();
+    }
+
     // Regra Global de Bloqueio Padrão (Zero Trust)
     match /{document=**} {
       allow read, write: if false;

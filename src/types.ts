@@ -268,7 +268,7 @@ export interface Order {
   customerComplemento?: string;
   city?: string;
   deliveryAddress?: string;
-  deliveryType?: 'Entrega em Caxias-MA' | 'Entrega para Outras Cidades' | 'Retirada na Loja';
+  deliveryType?: 'Entrega no Endereço' | 'Entrega em Caxias-MA' | 'Entrega para Outras Cidades' | 'Retirada na Loja';
   items: OrderItem[];
   subtotal?: number;
   originalSubtotal?: number;
@@ -286,6 +286,10 @@ export interface Order {
   sellerEmail?: string;
   sellerName?: string;
   localSaleId?: string;
+  melhorEnvioId?: string;
+  trackingCode?: string;
+  labelUrl?: string;
+  labelStatus?: 'gerada' | 'impressa' | 'cancelada' | 'pendente';
 }
 
 export type UserRole = 'admin' | 'seller' | 'customer';
@@ -338,6 +342,7 @@ export interface SavedAddress {
   bairro: string;
   cidade: string;
   uf: string;
+  cep?: string;
   complemento?: string;
   formattedAddress?: string;
 }
