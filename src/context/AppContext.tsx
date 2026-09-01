@@ -53,7 +53,7 @@ interface AppContextProps {
 
   orders: Order[];
   isLoadingOrders: boolean;
-  createOrder: (customerName: string, customerEmail: string, options?: { paymentMethod?: 'Pix' | 'Cartão de Crédito' | 'Cartão de Débito' | 'Crediário da Loja'; deliveryType?: 'Entrega no Endereço' | 'Entrega em Caxias-MA' | 'Entrega para Outras Cidades' | 'Retirada na Loja'; installments?: number; customerPhone?: string; deliveryAddress?: string; sellerName?: string; sellerEmail?: string; overrideItems?: any[]; paymentStatus?: PaymentStatus; status?: OrderStatus; paymentId?: string | number }) => Promise<Order>;
+  createOrder: (customerName: string, customerEmail: string, options?: { paymentMethod?: 'Pix' | 'Cartão de Crédito' | 'Cartão de Débito' | 'Crediário da Loja'; deliveryType?: 'Entrega no Endereço' | 'Entrega em Caxias-MA' | 'Entrega para Outras Cidades' | 'Retirada na Loja'; installments?: number; customerPhone?: string; customerCpf?: string; customerCep?: string; customerNumero?: string; customerBairro?: string; city?: string; deliveryAddress?: string; sellerName?: string; sellerEmail?: string; overrideItems?: any[]; paymentStatus?: PaymentStatus; status?: OrderStatus; paymentId?: string | number }) => Promise<Order>;
   solicitarCrediario: (dados: Partial<UserProfile>) => Promise<void>;
   atualizarStatusCrediario: (uid: string, novoStatus: CrediarioStatus, motivo?: string) => Promise<void>;
   updateUserCashback: (uid: string, cashbackBalance: number, cashbackValidUntil: string) => Promise<void>;
@@ -1807,6 +1807,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       deliveryType?: 'Entrega no Endereço' | 'Entrega em Caxias-MA' | 'Entrega para Outras Cidades' | 'Retirada na Loja';
       installments?: number;
       customerPhone?: string; 
+      customerCpf?: string;
+      customerCep?: string;
+      customerNumero?: string;
+      customerBairro?: string;
+      city?: string;
       deliveryAddress?: string; 
       overrideItems?: CartItem[];
       sellerName?: string;
@@ -1928,13 +1933,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       customerEmail: customerEmail.toLowerCase().trim(),
       customerName,
       customerPhone: options?.customerPhone || currentUser?.telefone || '',
-      customerCpf: currentUser?.cpf || '',
+      customerCpf: options?.customerCpf || currentUser?.cpf || '',
       customerRg: currentUser?.rg || '',
-      customerCep: currentUser?.cep || '',
-      customerBairro: currentUser?.bairro || '',
-      customerNumero: currentUser?.numero || '',
+      customerCep: options?.customerCep || currentUser?.cep || '',
+      customerBairro: options?.customerBairro || currentUser?.bairro || '',
+      customerNumero: options?.customerNumero || currentUser?.numero || '',
       customerComplemento: currentUser?.complemento || '',
-      city: currentUser?.cidade || 'Caxias - MA',
+      city: options?.city || currentUser?.cidade || 'Caxias - MA',
       deliveryAddress: deliveryAddressStr,
       deliveryType,
       items: orderItems,

@@ -95,10 +95,6 @@ export class MercadoPagoAdapter implements IPaymentGateway {
       ''
     ).replace(/['"]/g, '').trim();
 
-    if (!mpToken) {
-      throw new Error('Token de acesso do Mercado Pago não configurado no .env (VITE_MERCADO_PAGO_ACCESS_TOKEN)');
-    }
-
     const expiresAtMs = Date.now() + 30 * 60_000;
     const dateOfExpirationIso = new Date(expiresAtMs).toISOString();
 
@@ -134,11 +130,13 @@ export class MercadoPagoAdapter implements IPaymentGateway {
 
     const keyToUse = idempotencyKey || `pix-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
-    const headers = {
+    const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${mpToken}`,
       'X-Idempotency-Key': keyToUse,
     };
+    if (mpToken) {
+      headers['Authorization'] = `Bearer ${mpToken}`;
+    }
 
     const targetEndpoints = [
       '/mp-api/payments',
@@ -212,10 +210,6 @@ export class MercadoPagoAdapter implements IPaymentGateway {
       ''
     ).replace(/['"]/g, '').trim();
 
-    if (!mpToken) {
-      throw new Error('Token de acesso do Mercado Pago não configurado no .env.');
-    }
-
     const payerObj: Record<string, any> = { email: emailCliente || 'cliente@evidenciacalcados.com.br' };
     if (nomeCliente) {
       const parts = nomeCliente.trim().split(' ');
@@ -249,11 +243,13 @@ export class MercadoPagoAdapter implements IPaymentGateway {
 
     const keyToUse = idempotencyKey || `card-cred-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
-    const headers = {
+    const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${mpToken}`,
       'X-Idempotency-Key': keyToUse,
     };
+    if (mpToken) {
+      headers['Authorization'] = `Bearer ${mpToken}`;
+    }
 
     const targetEndpoints = [
       '/mp-api/payments',
@@ -329,10 +325,6 @@ export class MercadoPagoAdapter implements IPaymentGateway {
       ''
     ).replace(/['"]/g, '').trim();
 
-    if (!mpToken) {
-      throw new Error('Token de acesso do Mercado Pago não configurado no .env.');
-    }
-
     const payerObj: Record<string, any> = { email: emailCliente || 'cliente@evidenciacalcados.com.br' };
     if (nomeCliente) {
       const parts = nomeCliente.trim().split(' ');
@@ -362,11 +354,13 @@ export class MercadoPagoAdapter implements IPaymentGateway {
 
     const keyToUse = idempotencyKey || `card-deb-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
-    const headers = {
+    const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${mpToken}`,
       'X-Idempotency-Key': keyToUse,
     };
+    if (mpToken) {
+      headers['Authorization'] = `Bearer ${mpToken}`;
+    }
 
     const targetEndpoints = [
       '/mp-api/payments',

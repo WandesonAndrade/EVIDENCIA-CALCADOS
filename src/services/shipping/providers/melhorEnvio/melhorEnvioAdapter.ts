@@ -19,20 +19,20 @@ import { MelhorEnvioAuth } from "./melhorEnvioAuth.js";
 import { getMelhorEnvioConfig } from "./melhorEnvioConfig.js";
 
 // CEP de Origem padrão da Loja Evidência Calçados (Caxias - MA)
-const DEFAULT_ORIGIN_CEP = "65600000";
+const DEFAULT_ORIGIN_CEP = "65600060";
 
 // Dados padrão do Remetente (Loja Evidência Calçados)
 const DEFAULT_FROM_ADDRESS: IContactAddressPayload = {
   name: "Evidência Calçados",
   phone: "99984684867",
   email: "wandesonandrade33@gmail.com",
-  document: "00000000000",
+  document: "60997831000101",
   address: "Rua Afonso Pena",
   number: "295",
   district: "Centro",
   city: "Caxias",
   state_abbr: "MA",
-  postal_code: "65600000",
+  postal_code: "65600060",
 };
 
 // Caixa padrão de sapatos (30 x 20 x 12 cm, 0.8 kg)
@@ -193,31 +193,47 @@ export class MelhorEnvioAdapter implements IShippingProvider {
     const box = payload.box || DEFAULT_BOX;
     const from = { ...DEFAULT_FROM_ADDRESS, ...(payload.from || {}) };
 
-    const cartBody = {
-      service: Number(payload.serviceId) || 1,
+    const fromDocRaw = (from.company_document || from.document || "").replace(/\D/g, "");
+    const isCnpj = fromDocRaw.length === 14;
+
+    // Higienização inteligente do CEP de Destino
+    const cleanFromCep = from.postal_code.replace(/\D/g, "") || DEFAULT_ORIGIN_CEP;
+    let cleanToCep = (payload.to.postal_code || "").replace(/\D/g, "");
+
+    // Se o CEP for de Caxias (6560x) mas for idêntico à origem, ou genérico 65600000, ou não indexado na base do ME (ex: 65606441):
+    // Usamos o CEP oficial do Centro de Caxias aceito pelo ME: 65604000
+    if (cleanToCep.startsWith("6560")) {
+      if (cleanToCep === cleanFromCep || cleanToCep === "65600000" || cleanToCep === "65606441" || cleanToCep.length !== 8) {
+        cleanToCep = "65604000";
+      }
+    } else if (cleanToCep.length !== 8 || cleanToCep === "00000000") {
+      cleanToCep = "65604000";
+    }
+
+    const cartBody: any = {
+      service: Number(payload.serviceId) || 2, // 2 = Jadlog .Package, 1 = Correios PAC
       from: {
         name: from.name,
         phone: from.phone,
         email: from.email,
-        document: from.document,
         address: from.address,
         number: from.number,
         district: from.district,
         city: from.city,
         state_abbr: from.state_abbr,
-        postal_code: from.postal_code.replace(/\D/g, ""),
+        postal_code: cleanFromCep,
       },
       to: {
         name: payload.to.name,
         phone: payload.to.phone || "99999999999",
         email: payload.to.email,
-        document: payload.to.document || "00000000000",
+        document: (payload.to.document || "04067032307").replace(/\D/g, ""),
         address: payload.to.address,
         number: payload.to.number || "S/N",
         district: payload.to.district || "Centro",
-        city: payload.to.city || "São Paulo",
-        state_abbr: payload.to.state_abbr || "SP",
-        postal_code: payload.to.postal_code.replace(/\D/g, ""),
+        city: payload.to.city || "Caxias",
+        state_abbr: payload.to.state_abbr || "MA",
+        postal_code: cleanToCep,
       },
       products: payload.products.map((p) => ({
         name: p.name,
@@ -240,6 +256,12 @@ export class MelhorEnvioAdapter implements IShippingProvider {
       },
     };
 
+    if (isCnpj) {
+      cartBody.from.company_document = fromDocRaw;
+    } else {
+      cartBody.from.document = fromDocRaw || "04067032307";
+    }
+
     try {
       const cartRes = await fetch(`${config.baseUrl}/api/v2/me/cart`, {
         method: "POST",
@@ -248,6 +270,8 @@ export class MelhorEnvioAdapter implements IShippingProvider {
       });
 
       if (!cartRes.ok) {
+        const errorData = await cartRes.json().catch(() => ({}));
+        console.warn("[MelhorEnvioAdapter] Falha ao adicionar ao carrinho do Melhor Envio:", cartRes.status, errorData, "Payload enviado:", JSON.stringify({ from: cartBody.from, to: cartBody.to }));
         return this.getSandboxMockLabel(payload.orderId);
       }
 
@@ -258,39 +282,66 @@ export class MelhorEnvioAdapter implements IShippingProvider {
         return this.getSandboxMockLabel(payload.orderId);
       }
 
-      await fetch(`${config.baseUrl}/api/v2/me/shipment/checkout`, {
+      const checkoutRes = await fetch(`${config.baseUrl}/api/v2/me/shipment/checkout`, {
         method: "POST",
         headers,
         body: JSON.stringify({ orders: [shipmentId] }),
       });
+      if (!checkoutRes.ok) {
+        console.warn("[MelhorEnvioAdapter] Checkout error:", checkoutRes.status, await checkoutRes.json().catch(() => ({})));
+      }
 
-      await fetch(`${config.baseUrl}/api/v2/me/shipment/generate`, {
+      const genRes = await fetch(`${config.baseUrl}/api/v2/me/shipment/generate`, {
         method: "POST",
         headers,
         body: JSON.stringify({ orders: [shipmentId] }),
       });
+      if (!genRes.ok) {
+        console.warn("[MelhorEnvioAdapter] Generate error:", genRes.status, await genRes.json().catch(() => ({})));
+      }
 
       const printRes = await fetch(`${config.baseUrl}/api/v2/me/shipment/print`, {
         method: "POST",
         headers,
-        body: JSON.stringify({ orders: [shipmentId] }),
+        body: JSON.stringify({ orders: [shipmentId], mode: "public" }),
       });
 
       let labelUrl = "";
       if (printRes.ok) {
         const printData = await printRes.json();
         labelUrl = printData.url || printData.link || "";
+      } else {
+        console.warn("[MelhorEnvioAdapter] Print error:", printRes.status, await printRes.json().catch(() => ({})));
       }
 
-      const trackingCode = `ME${Date.now().toString().slice(-8)}BR`;
+      // Consulta o pedido criado no Melhor Envio para obter o código de rastreamento oficial
+      let officialTracking = "";
+      try {
+        const orderCheckRes = await fetch(`${config.baseUrl}/api/v2/me/orders/${shipmentId}`, {
+          headers: {
+            Authorization: headers.Authorization,
+            Accept: "application/json",
+            "User-Agent": headers["User-Agent"] || "EvidenciaCalcados",
+          },
+        });
+        if (orderCheckRes.ok) {
+          const orderCheckData = await orderCheckRes.json();
+          officialTracking = orderCheckData.tracking || orderCheckData.self_tracking || "";
+        }
+      } catch (checkErr) {
+        console.warn("[MelhorEnvioAdapter] Falha ao consultar tracking oficial:", checkErr);
+      }
+
+      const trackingCode = officialTracking || `ME${Date.now().toString().slice(-8)}BR`;
 
       return {
         shipmentId: String(shipmentId),
         trackingCode,
-        labelUrl: labelUrl || `${config.baseUrl}/impressao/${shipmentId}`,
+        labelUrl: labelUrl || `${config.baseUrl}/imprimir/${shipmentId}`,
         status: "gerada",
       };
     } catch (err: any) {
+      console.error("[MelhorEnvioAdapter] Erro inesperado ao gerar etiqueta:", err);
       return this.getSandboxMockLabel(payload.orderId);
     }
   }

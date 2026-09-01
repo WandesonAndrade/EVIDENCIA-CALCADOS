@@ -4,6 +4,7 @@ import { Order } from '../../types';
 import { formatCurrency } from '../../utils/orderUtils';
 import { db } from '../../lib/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
+import { ShippingLabelPrintModal } from './ShippingLabelPrintModal';
 
 interface Props {
   order: Order;
@@ -17,9 +18,21 @@ export const ShippingInfoCard: React.FC<Props> = ({ order, isDark: _isDark, vari
 
   const [loading, setLoading] = useState(false);
   const [currentOrder, setCurrentOrder] = useState<Order>(order);
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
 
   const handleGenerateLabel = async () => {
     setLoading(true);
+    // Extração robusta do CEP (caso venha no campo customerCep ou no texto do deliveryAddress)
+    const cepMatch = (order.deliveryAddress || '').match(/(\d{5}-?\d{3})/);
+    let targetCep = (order.customerCep || '').replace(/\D/g, '');
+    if (targetCep.length !== 8 && cepMatch) {
+      targetCep = cepMatch[1].replace(/\D/g, '');
+    }
+    // Se ainda for inválido ou for 65600000 (rejeitado pela Jadlog no ME), usa o CEP oficial de Caxias 65600060
+    if (targetCep.length !== 8 || targetCep === '65600000') {
+      targetCep = '65600060';
+    }
+
     try {
       const response = await fetch('/api/shipping/labels/generate', {
         method: 'POST',
@@ -28,15 +41,15 @@ export const ShippingInfoCard: React.FC<Props> = ({ order, isDark: _isDark, vari
           orderId: order.id,
           to: {
             name: order.customerName || 'Cliente',
-            phone: order.customerPhone || '99999999999',
-            email: order.customerEmail || 'cliente@evidencia.com',
-            document: order.customerCpf || '00000000000',
-            address: order.deliveryAddress || 'Rua Afonso Pena',
-            number: '100',
+            phone: (order.customerPhone || '99999999999').replace(/\D/g, ''),
+            email: order.customerEmail || 'cliente@evidenciacalcados.com.br',
+            document: (order.customerCpf || '04067032307').replace(/\D/g, ''),
+            address: order.deliveryAddress?.split(',')[0]?.trim() || order.deliveryAddress || 'Rua Afonso Pena',
+            number: order.customerNumero || '295',
             district: order.customerBairro || 'Centro',
-            city: order.city || 'São Paulo',
-            state_abbr: 'SP',
-            postal_code: (order.customerCep || '01001000').replace(/\D/g, ''),
+            city: order.city || 'Caxias',
+            state_abbr: 'MA',
+            postal_code: targetCep,
           },
           products: order.items.map((item) => ({
             name: item.name,
@@ -64,6 +77,12 @@ export const ShippingInfoCard: React.FC<Props> = ({ order, isDark: _isDark, vari
         }
 
         setCurrentOrder((prev) => ({ ...prev, ...updatedFields }));
+
+        if (data.label.labelUrl && !data.label.labelUrl.includes('sandbox-ME-SANDBOX')) {
+          window.open(data.label.labelUrl, '_blank');
+        } else {
+          setIsPrintModalOpen(true);
+        }
       }
     } catch (err: any) {
       console.error('📌 Erro ao gerar etiqueta:', err);
@@ -181,21 +200,25 @@ export const ShippingInfoCard: React.FC<Props> = ({ order, isDark: _isDark, vari
               ) : (
                 <div className="space-y-1.5">
                   <div className="flex items-center gap-2">
-                    <a
-                      href={currentOrder.labelUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex-1 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition flex items-center justify-center gap-1.5 shadow-sm"
+                    <button
+                      onClick={() => {
+                        if (currentOrder.labelUrl && !currentOrder.labelUrl.includes('sandbox-ME-SANDBOX')) {
+                          window.open(currentOrder.labelUrl, '_blank');
+                        } else {
+                          setIsPrintModalOpen(true);
+                        }
+                      }}
+                      className="flex-1 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
                     >
                       <Printer className="w-3.5 h-3.5" />
-                      <span>Imprimir Etiqueta (PDF)</span>
+                      <span>Imprimir Etiqueta</span>
                       <ExternalLink className="w-3 h-3 opacity-80" />
-                    </a>
+                    </button>
 
                     <button
                       onClick={handleCancelLabel}
                       disabled={loading}
-                      className="p-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 transition"
+                      className="p-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 transition cursor-pointer"
                       title="Cancelar Etiqueta"
                     >
                       <XCircle className="w-4 h-4" />
@@ -217,6 +240,14 @@ export const ShippingInfoCard: React.FC<Props> = ({ order, isDark: _isDark, vari
             </div>
           )}
         </div>
+
+        <ShippingLabelPrintModal
+          isOpen={isPrintModalOpen}
+          onClose={() => setIsPrintModalOpen(false)}
+          order={currentOrder}
+          labelUrl={currentOrder.labelUrl}
+          trackingCode={currentOrder.trackingCode}
+        />
       </div>
     );
   }

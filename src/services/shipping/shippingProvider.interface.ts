@@ -58,6 +58,7 @@ export interface IContactAddressPayload {
   phone: string;
   email: string;
   document?: string;
+  company_document?: string;
   address: string;
   number: string;
   district: string;
