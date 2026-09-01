@@ -106,6 +106,10 @@ export const CheckoutPage: React.FC = () => {
     ? [defaultAddress, ...userSavedList]
     : userSavedList;
 
+  // CEP ativo derivado do endereço selecionado — usado como key e initialPostalCode do ShippingCalculator
+  const shippingAddr = allAddresses.find(a => a.id === selectedAddressId) || allAddresses[0];
+  const activeCep = (shippingAddr?.cep || checkoutCep || currentUser?.cep || '65606-020').replace(/\D/g, '');
+
   // Sincroniza cidade e verifica se o cliente possui endereço salvo ao abrir
   useEffect(() => {
     if (currentUser?.cidade && currentUser.cidade !== 'Caxias') {
@@ -590,24 +594,16 @@ export const CheckoutPage: React.FC = () => {
 
                   {/* COTAÇÃO AUTOMÁTICA DE FRETE BASEADA NO ENDEREÇO SELECIONADO (SEM REPETIÇÕES) */}
                   <div className="pt-3">
-                    {(() => {
-                      const activeCep = (allAddresses.find(a => a.id === selectedAddressId)?.cep) || 
-                        checkoutCep || 
-                        currentUser?.cep || 
-                        '65606-020';
-                      return (
-                        <ShippingCalculator
-                          key={`${selectedAddressId}-${activeCep}`}
-                          initialPostalCode={activeCep}
-                          hideInput={true}
-                          hideHeader={false}
-                          selectedOptionId={selectedShippingOption?.id}
-                          onSelectOption={(opt) => {
-                            setSelectedShippingOption(opt);
-                          }}
-                        />
-                      );
-                    })()}
+                    <ShippingCalculator
+                      key={`shipping-${selectedAddressId}-${activeCep}`}
+                      initialPostalCode={activeCep}
+                      hideInput={true}
+                      hideHeader={false}
+                      selectedOptionId={selectedShippingOption?.id}
+                      onSelectOption={(opt) => {
+                        setSelectedShippingOption(opt);
+                      }}
+                    />
                   </div>
                 </div>
               )}

@@ -89,11 +89,14 @@ export const ShippingCalculator: React.FC<ShippingCalculatorProps> = ({
     }
   };
 
+  // Dispara cotação ao montar (importante quando remontado via key= no pai)
+  // e também quando initialPostalCode muda sem remontar
   useEffect(() => {
     if (initialPostalCode && initialPostalCode.replace(/\D/g, "").length === 8) {
       setPostalCode(initialPostalCode);
       calculate(initialPostalCode);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialPostalCode]);
 
   const handleCepChange = (e: React.ChangeEvent<HTMLInputElement>) => {
