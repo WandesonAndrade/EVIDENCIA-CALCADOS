@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Truck, MapPin, Store, Clock, CheckCircle2, Printer, Package, ExternalLink, XCircle, RefreshCw } from 'lucide-react';
+import { Truck, MapPin, Store, Clock, CheckCircle2, Printer, Package, ExternalLink, XCircle, RefreshCw, AlertTriangle } from 'lucide-react';
 import { Order } from '../../types';
 import { formatCurrency } from '../../utils/orderUtils';
 import { db } from '../../lib/firebase';
@@ -235,6 +235,20 @@ export const ShippingInfoCard: React.FC<Props> = ({ order, isDark: _isDark, vari
                       <span>Rastrear pacote no Melhor Rastreio →</span>
                     </a>
                   )}
+                </div>
+              )}
+
+              {/* Alerta de Divergência de Métrica para o Administrador */}
+              {currentOrder.metricDivergence && (
+                <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/40 text-amber-900 dark:text-amber-200 text-xs space-y-1 mt-2">
+                  <div className="flex items-center gap-1.5 font-bold text-amber-800 dark:text-amber-300">
+                    <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                    <span>Diferença de Métrica Identificada</span>
+                  </div>
+                  <p className="text-[11px] text-amber-700 dark:text-amber-400">
+                    A transportadora cobrou um acréscimo de <strong>+R$ {currentOrder.metricDivergence.difference.toFixed(2).replace('.', ',')}</strong> na postagem.
+                    {currentOrder.metricDivergence.measuredWeight ? ` Peso aferido: ${currentOrder.metricDivergence.measuredWeight}kg.` : ''}
+                  </p>
                 </div>
               )}
             </div>

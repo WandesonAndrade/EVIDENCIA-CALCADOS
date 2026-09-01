@@ -14,6 +14,8 @@ import {
   IContactAddressPayload,
   ITrackingStatusResult,
   ITrackingEvent,
+  IShippingWebhookResult,
+  IMetricDivergence,
 } from "../../shippingProvider.interface.js";
 import { MelhorEnvioAuth } from "./melhorEnvioAuth.js";
 import { getMelhorEnvioConfig } from "./melhorEnvioConfig.js";
@@ -625,6 +627,104 @@ export class MelhorEnvioAdapter implements IShippingProvider {
       district: neighborhood,
       cityId: typeof data.city === "object" ? data.city.id : undefined,
       stateId: typeof data.city === "object" && data.city.state ? data.city.state.id : undefined,
+    };
+  }
+
+  /**
+   * Interpreta os payloads enviados via Webhook pelo Melhor Envio
+   * Suporta eventos de:
+   * - Atualização de rastreamento (tracking)
+   * - Mudança de status da etiqueta (posted, delivered, canceled)
+   * - Divergência de métrica (aferição de peso/cubagem na agência)
+   */
+  public parseWebhookPayload(payload: any): IShippingWebhookResult | null {
+    if (!payload || typeof payload !== "object") return null;
+
+    // Caso o payload venha com o objeto do envio diretamente ou aninhado
+    const shipment = payload.shipment || payload.order || payload.data || payload;
+    const shipmentId = String(shipment.id || payload.id || "").trim();
+    const trackingCode = String(
+      shipment.tracking ||
+      shipment.tracking_code ||
+      payload.tracking ||
+      payload.tracking_code ||
+      ""
+    ).trim();
+
+    const statusRaw = String(
+      shipment.status ||
+      payload.status ||
+      payload.event ||
+      payload.type ||
+      ""
+    ).toLowerCase();
+
+    let status: 'posted' | 'in_transit' | 'delivered' | 'canceled' | 'pending' | undefined;
+    let statusText: string | undefined;
+
+    if (statusRaw.includes("delivered") || statusRaw.includes("entregue")) {
+      status = "delivered";
+      statusText = "Objeto Entregue ao Destinatário";
+    } else if (statusRaw.includes("canceled") || statusRaw.includes("cancelad")) {
+      status = "canceled";
+      statusText = "Envio Cancelado";
+    } else if (statusRaw.includes("out_for_delivery") || statusRaw.includes("saiu")) {
+      status = "in_transit";
+      statusText = "Objeto saiu para entrega ao destinatário";
+    } else if (statusRaw.includes("posted") || statusRaw.includes("postado")) {
+      status = "posted";
+      statusText = "Objeto postado na agência da transportadora";
+    } else if (statusRaw.includes("transit") || statusRaw.includes("moviment") || statusRaw.includes("encaminhado")) {
+      status = "in_transit";
+      statusText = "Em Trânsito na Transportadora";
+    }
+
+    // Processamento de Eventos de Trajetória
+    const rawEvents = shipment.events || payload.events || (payload.event ? [payload] : []);
+    const newEvents: ITrackingEvent[] = [];
+
+    if (Array.isArray(rawEvents)) {
+      for (const e of rawEvents) {
+        if (!e) continue;
+        newEvents.push({
+          status: e.status || e.action || statusText || "Movimentação",
+          description: e.description || e.message || e.action || "Objeto em deslocamento",
+          location: e.location || (e.city ? `${e.city}/${e.state || ''}` : undefined) || "Centro de Distribuição",
+          createdAt: e.created_at || e.date || new Date().toISOString(),
+        });
+      }
+    } else if (statusText) {
+      newEvents.push({
+        status: statusText,
+        description: statusText,
+        location: "Transportadora",
+        createdAt: new Date().toISOString(),
+      });
+    }
+
+    // Detecção de Divergência de Métrica (peso/cubagem diferente)
+    let metricDivergence: IMetricDivergence | undefined;
+    const divergenceData = shipment.metric_divergence || payload.metric_divergence || payload.divergence;
+    if (divergenceData) {
+      const origPrice = Number(divergenceData.original_price || divergenceData.price || 0);
+      const diffPrice = Number(divergenceData.difference || divergenceData.additional_value || 0);
+      metricDivergence = {
+        originalPrice: origPrice,
+        difference: diffPrice,
+        finalPrice: origPrice + diffPrice,
+        originalWeight: Number(divergenceData.original_weight || 0.8),
+        measuredWeight: Number(divergenceData.measured_weight || divergenceData.weight || 0),
+        occurredAt: divergenceData.created_at || new Date().toISOString(),
+      };
+    }
+
+    return {
+      shipmentId: shipmentId || undefined,
+      trackingCode: trackingCode || undefined,
+      status,
+      statusText,
+      newEvents: newEvents.length > 0 ? newEvents : undefined,
+      metricDivergence,
     };
   }
 }

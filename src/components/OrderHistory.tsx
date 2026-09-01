@@ -149,6 +149,8 @@ export const OrderHistory: React.FC = () => {
                     currentStep={progressStep}
                     isDark={isDark}
                     deliveryType={order.deliveryType}
+                    trackingCode={order.trackingCode}
+                    trackingEvents={order.trackingEvents}
                   />
                 )}
 

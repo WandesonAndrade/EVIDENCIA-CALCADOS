@@ -1019,6 +1019,126 @@ app.post("/api/shipping/track", async (req, res) => {
   }
 });
 
+// --- ROTA DE WEBHOOK DO MELHOR ENVIO (STATUS & TRAJETÓRIA AUTOMÁTICA) ---
+app.post("/api/webhooks/shipping", async (req, res) => {
+  console.log("📦 [Shipping Webhook] Notificação recebida do Melhor Envio:", JSON.stringify(req.body));
+
+  try {
+    const provider = ShippingService.getProvider();
+    const parsed = provider.parseWebhookPayload(req.body);
+
+    if (!parsed) {
+      console.warn("⚠️ [Shipping Webhook] Payload não reconhecido ou vazio.");
+      return res.status(200).json({ received: true, ignored: true });
+    }
+
+    const { shipmentId, trackingCode, status, statusText, newEvents, metricDivergence } = parsed;
+
+    if (!shipmentId && !trackingCode) {
+      console.warn("⚠️ [Shipping Webhook] Webhook sem identificador de envio (shipmentId ou trackingCode ausentes).");
+      return res.status(200).json({ received: true, ignored: true });
+    }
+
+    if (!db) {
+      console.warn("⚠️ [Shipping Webhook] Firestore não inicializado no servidor.");
+      return res.status(200).json({ received: true, warning: "database_not_connected" });
+    }
+
+    // Busca o pedido correspondente por melhorEnvioId ou por trackingCode
+    const ordersCol = collection(db, "orders");
+    let targetOrderDoc: any = null;
+
+    if (shipmentId) {
+      const qShipment = query(ordersCol, where("melhorEnvioId", "==", shipmentId));
+      const snapShipment = await getDocs(qShipment);
+      if (!snapShipment.empty) {
+        targetOrderDoc = snapShipment.docs[0];
+      }
+    }
+
+    if (!targetOrderDoc && trackingCode) {
+      const qTracking = query(ordersCol, where("trackingCode", "==", trackingCode));
+      const snapTracking = await getDocs(qTracking);
+      if (!snapTracking.empty) {
+        targetOrderDoc = snapTracking.docs[0];
+      }
+    }
+
+    if (!targetOrderDoc) {
+      console.log(`ℹ️ [Shipping Webhook] Pedido não localizado para shipmentId='${shipmentId}' / tracking='${trackingCode}'.`);
+      return res.status(200).json({ received: true, matched: false });
+    }
+
+    const orderData = targetOrderDoc.data();
+    const updates: Record<string, any> = {
+      updatedAt: new Date().toISOString(),
+    };
+
+    // 1. Sincroniza o status principal do pedido se for postado ou entregue
+    if (status === "delivered") {
+      updates.status = "Entregue";
+      updates.deliveryStatus = "delivered";
+    } else if (status === "posted" && orderData.status === "Confirmado") {
+      updates.status = "Em Preparação";
+      updates.deliveryStatus = "posted";
+    } else if (status === "canceled") {
+      updates.labelStatus = "cancelada";
+    }
+
+    // 2. Salva ou atualiza o trackingCode se fornecido
+    if (trackingCode && !orderData.trackingCode) {
+      updates.trackingCode = trackingCode;
+    }
+
+    // 3. Trajetória (Acumula novos eventos na lista de trackingEvents sem duplicar)
+    if (newEvents && newEvents.length > 0) {
+      const currentEvents = Array.isArray(orderData.trackingEvents) ? orderData.trackingEvents : [];
+      const mergedEvents = [...currentEvents];
+
+      for (const ev of newEvents) {
+        const alreadyExists = mergedEvents.some(
+          (existing: any) =>
+            existing.status === ev.status &&
+            existing.description === ev.description &&
+            existing.createdAt === ev.createdAt
+        );
+        if (!alreadyExists) {
+          mergedEvents.push(ev);
+        }
+      }
+
+      // Ordena por data
+      mergedEvents.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+      updates.trackingEvents = mergedEvents;
+    }
+
+    // 4. Registro de Divergência de Métrica (para notificação exclusiva ao Administrador)
+    if (metricDivergence) {
+      updates.metricDivergence = metricDivergence;
+      console.log(`🚨 [Shipping Webhook] Divergência de Métrica registrada no pedido ${targetOrderDoc.id}: +R$ ${metricDivergence.difference.toFixed(2)}`);
+    }
+
+    // Grava as atualizações no documento do pedido no Firestore
+    const orderDocRef = doc(db, "orders", targetOrderDoc.id);
+    await updateDoc(orderDocRef, updates);
+
+    console.log(`✅ [Shipping Webhook] Pedido ${targetOrderDoc.id} sincronizado com sucesso: status='${updates.status || orderData.status}', eventos=${updates.trackingEvents ? updates.trackingEvents.length : "inalterados"}`);
+
+    return res.status(200).json({
+      success: true,
+      orderId: targetOrderDoc.id,
+      matched: true,
+      updatedStatus: updates.status,
+      eventsCount: updates.trackingEvents?.length,
+      metricDivergenceDetected: Boolean(metricDivergence),
+    });
+  } catch (error: any) {
+    console.error("❌ [Shipping Webhook Error]:", error);
+    // Retorna 200 para evitar que o Melhor Envio fique repetindo chamadas em loop por erro de aplicação
+    return res.status(200).json({ received: true, error: error.message });
+  }
+});
+
 // --- VITE MIDDLEWARE & STATIC SERVER ---
 async function startServer() {
   if (process.env.NODE_ENV !== "production") {

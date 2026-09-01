@@ -104,44 +104,75 @@ export const OrderTimeline: React.FC<Props> = ({
 
       {/* Caixa de Rastreamento Automático Melhor Envio/Melhor Rastreio */}
       {trackingCode && !isStorePickup && (
-        <div className="max-w-2xl mx-auto p-3 rounded-2xl bg-blue-50/60 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/40 flex flex-col sm:flex-row items-center justify-between gap-2.5 text-xs">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-full bg-blue-500/10 text-[#0071E3] dark:text-[#0A84FF] flex items-center justify-center shrink-0">
-              <Truck className="w-3.5 h-3.5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-semibold text-slate-800 dark:text-slate-200">
-                  Rastreio: <strong className="font-mono text-[#0071E3]">{trackingCode}</strong>
-                </span>
-                {onRefreshTracking && (
-                  <button
-                    onClick={onRefreshTracking}
-                    disabled={isSyncing}
-                    className="p-1 text-slate-400 hover:text-[#0071E3] transition rounded-full"
-                    title="Atualizar Rastreamento"
-                  >
-                    <RefreshCw className={`w-3 h-3 ${isSyncing ? 'animate-spin' : ''}`} />
-                  </button>
+        <div className="max-w-2xl mx-auto space-y-2">
+          <div className="p-3.5 rounded-2xl bg-blue-50/70 dark:bg-blue-950/25 border border-blue-100 dark:border-blue-900/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-full bg-blue-500/10 text-[#0071E3] dark:text-[#0A84FF] flex items-center justify-center shrink-0">
+                <Truck className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-slate-800 dark:text-slate-200">
+                    Rastreio: <strong className="font-mono text-[#0071E3]">{trackingCode}</strong>
+                  </span>
+                  {onRefreshTracking && (
+                    <button
+                      onClick={onRefreshTracking}
+                      disabled={isSyncing}
+                      className="p-1 text-slate-400 hover:text-[#0071E3] transition rounded-full"
+                      title="Atualizar Rastreamento"
+                    >
+                      <RefreshCw className={`w-3 h-3 ${isSyncing ? 'animate-spin' : ''}`} />
+                    </button>
+                  )}
+                </div>
+                {latestEvent && (
+                  <p className="text-[11px] text-slate-600 dark:text-slate-300 font-medium mt-0.5">
+                    {latestEvent.description} {latestEvent.location ? `• ${latestEvent.location}` : ''}
+                  </p>
                 )}
               </div>
-              {latestEvent && (
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 font-normal">
-                  {latestEvent.description} • {latestEvent.location}
-                </p>
-              )}
             </div>
+
+            <a
+              href={`https://www.melhorrastreio.com.br/rastreio/${trackingCode}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-3 py-1.5 rounded-xl bg-[#0071E3] hover:bg-[#005bb5] text-white font-medium text-[11px] transition flex items-center gap-1 shrink-0 self-end sm:self-center"
+            >
+              <span>Melhor Rastreio</span>
+              <ExternalLink className="w-3 h-3" />
+            </a>
           </div>
 
-          <a
-            href={`https://www.melhorrastreio.com.br/rastreio/${trackingCode}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="px-3 py-1.5 rounded-xl bg-[#0071E3] hover:bg-[#005bb5] text-white font-medium text-[11px] transition flex items-center gap-1 shrink-0"
-          >
-            <span>Ver no Melhor Rastreio</span>
-            <ExternalLink className="w-3 h-3" />
-          </a>
+          {/* Histórico Completo da Trajetória do Pacote (Checkpoints) */}
+          {trackingEvents.length > 0 && (
+            <div className="p-3.5 rounded-2xl bg-white dark:bg-[#1c1c1e] border border-slate-100 dark:border-white/5 space-y-2.5">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 block">
+                Histórico de Trajetória ({trackingEvents.length} {trackingEvents.length === 1 ? 'movimentação' : 'movimentações'})
+              </span>
+              <div className="space-y-2 pl-2 border-l-2 border-blue-100 dark:border-blue-900/40 ml-1">
+                {[...trackingEvents].reverse().map((event, idx) => (
+                  <div key={idx} className="relative pl-3 text-xs space-y-0.5">
+                    <div className="absolute -left-[17px] top-1.5 w-2 h-2 rounded-full bg-[#0071E3] ring-4 ring-blue-50 dark:ring-blue-950" />
+                    <div className="flex flex-wrap items-center justify-between gap-1">
+                      <span className="font-semibold text-slate-800 dark:text-slate-200 text-[11px]">
+                        {event.description || event.status}
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-mono">
+                        {event.createdAt ? new Date(event.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''}
+                      </span>
+                    </div>
+                    {event.location && (
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                        📍 {event.location}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

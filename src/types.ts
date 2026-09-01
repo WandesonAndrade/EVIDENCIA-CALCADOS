@@ -290,6 +290,20 @@ export interface Order {
   trackingCode?: string;
   labelUrl?: string;
   labelStatus?: 'gerada' | 'impressa' | 'cancelada' | 'pendente';
+  trackingEvents?: Array<{
+    status: string;
+    description: string;
+    location?: string;
+    createdAt: string;
+  }>;
+  metricDivergence?: {
+    originalPrice: number;
+    difference: number;
+    finalPrice: number;
+    originalWeight?: number;
+    measuredWeight?: number;
+    occurredAt: string;
+  };
 }
 
 export type UserRole = 'admin' | 'seller' | 'customer';

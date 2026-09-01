@@ -94,13 +94,32 @@ export interface ITrackingEvent {
   createdAt: string;
 }
 
+export interface IMetricDivergence {
+  originalPrice: number;
+  difference: number;
+  finalPrice: number;
+  originalWeight?: number;
+  measuredWeight?: number;
+  occurredAt: string;
+}
+
 export interface ITrackingStatusResult {
   trackingCode: string;
   shipmentId?: string;
   status: 'posted' | 'in_transit' | 'delivered' | 'canceled' | 'pending';
   statusText: string;
   events: ITrackingEvent[];
+  metricDivergence?: IMetricDivergence;
   updatedAt: string;
+}
+
+export interface IShippingWebhookResult {
+  shipmentId?: string;
+  trackingCode?: string;
+  status?: 'posted' | 'in_transit' | 'delivered' | 'canceled' | 'pending';
+  statusText?: string;
+  newEvents?: ITrackingEvent[];
+  metricDivergence?: IMetricDivergence;
 }
 
 export interface IShippingProvider {
@@ -153,4 +172,9 @@ export interface IShippingProvider {
    * Consulta o rastreamento em tempo real do pacote no provedor
    */
   trackShipment(trackingCode: string): Promise<ITrackingStatusResult | null>;
+
+  /**
+   * Interpreta e normaliza o payload recebido do webhook do provedor
+   */
+  parseWebhookPayload(payload: any): IShippingWebhookResult | null;
 }
