@@ -6,7 +6,7 @@ import { CompleteProfileModal } from './CompleteProfileModal';
 import { PaymentForm } from './PaymentForm';
 import { 
   CheckCircle2, Truck, ShoppingBag, CreditCard, 
-  ShieldCheck, MapPin, MessageSquare, User, Edit3, Plus, Loader2, ArrowLeft, Lock, Package, Store
+  ShieldCheck, MapPin, MessageSquare, User, Edit3, Plus, Loader2, ArrowLeft, Lock, Package, Store, Trash2
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cepService } from '../services/cepService';
@@ -21,6 +21,8 @@ export const CheckoutPage: React.FC = () => {
     theme, 
     sellers = [], 
     cart,
+    removeFromCart,
+    clearCart,
     setCurrentView,
     createOrder
   } = useApp();
@@ -130,6 +132,7 @@ export const CheckoutPage: React.FC = () => {
       bairro: newAddrForm.bairro.trim(),
       cidade: targetCity,
       uf: newAddrForm.uf.trim() || 'MA',
+      cep: checkoutCep.trim() || undefined,
       complemento: newAddrForm.complemento.trim(),
     };
 
@@ -280,6 +283,7 @@ export const CheckoutPage: React.FC = () => {
         paymentId: pixPaymentId,
       });
 
+      clearCart();
       setCreatedOrder(order);
       window.open(order.whatsappUrl, '_blank');
     } catch (error) {
@@ -555,6 +559,7 @@ export const CheckoutPage: React.FC = () => {
                             key={addr.id}
                             onClick={() => {
                               setSelectedAddressId(addr.id);
+                              setSelectedShippingOption(null);
                               if (addr.cep) setCheckoutCep(addr.cep);
                             }}
                             className={`p-4 rounded-[18px] cursor-pointer flex items-center justify-between transition-all border ${
@@ -585,20 +590,24 @@ export const CheckoutPage: React.FC = () => {
 
                   {/* COTAÇÃO AUTOMÁTICA DE FRETE BASEADA NO ENDEREÇO SELECIONADO (SEM REPETIÇÕES) */}
                   <div className="pt-3">
-                    <ShippingCalculator
-                      initialPostalCode={
-                        (allAddresses.find(a => a.id === selectedAddressId)?.cep) || 
+                    {(() => {
+                      const activeCep = (allAddresses.find(a => a.id === selectedAddressId)?.cep) || 
                         checkoutCep || 
                         currentUser?.cep || 
-                        '65606-020'
-                      }
-                      hideInput={true}
-                      hideHeader={false}
-                      selectedOptionId={selectedShippingOption?.id}
-                      onSelectOption={(opt) => {
-                        setSelectedShippingOption(opt);
-                      }}
-                    />
+                        '65606-020';
+                      return (
+                        <ShippingCalculator
+                          key={`${selectedAddressId}-${activeCep}`}
+                          initialPostalCode={activeCep}
+                          hideInput={true}
+                          hideHeader={false}
+                          selectedOptionId={selectedShippingOption?.id}
+                          onSelectOption={(opt) => {
+                            setSelectedShippingOption(opt);
+                          }}
+                        />
+                      );
+                    })()}
                   </div>
                 </div>
               )}
@@ -712,19 +721,28 @@ export const CheckoutPage: React.FC = () => {
 
               <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2 mb-6">
                 {cart.map((item) => (
-                  <div key={`${item.product.id}-${item.selectedSize}`} className="flex gap-4">
-                    <img src={item.product.images?.[0] || item.product.foto_uri} alt="" className="w-16 h-16 rounded-xl object-cover bg-slate-100" />
-                    <div className="flex-1">
+                  <div key={`${item.product.id}-${item.selectedSize}`} className="flex items-center gap-4 group">
+                    <img src={item.product.images?.[0] || item.product.foto_uri} alt="" className="w-16 h-16 rounded-xl object-cover bg-slate-100 shrink-0" />
+                    <div className="flex-1 min-w-0">
                       <p className="text-xs font-bold line-clamp-2">{item.product.name}</p>
                       <p className="text-[10px] text-slate-500 mt-1">Tam: {item.selectedSize !== 0 ? item.selectedSize : 'Único'} | Qtd: {item.quantity}</p>
                     </div>
-                    <div className="flex flex-col items-end">
+                    <div className="flex flex-col items-end shrink-0">
                       {item.product.originalPrice && item.product.originalPrice > item.product.price && (
                         <p className="text-[10px] line-through text-slate-400">
                           R$ {(item.product.originalPrice * item.quantity).toFixed(2).replace('.', ',')}
                         </p>
                       )}
                       <p className="text-sm font-black whitespace-nowrap">R$ {(item.product.price * item.quantity).toFixed(2).replace('.', ',')}</p>
+                      <button
+                        type="button"
+                        onClick={() => removeFromCart(item.product.id, item.selectedSize)}
+                        title="Remover item da compra"
+                        className="mt-1 text-slate-400 hover:text-rose-500 p-1 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors cursor-pointer flex items-center gap-1 text-[10px] font-semibold"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">Remover</span>
+                      </button>
                     </div>
                   </div>
                 ))}
