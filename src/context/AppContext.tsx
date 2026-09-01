@@ -877,7 +877,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const savedCart = userDataService.loadLocalCart(activeUid || null);
     if (savedCart.length > 0 && cart.length === 0) {
-      setCart(savedCart);
+      // Reidrata produtos slim com o catálogo completo quando disponível
+      const rehydrated = savedCart.map(item => {
+        if (item.product.category === '' && products.length > 0) {
+          const full = products.find(p => p.id === item.product.id);
+          if (full) return { ...item, product: full };
+        }
+        return item;
+      });
+      setCart(rehydrated);
     }
 
     const savedFavs = userDataService.loadLocalFavorites(activeUid || null);

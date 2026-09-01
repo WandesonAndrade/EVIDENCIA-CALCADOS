@@ -18,20 +18,50 @@ export const userDataService = {
   },
 
   /**
-   * Carrega o carrinho salvo localmente para o UID especificado (sem vazamento cruzado)
+   * Carrega o carrinho salvo localmente para o UID especificado (sem vazamento cruzado).
+   * Suporta tanto o formato slim (novo) quanto o formato legado com produto completo.
    */
   loadLocalCart(uid: string | null): CartItem[] {
     if (typeof localStorage === 'undefined') return [];
     const key = this.getCartStorageKey(uid);
     const saved = localStorage.getItem(key);
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (err) {
-        console.error("Erro ao carregar carrinho local:", err);
+    if (!saved) return [];
+    try {
+      const parsed = JSON.parse(saved);
+      if (!Array.isArray(parsed) || parsed.length === 0) return [];
+
+      // Detecta formato slim (novo): tem productId mas não tem product
+      if (parsed[0] && 'productId' in parsed[0] && !('product' in parsed[0])) {
+        // Retorna um CartItem parcial com produto mínimo para exibição inicial
+        // O AppContext irá reidratar com o produto completo do catálogo
+        return parsed.map((slim: any) => ({
+          product: {
+            id: slim.productId,
+            name: slim.name || '',
+            price: slim.price || 0,
+            originalPrice: slim.originalPrice,
+            images: slim.image ? [slim.image] : [],
+            foto_uri: slim.image || '',
+            // Campos obrigatórios do tipo Product com valores padrão
+            description: '',
+            category: '',
+            sizes: [],
+            crediarioProprio: false,
+            visible: true,
+            stockControl: false,
+            stock: 0,
+          } as any,
+          selectedSize: slim.selectedSize,
+          quantity: slim.quantity || 1,
+        }));
       }
+
+      // Formato legado: produto completo
+      return parsed as CartItem[];
+    } catch (err) {
+      console.error("Erro ao carregar carrinho local:", err);
+      return [];
     }
-    return [];
   },
 
   /**
@@ -52,12 +82,49 @@ export const userDataService = {
   },
 
   /**
-   * Salva o carrinho localmente sob a chave isolada por UID
+   * Formato slim salvo no localStorage para evitar QuotaExceededError.
+   * Apenas os campos necessários para exibir o carrinho e reidratar com o catálogo.
+   */
+  serializeCartSlim(cart: CartItem[]): string {
+    const slim = cart.map(item => ({
+      productId: item.product.id,
+      name: item.product.name,
+      price: item.product.price,
+      originalPrice: item.product.originalPrice,
+      image: item.product.images?.[0] || item.product.foto_uri || '',
+      selectedSize: item.selectedSize,
+      quantity: item.quantity,
+    }));
+    return JSON.stringify(slim);
+  },
+
+  /**
+   * Salva o carrinho localmente sob a chave isolada por UID.
+   * Usa formato slim para evitar QuotaExceededError.
    */
   saveLocalCart(uid: string | null, cart: CartItem[]): void {
     if (typeof localStorage === 'undefined') return;
     const key = this.getCartStorageKey(uid);
-    localStorage.setItem(key, JSON.stringify(cart));
+    try {
+      localStorage.setItem(key, this.serializeCartSlim(cart));
+    } catch (err: any) {
+      if (err?.name === 'QuotaExceededError' || err?.code === 22) {
+        console.warn('📌 [Cart] localStorage cheio. Limpando chaves obsoletas e tentando novamente...');
+        // Limpa chaves de outros usuários / legadas que podem ter sobrado
+        const keysToRemove: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i) || '';
+          if (k.startsWith('evidencia_cart_') && k !== key) keysToRemove.push(k);
+        }
+        keysToRemove.forEach(k => localStorage.removeItem(k));
+        try {
+          localStorage.setItem(key, this.serializeCartSlim(cart));
+        } catch {
+          // Falha silenciosa — Firestore já persiste o carrinho
+          console.warn('📌 [Cart] Não foi possível salvar no localStorage mesmo após limpeza. Usando apenas Firestore.');
+        }
+      }
+    }
   },
 
   /**
