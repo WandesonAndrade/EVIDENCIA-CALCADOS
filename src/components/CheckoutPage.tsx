@@ -274,6 +274,7 @@ export const CheckoutPage: React.FC = () => {
         customerBairro: activeAddressObj?.bairro || currentUser.bairro || 'Centro',
         city: activeAddressObj?.cidade || otherCityName || currentUser.cidade || 'Caxias',
         deliveryAddress: formattedAddress,
+        freightCost: freightCost,
         paymentStatus: determinedPaymentStatus,
         status: determinedStatus,
         paymentId: pixPaymentId,

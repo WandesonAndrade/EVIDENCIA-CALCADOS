@@ -317,7 +317,7 @@ export const ShippingInfoCard: React.FC<Props> = ({ order, isDark: _isDark, vari
         ) : (
           <span className="text-emerald-700 dark:text-emerald-400 font-medium flex items-center space-x-1">
             <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-            <span>{order.freightCost === 0 ? 'Frete Grátis incluso' : `Taxa fixa de envio: R$ ${formatCurrency(order.freightCost || 10)}`}</span>
+            <span>{order.freightCost === 0 ? 'Frete Grátis incluso' : `Frete: R$ ${formatCurrency(order.freightCost)}`}</span>
           </span>
         )}
       </div>

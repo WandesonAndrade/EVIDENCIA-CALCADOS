@@ -26,23 +26,11 @@ export const ShippingCalculator: React.FC<ShippingCalculatorProps> = ({
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
-  const calculateRef = useRef<(targetCep?: string) => Promise<void>>(async () => {});
+  const onSelectOptionRef = useRef(onSelectOption);
+  onSelectOptionRef.current = onSelectOption;
 
-  useEffect(() => {
-    if (initialPostalCode && initialPostalCode.replace(/\D/g, "").length === 8) {
-      setPostalCode(initialPostalCode);
-      calculateRef.current(initialPostalCode);
-    }
-  }, [initialPostalCode]);
-
-  const handleCepChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let val = e.target.value.replace(/\D/g, "");
-    if (val.length > 8) val = val.slice(0, 8);
-    if (val.length > 5) {
-      val = `${val.slice(0, 5)}-${val.slice(5)}`;
-    }
-    setPostalCode(val);
-  };
+  const selectedOptionIdRef = useRef(selectedOptionId);
+  selectedOptionIdRef.current = selectedOptionId;
 
   const calculate = async (targetCep?: string) => {
     const cepToUse = (targetCep || postalCode).replace(/\D/g, "");
@@ -84,10 +72,10 @@ export const ShippingCalculator: React.FC<ShippingCalculatorProps> = ({
         setOptions(data.options);
         if (data.options.length === 0) {
           setErrorMsg("Nenhuma modalidade de envio disponível para este CEP.");
-        } else if (onSelectOption && !selectedOptionId) {
-          // Seleciona automaticamente a opção mais barata por padrão se nenhuma estiver pré-selecionada
+        } else if (onSelectOptionRef.current) {
+          // Seleciona automaticamente a opção mais barata se nenhuma estiver selecionada ou atualiza a selecionada
           const cheapest = data.options.find((o: IShippingOption) => o.isCheapest) || data.options[0];
-          if (cheapest) onSelectOption(cheapest);
+          if (cheapest) onSelectOptionRef.current(cheapest);
         }
       } else {
         throw new Error("Resposta inválida do serviço de frete.");
@@ -101,7 +89,21 @@ export const ShippingCalculator: React.FC<ShippingCalculatorProps> = ({
     }
   };
 
-  calculateRef.current = calculate;
+  useEffect(() => {
+    if (initialPostalCode && initialPostalCode.replace(/\D/g, "").length === 8) {
+      setPostalCode(initialPostalCode);
+      calculate(initialPostalCode);
+    }
+  }, [initialPostalCode]);
+
+  const handleCepChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let val = e.target.value.replace(/\D/g, "");
+    if (val.length > 8) val = val.slice(0, 8);
+    if (val.length > 5) {
+      val = `${val.slice(0, 5)}-${val.slice(5)}`;
+    }
+    setPostalCode(val);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

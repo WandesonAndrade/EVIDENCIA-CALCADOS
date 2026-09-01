@@ -53,7 +53,7 @@ interface AppContextProps {
 
   orders: Order[];
   isLoadingOrders: boolean;
-  createOrder: (customerName: string, customerEmail: string, options?: { paymentMethod?: 'Pix' | 'Cartão de Crédito' | 'Cartão de Débito' | 'Crediário da Loja'; deliveryType?: 'Entrega no Endereço' | 'Entrega em Caxias-MA' | 'Entrega para Outras Cidades' | 'Retirada na Loja'; installments?: number; customerPhone?: string; customerCpf?: string; customerCep?: string; customerNumero?: string; customerBairro?: string; city?: string; deliveryAddress?: string; sellerName?: string; sellerEmail?: string; overrideItems?: any[]; paymentStatus?: PaymentStatus; status?: OrderStatus; paymentId?: string | number }) => Promise<Order>;
+  createOrder: (customerName: string, customerEmail: string, options?: { paymentMethod?: 'Pix' | 'Cartão de Crédito' | 'Cartão de Débito' | 'Crediário da Loja'; deliveryType?: 'Entrega no Endereço' | 'Entrega em Caxias-MA' | 'Entrega para Outras Cidades' | 'Retirada na Loja'; installments?: number; customerPhone?: string; customerCpf?: string; customerCep?: string; customerNumero?: string; customerBairro?: string; city?: string; deliveryAddress?: string; freightCost?: number; sellerName?: string; sellerEmail?: string; overrideItems?: any[]; paymentStatus?: PaymentStatus; status?: OrderStatus; paymentId?: string | number }) => Promise<Order>;
   solicitarCrediario: (dados: Partial<UserProfile>) => Promise<void>;
   atualizarStatusCrediario: (uid: string, novoStatus: CrediarioStatus, motivo?: string) => Promise<void>;
   updateUserCashback: (uid: string, cashbackBalance: number, cashbackValidUntil: string) => Promise<void>;
@@ -1813,6 +1813,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       customerBairro?: string;
       city?: string;
       deliveryAddress?: string; 
+      freightCost?: number;
       overrideItems?: CartItem[];
       sellerName?: string;
       sellerEmail?: string;
@@ -1849,8 +1850,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const deliveryType = options?.deliveryType || 'Entrega em Caxias-MA';
     const isOtherCities = deliveryType === 'Entrega para Outras Cidades';
     
-    // Freight rule: 0 if pickup in store OR other cities (to be combined via WhatsApp) OR subtotal > 100, else 10
-    const freightCost = (deliveryType === 'Retirada na Loja' || isOtherCities) ? 0 : (subtotal > 100 ? 0 : 10);
+    // Freight rule: se options.freightCost for passado explicitamente (ex: do Melhor Envio ou Retirada na Loja), usa ele!
+    const freightCost = typeof options?.freightCost === 'number'
+      ? options.freightCost
+      : ((deliveryType === 'Retirada na Loja' || isOtherCities) ? 0 : (subtotal > 100 ? 0 : 10));
     
     // Cashback auto-deduction
     const todayStr = new Date().toISOString().split('T')[0];
@@ -1887,7 +1890,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const freightStr = isOtherCities 
       ? 'A COMBINAR VIA WHATSAPP (Outras Cidades)' 
-      : (freightCost === 0 ? 'GRÁTIS' : 'R$ 10,00');
+      : (freightCost === 0 ? 'GRÁTIS' : `R$ ${freightCost.toFixed(2).replace('.', ',')}`);
 
     let message = `🛍️ *NOVO PEDIDO EVIDÊNCIA CALÇADOS* - ${orderNumber}\n\n`;
     message += `👤 *Dados do Cliente:*\n`;

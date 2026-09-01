@@ -106,9 +106,11 @@ export const FreightStatusCard: React.FC<Props> = ({
           <div className="flex justify-between text-slate-500 dark:text-[#86868B]">
             <span>Frete:</span>
             <span className="font-medium text-slate-700 dark:text-slate-300 font-mono">
-              {isOtherCities
-                ? (order.freightCost && order.freightCost > 0 ? `R$ ${formatCurrency(order.freightCost)}` : 'A Combinar')
-                : (order.freightCost === 0 || order.deliveryType === 'Retirada na Loja' || (order.subtotal || 0) > 100 ? 'Grátis' : `R$ ${formatCurrency(order.freightCost || 10)}`)}
+              {order.deliveryType === 'Retirada na Loja'
+                ? 'Grátis (Retirada)'
+                : (order.freightCost && order.freightCost > 0
+                    ? `R$ ${formatCurrency(order.freightCost)}`
+                    : (isOtherCities ? 'A Combinar' : 'Grátis'))}
             </span>
           </div>
           <div className="flex justify-between font-semibold text-slate-900 dark:text-white pt-1.5 border-t border-black/[0.04] dark:border-white/[0.06] text-xs">
