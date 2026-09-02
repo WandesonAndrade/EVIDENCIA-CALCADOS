@@ -149,6 +149,14 @@ sequenceDiagram
 3. **Transportadoras Padrão:**
    - **Serviço 2 (Jadlog .Package):** Mais econômico e ágil para encomendas no Maranhão, Piauí e regiões vizinhas.
    - **Serviço 1 (Correios PAC) / Serviço 17 (Mini Envios):** Utilizados como alternativas para CEPs remotos.
+4. **Proibição de Falsos Positivos (Etiqueta Local x Externa):**
+   - Etiqueta local (romaneio da loja) só é permitida para entregas próprias da loja em Caxias urbana.
+   - Se a API do Melhor Envio retornar erro (ex: saldo insuficiente, validação de endereço), o sistema **NUNCA emite etiqueta local como contingência**. O erro real é informado na interface para correção.
+5. **Dedução Automática de UF de Destino (`getUfFromCep`):**
+   - Antes de enviar o payload de compra ao carrinho da API, o sistema deduz a UF correta a partir do prefixo do CEP do destinatário (ex: faixa 64xxx sempre é enviada como `PI`), prevenindo rejeição `422` por incompatibilidade entre UF e CEP.
+6. **Rastreamento Otimizado com Busca Direcionada (`q`):**
+   - O rastreamento utiliza `GET /api/v2/me/orders?q=<código>` com tratamento para respostas `204 No Content`, evitando dependência do limite de paginação (`per_page=50`).
+   - Mocks silenciosos foram removidos da consulta; se a remessa não for localizada ou a API falhar, o sistema retorna `null` para que a tela informe que não há novas movimentações em vez de alterar status incorretamente.
 
 ---
 

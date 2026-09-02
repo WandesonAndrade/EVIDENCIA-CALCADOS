@@ -36,3 +36,13 @@ updated: 2026-08-27
 
 ## 6. Validação do Código
 - Execução de `npm run lint` (`tsc --noEmit`) e `npm run build` após alterações de estrutura/tipagem para garantir 0 erros de build em produção.
+
+## 7. Rastreamento e Consulta na API do Melhor Envio (`melhorEnvioAdapter.ts` / `shippingTracker.ts`)
+- **Busca Indexada Direcionada:** A consulta a remessas utiliza prioritariamente `GET /api/v2/me/orders?q=<código>&per_page=10` e suporte nativo ao status `204 No Content`, permitindo localização imediata sem esbarrar no limite fixo de paginação (`per_page=50`).
+- **Eliminação de Falsos Positivos e Mocks Silenciosos:** Em caso de código inexistente ou falha de rede/autenticação, a consulta retorna `null` para alertar o lojista no Toast em vez de salvar dados fictícios no Firestore.
+- **Mapeamento Estrito de Trânsito:** O status `in_transit` só é acionado quando a transportadora parceira registrar explicitamente trânsito/saída para entrega (`in_transit`, `out_for_delivery`, `saiu para entrega`, `encaminhado`). Status como `released`, `generated` e `posted` mantêm a régua em `Em Preparação`.
+- **Throttling e Sincronização em Lote:** `syncPendingOrders` aplica limite de frequência de 2 minutos por pedido em aberto para poupar requisições e evitar rate limit da API.
+
+## 8. Resolução de UF por Prefixo de CEP (`orderUtils.ts`)
+- **Função `getUfFromCep(cep)`:** Mapeia a unidade federativa diretamente pelos dois primeiros dígitos do CEP brasileiro (ex: `64` = PI, `65` = MA, `01-19` = SP), garantindo consistência no formulário de endereço e no payload de compra de etiquetas do Melhor Envio.
+

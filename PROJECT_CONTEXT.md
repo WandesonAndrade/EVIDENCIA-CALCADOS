@@ -71,19 +71,27 @@ Este documento centraliza todas as regras de negócio, decisões de arquitetura,
 - **Preferência pelo Endereço Cadastrado:** Se o cliente já possui endereço salvo, ele é selecionado e seu CEP dispara automaticamente a cotação de frete limpa (com `hideInput={true}`).
 - **Soma Real:** O frete selecionado é somado diretamente ao subtotal dos produtos no total da compra.
 - **Segurança de Variáveis:** O token da API reside estritamente no backend Node.js (`server.ts`), impedindo vazamento de tokens para o bundle do navegador.
+- **Validação e Detecção de UF por CEP:** O checkout e a criação de pedidos utilizam `getUfFromCep(cep)` para deduzir a UF de destino oficial pelas faixas nacionais de CEP, corrigindo eventuais cadastros manuais com UF incorreta.
+- **Gerenciamento de Endereços Extras:** O cliente pode cadastrar novos endereços e remover endereços adicionais livremente com o botão de lixeira, preservando seu endereço padrão.
+
+### D. Emissão de Etiquetas e Prevenção de Falsos Positivos
+- **Etiqueta Local (Romaneio Próprio):** Permitida exclusivamente para entregas municipais da própria loja (Caxias urbana).
+- **Melhor Envio:** Quando a integração externa com Melhor Envio falhar (saldo insuficiente, erro de API ou CEP não atendido), o sistema **nunca emite etiqueta local como fallback disfarçado**. O erro real é exibido na tela para garantir que nenhuma encomenda seja despachada sem registro oficial.
 
 ---
 
 ## 5. Gestão de Pedidos (Vendas & Pedidos / Meus Pedidos)
 
-### A. Ciclo de Vida e Etapas de Rastreio (4 Etapas Sincronizadas)
-O ciclo do pedido segue uma régua de 4 etapas perfeitamente alinhada entre a visão do Cliente (`OrderTimeline.tsx`) e do Administrador (`AdminStageStepper.tsx`):
+### A. Ciclo de Vida e Etapas de Rastreio (5 Etapas Sincronizadas)
+O ciclo do pedido segue uma régua sincronizada entre a visão do Cliente (`OrderTimeline.tsx`) e do Administrador (`AdminStageStepper.tsx`):
 1. **Etapa 1:** `Pedido Recebido` (Status: `Pendente`) — Pedido criado no banco aguardando liquidação.
 2. **Etapa 2:** `Pagamento Aprovado` (Status: `Confirmado`) — Pagamento verificado e conciliado.
 3. **Etapa 3:**
-   - Para envio convencional: `Em Preparação` (Status: `Em Preparação`, ícone `Truck`).
+   - Para envio convencional: `Em Preparação` (Status: `Em Preparação`, ícone `Truck` / `Package`). Acionado quando a etiqueta é gerada, liberada no Melhor Envio ou postada na agência parceira.
    - Para Retirada na Loja: `Pronto p/ Retirada` (Status: `Em Preparação`, ícone `Store`).
 4. **Etapa 4:**
+   - Para envio convencional: `Em Trânsito` (Status: `Em Trânsito`, ícone `Truck`). Acionado **estritamente** quando a transportadora parceira registrar movimentação real em trânsito ou saída para entrega.
+5. **Etapa 5:**
    - Para envio convencional: `Entregue` (Status: `Entregue`, ícone `PackageCheck`).
    - Para Retirada na Loja: `Retirado na Loja` (Status: `Entregue`, ícone `ShoppingBag`).
 

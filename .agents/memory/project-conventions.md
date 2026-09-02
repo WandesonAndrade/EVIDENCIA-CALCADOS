@@ -26,9 +26,10 @@ updated: 2026-08-27
 ### 4. Escopo de Filtros na Vitrine (`CategoryPage.tsx` e `ProductList.tsx`)
 - Ao navegar em uma categoria (ex: *Perfumes*) e selecionar uma subcategoria (ex: *Feminino*), o filtro aplica a subcategoria estritamente **dentro do escopo da categoria pai** (`isProductInCategory(prod, parentCategory)`), evitando o vazamento de produtos de outras categorias como calçados ou roupas.
 
-### 5. Ciclo de Vida de Pedidos em 4 Etapas Visuais
-- **Fluxo do Pedido:** `1. Pedido Recebido` → `2. Pagamento Aprovado` → `3. Em Preparação / Pronto p/ Retirada` → `4. Entregue / Retirado` (e estado terminal `❌ Cancelado`).
-- **Sincronização em Tempo Real:** O painel administrativo possui seletor único da Etapa do Pedido. Qualquer mudança reflete instantaneamente na régua visual do cliente em `OrderHistory.tsx`.
+### 5. Ciclo de Vida de Pedidos em 5 Etapas Visuais Sincronizadas
+- **Fluxo do Pedido Envio:** `1. Pedido Recebido` (Pendente) → `2. Pagamento Confirmado` → `3. Em Preparação` (etiqueta gerada, liberada ou postada na agência) → `4. Em Trânsito` (APENAS quando a transportadora registrar trânsito real) → `5. Entregue` (e estado terminal `❌ Cancelado`).
+- **Fluxo de Retirada na Loja:** `1. Pedido Recebido` → `2. Pagamento Confirmado` → `3. Pronto p/ Retirada` → `4. Retirado na Loja`.
+- **Sincronização em Tempo Real:** A régua visual do cliente em `OrderHistory.tsx` deriva sua etapa via `getOrderProgressStep(order)`, combinando `order.status`, `order.paymentStatus`, `order.labelStatus` e existência de `order.melhorEnvioId`.
 - **Rastreamento Transparente:** A régua visual exibe marcadores nítidos com indicação de progresso preenchido e pulse/ring na etapa corrente.
 - **Informações Completas do Comprador:** Cada pedido armazena e exibe Nome, E-mail, Telefone (com link direto de WhatsApp `wa.me`), CPF, RG e Endereço detalhado para entrega ou retirada na loja.
 - **Visualização de Itens Comprados:** Os produtos do pedido vêm abertos por padrão na visualização tanto do cliente quanto do administrador, exibindo miniatura, numeração/tamanho, quantidade, valor unitário e subtotal da linha.
@@ -46,3 +47,12 @@ updated: 2026-08-27
 ### 8. Padrão Estético Apple Store (HIG) e Grid de 8 Pontos
 - Nós de 36px com trilho centralizado a 18px do topo.
 - Cards internos com fluxo vertical compacto natural (`space-y-3.5`) e `p-5` (20px), sem estiramentos artificiais que abrem vácuos visuais.
+
+### 9. Regra Estrita de Emissão de Etiquetas: Proibição de Falsos Positivos
+- **Etiqueta Local (Romaneio Próprio):** Permitida **exclusivamente** para entregas locais realizadas diretamente pela frota/motoboy da loja em Caxias urbana.
+- **Melhor Envio (Transportadoras Externas):** Em caso de indisponibilidade de saldo, erro de validação ou recusa da API externa, o sistema **NUNCA deve gerar etiqueta local de contingência**. O erro real da API deve ser exibido com transparência ao lojista, evitando falsos positivos onde o pedido parece despachado mas não foi registrado na transportadora.
+
+### 10. Gestão de Endereços de Entrega & Detecção de UF por CEP
+- **Prevenção de Inconsistência de UF:** O sistema utiliza `getUfFromCep(cep)` para deduzir e validar a UF real correspondente à faixa de prefixo nacional do CEP, impedindo envio de UFs errôneas para a API de frete (ex: CEP 64xxx do Piauí com UF marcada como MA).
+- **Exclusão de Endereços Extras:** O cliente pode cadastrar e excluir endereços adicionais de entrega livremente no checkout (ícone de lixeira com confirmação e persistência no Firestore), preservando intacto seu endereço principal.
+
