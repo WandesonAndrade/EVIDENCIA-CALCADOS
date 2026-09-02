@@ -249,7 +249,7 @@ export interface OrderItem {
   originalPrice?: number;
 }
 
-export type OrderStatus = 'Pendente' | 'Confirmado' | 'Em Preparação' | 'Entregue' | 'Cancelado';
+export type OrderStatus = 'Pendente' | 'Confirmado' | 'Em Preparação' | 'Em Trânsito' | 'Entregue' | 'Cancelado';
 
 export type PaymentStatus = 'Pendente' | 'Confirmado' | 'Em Análise' | 'Recusado';
 
@@ -267,6 +267,8 @@ export interface Order {
   customerNumero?: string;
   customerComplemento?: string;
   city?: string;
+  uf?: string;
+  customerUf?: string;
   deliveryAddress?: string;
   deliveryType?: 'Entrega no Endereço' | 'Entrega em Caxias-MA' | 'Entrega para Outras Cidades' | 'Retirada na Loja';
   items: OrderItem[];
@@ -289,7 +291,7 @@ export interface Order {
   melhorEnvioId?: string;
   trackingCode?: string;
   labelUrl?: string;
-  labelStatus?: 'gerada' | 'impressa' | 'cancelada' | 'pendente';
+  labelStatus?: 'gerada' | 'impressa' | 'cancelada' | 'pendente' | 'postado' | 'em_transito' | 'entregue' | 'liberada';
   trackingEvents?: Array<{
     status: string;
     description: string;
@@ -304,6 +306,7 @@ export interface Order {
     measuredWeight?: number;
     occurredAt: string;
   };
+  lastTrackingCheck?: string;
 }
 
 export type UserRole = 'admin' | 'seller' | 'customer';

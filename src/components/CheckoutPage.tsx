@@ -13,6 +13,7 @@ import { cepService } from '../services/cepService';
 import { ShippingCalculator } from './common/ShippingCalculator';
 import { IShippingOption } from '../services/shipping/shippingProvider.interface';
 import { isProfileIncomplete } from '../App';
+import { getUfFromCep } from '../utils/orderUtils';
 
 export const CheckoutPage: React.FC = () => {
   const { 
@@ -70,17 +71,23 @@ export const CheckoutPage: React.FC = () => {
       setIsLoadingCheckoutCep(true);
       const res = await cepService.fetchAddressByCep(raw);
       setIsLoadingCheckoutCep(false);
+      const autoUf = getUfFromCep(raw);
       if (res) {
         setNewAddrForm(prev => ({
           ...prev,
           rua: res.logradouro || prev.rua,
           bairro: res.bairro || prev.bairro,
           cidade: res.localidade || prev.cidade,
-          uf: res.uf || prev.uf
+          uf: res.uf || autoUf || prev.uf
         }));
         if (res.localidade && res.localidade !== 'Caxias') {
           setOtherCityName(res.localidade);
         }
+      } else {
+        setNewAddrForm(prev => ({
+          ...prev,
+          uf: autoUf || prev.uf
+        }));
       }
     }
   };
@@ -126,7 +133,10 @@ export const CheckoutPage: React.FC = () => {
       return;
     }
 
-    const targetCity = newAddrForm.cidade.trim() || otherCityName.trim() || 'Caxias';
+    const cleanCep = checkoutCep.replace(/\D/g, '');
+    const autoUf = getUfFromCep(cleanCep);
+    const targetUf = (newAddrForm.uf.trim() || autoUf || 'MA').toUpperCase();
+    const targetCity = newAddrForm.cidade.trim() || otherCityName.trim() || (targetUf === 'PI' ? 'Teresina' : 'Caxias');
 
     const newAddrObj: SavedAddress = {
       id: 'addr_' + Date.now(),
@@ -135,8 +145,8 @@ export const CheckoutPage: React.FC = () => {
       numero: newAddrForm.numero.trim() || 'S/N',
       bairro: newAddrForm.bairro.trim(),
       cidade: targetCity,
-      uf: newAddrForm.uf.trim() || 'MA',
-      cep: checkoutCep.trim() || undefined,
+      uf: targetUf,
+      cep: cleanCep || undefined,
       complemento: newAddrForm.complemento.trim(),
     };
 
@@ -170,6 +180,23 @@ export const CheckoutPage: React.FC = () => {
       });
     } catch (error) {
       console.error("Erro ao salvar endereço:", error);
+    }
+  };
+
+  const handleDeleteAddress = async (addressId: string) => {
+    if (!confirm('Deseja realmente remover este endereço da sua lista?')) return;
+
+    const currentSaved = currentUser?.savedAddresses || [];
+    const updated = currentSaved.filter(a => a.id !== addressId);
+
+    try {
+      await updateUserProfile({ savedAddresses: updated });
+      if (selectedAddressId === addressId) {
+        setSelectedAddressId('default');
+        setSelectedShippingOption(null);
+      }
+    } catch (err) {
+      console.error('Erro ao excluir endereço:', err);
     }
   };
 
@@ -224,9 +251,19 @@ export const CheckoutPage: React.FC = () => {
   
   const activeSubtotal = subtotal;
 
+  const activeAddressObj = allAddresses.find(a => a.id === selectedAddressId) || allAddresses[0] || defaultAddress;
+
+  const isCaxiasCity = (
+    (activeAddressObj?.cidade || otherCityName || currentUser?.cidade || 'Caxias')
+      .toLowerCase()
+      .includes('caxias')
+  );
+
   const freightCost = deliveryType === 'Retirada na Loja'
     ? 0
-    : (selectedShippingOption ? selectedShippingOption.price : 0);
+    : selectedShippingOption
+    ? selectedShippingOption.price
+    : (isCaxiasCity ? (activeSubtotal > 100 ? 0 : 10.00) : 0);
   
   const todayStr = new Date().toISOString().split('T')[0];
   const isCashbackValid = Boolean(
@@ -256,11 +293,17 @@ export const CheckoutPage: React.FC = () => {
       ? installments 
       : (paymentMethod === 'Crediário da Loja' ? crediarioInstallments : 1);
 
-    const activeAddressObj = allAddresses.find(a => a.id === selectedAddressId) || allAddresses[0] || defaultAddress;
+    const effectiveCep = (activeAddressObj?.cep || checkoutCep || currentUser?.cep || '65600060').replace(/\D/g, '');
+    const autoUf = getUfFromCep(effectiveCep);
+    const activeUf = (activeAddressObj?.uf && activeAddressObj.uf.length === 2 && activeAddressObj.uf.toUpperCase() === autoUf)
+      ? activeAddressObj.uf.toUpperCase()
+      : (autoUf || currentUser?.uf || 'MA');
+
+    const activeCity = activeAddressObj?.cidade || otherCityName || (activeUf === 'PI' ? 'Teresina' : (currentUser?.cidade || 'Caxias'));
 
     const formattedAddress = deliveryType === 'Retirada na Loja'
       ? 'Retirada na Loja: Rua Afonso Pena, 295 - Centro, Caxias - MA'
-      : `${activeAddressObj?.rua || ''}, Nº ${activeAddressObj?.numero || 'S/N'} - ${activeAddressObj?.bairro || ''}, ${activeAddressObj?.cidade || otherCityName || 'Caxias'}/${activeAddressObj?.uf || 'MA'}${activeAddressObj?.cep ? ` (CEP: ${activeAddressObj.cep})` : ''}`;
+      : `${activeAddressObj?.rua || ''}, Nº ${activeAddressObj?.numero || 'S/N'} - ${activeAddressObj?.bairro || ''}, ${activeCity}/${activeUf}${effectiveCep ? ` (CEP: ${effectiveCep})` : ''}`;
 
     try {
       setIsProcessing(true);
@@ -276,10 +319,12 @@ export const CheckoutPage: React.FC = () => {
         sellerName: selectedSellerName !== 'Atendimento Direto da Loja' ? selectedSellerName : undefined,
         customerPhone: currentUser.telefone || '',
         customerCpf: currentUser.cpf || '',
-        customerCep: activeAddressObj?.cep || currentUser.cep || '65600060',
+        customerCep: effectiveCep,
         customerNumero: activeAddressObj?.numero || currentUser.numero || 'S/N',
         customerBairro: activeAddressObj?.bairro || currentUser.bairro || 'Centro',
-        city: activeAddressObj?.cidade || otherCityName || currentUser.cidade || 'Caxias',
+        city: activeCity,
+        uf: activeUf,
+        customerUf: activeUf,
         deliveryAddress: formattedAddress,
         freightCost: freightCost,
         paymentStatus: determinedPaymentStatus,
@@ -535,14 +580,21 @@ export const CheckoutPage: React.FC = () => {
                           <input type="text" value={newAddrForm.numero} onChange={e => setNewAddrForm({...newAddrForm, numero: e.target.value})} className="w-full px-4 py-3 rounded-xl border-slate-200 dark:border-white/10 bg-white dark:bg-[#1c1c1e] text-sm focus:ring-2 focus:ring-[#0071E3]/20 focus:border-[#0071E3] transition-all outline-none" />
                         </div>
                       </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
+                      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                        <div className="sm:col-span-2">
                           <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">Bairro</label>
                           <input type="text" value={newAddrForm.bairro} onChange={e => setNewAddrForm({...newAddrForm, bairro: e.target.value})} className="w-full px-4 py-3 rounded-xl border-slate-200 dark:border-white/10 bg-white dark:bg-[#1c1c1e] text-sm focus:ring-2 focus:ring-[#0071E3]/20 focus:border-[#0071E3] transition-all outline-none" />
                         </div>
                         <div>
-                          <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">Cidade / UF</label>
-                          <input type="text" placeholder="Caxias / MA" value={otherCityName || newAddrForm.cidade} onChange={e => setOtherCityName(e.target.value)} className="w-full px-4 py-3 rounded-xl border-slate-200 dark:border-white/10 bg-white dark:bg-[#1c1c1e] text-sm focus:ring-2 focus:ring-[#0071E3]/20 focus:border-[#0071E3] transition-all outline-none" />
+                          <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">Cidade</label>
+                          <input type="text" placeholder="Ex: Teresina" value={newAddrForm.cidade} onChange={e => {
+                            setNewAddrForm({...newAddrForm, cidade: e.target.value});
+                            setOtherCityName(e.target.value);
+                          }} className="w-full px-4 py-3 rounded-xl border-slate-200 dark:border-white/10 bg-white dark:bg-[#1c1c1e] text-sm focus:ring-2 focus:ring-[#0071E3]/20 focus:border-[#0071E3] transition-all outline-none" />
+                        </div>
+                        <div>
+                          <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">Estado (UF)</label>
+                          <input type="text" placeholder="PI" maxLength={2} value={newAddrForm.uf} onChange={e => setNewAddrForm({...newAddrForm, uf: e.target.value.toUpperCase()})} className="w-full px-4 py-3 rounded-xl border-slate-200 dark:border-white/10 bg-white dark:bg-[#1c1c1e] text-sm font-bold uppercase focus:ring-2 focus:ring-[#0071E3]/20 focus:border-[#0071E3] transition-all outline-none text-center" />
                         </div>
                       </div>
                       <div className="pt-2">
@@ -585,7 +637,22 @@ export const CheckoutPage: React.FC = () => {
                                 {addr.bairro} - {addr.cidade}/{addr.uf} {addr.cep ? `• CEP: ${addr.cep}` : ''}
                               </span>
                             </div>
-                            {isSelected && <CheckCircle2 className="h-5 w-5 text-[#0071E3] shrink-0" />}
+                            <div className="flex items-center gap-2 shrink-0">
+                              {isSelected && <CheckCircle2 className="h-5 w-5 text-[#0071E3] shrink-0" />}
+                              {addr.id !== 'default' && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteAddress(addr.id);
+                                  }}
+                                  title="Excluir este endereço"
+                                  className="p-1.5 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-all cursor-pointer"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              )}
+                            </div>
                           </div>
                         );
                       })}
@@ -597,6 +664,7 @@ export const CheckoutPage: React.FC = () => {
                     <ShippingCalculator
                       key={`shipping-${selectedAddressId}-${activeCep}`}
                       initialPostalCode={activeCep}
+                      cartTotal={activeSubtotal}
                       hideInput={true}
                       hideHeader={false}
                       selectedOptionId={selectedShippingOption?.id}
