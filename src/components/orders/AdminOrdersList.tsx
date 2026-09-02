@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ShoppingBag, Search, User, CheckCircle2, ShieldCheck, ArrowUpRight, X, Layers, ChevronDown } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { OrderStatus, PaymentStatus } from '../../types';
 import { AdminOrderCard } from './AdminOrderCard';
 import { formatCurrency } from '../../utils/orderUtils';
+import { ShippingTrackerService } from '../../services/shipping/shippingTracker';
 
 interface Props {
   isDark: boolean;
@@ -27,6 +28,13 @@ export const AdminOrdersList: React.FC<Props> = ({ isDark }) => {
   const [ordersSellerFilter, setOrdersSellerFilter] = useState<string>('Todos');
   const [editingFreightMap, setEditingFreightMap] = useState<{ [orderId: string]: string }>({});
   const [editingLocalSaleIdMap, setEditingLocalSaleIdMap] = useState<{ [orderId: string]: string }>({});
+
+  // Sincroniza em background pedidos pendentes que possuem código de rastreamento
+  useEffect(() => {
+    if (orders && orders.length > 0) {
+      ShippingTrackerService.syncPendingOrders(orders);
+    }
+  }, [orders?.length]);
 
   const sellersList = Array.from(
     new Set([

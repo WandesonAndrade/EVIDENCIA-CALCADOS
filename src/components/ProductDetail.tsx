@@ -70,14 +70,16 @@ export const ProductDetail: React.FC = () => {
           const isCaxias = data.localidade?.toLowerCase().includes('caxias') && data.uf === 'MA';
           if (isCaxias) {
             setSelectedDeliveryType('Entrega em Caxias-MA');
+            const prodPrice = selectedProduct?.price || 0;
+            const isFree = prodPrice > 100;
             setShippingInfo({
               city: 'Caxias',
               uf: 'MA',
               barrio: data.bairro || 'Centro',
               rua: data.logradouro || '',
               cep: cleanCep,
-              freightText: 'Frete GRÁTIS',
-              option: 'Entrega em Caxias'
+              freightText: isFree ? 'Frete GRÁTIS' : 'R$ 10,00 (Entrega Própria)',
+              option: 'Entrega Própria (Caxias Urbana)'
             });
           } else {
             setSelectedDeliveryType('Entrega para Outras Cidades');
@@ -103,11 +105,13 @@ export const ProductDetail: React.FC = () => {
     const isCaxiasName = rawInput.toLowerCase().includes('caxias');
     if (isCaxiasName) {
       setSelectedDeliveryType('Entrega em Caxias-MA');
+      const prodPrice = selectedProduct?.price || 0;
+      const isFree = prodPrice > 100;
       setShippingInfo({
         city: 'Caxias',
         uf: 'MA',
-        freightText: 'Frete GRÁTIS',
-        option: 'Entrega em Caxias'
+        freightText: isFree ? 'Frete GRÁTIS' : 'R$ 10,00 (Entrega Própria)',
+        option: 'Entrega Própria (Caxias Urbana)'
       });
     } else {
       setSelectedDeliveryType('Entrega para Outras Cidades');
@@ -948,7 +952,7 @@ export const ProductDetail: React.FC = () => {
                 </div>
               ) : (
                 <div className="pt-0.5">
-                  <ShippingCalculator compact />
+                  <ShippingCalculator compact cartTotal={selectedProduct?.price || 0} />
                 </div>
               )}
             </div>

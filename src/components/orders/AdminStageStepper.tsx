@@ -1,5 +1,5 @@
-﻿import React from 'react';
-import { Box, ShieldCheck, Truck, PackageCheck, Check, RotateCcw, Store, ShoppingBag } from 'lucide-react';
+import React from 'react';
+import { Box, ShieldCheck, Truck, PackageCheck, Check, RotateCcw, Store, ShoppingBag, Package } from 'lucide-react';
 import { OrderStatus } from '../../types';
 
 interface Props {
@@ -41,17 +41,21 @@ export const AdminStageStepper: React.FC<Props> = ({ currentStatus, isDark: _isD
     ? [
         { step: 1, status: 'Pendente', label: 'Pedido Recebido', shortLabel: 'Recebido', icon: Box },
         { step: 2, status: 'Confirmado', label: 'Pagamento Aprovado', shortLabel: 'Pago', icon: ShieldCheck },
-        { step: 3, status: 'Em Preparação', label: 'Pronto p/ Retirada', shortLabel: 'No Balcão', icon: Store },
-        { step: 4, status: 'Entregue', label: 'Retirado na Loja', shortLabel: 'Retirado', icon: ShoppingBag },
+        { step: 3, status: 'Em Preparação', label: 'Em Separação', shortLabel: 'Separando', icon: Package },
+        { step: 4, status: 'Em Trânsito', label: 'Pronto p/ Retirada', shortLabel: 'No Balcão', icon: Store },
+        { step: 5, status: 'Entregue', label: 'Retirado na Loja', shortLabel: 'Retirado', icon: ShoppingBag },
       ]
     : [
         { step: 1, status: 'Pendente', label: 'Pedido Recebido', shortLabel: 'Recebido', icon: Box },
         { step: 2, status: 'Confirmado', label: 'Pagamento Aprovado', shortLabel: 'Pago', icon: ShieldCheck },
-        { step: 3, status: 'Em Preparação', label: 'Em Preparação', shortLabel: 'Preparando', icon: Truck },
-        { step: 4, status: 'Entregue', label: 'Entregue ao Cliente', shortLabel: 'Entregue', icon: PackageCheck },
+        { step: 3, status: 'Em Preparação', label: 'Em Preparação', shortLabel: 'Preparando', icon: Package },
+        { step: 4, status: 'Em Trânsito', label: 'Em Trânsito', shortLabel: 'A Caminho', icon: Truck },
+        { step: 5, status: 'Entregue', label: 'Entregue ao Cliente', shortLabel: 'Entregue', icon: PackageCheck },
       ];
 
   const currentStepNum = currentStatus === 'Entregue'
+    ? 5
+    : currentStatus === 'Em Trânsito'
     ? 4
     : currentStatus === 'Em Preparação'
     ? 3
@@ -59,18 +63,19 @@ export const AdminStageStepper: React.FC<Props> = ({ currentStatus, isDark: _isD
     ? 2
     : 1;
 
-  const progressPct = ((currentStepNum - 1) / 3) * 100;
+  const clampedStepNum = Math.max(1, Math.min(5, currentStepNum));
+  const progressRatio = (clampedStepNum - 1) / 4;
 
   return (
     <div className="py-3 px-4 sm:px-6 rounded-2xl bg-black/[0.02] dark:bg-white/[0.02] border border-black/[0.04] dark:border-white/[0.06] relative select-none">
       <div className="relative">
-        {/* Linha de Conexão de Fundo - alinhada no centro do círculo de 32px (top-4 = 16px) */}
-        <div className="absolute left-6 right-6 top-4 -translate-y-1/2 h-[3px] bg-slate-200/80 dark:bg-white/[0.08] rounded-full z-0" />
+        {/* Linha de Conexão de Fundo - alinhada do centro do 1º nó (16px) ao centro do 5º nó */}
+        <div className="absolute left-[16px] right-[16px] top-4 -translate-y-1/2 h-[3px] bg-slate-200/80 dark:bg-white/[0.08] rounded-full z-0 pointer-events-none" />
 
-        {/* Linha de Progresso Ativa no Azul Apple */}
+        {/* Linha de Progresso Ativa no Azul Apple: encerra no centro da etapa atual */}
         <div
-          className="absolute left-6 top-4 -translate-y-1/2 h-[3px] bg-[#0071E3] dark:bg-[#0A84FF] rounded-full transition-all duration-500 ease-out z-0"
-          style={{ width: `calc(${progressPct}% - ${currentStepNum === 4 ? 0 : 12}px)` }}
+          className="absolute left-[16px] top-4 -translate-y-1/2 h-[3px] bg-[#0071E3] dark:bg-[#0A84FF] rounded-full transition-all duration-500 ease-out z-0 pointer-events-none"
+          style={{ width: `calc((100% - 32px) * ${progressRatio})` }}
         />
 
         <div className="flex items-start justify-between relative z-10">

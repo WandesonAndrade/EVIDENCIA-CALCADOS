@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, ShieldCheck, Truck, PackageCheck, Check, Store, ShoppingBag, ExternalLink, RefreshCw } from 'lucide-react';
+import { Box, ShieldCheck, Truck, PackageCheck, Check, Store, ShoppingBag, ExternalLink, RefreshCw, Package } from 'lucide-react';
 import { ITrackingEvent } from '../../services/shipping/shippingProvider.interface';
 
 interface Props {
@@ -27,35 +27,38 @@ export const OrderTimeline: React.FC<Props> = ({
     ? [
         { step: 1, label: 'Pedido Recebido', shortLabel: 'Recebido', icon: Box },
         { step: 2, label: 'Pagamento Aprovado', shortLabel: 'Pago', icon: ShieldCheck },
-        { step: 3, label: 'Pronto p/ Retirada', shortLabel: 'No Balcão', icon: Store },
-        { step: 4, label: 'Retirado', shortLabel: 'Retirado', icon: ShoppingBag },
+        { step: 3, label: 'Em Separação', shortLabel: 'Separando', icon: Package },
+        { step: 4, label: 'Pronto p/ Retirada', shortLabel: 'No Balcão', icon: Store },
+        { step: 5, label: 'Retirado na Loja', shortLabel: 'Retirado', icon: ShoppingBag },
       ]
     : [
         { step: 1, label: 'Pedido Recebido', shortLabel: 'Recebido', icon: Box },
         { step: 2, label: 'Pagamento Aprovado', shortLabel: 'Pago', icon: ShieldCheck },
-        { step: 3, label: 'Em Preparação', shortLabel: 'Preparando', icon: Truck },
-        { step: 4, label: 'Entregue', shortLabel: 'Entregue', icon: PackageCheck },
+        { step: 3, label: 'Em Preparação', shortLabel: 'Preparando', icon: Package },
+        { step: 4, label: 'Em Trânsito', shortLabel: 'A Caminho', icon: Truck },
+        { step: 5, label: 'Entregue ao Cliente', shortLabel: 'Entregue', icon: PackageCheck },
       ];
 
-  const progressPct = ((Math.max(1, currentStep) - 1) / 3) * 100;
+  const clampedStep = Math.max(1, Math.min(5, currentStep));
+  const progressRatio = (clampedStep - 1) / 4;
   const latestEvent = trackingEvents.length > 0 ? trackingEvents[trackingEvents.length - 1] : null;
 
   return (
     <div className="py-5 px-5 sm:px-12 border-b border-black/[0.04] dark:border-white/[0.06] bg-black/[0.01] dark:bg-white/[0.01] select-none space-y-4">
       <div className="max-w-2xl mx-auto relative">
-        {/* Linha Conectora de Fundo */}
-        <div className="absolute left-6 right-6 top-[18px] -translate-y-1/2 h-[2.5px] bg-slate-200/90 dark:bg-white/[0.08] rounded-full z-0" />
+        {/* Linha Conectora de Fundo: do centro do 1º nó ao centro do 5º nó */}
+        <div className="absolute left-[18px] right-[18px] top-[18px] -translate-y-1/2 h-[2.5px] bg-slate-200/90 dark:bg-white/[0.08] rounded-full z-0 pointer-events-none" />
 
-        {/* Linha de Progresso Ativa no Azul Apple */}
+        {/* Linha de Progresso Ativa no Azul Apple: finaliza no centro exato da etapa atual */}
         <div
-          className="absolute left-6 top-[18px] -translate-y-1/2 h-[2.5px] bg-[#0071E3] dark:bg-[#0A84FF] rounded-full transition-all duration-500 ease-out z-0"
-          style={{ width: `calc(${progressPct}% - ${currentStep === 4 ? 0 : 12}px)` }}
+          className="absolute left-[18px] top-[18px] -translate-y-1/2 h-[2.5px] bg-[#0071E3] dark:bg-[#0A84FF] rounded-full transition-all duration-500 ease-out z-0 pointer-events-none"
+          style={{ width: `calc((100% - 36px) * ${progressRatio})` }}
         />
 
         <div className="flex items-start justify-between relative z-10">
           {steps.map(({ step, label, shortLabel, icon: StepIcon }) => {
-            const isCompleted = currentStep > step;
-            const isCurrent = currentStep === step;
+            const isCompleted = currentStep > step || (currentStep === 5 && step === 5);
+            const isCurrent = currentStep === step && currentStep !== 5;
 
             return (
               <div key={step} className="flex flex-col items-center group">
@@ -90,9 +93,13 @@ export const OrderTimeline: React.FC<Props> = ({
                     <span className="hidden sm:inline">{label}</span>
                     <span className="sm:hidden">{shortLabel}</span>
                   </span>
-                  {isCurrent && (
-                    <span className="inline-block mt-0.5 text-[9px] font-semibold uppercase tracking-wider text-[#0071E3] dark:text-[#0A84FF] bg-[#0071E3]/10 dark:bg-[#0A84FF]/15 px-1.5 py-0.2 rounded-md">
-                      Em Andamento
+                  {currentStep === step && (
+                    <span className={`inline-block mt-0.5 text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.2 rounded-md ${
+                      step === 5
+                        ? 'text-emerald-700 dark:text-emerald-300 bg-emerald-500/15'
+                        : 'text-[#0071E3] dark:text-[#0A84FF] bg-[#0071E3]/10 dark:bg-[#0A84FF]/15'
+                    }`}>
+                      {step === 5 ? 'Entregue' : 'Em Andamento'}
                     </span>
                   )}
                 </div>
@@ -111,21 +118,9 @@ export const OrderTimeline: React.FC<Props> = ({
                 <Truck className="w-4 h-4" />
               </div>
               <div>
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold text-slate-800 dark:text-slate-200">
-                    Rastreio: <strong className="font-mono text-[#0071E3]">{trackingCode}</strong>
-                  </span>
-                  {onRefreshTracking && (
-                    <button
-                      onClick={onRefreshTracking}
-                      disabled={isSyncing}
-                      className="p-1 text-slate-400 hover:text-[#0071E3] transition rounded-full"
-                      title="Atualizar Rastreamento"
-                    >
-                      <RefreshCw className={`w-3 h-3 ${isSyncing ? 'animate-spin' : ''}`} />
-                    </button>
-                  )}
-                </div>
+                <span className="font-semibold text-slate-800 dark:text-slate-200">
+                  Rastreio: <strong className="font-mono text-[#0071E3]">{trackingCode}</strong>
+                </span>
                 {latestEvent && (
                   <p className="text-[11px] text-slate-600 dark:text-slate-300 font-medium mt-0.5">
                     {latestEvent.description} {latestEvent.location ? `• ${latestEvent.location}` : ''}
@@ -134,15 +129,18 @@ export const OrderTimeline: React.FC<Props> = ({
               </div>
             </div>
 
-            <a
-              href={`https://www.melhorrastreio.com.br/rastreio/${trackingCode}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-3 py-1.5 rounded-xl bg-[#0071E3] hover:bg-[#005bb5] text-white font-medium text-[11px] transition flex items-center gap-1 shrink-0 self-end sm:self-center"
-            >
-              <span>Melhor Rastreio</span>
-              <ExternalLink className="w-3 h-3" />
-            </a>
+            {onRefreshTracking && (
+              <button
+                type="button"
+                onClick={onRefreshTracking}
+                disabled={isSyncing}
+                className="px-3.5 py-1.5 rounded-xl bg-[#0071E3] hover:bg-[#005bb5] active:scale-[0.98] text-white font-medium text-[11px] transition flex items-center gap-1.5 shrink-0 self-end sm:self-center shadow-xs cursor-pointer disabled:opacity-60"
+                title="Atualizar rastreamento em tempo real no site"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+                <span>{isSyncing ? 'Atualizando...' : 'Atualizar'}</span>
+              </button>
+            )}
           </div>
 
           {/* Histórico Completo da Trajetória do Pacote (Checkpoints) */}

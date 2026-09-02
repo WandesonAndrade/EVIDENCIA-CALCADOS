@@ -145,17 +145,21 @@ export const Cart: React.FC = () => {
                 <Truck className={`h-5 w-5 ${isFreeFreight ? 'text-emerald-400' : 'text-amber-500'}`} />
                 <div>
                   {isFreeFreight ? (
-                    <span className="font-extrabold">Parabéns! Você tem direito a FRETE GRÁTIS para Caxias (MA)! 🎉</span>
+                    <span className="font-extrabold">Parabéns! Você tem direito a FRETE GRÁTIS na Entrega Urbana de Caxias! 🎉</span>
                   ) : (
                     <span>
-                      Faltam apenas <strong className="text-amber-400">R$ {remainingForFreeFreight.toFixed(2).replace('.', ',')}</strong> para garantir <strong>Frete Grátis</strong> na entrega!
+                      Faltam apenas <strong className="text-amber-400">R$ {remainingForFreeFreight.toFixed(2).replace('.', ',')}</strong> para garantir <strong>Frete Grátis</strong> em Caxias (MA)! (Abaixo de R$ 100, entrega própria por apenas R$ 10,00)
                     </span>
                   )}
                 </div>
               </div>
-              {isFreeFreight && (
-                <span className="bg-emerald-500 text-slate-950 font-black px-2.5 py-0.5 rounded-full text-[10px] uppercase tracking-wider">
+              {isFreeFreight ? (
+                <span className="bg-emerald-500 text-slate-950 font-black px-2.5 py-0.5 rounded-full text-[10px] uppercase tracking-wider shrink-0">
                   Grátis
+                </span>
+              ) : (
+                <span className="bg-amber-500/20 text-amber-500 font-black px-2.5 py-0.5 rounded-full text-[10px] uppercase tracking-wider shrink-0">
+                  R$ 10,00
                 </span>
               )}
             </div>
@@ -312,9 +316,9 @@ export const Cart: React.FC = () => {
               )}
 
               <div className="flex justify-between items-center">
-                <span>Estimativa de Frete</span>
-                <span className="text-[11px] font-bold text-amber-400">
-                  Calculado na confirmação
+                <span>Entrega Caxias Urbana</span>
+                <span className={`text-[11px] font-bold ${isFreeFreight ? 'text-emerald-500' : isDark ? 'text-slate-200' : 'text-slate-900'}`}>
+                  {isFreeFreight ? 'GRÁTIS' : 'R$ 10,00'}
                 </span>
               </div>
 

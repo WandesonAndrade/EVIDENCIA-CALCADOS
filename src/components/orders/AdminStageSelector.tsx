@@ -1,5 +1,5 @@
-﻿import React, { useState, useRef, useEffect } from 'react';
-import { Clock, ShieldCheck, Truck, PackageCheck, AlertCircle, ChevronDown, Check, Store, ShoppingBag } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Clock, ShieldCheck, Truck, PackageCheck, AlertCircle, ChevronDown, Check, Store, ShoppingBag, Package } from 'lucide-react';
 import { OrderStatus } from '../../types';
 
 interface Props {
@@ -51,15 +51,24 @@ export const AdminStageSelector: React.FC<Props> = ({
         {
           status: 'Em Preparação',
           stepNum: 3,
+          label: 'Em Separação',
+          subtitle: 'Separando calçados no estoque da loja',
+          icon: Package,
+          dotColor: 'bg-[#AF52DE]',
+          badgeStyle: 'text-purple-600 dark:text-purple-400 bg-purple-500/10 border-purple-500/20',
+        },
+        {
+          status: 'Em Trânsito',
+          stepNum: 4,
           label: 'Pronto p/ Retirada',
-          subtitle: 'Calçados separados e disponíveis no balcão da loja',
+          subtitle: 'Calçados disponíveis no balcão da loja',
           icon: Store,
           dotColor: 'bg-[#0071E3]',
           badgeStyle: 'text-[#0071E3] dark:text-[#0A84FF] bg-[#0071E3]/10 border-[#0071E3]/20',
         },
         {
           status: 'Entregue',
-          stepNum: 4,
+          stepNum: 5,
           label: 'Retirado na Loja',
           subtitle: 'Calçados retirados com sucesso pelo cliente',
           icon: ShoppingBag,
@@ -91,14 +100,23 @@ export const AdminStageSelector: React.FC<Props> = ({
           stepNum: 3,
           label: 'Em Preparação',
           subtitle: 'Separando calçados e embalando p/ envio',
+          icon: Package,
+          dotColor: 'bg-[#AF52DE]',
+          badgeStyle: 'text-purple-600 dark:text-purple-400 bg-purple-500/10 border-purple-500/20',
+        },
+        {
+          status: 'Em Trânsito',
+          stepNum: 4,
+          label: 'Em Trânsito',
+          subtitle: 'Objeto postado e em rota de entrega',
           icon: Truck,
           dotColor: 'bg-[#0071E3]',
           badgeStyle: 'text-[#0071E3] dark:text-[#0A84FF] bg-[#0071E3]/10 border-[#0071E3]/20',
         },
         {
           status: 'Entregue',
-          stepNum: 4,
-          label: 'Entregue',
+          stepNum: 5,
+          label: 'Entregue ao Cliente',
           subtitle: 'Concluído e entregue com sucesso ao cliente',
           icon: PackageCheck,
           dotColor: 'bg-[#34C759]',

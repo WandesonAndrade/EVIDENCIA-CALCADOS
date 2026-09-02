@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { AuthScreen } from './AuthScreen';
 import { ShoppingBag, MessageSquare, Calendar, ExternalLink, ReceiptText, ChevronDown, ChevronUp, CheckCircle2, Store } from 'lucide-react';
@@ -10,11 +10,44 @@ import { PaymentInfoCard } from './orders/PaymentInfoCard';
 import { OrderItemsGrid } from './orders/OrderItemsGrid';
 import { PaymentStatusBadge } from './orders/PaymentStatusBadge';
 import { formatCurrency, formatDateBR, getOrderProgressStep, buildWhatsAppUrl, createFallbackProduct } from '../utils/orderUtils';
+import { ShippingTrackerService } from '../services/shipping/shippingTracker';
 
 export const OrderHistory: React.FC = () => {
-  const { currentUser, orders, isLoadingOrders, theme, products, setSelectedProduct, setCurrentView } = useApp();
+  const { currentUser, orders, isLoadingOrders, theme, products, setSelectedProduct, setCurrentView, addToast } = useApp();
   const isDark = theme === 'dark';
   const [collapsedOrderIds, setCollapsedOrderIds] = useState<Record<string, boolean>>({});
+  const [syncingMap, setSyncingMap] = useState<Record<string, boolean>>({});
+
+  // Sincroniza automaticamente pedidos em aberto com rastreio ao entrar na tela
+  useEffect(() => {
+    if (orders && orders.length > 0) {
+      ShippingTrackerService.syncPendingOrders(orders);
+    }
+  }, [orders?.length]);
+
+  const handleRefreshTracking = async (orderId: string, trackingCode: string) => {
+    if (!trackingCode) return;
+    setSyncingMap((prev) => ({ ...prev, [orderId]: true }));
+    try {
+      const res = await ShippingTrackerService.syncOrderTracking(orderId, trackingCode);
+      console.log(`📦 [OrderHistory] Rastreamento atualizado para o pedido ${orderId} (${trackingCode}):`, res);
+      if (res.updated) {
+        addToast(
+          'Rastreio Atualizado',
+          res.statusText
+            ? `Status: ${res.statusText} (${res.eventsCount || 0} movimentações)`
+            : 'Informações de rastreamento atualizadas.',
+          'success'
+        );
+      } else {
+        addToast('Rastreio', 'Nenhuma nova movimentação encontrada.', 'info');
+      }
+    } catch {
+      addToast('Erro', 'Não foi possível atualizar o rastreio no momento.', 'error');
+    } finally {
+      setSyncingMap((prev) => ({ ...prev, [orderId]: false }));
+    }
+  };
 
   if (!currentUser) {
     return <AuthScreen />;
@@ -151,6 +184,8 @@ export const OrderHistory: React.FC = () => {
                     deliveryType={order.deliveryType}
                     trackingCode={order.trackingCode}
                     trackingEvents={order.trackingEvents}
+                    onRefreshTracking={order.trackingCode ? () => handleRefreshTracking(order.id, order.trackingCode!) : undefined}
+                    isSyncing={!!syncingMap[order.id]}
                   />
                 )}
 

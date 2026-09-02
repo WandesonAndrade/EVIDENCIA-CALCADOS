@@ -33,28 +33,21 @@ export const ShippingLabelPrintModal: React.FC<Props> = ({
         {/* Header - Não impresso */}
         <div className="p-5 border-b border-slate-200 dark:border-white/10 flex items-center justify-between print:hidden">
           <div className="flex items-center gap-2">
-            <Package className="w-5 h-5 text-[#0071E3]" />
-            <h3 className="font-bold text-slate-900 dark:text-white text-base">
-              Etiqueta de Envio & Declaração de Conteúdo
-            </h3>
+            <Package className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+            <div>
+              <h3 className="font-bold text-slate-900 dark:text-white text-base">
+                Etiqueta da Loja • Entrega Própria (Caxias Urbana)
+              </h3>
+              <p className="text-xs text-slate-500">Romaneio e identificação do pacote para o entregador/motoboy</p>
+            </div>
           </div>
           <div className="flex items-center gap-2">
-            {labelUrl && !labelUrl.includes('sandbox-ME-SANDBOX') && (
-              <a
-                href={labelUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-4 py-2 text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl transition"
-              >
-                Abrir PDF Oficial
-              </a>
-            )}
             <button
               onClick={handlePrint}
               className="px-4 py-2 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl flex items-center gap-1.5 transition shadow-sm cursor-pointer"
             >
               <Printer className="w-3.5 h-3.5" />
-              <span>Imprimir Agora (Ctrl+P)</span>
+              <span>Imprimir Etiqueta (Ctrl+P)</span>
             </button>
             <button
               onClick={onClose}
@@ -68,18 +61,18 @@ export const ShippingLabelPrintModal: React.FC<Props> = ({
         {/* Conteúdo Imprimível */}
         <div className="p-6 overflow-y-auto space-y-6 print:p-0 print:space-y-4">
           
-          {/* BLOCO 1: ETIQUETA DE POSTAGEM */}
+          {/* BLOCO 1: ETIQUETA DE POSTAGEM LOCAL */}
           <div className="border-2 border-dashed border-slate-300 dark:border-white/20 p-5 rounded-2xl print:border-black print:rounded-none">
             <div className="flex justify-between items-start border-b border-slate-200 dark:border-white/10 pb-3 mb-4">
               <div>
-                <span className="text-[10px] font-black uppercase tracking-widest text-[#0071E3]">EVIDÊNCIA CALÇADOS</span>
-                <h4 className="font-bold text-lg text-slate-900 dark:text-white">Etiqueta de Postagem</h4>
+                <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600">EVIDÊNCIA CALÇADOS • ENTREGA PRÓPRIA</span>
+                <h4 className="font-bold text-lg text-slate-900 dark:text-white">Romaneio de Entrega Local</h4>
               </div>
               <div className="text-right">
-                <span className="text-xs font-mono font-bold bg-slate-100 dark:bg-white/10 px-2 py-1 rounded">
-                  {trackingCode || `ME-${order.id}`}
+                <span className="text-xs font-mono font-bold bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 px-2.5 py-1 rounded-md">
+                  ENTREGA LOCAL
                 </span>
-                <span className="block text-[10px] text-slate-500 mt-1">Pedido: {order.orderNumber || order.id}</span>
+                <span className="block text-[10px] text-slate-500 mt-1">Pedido: #{order.orderNumber || order.id}</span>
               </div>
             </div>
 

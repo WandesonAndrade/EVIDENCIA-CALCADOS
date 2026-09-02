@@ -10,6 +10,7 @@ interface ShippingCalculatorProps {
   compact?: boolean;
   hideInput?: boolean;
   hideHeader?: boolean;
+  cartTotal?: number;
 }
 
 export const ShippingCalculator: React.FC<ShippingCalculatorProps> = ({
@@ -20,6 +21,7 @@ export const ShippingCalculator: React.FC<ShippingCalculatorProps> = ({
   compact = false,
   hideInput = false,
   hideHeader = false,
+  cartTotal,
 }) => {
   const [postalCode, setPostalCode] = useState(initialPostalCode);
   const [options, setOptions] = useState<IShippingOption[]>([]);
@@ -49,6 +51,7 @@ export const ShippingCalculator: React.FC<ShippingCalculatorProps> = ({
         body: JSON.stringify({
           toPostalCode: cepToUse,
           box: boxDimensions,
+          cartTotal,
         }),
       });
 
@@ -89,15 +92,14 @@ export const ShippingCalculator: React.FC<ShippingCalculatorProps> = ({
     }
   };
 
-  // Dispara cotação ao montar (importante quando remontado via key= no pai)
-  // e também quando initialPostalCode muda sem remontar
+  // Dispara cotação ao montar e quando initialPostalCode ou cartTotal mudam
   useEffect(() => {
     if (initialPostalCode && initialPostalCode.replace(/\D/g, "").length === 8) {
       setPostalCode(initialPostalCode);
       calculate(initialPostalCode);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialPostalCode]);
+  }, [initialPostalCode, cartTotal]);
 
   const handleCepChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let val = e.target.value.replace(/\D/g, "");
@@ -212,16 +214,20 @@ export const ShippingCalculator: React.FC<ShippingCalculatorProps> = ({
 
                   {/* Price & Badges */}
                   <div className="text-right shrink-0">
-                    <div className="font-mono font-bold text-slate-900 text-sm">
-                      {opt.price.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                    <div className={`font-mono font-bold text-sm ${opt.price === 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-900'}`}>
+                      {opt.price === 0 ? "GRÁTIS" : opt.price.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                     </div>
 
                     <div className="flex items-center justify-end gap-1 mt-1">
-                      {opt.isCheapest && (
+                      {opt.price === 0 ? (
+                        <span className="inline-flex items-center gap-0.5 text-[10px] font-black text-emerald-800 bg-emerald-100 dark:bg-emerald-950 dark:text-emerald-300 px-2 py-0.5 rounded-full">
+                          🎉 Frete Grátis
+                        </span>
+                      ) : opt.isCheapest ? (
                         <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
                           <Sparkles className="w-2.5 h-2.5" /> Mais Barato
                         </span>
-                      )}
+                      ) : null}
                       {opt.isFastest && !opt.isCheapest && (
                         <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full">
                           ⚡ Mais Rápido

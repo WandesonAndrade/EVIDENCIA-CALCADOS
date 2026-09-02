@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { Trash2, User, Calendar } from 'lucide-react';
 import { Order, OrderStatus } from '../../types';
 import { CustomerInfoCard } from './CustomerInfoCard';
@@ -105,7 +105,11 @@ export const AdminOrderCard: React.FC<Props> = ({
 
       {/* Régua Interativa de Etapas */}
       <AdminStageStepper
-        currentStatus={order.status}
+        currentStatus={
+          order.status === 'Pendente' && (order.labelStatus === 'gerada' || order.labelStatus === 'liberada' || order.labelStatus === 'impressa' || Boolean(order.melhorEnvioId))
+            ? 'Em Preparação'
+            : order.status
+        }
         isDark={isDark}
         isStorePickup={isStorePickup}
         onStatusChange={(newStatus) => onStatusChange(order.id, newStatus)}

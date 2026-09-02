@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
-import { Truck, MapPin, Store, Clock, CheckCircle2, Printer, Package, ExternalLink, XCircle, RefreshCw, AlertTriangle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Truck, MapPin, Store, Clock, CheckCircle2, Printer, Package, ExternalLink, XCircle, RefreshCw, AlertTriangle, Edit2, Check, X } from 'lucide-react';
 import { Order } from '../../types';
 import { formatCurrency } from '../../utils/orderUtils';
 import { db } from '../../lib/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { ShippingLabelPrintModal } from './ShippingLabelPrintModal';
+import { ShippingTrackerService } from '../../services/shipping/shippingTracker';
 
 interface Props {
   order: Order;
@@ -15,10 +16,83 @@ interface Props {
 export const ShippingInfoCard: React.FC<Props> = ({ order, isDark: _isDark, variant = 'client' }) => {
   const isStorePickup = order.deliveryType === 'Retirada na Loja';
   const isOtherCities = order.deliveryType === 'Entrega para Outras Cidades';
+  const isLocalDelivery = !isStorePickup && !isOtherCities && (
+    (order.deliveryType || '').toLowerCase().includes('caxias') ||
+    (order.deliveryType || '').toLowerCase().includes('própria') ||
+    (order.deliveryType || '').toLowerCase().includes('propria') ||
+    (!order.deliveryType && (order.city || '').toLowerCase().includes('caxias'))
+  );
 
   const [loading, setLoading] = useState(false);
+  const [syncingTracking, setSyncingTracking] = useState(false);
   const [currentOrder, setCurrentOrder] = useState<Order>(order);
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+  const [isEditingTracking, setIsEditingTracking] = useState(false);
+  const [editedTrackingCode, setEditedTrackingCode] = useState(order.trackingCode || '');
+  const [labelError, setLabelError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setCurrentOrder(order);
+    setEditedTrackingCode(order.trackingCode || '');
+  }, [order]);
+
+  const handleSyncTracking = async () => {
+    if (!currentOrder.trackingCode) return;
+    setSyncingTracking(true);
+    try {
+      const res = await ShippingTrackerService.syncOrderTracking(currentOrder.id, currentOrder.trackingCode);
+      console.log(`📦 [ShippingInfoCard Admin] Rastreamento atualizado para o pedido #${currentOrder.orderNumber || currentOrder.id}:`, res);
+      if (res.updated) {
+        setCurrentOrder((prev) => ({
+          ...prev,
+          trackingCode: res.trackingCode || prev.trackingCode,
+          status: res.newStatus || prev.status,
+          labelStatus: (res.labelStatus as any) || prev.labelStatus,
+          trackingEvents: res.events || prev.trackingEvents,
+          metricDivergence: res.metricDivergence || prev.metricDivergence,
+        }));
+        if (res.trackingCode) {
+          setEditedTrackingCode(res.trackingCode);
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao sincronizar rastreamento:', err);
+    } finally {
+      setSyncingTracking(false);
+    }
+  };
+
+  const handleSaveTrackingCode = async () => {
+    const cleanCode = editedTrackingCode.trim().toUpperCase();
+    if (!cleanCode) return;
+    try {
+      if (db && currentOrder.id) {
+        await updateDoc(doc(db, 'orders', currentOrder.id), {
+          trackingCode: cleanCode,
+        });
+      }
+      setCurrentOrder((prev) => ({ ...prev, trackingCode: cleanCode }));
+      setIsEditingTracking(false);
+
+      // Já sincroniza imediatamente com o novo código oficial inserido!
+      setSyncingTracking(true);
+      const res = await ShippingTrackerService.syncOrderTracking(currentOrder.id, cleanCode);
+      if (res.updated) {
+        setCurrentOrder((prev) => ({
+          ...prev,
+          trackingCode: res.trackingCode || cleanCode,
+          status: res.newStatus || prev.status,
+          labelStatus: (res.labelStatus as any) || prev.labelStatus,
+          trackingEvents: res.events || prev.trackingEvents,
+          metricDivergence: res.metricDivergence || prev.metricDivergence,
+        }));
+      }
+    } catch (err) {
+      console.error('Erro ao salvar código de rastreamento:', err);
+    } finally {
+      setSyncingTracking(false);
+    }
+  };
 
   const handleGenerateLabel = async () => {
     setLoading(true);
@@ -29,9 +103,41 @@ export const ShippingInfoCard: React.FC<Props> = ({ order, isDark: _isDark, vari
       targetCep = cepMatch[1].replace(/\D/g, '');
     }
     // Se ainda for inválido ou for 65600000 (rejeitado pela Jadlog no ME), usa o CEP oficial de Caxias 65600060
-    if (targetCep.length !== 8 || targetCep === '65600000') {
-      targetCep = '65600060';
-    }
+    // Identificação inteligente de Cidade e UF
+    const cleanCepNumbers = targetCep.replace(/\D/g, '');
+    const getUfFromCep = (cepStr: string): string => {
+      const p2 = parseInt(cepStr.substring(0, 2), 10);
+      if (p2 >= 1 && p2 <= 19) return 'SP';
+      if (p2 >= 20 && p2 <= 28) return 'RJ';
+      if (p2 === 29) return 'ES';
+      if (p2 >= 30 && p2 <= 39) return 'MG';
+      if (p2 >= 40 && p2 <= 48) return 'BA';
+      if (p2 === 49) return 'SE';
+      if (p2 >= 50 && p2 <= 56) return 'PE';
+      if (p2 === 57) return 'AL';
+      if (p2 === 58) return 'PB';
+      if (p2 === 59) return 'RN';
+      if (p2 >= 60 && p2 <= 63) return 'CE';
+      if (p2 === 64) return 'PI'; // Teresina e Piauí
+      if (p2 === 65) return 'MA'; // Caxias e Maranhão
+      if (p2 >= 66 && p2 <= 68) return 'PA';
+      if (p2 === 69) return 'AM';
+      if (p2 >= 70 && p2 <= 72) return 'DF';
+      if (p2 >= 73 && p2 <= 76) return 'GO';
+      if (p2 === 77) return 'TO';
+      if (p2 >= 78 && p2 <= 79) return 'MT';
+      if (p2 >= 80 && p2 <= 87) return 'PR';
+      if (p2 >= 88 && p2 <= 89) return 'SC';
+      if (p2 >= 90 && p2 <= 99) return 'RS';
+      return 'MA';
+    };
+
+    const ufMatch = (order.deliveryAddress || '').match(/\/([A-Za-z]{2})/);
+    const addressUf = ufMatch ? ufMatch[1].toUpperCase() : '';
+    const targetUf = addressUf || getUfFromCep(cleanCepNumbers);
+
+    const cityMatch = (order.deliveryAddress || '').match(/,\s*([^,/-]+)\/[A-Za-z]{2}/);
+    const targetCity = (order as any).customerCidade || order.city || (cityMatch ? cityMatch[1].trim() : (targetUf === 'PI' ? 'Teresina' : 'Caxias'));
 
     try {
       const response = await fetch('/api/shipping/labels/generate', {
@@ -47,8 +153,8 @@ export const ShippingInfoCard: React.FC<Props> = ({ order, isDark: _isDark, vari
             address: order.deliveryAddress?.split(',')[0]?.trim() || order.deliveryAddress || 'Rua Afonso Pena',
             number: order.customerNumero || '295',
             district: order.customerBairro || 'Centro',
-            city: order.city || 'Caxias',
-            state_abbr: 'MA',
+            city: targetCity,
+            state_abbr: targetUf,
             postal_code: targetCep,
           },
           products: order.items.map((item) => ({
@@ -63,30 +169,33 @@ export const ShippingInfoCard: React.FC<Props> = ({ order, isDark: _isDark, vari
         throw new Error('Falha na resposta do servidor proxy de etiquetas.');
       }
 
-      const data = await response.json();
-      if (data.success && data.label) {
-        const updatedFields = {
-          melhorEnvioId: data.label.shipmentId,
-          trackingCode: data.label.trackingCode,
-          labelUrl: data.label.labelUrl,
-          labelStatus: 'gerada' as const,
-        };
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.success || !data.label) {
+        throw new Error(data.error || 'Falha na resposta da API do Melhor Envio.');
+      }
 
-        if (db && order.id) {
-          await updateDoc(doc(db, 'orders', order.id), updatedFields);
-        }
+      const updatedFields: any = {
+        melhorEnvioId: data.label.shipmentId,
+        trackingCode: data.label.trackingCode,
+        labelUrl: data.label.labelUrl,
+        labelStatus: 'gerada' as const,
+        status: 'Em Preparação' as const,
+        paymentStatus: 'Confirmado' as const,
+      };
 
-        setCurrentOrder((prev) => ({ ...prev, ...updatedFields }));
+      if (db && order.id) {
+        await updateDoc(doc(db, 'orders', order.id), updatedFields);
+      }
 
-        if (data.label.labelUrl && !data.label.labelUrl.includes('sandbox-ME-SANDBOX')) {
-          window.open(data.label.labelUrl, '_blank');
-        } else {
-          setIsPrintModalOpen(true);
-        }
+      setCurrentOrder((prev) => ({ ...prev, ...updatedFields }));
+      setLabelError(null);
+
+      if (data.label.labelUrl) {
+        window.open(data.label.labelUrl, '_blank');
       }
     } catch (err: any) {
-      console.error('📌 Erro ao gerar etiqueta:', err);
-      alert('Erro ao gerar etiqueta no Melhor Envio: ' + (err?.message || err));
+      console.error('📌 Erro ao gerar etiqueta no Melhor Envio:', err);
+      setLabelError(err?.message || 'Erro inesperado ao gerar etiqueta no Melhor Envio.');
     } finally {
       setLoading(false);
     }
@@ -173,45 +282,123 @@ export const ShippingInfoCard: React.FC<Props> = ({ order, isDark: _isDark, vari
             )}
           </div>
 
-          {/* Painel de Gestão de Etiquetas do Melhor Envio */}
-          {!isStorePickup && (
+          {/* 1. SE FOR ENTREGA PRÓPRIA DA LOJA (CAXIAS URBANA) */}
+          {isLocalDelivery && (
+            <div className="pt-3 border-t border-slate-200/60 dark:border-slate-800 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider flex items-center gap-1">
+                  <Truck className="w-3.5 h-3.5" />
+                  <span>Entrega Própria da Loja</span>
+                </span>
+                <span className="text-[10px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-bold px-2 py-0.5 rounded-full border border-emerald-500/20">
+                  Caxias Urbana
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight">
+                Entrega expressa própria da Evidência Calçados. Não gera etiqueta externa nos Correios.
+              </p>
+              <button
+                onClick={() => setIsPrintModalOpen(true)}
+                className="w-full py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
+              >
+                <Printer className="w-3.5 h-3.5" />
+                <span>Imprimir Etiqueta da Loja (Romaneio Local)</span>
+              </button>
+            </div>
+          )}
+
+          {/* 2. SE FOR ENVIO EXTERNO (MELHOR ENVIO / CORREIOS / JADLOG) */}
+          {!isStorePickup && !isLocalDelivery && (
             <div className="pt-3 border-t border-slate-200/60 dark:border-slate-800 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
                   <Package className="w-3 h-3 text-[#0071E3]" />
                   <span>Etiqueta Melhor Envio</span>
                 </span>
-                {currentOrder.trackingCode && (
-                  <span className="text-[10px] font-mono font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
-                    {currentOrder.trackingCode}
-                  </span>
+                {isEditingTracking ? (
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="text"
+                      value={editedTrackingCode}
+                      onChange={(e) => setEditedTrackingCode(e.target.value)}
+                      placeholder="Ex: QH87996960BR"
+                      className="w-28 px-1.5 py-0.5 text-[10px] font-mono font-bold uppercase bg-white dark:bg-black/40 border border-[#0071E3] rounded-md outline-none"
+                      autoFocus
+                    />
+                    <button
+                      onClick={handleSaveTrackingCode}
+                      className="p-1 rounded bg-emerald-600 text-white hover:bg-emerald-700 transition cursor-pointer"
+                      title="Salvar e Rastrear Código Oficial"
+                    >
+                      <Check className="w-3 h-3" />
+                    </button>
+                    <button
+                      onClick={() => setIsEditingTracking(false)}
+                      className="p-1 rounded bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-300 transition cursor-pointer"
+                      title="Cancelar"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ) : (
+                  currentOrder.trackingCode && (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] font-mono font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30 px-2 py-0.5 rounded-full">
+                        {currentOrder.trackingCode}
+                      </span>
+                      <button
+                        onClick={() => setIsEditingTracking(true)}
+                        className="p-1 rounded-md text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition cursor-pointer"
+                        title="Corrigir / Informar Código Oficial dos Correios"
+                      >
+                        <Edit2 className="w-2.5 h-2.5" />
+                      </button>
+                      <button
+                        onClick={handleSyncTracking}
+                        disabled={syncingTracking}
+                        className="p-1 rounded-md text-slate-400 hover:text-[#0071E3] hover:bg-black/[0.04] dark:hover:bg-white/[0.05] transition cursor-pointer"
+                        title="Atualizar Status do Rastreamento Agora"
+                      >
+                        <RefreshCw className={`w-3 h-3 ${syncingTracking ? 'animate-spin text-[#0071E3]' : ''}`} />
+                      </button>
+                    </div>
+                  )
                 )}
               </div>
+
+              {/* Mensagem de Erro Real do Melhor Envio (sem falso positivo) */}
+              {labelError && (
+                <div className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-rose-500" />
+                  <div className="space-y-0.5">
+                    <span className="font-bold block">Falha na geração no Melhor Envio:</span>
+                    <p className="text-[11px] leading-relaxed">{labelError}</p>
+                  </div>
+                </div>
+              )}
 
               {!hasLabel ? (
                 <button
                   onClick={handleGenerateLabel}
                   disabled={loading}
-                  className="w-full py-2 px-3 rounded-xl bg-[#0071E3] hover:bg-[#005bb5] text-white font-semibold text-xs transition flex items-center justify-center gap-1.5 shadow-sm"
+                  className="w-full py-2 px-3 rounded-xl bg-[#0071E3] hover:bg-[#005bb5] text-white font-semibold text-xs transition flex items-center justify-center gap-1.5 shadow-sm cursor-pointer disabled:opacity-50"
                 >
                   {loading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Package className="w-3.5 h-3.5" />}
-                  <span>Gerar Etiqueta no Melhor Envio</span>
+                  <span>{loading ? 'Gerando no Melhor Envio...' : 'Gerar Etiqueta no Melhor Envio'}</span>
                 </button>
               ) : (
                 <div className="space-y-1.5">
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => {
-                        if (currentOrder.labelUrl && !currentOrder.labelUrl.includes('sandbox-ME-SANDBOX')) {
+                        if (currentOrder.labelUrl) {
                           window.open(currentOrder.labelUrl, '_blank');
-                        } else {
-                          setIsPrintModalOpen(true);
                         }
                       }}
                       className="flex-1 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
                     >
                       <Printer className="w-3.5 h-3.5" />
-                      <span>Imprimir Etiqueta</span>
+                      <span>Imprimir Etiqueta Oficial (PDF)</span>
                       <ExternalLink className="w-3 h-3 opacity-80" />
                     </button>
 
@@ -226,14 +413,48 @@ export const ShippingInfoCard: React.FC<Props> = ({ order, isDark: _isDark, vari
                   </div>
 
                   {currentOrder.trackingCode && (
-                    <a
-                      href={`https://www.melhorrastreio.com.br/rastreio/${currentOrder.trackingCode}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-[10px] font-medium text-slate-500 hover:text-[#0071E3] flex items-center gap-1 hover:underline"
-                    >
-                      <span>Rastrear pacote no Melhor Rastreio →</span>
-                    </a>
+                    <div className="flex items-center justify-between gap-2 pt-0.5">
+                      <a
+                        href={`https://www.melhorrastreio.com.br/rastreio/${currentOrder.trackingCode}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[10px] font-medium text-slate-500 hover:text-[#0071E3] flex items-center gap-1 hover:underline"
+                      >
+                        <span>Rastrear no Melhor Rastreio →</span>
+                      </a>
+                      <button
+                        onClick={handleSyncTracking}
+                        disabled={syncingTracking}
+                        className="text-[10px] font-medium text-[#0071E3] hover:underline flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                      >
+                        <RefreshCw className={`w-2.5 h-2.5 ${syncingTracking ? 'animate-spin' : ''}`} />
+                        <span>{syncingTracking ? 'Atualizando...' : 'Atualizar Status'}</span>
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Resumo da última movimentação de rastreamento para o Admin */}
+                  {currentOrder.trackingEvents && currentOrder.trackingEvents.length > 0 && (
+                    <div className="text-[11px] text-slate-600 dark:text-slate-300 font-medium bg-slate-50 dark:bg-white/[0.03] p-2 rounded-lg border border-slate-100 dark:border-white/5 space-y-0.5">
+                      <div className="flex items-center justify-between text-[10px] text-slate-400">
+                        <span className="font-semibold text-slate-500">Último status:</span>
+                        <span className="font-mono">
+                          {currentOrder.trackingEvents[currentOrder.trackingEvents.length - 1].createdAt
+                            ? new Date(
+                                currentOrder.trackingEvents[currentOrder.trackingEvents.length - 1].createdAt
+                              ).toLocaleDateString('pt-BR', {
+                                day: '2-digit',
+                                month: '2-digit',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })
+                            : ''}
+                        </span>
+                      </div>
+                      <p className="text-slate-700 dark:text-slate-200 text-[11px] leading-tight line-clamp-2">
+                        {currentOrder.trackingEvents[currentOrder.trackingEvents.length - 1].description}
+                      </p>
+                    </div>
                   )}
                 </div>
               )}
@@ -302,18 +523,12 @@ export const ShippingInfoCard: React.FC<Props> = ({ order, isDark: _isDark, vari
         <div className="p-2.5 rounded-xl bg-blue-50/80 dark:bg-blue-900/20 border border-blue-200/60 dark:border-blue-800/40 flex items-center justify-between text-xs">
           <div className="flex items-center space-x-1.5">
             <Package className="w-3.5 h-3.5 text-[#0071E3]" />
-            <span className="font-semibold text-slate-700 dark:text-slate-300">Rastreio:</span>
+            <span className="font-semibold text-slate-700 dark:text-slate-300">Código de Rastreio:</span>
             <span className="font-mono font-bold text-[#0071E3]">{order.trackingCode}</span>
           </div>
-          <a
-            href={`https://www.melhorrastreio.com.br/rastreio/${order.trackingCode}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-[10px] font-bold text-[#0071E3] hover:underline flex items-center gap-0.5"
-          >
-            <span>Rastrear</span>
-            <ExternalLink className="w-2.5 h-2.5" />
-          </a>
+          <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
+            Rastreio no Site
+          </span>
         </div>
       )}
 
