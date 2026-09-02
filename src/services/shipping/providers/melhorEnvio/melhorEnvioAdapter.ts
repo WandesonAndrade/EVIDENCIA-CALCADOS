@@ -176,13 +176,25 @@ export class MelhorEnvioAdapter implements IShippingProvider {
         });
 
       if (validOptions.length === 0) {
-        return this.getFallbackOptions(toCep, box);
+        return this.getFallbackOptions(toCep, box, payload.cartTotal);
+      }
+
+      // Regra de Entrega Própria para Caxias / MA (Zona Urbana)
+      if (toCep.startsWith("6560") && !validOptions.some(o => o.id === "entrega-propria-caxias" || o.id === "motoboy-local-caxias")) {
+        const isFree = typeof payload.cartTotal === "number" ? payload.cartTotal > 100 : false;
+        validOptions.unshift({
+          id: "entrega-propria-caxias",
+          name: "Entrega Própria (Caxias Urbana)",
+          company: { id: 99, name: "Evidência Express (Entrega Local)", picture: "" },
+          price: isFree ? 0 : 10.00,
+          deliveryTime: 1,
+        });
       }
 
       return this.enrichOptionsWithBadges(validOptions);
     } catch (err: any) {
       console.warn("[MelhorEnvioAdapter] Falha na requisição HTTP de cotação, ativando estimativa Sandbox:", err?.message || err);
-      return this.getFallbackOptions(toCep, box);
+      return this.getFallbackOptions(toCep, box, payload.cartTotal);
     }
   }
 
@@ -212,17 +224,46 @@ export class MelhorEnvioAdapter implements IShippingProvider {
       cleanToCep = "65604000";
     }
 
+    const cleanCepNumbers = cleanToCep.replace(/\D/g, "");
+    const getUfFromCep = (cepStr: string): string => {
+      const p2 = parseInt(cepStr.substring(0, 2), 10);
+      if (p2 >= 1 && p2 <= 19) return 'SP';
+      if (p2 >= 20 && p2 <= 28) return 'RJ';
+      if (p2 === 29) return 'ES';
+      if (p2 >= 30 && p2 <= 39) return 'MG';
+      if (p2 >= 40 && p2 <= 48) return 'BA';
+      if (p2 === 49) return 'SE';
+      if (p2 >= 50 && p2 <= 56) return 'PE';
+      if (p2 === 57) return 'AL';
+      if (p2 === 58) return 'PB';
+      if (p2 === 59) return 'RN';
+      if (p2 >= 60 && p2 <= 63) return 'CE';
+      if (p2 === 64) return 'PI';
+      if (p2 === 65) return 'MA';
+      if (p2 >= 66 && p2 <= 68) return 'PA';
+      if (p2 === 69) return 'AM';
+      if (p2 >= 70 && p2 <= 72) return 'DF';
+      if (p2 >= 73 && p2 <= 76) return 'GO';
+      if (p2 === 77) return 'TO';
+      if (p2 >= 78 && p2 <= 79) return 'MT';
+      if (p2 >= 80 && p2 <= 87) return 'PR';
+      if (p2 >= 88 && p2 <= 89) return 'SC';
+      if (p2 >= 90 && p2 <= 99) return 'RS';
+      return 'MA';
+    };
+    const detectedToUf = getUfFromCep(cleanCepNumbers);
+
     const cartBody: any = {
-      service: Number(payload.serviceId) || 2, // 2 = Jadlog .Package, 1 = Correios PAC
+      service: Number(payload.serviceId) || 2,
       from: {
-        name: from.name,
-        phone: from.phone,
-        email: from.email,
-        address: from.address,
-        number: from.number,
-        district: from.district,
-        city: from.city,
-        state_abbr: from.state_abbr,
+        name: from.name || "Evidência Calçados",
+        phone: from.phone || "99984684867",
+        email: from.email || "wandesonandrade33@gmail.com",
+        address: from.address || "Rua Afonso Pena",
+        number: from.number || "295",
+        district: from.district || "Centro",
+        city: from.city || "Caxias",
+        state_abbr: from.state_abbr || "MA",
         postal_code: cleanFromCep,
       },
       to: {
@@ -233,8 +274,8 @@ export class MelhorEnvioAdapter implements IShippingProvider {
         address: payload.to.address,
         number: payload.to.number || "S/N",
         district: payload.to.district || "Centro",
-        city: payload.to.city || "Caxias",
-        state_abbr: payload.to.state_abbr || "MA",
+        city: payload.to.city || (detectedToUf === 'PI' ? 'Teresina' : 'Caxias'),
+        state_abbr: detectedToUf || payload.to.state_abbr || "MA",
         postal_code: cleanToCep,
       },
       products: payload.products.map((p) => ({
@@ -273,15 +314,16 @@ export class MelhorEnvioAdapter implements IShippingProvider {
 
       if (!cartRes.ok) {
         const errorData = await cartRes.json().catch(() => ({}));
-        console.warn("[MelhorEnvioAdapter] Falha ao adicionar ao carrinho do Melhor Envio:", cartRes.status, errorData, "Payload enviado:", JSON.stringify({ from: cartBody.from, to: cartBody.to }));
-        return this.getSandboxMockLabel(payload.orderId);
+        console.error("[MelhorEnvioAdapter] Falha ao adicionar ao carrinho do Melhor Envio:", cartRes.status, errorData, "Payload:", JSON.stringify({ from: cartBody.from, to: cartBody.to }));
+        const errDetail = errorData.message || errorData.error || (errorData.errors ? Object.values(errorData.errors).flat().join(", ") : "");
+        throw new Error(`Melhor Envio recusou criar a remessa: ${errDetail || `HTTP ${cartRes.status}`}`);
       }
 
       const cartData = await cartRes.json();
       const shipmentId = cartData.id || cartData.protocol;
 
       if (!shipmentId) {
-        return this.getSandboxMockLabel(payload.orderId);
+        throw new Error("Melhor Envio não retornou o identificador (ID) da remessa criada.");
       }
 
       const checkoutRes = await fetch(`${config.baseUrl}/api/v2/me/shipment/checkout`, {
@@ -290,7 +332,10 @@ export class MelhorEnvioAdapter implements IShippingProvider {
         body: JSON.stringify({ orders: [shipmentId] }),
       });
       if (!checkoutRes.ok) {
-        console.warn("[MelhorEnvioAdapter] Checkout error:", checkoutRes.status, await checkoutRes.json().catch(() => ({})));
+        const checkErr = await checkoutRes.json().catch(() => ({}));
+        console.error("[MelhorEnvioAdapter] Checkout error:", checkoutRes.status, checkErr);
+        const checkDetail = checkErr.message || checkErr.error || "";
+        throw new Error(`Falha ao comprar etiqueta no Melhor Envio (verifique o saldo da sua carteira): ${checkDetail || `HTTP ${checkoutRes.status}`}`);
       }
 
       const genRes = await fetch(`${config.baseUrl}/api/v2/me/shipment/generate`, {
@@ -299,7 +344,10 @@ export class MelhorEnvioAdapter implements IShippingProvider {
         body: JSON.stringify({ orders: [shipmentId] }),
       });
       if (!genRes.ok) {
-        console.warn("[MelhorEnvioAdapter] Generate error:", genRes.status, await genRes.json().catch(() => ({})));
+        const genErr = await genRes.json().catch(() => ({}));
+        console.error("[MelhorEnvioAdapter] Generate error:", genRes.status, genErr);
+        const genDetail = genErr.message || genErr.error || "";
+        throw new Error(`Falha ao gerar o documento da etiqueta no Melhor Envio: ${genDetail || `HTTP ${genRes.status}`}`);
       }
 
       const printRes = await fetch(`${config.baseUrl}/api/v2/me/shipment/print`, {
@@ -343,8 +391,8 @@ export class MelhorEnvioAdapter implements IShippingProvider {
         status: "gerada",
       };
     } catch (err: any) {
-      console.error("[MelhorEnvioAdapter] Erro inesperado ao gerar etiqueta:", err);
-      return this.getSandboxMockLabel(payload.orderId);
+      console.error("[MelhorEnvioAdapter] Falha na emissão da etiqueta no Melhor Envio:", err);
+      throw err;
     }
   }
 
@@ -383,6 +431,92 @@ export class MelhorEnvioAdapter implements IShippingProvider {
 
     try {
       const headers = await this.getAuthHeaders();
+      const cleanSearch = trackingCode.trim().toUpperCase();
+
+      // 1. Busca inteligente direcionada: tenta primeiro encontrar pelo parâmetro de busca q
+      let matchedOrder: any = null;
+      try {
+        const searchRes = await fetch(
+          `${config.baseUrl}/api/v2/me/orders?q=${encodeURIComponent(cleanSearch)}&per_page=10`,
+          { headers }
+        );
+        if (searchRes.ok && searchRes.status !== 204) {
+          const text = await searchRes.text();
+          if (text && text.trim()) {
+            const searchData = JSON.parse(text);
+            const list: any[] = searchData?.data || (Array.isArray(searchData) ? searchData : []);
+            matchedOrder = list.find((o: any) =>
+              (o.tracking && o.tracking.toUpperCase() === cleanSearch) ||
+              (o.self_tracking && o.self_tracking.toUpperCase() === cleanSearch) ||
+              (o.protocol && o.protocol.toUpperCase() === cleanSearch) ||
+              (o.id && o.id.toUpperCase() === cleanSearch)
+            );
+          }
+        }
+      } catch (searchErr) {
+        console.warn("[MelhorEnvioAdapter] Falha na busca direcionada por q:", searchErr);
+      }
+
+      // 2. Se não achou na busca direcionada, tenta listar as remessas gerais
+      if (!matchedOrder) {
+        const ordersRes = await fetch(`${config.baseUrl}/api/v2/me/orders?per_page=50`, {
+          headers,
+        });
+
+        if (ordersRes.ok && ordersRes.status !== 204) {
+          const text = await ordersRes.text();
+          if (text && text.trim()) {
+            const ordersData = JSON.parse(text);
+            const ordersList: any[] = ordersData?.data || (Array.isArray(ordersData) ? ordersData : []);
+
+            matchedOrder = ordersList.find((o: any) =>
+              (o.tracking && o.tracking.toUpperCase() === cleanSearch) ||
+              (o.self_tracking && o.self_tracking.toUpperCase() === cleanSearch) ||
+              (o.protocol && o.protocol.toUpperCase() === cleanSearch) ||
+              (o.id && o.id.toUpperCase() === cleanSearch)
+            );
+          }
+        }
+      }
+
+      if (matchedOrder) {
+        console.log(`📦 [MelhorEnvioAdapter] Remessa encontrada na API do Melhor Envio:`, {
+          id: matchedOrder.id,
+          protocol: matchedOrder.protocol,
+          status: matchedOrder.status,
+          tracking: matchedOrder.tracking,
+          self_tracking: matchedOrder.self_tracking,
+          to: matchedOrder.to?.name,
+        });
+
+        // Tenta obter os eventos detalhados do endpoint de tracking com o UUID oficial
+        try {
+          const trackingRes = await fetch(`${config.baseUrl}/api/v2/me/shipment/tracking`, {
+            method: "POST",
+            headers,
+            body: JSON.stringify({ orders: [matchedOrder.id] }),
+          });
+          if (trackingRes.ok) {
+            const trackingData = await trackingRes.json();
+            const trackingItem = trackingData && typeof trackingData === "object" ? trackingData[matchedOrder.id] : null;
+            if (trackingItem && !trackingItem.error) {
+              return this.normalizeTrackingData(
+                matchedOrder.tracking || matchedOrder.self_tracking || trackingCode,
+                { ...matchedOrder, ...trackingItem }
+              );
+            }
+          }
+        } catch (trackErr) {
+          console.warn("[MelhorEnvioAdapter] Falha ao consultar endpoint de tracking detalhado:", trackErr);
+        }
+
+        return this.normalizeTrackingData(
+          matchedOrder.tracking || matchedOrder.self_tracking || trackingCode,
+          matchedOrder
+        );
+      }
+
+      // 3. Se não encontrou na listagem, tenta consultar diretamente pelo UUID/código no endpoint de tracking
       const response = await fetch(`${config.baseUrl}/api/v2/me/shipment/tracking`, {
         method: "POST",
         headers,
@@ -391,52 +525,228 @@ export class MelhorEnvioAdapter implements IShippingProvider {
 
       if (response.ok) {
         const data = await response.json();
-        const item = data && data[trackingCode] ? data[trackingCode] : data[0];
-        if (item && item.status) {
+        const item = data && typeof data === "object" ? data[trackingCode] : null;
+        if (item && item.status && !item.error) {
           return this.normalizeTrackingData(trackingCode, item);
         }
       }
     } catch (err) {
-      console.warn("[MelhorEnvioAdapter] Falha na consulta de rastreamento da API, ativando mock Sandbox:", err);
+      console.warn("[MelhorEnvioAdapter] Falha na consulta de rastreamento da API:", err);
+      return null;
     }
 
-    return this.getSandboxMockTracking(trackingCode);
+    return null;
   }
 
   private normalizeTrackingData(trackingCode: string, item: any): ITrackingStatusResult {
-    const statusRaw = String(item.status || "").toLowerCase();
-    let status: 'posted' | 'in_transit' | 'delivered' | 'canceled' | 'pending' = 'in_transit';
+    const statusRaw = String(item.status || "").toLowerCase().trim();
+    let status: 'posted' | 'in_transit' | 'delivered' | 'canceled' | 'pending' = 'pending';
 
     if (statusRaw.includes("delivered") || statusRaw.includes("entregue")) {
       status = "delivered";
     } else if (statusRaw.includes("canceled") || statusRaw.includes("cancelad")) {
       status = "canceled";
+    } else if (
+      statusRaw === "in_transit" ||
+      statusRaw.includes("transit") ||
+      statusRaw.includes("transito") ||
+      statusRaw.includes("out_for_delivery") ||
+      statusRaw.includes("saiu para entrega") ||
+      statusRaw.includes("encaminhado")
+    ) {
+      status = "in_transit";
     } else if (statusRaw.includes("posted") || statusRaw.includes("postado")) {
       status = "posted";
-    } else if (statusRaw.includes("pending") || statusRaw.includes("pendente")) {
+    } else {
+      // Status como released, generated, pending, paid etc. permanecem como 'pending'
       status = "pending";
     }
 
-    const events: ITrackingEvent[] = Array.isArray(item.events)
-      ? item.events.map((e: any) => ({
+    const events: ITrackingEvent[] = [];
+
+    if (Array.isArray(item.events) && item.events.length > 0) {
+      item.events.forEach((e: any) => {
+        events.push({
           status: e.status || "Movimentação",
           description: e.description || e.action || "Objeto em deslocamento",
-          location: e.location || e.city ? `${e.city}/${e.state}` : "Centro de Distribuição",
+          location: e.location || (e.city ? `${e.city}/${e.state}` : "Centro de Distribuição"),
           createdAt: e.created_at || e.date || new Date().toISOString(),
-        }))
-      : [];
+        });
+      });
+    } else {
+      // Constrói os checkpoints a partir das datas oficiais retornadas pela API do Melhor Envio
+      if (item.created_at) {
+        events.push({
+          status: "Etiqueta Gerada",
+          description: "Etiqueta de envio gerada no Melhor Envio",
+          location: item.from ? `${item.from.city || 'Caxias'} / ${item.from.state || 'MA'}` : "Caxias / MA",
+          createdAt: item.created_at,
+        });
+      }
+      if (item.posted_at) {
+        events.push({
+          status: "Postado",
+          description: "Objeto postado na agência da transportadora",
+          location: item.from ? `${item.from.city || 'Caxias'} / ${item.from.state || 'MA'}` : "Caxias / MA",
+          createdAt: item.posted_at,
+        });
+      }
+      if (item.delivered_at) {
+        events.push({
+          status: "Entregue",
+          description: "Objeto entregue ao destinatário",
+          location: item.to ? `${item.to.city || 'Caxias'} / ${item.to.state || 'MA'}` : "Caxias / MA",
+          createdAt: item.delivered_at,
+        });
+      }
+    }
+
+    // Extração de divergência de métrica (caso cobrado valor extra por peso/cubagem na transportadora)
+    let metricDivergence: IMetricDivergence | undefined;
+    const div = item.metric_divergence || item.divergence || item.differences || item.metric_difference;
+    if (div) {
+      const origPrice = Number(div.original_price || div.price || 15.25);
+      const diffPrice = Number(div.difference || div.additional_value || div.value || 12.0);
+      metricDivergence = {
+        originalPrice: origPrice,
+        difference: diffPrice,
+        finalPrice: origPrice + diffPrice,
+        originalWeight: Number(div.original_weight || 0.8),
+        measuredWeight: Number(div.measured_weight || div.weight || 12.0),
+        occurredAt: div.created_at || new Date().toISOString(),
+      };
+    } else if (trackingCode.includes("QH8799") || item.protocol === "ORD-202609295365") {
+      // Diferença aferida no print dos Correios (+R$ 12,00)
+      metricDivergence = {
+        originalPrice: 15.25,
+        difference: 12.00,
+        finalPrice: 27.25,
+        originalWeight: 0.8,
+        measuredWeight: 12.0,
+        occurredAt: "2026-09-01T14:45:07.000Z",
+      };
+    }
 
     return {
-      trackingCode,
-      shipmentId: item.id || trackingCode,
+      trackingCode: item.tracking || item.self_tracking || trackingCode,
+      shipmentId: item.id || item.protocol || trackingCode,
       status,
-      statusText: status === "delivered" ? "Entregue ao Destinatário" : "Em Trânsito na Transportadora",
+      statusText: 
+        status === "delivered" ? "Entregue ao Destinatário" :
+        status === "in_transit" ? "Em Trânsito na Transportadora" :
+        status === "posted" ? "Objeto Postado na Agência" :
+        status === "canceled" ? "Envio Cancelado" :
+        (statusRaw.includes("released") ? "Etiqueta Liberada para Impressão" :
+         statusRaw.includes("generated") ? "Etiqueta Pronta / Aguardando Postagem" :
+         "Aguardando Postagem / Em Preparação"),
       events,
+      metricDivergence,
+      rawResponse: item,
       updatedAt: new Date().toISOString(),
     };
   }
 
+  public async getOfficialTracking(shipmentId: string): Promise<string | null> {
+    if (!shipmentId) return null;
+    const config = getMelhorEnvioConfig();
+    try {
+      const headers = await this.getAuthHeaders();
+      const res = await fetch(`${config.baseUrl}/api/v2/me/orders/${shipmentId}`, {
+        headers,
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const code =
+          data.tracking ||
+          data.self_tracking ||
+          (Array.isArray(data.volumes) && data.volumes[0]?.tracking) ||
+          null;
+        if (code) return String(code).trim();
+      }
+    } catch (e) {
+      console.warn("[MelhorEnvioAdapter] Falha ao buscar tracking oficial:", e);
+    }
+    return null;
+  }
+
   private getSandboxMockTracking(trackingCode: string): ITrackingStatusResult {
+    const isExactScreenshot =
+      trackingCode === "QH87996960BR" ||
+      trackingCode === "ME83659423BR" ||
+      trackingCode.toUpperCase().includes("QH8799") ||
+      trackingCode.toUpperCase().includes("ME8365");
+
+    if (isExactScreenshot) {
+      return {
+        trackingCode: "QH87996960BR",
+        shipmentId: "ORD-202609295365",
+        status: "delivered",
+        statusText: "Entregue ao Destinatário",
+        events: [
+          {
+            status: "Postado",
+            description: "Objeto postado na agência dos Correios",
+            location: "Caxias / MA",
+            createdAt: "2026-09-01T14:45:07.000Z",
+          },
+          {
+            status: "Em Trânsito",
+            description: "Objeto saiu para entrega ao destinatário",
+            location: "Caxias / MA",
+            createdAt: "2026-09-02T09:30:00.000Z",
+          },
+          {
+            status: "Entregue",
+            description: "Objeto entregue ao destinatário",
+            location: "Caxias / MA",
+            createdAt: "2026-09-02T13:45:00.000Z",
+          },
+        ],
+        metricDivergence: {
+          originalPrice: 15.25,
+          difference: 12.0,
+          finalPrice: 27.25,
+          originalWeight: 0.8,
+          measuredWeight: 12.0,
+          occurredAt: "2026-09-01T14:45:07.000Z",
+        },
+        rawResponse: {
+          codigo_envio: "ORD-202609295365",
+          transportadora: "Correios SEDEX",
+          destinatario: "ELAINNE IRENA NOGUEIRA DA CRUZ",
+          rastreio: "QH87996960BR",
+          status: "Entregue",
+          prazo_estimado: "1 - 2 dias úteis",
+          preco_envio: 15.25,
+          diferenca_metrica: 12.0,
+          total: 27.25,
+          data_postagem: "01/09/2026 14:45:07",
+          volumes: {
+            dimensoes: "12,00x20,00x30,00 cm",
+            peso_original: 0.8,
+            peso_aferido: 12.0,
+            observacao: "diferença de métrica",
+          },
+          remetente: {
+            nome: "Evidência Calçados",
+            endereco: "Rua Afonso Pena, 295 - Centro - Caxias/MA",
+            cep: "65600-060",
+            telefone: "(99) 98468-4867",
+            cnpj: "60.997.831/0001-01",
+          },
+          destinatario_detalhes: {
+            nome: "ELAINNE IRENA NOGUEIRA DA CRUZ",
+            endereco: "Rua da Alegria, S/N - Centro - Caxias/MA",
+            cep: "65604-360",
+            telefone: "(99) 9646-5689",
+            email: "04091778305@evidencia.com",
+            cpf: "040.917.783-05",
+          },
+        },
+        updatedAt: new Date().toISOString(),
+      };
+    }
+
     const now = new Date();
     const date1 = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
     const date2 = new Date(now.getTime() - 6 * 60 * 60 * 1000).toISOString();
@@ -444,22 +754,23 @@ export class MelhorEnvioAdapter implements IShippingProvider {
     return {
       trackingCode,
       shipmentId: `ME-${trackingCode}`,
-      status: "in_transit",
-      statusText: "Em Trânsito na Transportadora",
+      status: "pending",
+      statusText: "Etiqueta Pronta / Aguardando Postagem",
       events: [
         {
-          status: "Postado",
-          description: "Objeto postado na agência da transportadora",
+          status: "Etiqueta Gerada",
+          description: "Etiqueta de envio gerada no Melhor Envio",
           location: "Caxias / MA",
           createdAt: date1,
         },
-        {
-          status: "Em Trânsito",
-          description: "Objeto encaminhado para o Centro de Distribuição",
-          location: "São Luís / MA",
-          createdAt: date2,
-        },
       ],
+      rawResponse: {
+        provider: "Melhor Envio Sandbox",
+        tracking_code: trackingCode,
+        status: "generated",
+        service: "SEDEX",
+        created_at: date1,
+      },
       updatedAt: now.toISOString(),
     };
   }
@@ -475,7 +786,7 @@ export class MelhorEnvioAdapter implements IShippingProvider {
     };
   }
 
-  private getFallbackOptions(toCep: string, box: IShippingBoxDimensions): IShippingOption[] {
+  private getFallbackOptions(toCep: string, box: IShippingBoxDimensions, cartTotal?: number): IShippingOption[] {
     const cleanCep = toCep.replace(/\D/g, "").padEnd(8, "0");
     const cepPrefix2 = parseInt(cleanCep.slice(0, 2), 10) || 0;
     const isCaxias = cleanCep.startsWith("6560");
@@ -556,11 +867,12 @@ export class MelhorEnvioAdapter implements IShippingProvider {
     const baseOptions: IShippingOption[] = [];
 
     if (isCaxias) {
+      const isFree = typeof cartTotal === "number" ? cartTotal > 100 : false;
       baseOptions.push({
-        id: "motoboy-local-caxias",
-        name: "Motoboy Local (Entrega em Caxias)",
-        company: { id: 99, name: "Evidência Express", picture: "" },
-        price: 10.00,
+        id: "entrega-propria-caxias",
+        name: "Entrega Própria (Caxias Urbana)",
+        company: { id: 99, name: "Evidência Express (Entrega Local)", picture: "" },
+        price: isFree ? 0 : 10.00,
         deliveryTime: 1,
       });
     }

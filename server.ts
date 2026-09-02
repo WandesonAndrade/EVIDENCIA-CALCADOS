@@ -902,7 +902,7 @@ app.get("/api/shipping/cep/:cep", async (req, res) => {
 // --- ROTA PROXY DE COTAÇÃO DE FRETE VIA PROVEDOR ATIVO ---
 app.post("/api/shipping/calculate", async (req, res) => {
   try {
-    const { toPostalCode, fromPostalCode, box } = req.body || {};
+    const { toPostalCode, fromPostalCode, box, cartTotal } = req.body || {};
 
     if (!toPostalCode || typeof toPostalCode !== "string") {
       return res.status(400).json({ success: false, error: "CEP de destino (toPostalCode) é obrigatório." });
@@ -918,6 +918,7 @@ app.post("/api/shipping/calculate", async (req, res) => {
       toPostalCode: cleanToCep,
       fromPostalCode,
       box,
+      cartTotal: typeof cartTotal === "number" ? cartTotal : undefined,
     });
 
     return res.json({
@@ -993,10 +994,10 @@ app.post("/api/shipping/labels/cancel", async (req, res) => {
   }
 });
 
-// --- ROTA PROXY DE RASTREAMENTO EM TEMPO REAL ---
+// --- ROTA PROXY DE RASTREAMENTO EM TEMPO REAL & ATUALIZAÇÃO SOB DEMANDA ---
 app.post("/api/shipping/track", async (req, res) => {
   try {
-    const { trackingCode } = req.body;
+    const { trackingCode, orderId } = req.body;
 
     if (!trackingCode || typeof trackingCode !== "string") {
       return res.status(400).json({ success: false, error: "trackingCode é obrigatório." });
@@ -1004,6 +1005,17 @@ app.post("/api/shipping/track", async (req, res) => {
 
     const provider = ShippingService.getProvider();
     const tracking = await provider.trackShipment(trackingCode);
+
+    if (tracking) {
+      console.log(
+        `📦 [Shipping Track API] Rastreamento consultado para ${trackingCode}: ` +
+          `status="${tracking.status}", statusText="${tracking.statusText}", eventos=${tracking.events?.length || 0}` +
+          (tracking.metricDivergence ? `, divergência=+R$${tracking.metricDivergence.difference}` : '')
+      );
+      if (tracking.rawResponse) {
+        console.log("📄 [API Externa] Dados da API:", JSON.stringify(tracking.rawResponse, null, 2));
+      }
+    }
 
     return res.json({
       success: true,

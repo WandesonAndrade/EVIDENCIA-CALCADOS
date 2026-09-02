@@ -34,6 +34,7 @@ export interface IShippingCalculatePayload {
   toPostalCode: string;   // CEP Destino do Cliente
   box?: IShippingBoxDimensions;
   productsCount?: number;
+  cartTotal?: number;     // Valor total dos produtos para regras de frete grátis local
 }
 
 export interface IShippingOption {
@@ -110,6 +111,7 @@ export interface ITrackingStatusResult {
   statusText: string;
   events: ITrackingEvent[];
   metricDivergence?: IMetricDivergence;
+  rawResponse?: any;
   updatedAt: string;
 }
 
