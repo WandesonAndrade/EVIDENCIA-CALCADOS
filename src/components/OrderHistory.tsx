@@ -13,7 +13,7 @@ import { formatCurrency, formatDateBR, getOrderProgressStep, buildWhatsAppUrl, c
 import { ShippingTrackerService } from '../services/shipping/shippingTracker';
 
 export const OrderHistory: React.FC = () => {
-  const { currentUser, orders, isLoadingOrders, theme, products, setSelectedProduct, setCurrentView, addToast } = useApp();
+  const { currentUser, orders, isLoadingOrders, theme, products, setSelectedProduct, setCurrentView, addToast, updateOrderData } = useApp();
   const isDark = theme === 'dark';
   const [collapsedOrderIds, setCollapsedOrderIds] = useState<Record<string, boolean>>({});
   const [syncingMap, setSyncingMap] = useState<Record<string, boolean>>({});
@@ -21,17 +21,27 @@ export const OrderHistory: React.FC = () => {
   // Sincroniza automaticamente pedidos em aberto com rastreio ao entrar na tela
   useEffect(() => {
     if (orders && orders.length > 0) {
-      ShippingTrackerService.syncPendingOrders(orders);
+      ShippingTrackerService.syncPendingOrders(orders, 2, (orderId, updates) => {
+        updateOrderData(orderId, updates);
+      });
     }
   }, [orders?.length]);
 
   const handleRefreshTracking = async (orderId: string, trackingCode: string) => {
     if (!trackingCode) return;
+    const existingOrder = orders.find(o => o.id === orderId);
     setSyncingMap((prev) => ({ ...prev, [orderId]: true }));
     try {
-      const res = await ShippingTrackerService.syncOrderTracking(orderId, trackingCode);
+      const res = await ShippingTrackerService.syncOrderTracking(orderId, trackingCode, existingOrder?.melhorEnvioId, existingOrder?.status);
       console.log(`📦 [OrderHistory] Rastreamento atualizado para o pedido ${orderId} (${trackingCode}):`, res);
       if (res.updated) {
+        await updateOrderData(orderId, {
+          status: res.newStatus || existingOrder?.status,
+          labelStatus: (res.labelStatus as any) || existingOrder?.labelStatus,
+          trackingEvents: res.events || existingOrder?.trackingEvents,
+          metricDivergence: res.metricDivergence || existingOrder?.metricDivergence,
+          trackingCode: res.trackingCode || trackingCode,
+        });
         addToast(
           'Rastreio Atualizado',
           res.statusText

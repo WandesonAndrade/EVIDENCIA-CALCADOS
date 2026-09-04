@@ -365,22 +365,7 @@ export class MelhorEnvioAdapter implements IShippingProvider {
       }
 
       // Consulta o pedido criado no Melhor Envio para verificar se o código de rastreamento oficial já está liberado
-      let officialTracking = "";
-      try {
-        const orderCheckRes = await fetch(`${config.baseUrl}/api/v2/me/orders/${shipmentId}`, {
-          headers: {
-            Authorization: headers.Authorization,
-            Accept: "application/json",
-            "User-Agent": headers["User-Agent"] || "EvidenciaCalcados",
-          },
-        });
-        if (orderCheckRes.ok) {
-          const orderCheckData = await orderCheckRes.json();
-          officialTracking = orderCheckData.tracking || orderCheckData.self_tracking || "";
-        }
-      } catch (checkErr) {
-        console.warn("[MelhorEnvioAdapter] Falha ao consultar tracking oficial imediatamente após gerar:", checkErr);
-      }
+      const officialTracking = await this.getOfficialTracking(String(shipmentId));
 
       return {
         shipmentId: String(shipmentId),
@@ -647,25 +632,15 @@ export class MelhorEnvioAdapter implements IShippingProvider {
     let metricDivergence: IMetricDivergence | undefined;
     const div = item.metric_divergence || item.divergence || item.differences || item.metric_difference;
     if (div) {
-      const origPrice = Number(div.original_price || div.price || 15.25);
-      const diffPrice = Number(div.difference || div.additional_value || div.value || 12.0);
+      const origPrice = Number(div.original_price ?? div.price ?? 0);
+      const diffPrice = Number(div.difference ?? div.additional_value ?? div.value ?? 0);
       metricDivergence = {
         originalPrice: origPrice,
         difference: diffPrice,
         finalPrice: origPrice + diffPrice,
-        originalWeight: Number(div.original_weight || 0.8),
-        measuredWeight: Number(div.measured_weight || div.weight || 12.0),
+        originalWeight: Number(div.original_weight ?? 0.8),
+        measuredWeight: Number(div.measured_weight ?? div.weight ?? 0),
         occurredAt: div.created_at || new Date().toISOString(),
-      };
-    } else if (trackingCode.includes("QH8799") || item.protocol === "ORD-202609295365") {
-      // Diferença aferida no print dos Correios (+R$ 12,00)
-      metricDivergence = {
-        originalPrice: 15.25,
-        difference: 12.00,
-        finalPrice: 27.25,
-        originalWeight: 0.8,
-        measuredWeight: 12.0,
-        occurredAt: "2026-09-01T14:45:07.000Z",
       };
     }
 
@@ -709,123 +684,6 @@ export class MelhorEnvioAdapter implements IShippingProvider {
       console.warn("[MelhorEnvioAdapter] Falha ao buscar tracking oficial:", e);
     }
     return null;
-  }
-
-  private getSandboxMockTracking(trackingCode: string): ITrackingStatusResult {
-    const isExactScreenshot =
-      trackingCode === "QH87996960BR" ||
-      trackingCode === "ME83659423BR" ||
-      trackingCode.toUpperCase().includes("QH8799") ||
-      trackingCode.toUpperCase().includes("ME8365");
-
-    if (isExactScreenshot) {
-      return {
-        trackingCode: "QH87996960BR",
-        shipmentId: "ORD-202609295365",
-        status: "delivered",
-        statusText: "Entregue ao Destinatário",
-        events: [
-          {
-            status: "Postado",
-            description: "Objeto postado na agência dos Correios",
-            location: "Caxias / MA",
-            createdAt: "2026-09-01T14:45:07.000Z",
-          },
-          {
-            status: "Em Trânsito",
-            description: "Objeto saiu para entrega ao destinatário",
-            location: "Caxias / MA",
-            createdAt: "2026-09-02T09:30:00.000Z",
-          },
-          {
-            status: "Entregue",
-            description: "Objeto entregue ao destinatário",
-            location: "Caxias / MA",
-            createdAt: "2026-09-02T13:45:00.000Z",
-          },
-        ],
-        metricDivergence: {
-          originalPrice: 15.25,
-          difference: 12.0,
-          finalPrice: 27.25,
-          originalWeight: 0.8,
-          measuredWeight: 12.0,
-          occurredAt: "2026-09-01T14:45:07.000Z",
-        },
-        rawResponse: {
-          codigo_envio: "ORD-202609295365",
-          transportadora: "Correios SEDEX",
-          destinatario: "ELAINNE IRENA NOGUEIRA DA CRUZ",
-          rastreio: "QH87996960BR",
-          status: "Entregue",
-          prazo_estimado: "1 - 2 dias úteis",
-          preco_envio: 15.25,
-          diferenca_metrica: 12.0,
-          total: 27.25,
-          data_postagem: "01/09/2026 14:45:07",
-          volumes: {
-            dimensoes: "12,00x20,00x30,00 cm",
-            peso_original: 0.8,
-            peso_aferido: 12.0,
-            observacao: "diferença de métrica",
-          },
-          remetente: {
-            nome: "Evidência Calçados",
-            endereco: "Rua Afonso Pena, 295 - Centro - Caxias/MA",
-            cep: "65600-060",
-            telefone: "(99) 98468-4867",
-            cnpj: "60.997.831/0001-01",
-          },
-          destinatario_detalhes: {
-            nome: "ELAINNE IRENA NOGUEIRA DA CRUZ",
-            endereco: "Rua da Alegria, S/N - Centro - Caxias/MA",
-            cep: "65604-360",
-            telefone: "(99) 9646-5689",
-            email: "04091778305@evidencia.com",
-            cpf: "040.917.783-05",
-          },
-        },
-        updatedAt: new Date().toISOString(),
-      };
-    }
-
-    const now = new Date();
-    const date1 = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
-    const date2 = new Date(now.getTime() - 6 * 60 * 60 * 1000).toISOString();
-
-    return {
-      trackingCode,
-      shipmentId: `ME-${trackingCode}`,
-      status: "pending",
-      statusText: "Etiqueta Pronta / Aguardando Postagem",
-      events: [
-        {
-          status: "Etiqueta Gerada",
-          description: "Etiqueta de envio gerada no Melhor Envio",
-          location: "Caxias / MA",
-          createdAt: date1,
-        },
-      ],
-      rawResponse: {
-        provider: "Melhor Envio Sandbox",
-        tracking_code: trackingCode,
-        status: "generated",
-        service: "SEDEX",
-        created_at: date1,
-      },
-      updatedAt: now.toISOString(),
-    };
-  }
-
-  private getSandboxMockLabel(orderId: string): ILabelResult {
-    const mockId = `ME-SANDBOX-${orderId.slice(-6).toUpperCase()}`;
-    const mockTracking = `BR${Math.floor(100000000 + Math.random() * 900000000)}ME`;
-    return {
-      shipmentId: mockId,
-      trackingCode: mockTracking,
-      labelUrl: `https://sandbox.melhorenvio.com.br/impressao/sandbox-${mockId}`,
-      status: "gerada",
-    };
   }
 
   private getFallbackOptions(toCep: string, box: IShippingBoxDimensions, cartTotal?: number): IShippingOption[] {

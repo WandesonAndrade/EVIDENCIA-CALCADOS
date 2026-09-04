@@ -1,19 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { Truck, MapPin, Store, Clock, CheckCircle2, Printer, Package, ExternalLink, XCircle, RefreshCw, AlertTriangle, Edit2, Check, X, ChevronDown, ChevronUp } from 'lucide-react';
-import { Order } from '../../types';
+import { Order, OrderStatus } from '../../types';
 import { formatCurrency } from '../../utils/orderUtils';
 import { db } from '../../lib/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { ShippingLabelPrintModal } from './ShippingLabelPrintModal';
 import { ShippingTrackerService } from '../../services/shipping/shippingTracker';
+import { useApp } from '../../context/AppContext';
 
 interface Props {
   order: Order;
   isDark: boolean;
   variant?: 'client' | 'admin';
+  onStatusChange?: (orderId: string, status: OrderStatus) => void;
 }
 
-export const ShippingInfoCard: React.FC<Props> = ({ order, isDark: _isDark, variant = 'client' }) => {
+export const ShippingInfoCard: React.FC<Props> = ({ order, isDark: _isDark, variant = 'client', onStatusChange }) => {
+  const { updateOrderData, addToast } = useApp();
   const isStorePickup = order.deliveryType === 'Retirada na Loja';
   const isOtherCities = order.deliveryType === 'Entrega para Outras Cidades';
   const isLocalDelivery = !isStorePickup && !isOtherCities && (
@@ -45,27 +48,55 @@ export const ShippingInfoCard: React.FC<Props> = ({ order, isDark: _isDark, vari
     setSyncingTracking(true);
     setLabelError(null);
     try {
-      const res = await ShippingTrackerService.syncOrderTracking(currentOrder.id, code, meId);
+      const res = await ShippingTrackerService.syncOrderTracking(currentOrder.id, code, meId, currentOrder.status);
       console.log(`📦 [ShippingInfoCard Admin] Rastreamento atualizado para o pedido #${currentOrder.orderNumber || currentOrder.id}:`, res);
       if (res.updated) {
+        const orderUpdates: Partial<Order> = {
+          trackingCode: res.trackingCode || currentOrder.trackingCode,
+          status: res.newStatus || currentOrder.status,
+          labelStatus: (res.labelStatus as any) || currentOrder.labelStatus,
+          trackingEvents: res.events || currentOrder.trackingEvents,
+          metricDivergence: res.metricDivergence || currentOrder.metricDivergence,
+        };
+
+        // Atualiza estado local
         setCurrentOrder((prev) => ({
           ...prev,
-          trackingCode: res.trackingCode || prev.trackingCode,
-          status: res.newStatus || prev.status,
-          labelStatus: (res.labelStatus as any) || prev.labelStatus,
-          trackingEvents: res.events || prev.trackingEvents,
-          metricDivergence: res.metricDivergence || prev.metricDivergence,
+          ...orderUpdates,
         }));
         if (res.trackingCode) {
           setEditedTrackingCode(res.trackingCode);
+        }
+
+        // Atualiza estado global no AppContext (e propaga para lista / card pai)
+        await updateOrderData(currentOrder.id, orderUpdates);
+        if (res.newStatus && onStatusChange) {
+          onStatusChange(currentOrder.id, res.newStatus);
+        }
+
+        // Feedback visual para o operador
+        if (res.newStatus && res.newStatus !== currentOrder.status) {
+          addToast(
+            'Status do Pedido Atualizado',
+            `O pedido avançou para "${res.newStatus}" conforme rastreamento oficial.`,
+            'success'
+          );
+        } else {
+          addToast(
+            'Rastreamento Atualizado',
+            res.statusText ? `Situação: ${res.statusText}` : 'Informações de rastreio sincronizadas.',
+            'info'
+          );
         }
       } else {
         if (!code && meId) {
           setLabelError('A transportadora ainda não liberou o código de rastreio no Melhor Envio. Você pode conferir na etiqueta impressa e inserir manualmente ao lado.');
         }
+        addToast('Rastreamento', 'Nenhuma nova alteração detectada pela transportadora.', 'info');
       }
     } catch (err) {
       console.error('Erro ao sincronizar rastreamento:', err);
+      addToast('Erro no Rastreamento', 'Não foi possível consultar a transportadora no momento.', 'error');
     } finally {
       setSyncingTracking(false);
     }
@@ -75,29 +106,37 @@ export const ShippingInfoCard: React.FC<Props> = ({ order, isDark: _isDark, vari
     const cleanCode = editedTrackingCode.trim().toUpperCase();
     if (!cleanCode) return;
     try {
-      if (db && currentOrder.id) {
-        await updateDoc(doc(db, 'orders', currentOrder.id), {
-          trackingCode: cleanCode,
-        });
-      }
+      await updateOrderData(currentOrder.id, { trackingCode: cleanCode });
       setCurrentOrder((prev) => ({ ...prev, trackingCode: cleanCode }));
       setIsEditingTracking(false);
 
       // Já sincroniza imediatamente com o novo código oficial inserido!
       setSyncingTracking(true);
-      const res = await ShippingTrackerService.syncOrderTracking(currentOrder.id, cleanCode);
+      const res = await ShippingTrackerService.syncOrderTracking(currentOrder.id, cleanCode, undefined, currentOrder.status);
       if (res.updated) {
-        setCurrentOrder((prev) => ({
-          ...prev,
+        const orderUpdates: Partial<Order> = {
           trackingCode: res.trackingCode || cleanCode,
-          status: res.newStatus || prev.status,
-          labelStatus: (res.labelStatus as any) || prev.labelStatus,
-          trackingEvents: res.events || prev.trackingEvents,
-          metricDivergence: res.metricDivergence || prev.metricDivergence,
-        }));
+          status: res.newStatus || currentOrder.status,
+          labelStatus: (res.labelStatus as any) || currentOrder.labelStatus,
+          trackingEvents: res.events || currentOrder.trackingEvents,
+          metricDivergence: res.metricDivergence || currentOrder.metricDivergence,
+        };
+        setCurrentOrder((prev) => ({ ...prev, ...orderUpdates }));
+        await updateOrderData(currentOrder.id, orderUpdates);
+        if (res.newStatus && onStatusChange) {
+          onStatusChange(currentOrder.id, res.newStatus);
+        }
+        addToast(
+          'Código Salvo & Sincronizado',
+          res.newStatus ? `Status atualizado para "${res.newStatus}".` : 'Rastreamento localizado com sucesso.',
+          'success'
+        );
+      } else {
+        addToast('Código Salvo', `Código ${cleanCode} registrado no pedido.`, 'success');
       }
     } catch (err) {
       console.error('Erro ao salvar código de rastreamento:', err);
+      addToast('Erro', 'Não foi possível salvar o código de rastreio.', 'error');
     } finally {
       setSyncingTracking(false);
     }
@@ -192,11 +231,12 @@ export const ShippingInfoCard: React.FC<Props> = ({ order, isDark: _isDark, vari
         paymentStatus: 'Confirmado' as const,
       };
 
-      if (db && order.id) {
-        await updateDoc(doc(db, 'orders', order.id), updatedFields);
-      }
-
       setCurrentOrder((prev) => ({ ...prev, ...updatedFields }));
+      await updateOrderData(order.id, updatedFields);
+      if (onStatusChange) {
+        onStatusChange(order.id, 'Em Preparação');
+      }
+      addToast('Etiqueta Gerada', 'Etiqueta emitida com sucesso e pedido em preparação.', 'success');
       setLabelError(null);
 
       if (data.label.labelUrl) {
@@ -205,6 +245,7 @@ export const ShippingInfoCard: React.FC<Props> = ({ order, isDark: _isDark, vari
     } catch (err: any) {
       console.error('📌 Erro ao gerar etiqueta no Melhor Envio:', err);
       setLabelError(err?.message || 'Erro inesperado ao gerar etiqueta no Melhor Envio.');
+      addToast('Erro', err?.message || 'Falha ao emitir etiqueta no Melhor Envio.', 'error');
     } finally {
       setLoading(false);
     }
@@ -232,13 +273,12 @@ export const ShippingInfoCard: React.FC<Props> = ({ order, isDark: _isDark, vari
         labelStatus: 'cancelada' as const,
       };
 
-      if (db && order.id) {
-        await updateDoc(doc(db, 'orders', order.id), updatedFields);
-      }
-
       setCurrentOrder((prev) => ({ ...prev, ...updatedFields }));
+      await updateOrderData(order.id, updatedFields);
+      addToast('Etiqueta Cancelada', 'A etiqueta foi cancelada com sucesso.', 'info');
     } catch (err: any) {
       console.error('📌 Erro ao cancelar etiqueta:', err);
+      addToast('Erro', 'Não foi possível cancelar a etiqueta no momento.', 'error');
     } finally {
       setLoading(false);
     }

@@ -58,6 +58,7 @@ interface AppContextProps {
   atualizarStatusCrediario: (uid: string, novoStatus: CrediarioStatus, motivo?: string) => Promise<void>;
   updateUserCashback: (uid: string, cashbackBalance: number, cashbackValidUntil: string) => Promise<void>;
   updateOrderStatus: (orderId: string, status: Order['status']) => Promise<void>;
+  updateOrderData: (orderId: string, updates: Partial<Order>) => Promise<void>;
   updateOrderPaymentStatus: (orderId: string, paymentStatus: PaymentStatus) => Promise<void>;
   updateOrderFreight: (orderId: string, freightCost: number) => Promise<void>;
   updateOrderLocalSaleId: (orderId: string, localSaleId: string) => Promise<void>;
@@ -2052,6 +2053,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const updateOrderData = async (orderId: string, updates: Partial<Order>) => {
+    let targetOrder: Order | undefined;
+    setOrders(prev => {
+      const pool = prev.length > 0 ? prev : getLocalOrders();
+      const updated = pool.map(o => {
+        if (o.id === orderId) {
+          targetOrder = { ...o, ...updates };
+          return targetOrder;
+        }
+        return o;
+      });
+      saveLocalOrders(updated);
+      return updated;
+    });
+
+    try {
+      const orderRef = doc(db, 'orders', orderId);
+      const fullOrder = targetOrder || orders.find(o => o.id === orderId) || getLocalOrders().find(o => o.id === orderId);
+      if (fullOrder && fullOrder.customerName) {
+        await setDoc(orderRef, cleanUndefinedProperties({ ...fullOrder, ...updates }), { merge: true });
+      } else {
+        await setDoc(orderRef, cleanUndefinedProperties(updates), { merge: true });
+      }
+    } catch (error) {
+      console.warn("Firestore order update failed, updated locally:", error);
+    }
+  };
+
   const updateOrderPaymentStatus = async (orderId: string, paymentStatus: PaymentStatus) => {
     let targetOrder: Order | undefined;
     setOrders(prev => {
@@ -2574,6 +2603,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         atualizarStatusCrediario,
         updateUserCashback,
         updateOrderStatus,
+        updateOrderData,
         updateOrderPaymentStatus,
         updateOrderFreight,
         updateOrderLocalSaleId,

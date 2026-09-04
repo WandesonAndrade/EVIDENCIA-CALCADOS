@@ -15,6 +15,7 @@ export const AdminOrdersList: React.FC<Props> = ({ isDark }) => {
     orders,
     sellers = [],
     updateOrderStatus,
+    updateOrderData,
     updateOrderPaymentStatus,
     updateOrderFreight,
     updateOrderLocalSaleId,
@@ -32,7 +33,9 @@ export const AdminOrdersList: React.FC<Props> = ({ isDark }) => {
   // Sincroniza em background pedidos pendentes que possuem código de rastreamento
   useEffect(() => {
     if (orders && orders.length > 0) {
-      ShippingTrackerService.syncPendingOrders(orders);
+      ShippingTrackerService.syncPendingOrders(orders, 2, (orderId, updates) => {
+        updateOrderData(orderId, updates);
+      });
     }
   }, [orders?.length]);
 

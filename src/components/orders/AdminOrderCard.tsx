@@ -126,7 +126,12 @@ export const AdminOrderCard: React.FC<Props> = ({
           onEditingLocalSaleIdChange={(val) => onLocalSaleIdChange?.(order.id, val)}
           onSaveLocalSaleId={() => onLocalSaleIdSave?.(order.id)}
         />
-        <ShippingInfoCard order={order} isDark={isDark} variant="admin" />
+        <ShippingInfoCard
+          order={order}
+          isDark={isDark}
+          variant="admin"
+          onStatusChange={onStatusChange}
+        />
         <FreightStatusCard
           order={order}
           isDark={isDark}

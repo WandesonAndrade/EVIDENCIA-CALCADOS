@@ -1,5 +1,5 @@
 import { db } from "../../lib/firebase";
-import { doc, updateDoc } from "firebase/firestore";
+import { doc, setDoc } from "firebase/firestore";
 import { Order, OrderStatus } from "../../types";
 import { IMetricDivergence, ITrackingEvent } from "./shippingProvider.interface";
 
@@ -22,7 +22,8 @@ export class ShippingTrackerService {
   public static async syncOrderTracking(
     orderId: string,
     trackingCode?: string,
-    shipmentId?: string
+    shipmentId?: string,
+    currentStatus?: OrderStatus
   ): Promise<ITrackingSyncResult> {
     const code = (trackingCode || "").trim();
     const sId = (shipmentId || "").trim();
@@ -61,11 +62,17 @@ export class ShippingTrackerService {
         labelStatus = "entregue";
       } else if (tracking.status === "in_transit" || tracking.status === "posted") {
         // Quando a transportadora registra postagem na agência ou trânsito, avança para Etapa 4
-        newStatus = "Em Trânsito"; // Avança para a Etapa 4 da Régua ("Em Trânsito")
+        // Nunca regride se já estiver Entregue
+        newStatus = currentStatus === "Entregue" ? "Entregue" : "Em Trânsito";
         labelStatus = tracking.status === "posted" ? "postado" : "em_transito";
       } else if (tracking.status === "pending") {
         // Etiqueta liberada/gerada pronta para postagem (Etapa 3 da Régua)
-        newStatus = "Em Preparação";
+        // Nunca regride se já estiver em Trânsito ou Entregue
+        if (currentStatus === "Em Trânsito" || currentStatus === "Entregue") {
+          newStatus = currentStatus;
+        } else {
+          newStatus = "Em Preparação";
+        }
         labelStatus = "gerada";
       } else if (tracking.status === "canceled") {
         newStatus = "Cancelado";
@@ -94,7 +101,7 @@ export class ShippingTrackerService {
           updates.trackingCode = tracking.trackingCode;
         }
 
-        await updateDoc(orderRef, updates);
+        await setDoc(orderRef, updates, { merge: true });
       }
 
       console.log(`📦 [ShippingTracker] Pedido ${orderId} (${code || sId}) atualizado com sucesso:`, {
@@ -130,7 +137,8 @@ export class ShippingTrackerService {
    */
   public static async syncPendingOrders(
     orders: Array<Pick<Order, "id" | "trackingCode" | "melhorEnvioId" | "status" | "lastTrackingCheck">>,
-    minIntervalMinutes = 2
+    minIntervalMinutes = 2,
+    onOrderSynced?: (orderId: string, updates: Partial<Order>) => void
   ): Promise<number> {
     if (!orders || orders.length === 0) return 0;
 
@@ -156,7 +164,16 @@ export class ShippingTrackerService {
     let count = 0;
     for (const order of eligibleOrders) {
       try {
-        await this.syncOrderTracking(order.id, order.trackingCode, order.melhorEnvioId);
+        const res = await this.syncOrderTracking(order.id, order.trackingCode, order.melhorEnvioId, order.status);
+        if (res.updated && onOrderSynced) {
+          onOrderSynced(order.id, {
+            status: res.newStatus || order.status,
+            labelStatus: (res.labelStatus as any) || undefined,
+            trackingEvents: res.events || undefined,
+            metricDivergence: res.metricDivergence || undefined,
+            trackingCode: res.trackingCode || order.trackingCode,
+          });
+        }
         count++;
         // Pequena pausa entre requisições para evitar burst
         await new Promise((resolve) => setTimeout(resolve, 200));
