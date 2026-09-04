@@ -87,10 +87,10 @@ O ciclo do pedido segue uma régua sincronizada entre a visão do Cliente (`Orde
 1. **Etapa 1:** `Pedido Recebido` (Status: `Pendente`) — Pedido criado no banco aguardando liquidação.
 2. **Etapa 2:** `Pagamento Aprovado` (Status: `Confirmado`) — Pagamento verificado e conciliado.
 3. **Etapa 3:**
-   - Para envio convencional: `Em Preparação` (Status: `Em Preparação`, ícone `Truck` / `Package`). Acionado quando a etiqueta é gerada, liberada no Melhor Envio ou postada na agência parceira.
+   - Para envio convencional: `Em Preparação` (Status: `Em Preparação`, ícone `Package`). Acionado quando a etiqueta é gerada ou liberada no Melhor Envio.
    - Para Retirada na Loja: `Pronto p/ Retirada` (Status: `Em Preparação`, ícone `Store`).
 4. **Etapa 4:**
-   - Para envio convencional: `Em Trânsito` (Status: `Em Trânsito`, ícone `Truck`). Acionado **estritamente** quando a transportadora parceira registrar movimentação real em trânsito ou saída para entrega.
+   - Para envio convencional: `Em Trânsito` (Status: `Em Trânsito`, ícone `Truck`). Acionado quando o produto é postado na agência da transportadora (`posted`) ou registra deslocamento em rota (`in_transit`).
 5. **Etapa 5:**
    - Para envio convencional: `Entregue` (Status: `Entregue`, ícone `PackageCheck`).
    - Para Retirada na Loja: `Retirado na Loja` (Status: `Entregue`, ícone `ShoppingBag`).
