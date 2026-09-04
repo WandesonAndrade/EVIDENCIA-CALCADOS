@@ -10,6 +10,7 @@
 - [project] Modalidade Retirada na Loja: loja física do Centro, frete grátis, banner e etapa 'Pronto p/ Retirada' → project-conventions.md
 - [project] Vínculo ERP Local (`localSaleId`): integração do ID de venda física PDV ao pedido online com busca rápida → project-conventions.md
 - [project] Integridade de Frete e Endereços: detecção de UF por CEP (`getUfFromCep`), exclusão de endereços extras e bloqueio de falsos positivos na emissão de etiquetas → project-conventions.md
+- [project] Módulo de Crediário Próprio: checkout restrito a Cartão/Pix, página cliente (/meu-crediario) com importação de carrinho e carnê em até 6x sem juros → project-conventions.md
 
 ## User
 - [user] Idioma principal: Português (Brasil) → user-preferences.md
@@ -26,4 +27,5 @@
 - [tech] Sanitização Recursiva Firestore: `cleanUndefinedProperties` para prevenção de erros de campos indefinidos e auto-cura → tech-decisions.md
 - [tech] Rastreamento Melhor Envio: busca indexada com `q`, sem mocks silenciosos em erros e sincronização em lote com throttle → tech-decisions.md
 - [tech] Logística Melhor Envio: hierarquia anti-regressão de status, dead code elimination completa e rastreamento oficial prioritário → tech-decisions.md
+- [tech] Arquitetura de Crediário Próprio: coleções `creditEvaluations` e `creditOrders`, WhatsApp com telefone cadastrado do cliente e abas unificadas no admin e cliente → tech-decisions.md
 

@@ -56,3 +56,8 @@ updated: 2026-08-27
 - **Prevenção de Inconsistência de UF:** O sistema utiliza `getUfFromCep(cep)` para deduzir e validar a UF real correspondente à faixa de prefixo nacional do CEP, impedindo envio de UFs errôneas para a API de frete (ex: CEP 64xxx do Piauí com UF marcada como MA).
 - **Exclusão de Endereços Extras:** O cliente pode cadastrar e excluir endereços adicionais de entrega livremente no checkout (ícone de lixeira com confirmação e persistência no Firestore), preservando intacto seu endereço principal.
 
+### 11. Módulo de Crediário Próprio & Gestão de Compras via Carnê
+- **Checkout Exclusivo Online:** O checkout tradicional aceita estritamente apenas Cartão de Crédito e Pix.
+- **Importação de Carrinho:** Clientes enviam solicitações de compra no crediário pela página `/meu-crediario` importando os itens do carrinho com 1 clique e simulando parcelas de 1x a 6x sem juros no carnê.
+- **Ações Rápidas de Atendimento via WhatsApp:** O painel administrativo sempre utiliza o telefone cadastrado do cliente para mensagens instantâneas pré-formatadas sobre análise de crédito ou solicitações de compra.
+

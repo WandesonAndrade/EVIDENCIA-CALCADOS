@@ -30,15 +30,16 @@ Este documento centraliza todas as regras de negócio, decisões de arquitetura,
 ## 3. Regras de Carrinho, Preços e Checkout
 - **Moeda Exclusiva:** Real Brasileiro (BRL / R$).
 - **Variação Dinâmica de Preços por Pagamento:**
-  - O MobLink fornece preços diferenciados conforme o meio de pagamento (`precoVista`, `precoCartao`, ou o preço base `price` para Crediário).
-  - O carrinho e o checkout recalculam o valor total ativamente sempre que o cliente alterna entre Pix, Cartão ou Crediário.
+  - O MobLink fornece preços diferenciados conforme o meio de pagamento (`precoVista` para Pix, `precoCartao` para Cartão de Crédito).
+  - O carrinho e o checkout recalculam o valor total ativamente conforme a seleção entre Pix ou Cartão.
 - **Modalidades de Entrega:**
   1. **Entrega no Endereço (Cálculo Automático por CEP):** Cotação em tempo real via provedor ativo (Melhor Envio / Correios / Jadlog / Motoboy Local para Caxias-MA). O frete da opção escolhida é somado diretamente ao valor final da compra.
   2. **Retirada na Loja Física:** Frete GRÁTIS (R$ 0,00). O cliente retira diretamente no balcão da loja física no Centro de Caxias - MA.
-- **Formas de Pagamento e Gateway:**
+- **Formas de Pagamento no Checkout:**
+  - O checkout online aceita **estritamente apenas Cartão de Crédito e PIX**.
   - **Pix:** QR Code dinâmico e Pix Copia e Cola gerados via Mercado Pago, com verificação e conciliação em tempo real.
   - **Cartão de Crédito:** Processamento seguro tokenizado via Mercado Pago SDK v2 com suporte a parcelamento sem juros.
-  - **Crediário da Loja:** Disponível exclusivamente para clientes com cadastro analisado e aprovado (`isCrediarioApproved`).
+  - **Desacoplamento do Crediário:** O Crediário Próprio não é mais uma opção tradicional de pagamento no checkout. Possui módulo dedicado para avaliação de limite e solicitação de compra via carrinho (`/meu-crediario`).
   - **Rastreabilidade Bancária:** O ID da transação (`paymentId`) é gravado no pedido para consulta e conciliação bancária.
 
 ---
@@ -153,7 +154,48 @@ A arquitetura de pedidos foi completamente modularizada em componentes atômicos
 
 ---
 
-## 8. Workflow de Desenvolvimento & Git
+## 8. Módulo de Crediário Próprio (Cliente & Painel Admin)
+
+### A. Desacoplamento do Checkout
+- O Crediário não integra o checkout padrão de vendas online imediatas.
+- O checkout aceita estritamente **Cartão de Crédito** e **PIX**.
+- Na etapa de pagamento do checkout, há um banner informativo com link de direcionamento para o módulo de Crediário.
+
+### B. Nova Página do Cliente (`MeuCrediario.tsx`)
+- Estruturada em padrão visual Apple HIG com 3 abas principais:
+  1. **Aba 1 (Solicitar Avaliação):** Formulário completo onde o cliente informa renda mensal, profissão, telefone de contato, referência pessoal e limite pretendido. O status de crédito é exibido com destaque (Aprovado com limite em R$, Em Análise ou Pendente).
+  2. **Aba 2 (Comprar com Crediário / Importar Carrinho):**
+     - O cliente importa com 1 clique todos os itens do seu carrinho de compras atual.
+     - Seleção de parcelamento em até 6x no carnê com simulação do valor de cada parcela sem juros.
+     - Confirmação de endereço e envio da **Solicitação de Compra via Crediário**.
+     - Histórico em tempo real de solicitações de compra anteriores com parecer e notas da equipe da loja.
+  3. **Aba 3 (Carnês & Boletos ERP):** Consulta de carnês do MobLink ERP por CPF com quitação instantânea via Pix e baixa automática.
+  4. **Canal Oficial de WhatsApp:** Botão para o cliente falar com a equipe de atendimento da Evidência Calçados.
+
+### C. Painel Administrativo de Crediário Unificado por Abas (`CreditManagement.tsx`)
+- Tela única e organizada no `AdminPanel.tsx` (item de menu lateral "Crediário Próprio"):
+  - **Cards de Métricas:** Contadores em tempo real de análises pendentes, compras pendentes, total de pedidos de crediário e volume financeiro solicitado (R$).
+  - **Aba 1: Avaliações de Crédito (`CreditEvaluationsList.tsx`):**
+    - Listagem com filtros por status (Todas, Pendentes, Aprovadas, Rejeitadas) e busca por nome, CPF ou telefone.
+    - Exibição de renda declarada, profissão, referência e limite solicitado.
+    - Modal de Aprovação para definir o limite aprovado em R$ e notas/parecer.
+    - Modal de Recusa com justificativa.
+    - **Botão de Ação Rápida WhatsApp:** Dispara conversa com o cliente abrindo `wa.me` com o **número cadastrado do cliente** e mensagem personalizada pré-formatada.
+  - **Aba 2: Solicitações de Compra (`CreditOrdersList.tsx`):**
+    - Listagem das compras solicitadas pelos clientes a partir do carrinho.
+    - Visualização dos itens comprados com miniatura, tamanho, quantidade e valores.
+    - Parcelamento solicitado no carnê e endereço de entrega.
+    - Ações para aprovar ou rejeitar a compra.
+    - **Botão de Ação Rápida WhatsApp:** Integrado ao telefone cadastrado do cliente com mensagem sobre o pedido e valor solicitado.
+
+### D. Camada de Dados e Coleções Firestore (`src/services/credit/creditService.ts`)
+- **`creditEvaluations`:** `{ id, userId, customerName, customerEmail, customerPhone, customerCpf, income, profession, referenceContact, requestedLimit, approvedLimit, status, notes, createdAt, analyzedAt, analyzedBy }`
+- **`creditOrders`:** `{ id, userId, customerName, customerEmail, customerPhone, customerCpf, items, totalAmount, subtotal, freightCost, installmentsRequested, deliveryType, deliveryAddress, status, adminNotes, createdAt, analyzedAt, analyzedBy }`
+- **Componente Reutilizável `WhatsAppButton.tsx`:** Formatação com DDI 55 nacional e abertura segura em nova aba.
+
+---
+
+## 9. Workflow de Desenvolvimento & Git
 - **Branch de Desenvolvimento:** Todo o código implementado deve ser testado e commitado na branch `api` (ou `dev`).
 - **Verificação Contínua:**
   - Tipagem rigorosa: `npm run lint` (`tsc --noEmit`) deve passar com 0 erros.

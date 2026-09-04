@@ -55,3 +55,9 @@ updated: 2026-08-27
 - **Fim de Dados Hardcoded:** Removidos dados de prints de tela antigos (`QH8799...`); a divergência métrica é extraída dinamicamente com fallback numérico seguro (`?? 0`).
 - **Reutilização DRY:** `createAndBuyLabel` utiliza o método auxiliar `getOfficialTracking(shipmentId)` para capturar o código oficial da transportadora.
 
+## 10. Módulo de Crediário Próprio & Desacoplamento do Checkout (`creditService.ts` / `CreditManagement.tsx` / `MeuCrediario.tsx`)
+- **Desacoplamento do Checkout:** Checkout restrito a Cartão de Crédito e Pix.
+- **Persistência Firestore em Coleções Dedicadas:** `creditEvaluations` (avaliações de limite/crédito) e `creditOrders` (solicitações de compra originadas do carrinho).
+- **Ações Rápidas de WhatsApp:** Integração nativa com `wa.me` utilizando o telefone cadastrado do cliente (`WhatsAppButton.tsx`).
+- **Padrão Estético Apple HIG:** Abas unificadas no painel administrativo e na visão do cliente, métricas em tempo real e parcelamento em até 6x sem juros no carnê.
+
