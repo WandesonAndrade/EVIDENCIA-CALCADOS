@@ -1,4 +1,4 @@
-﻿# 📦 Contexto Técnico - Integração Melhor Envio (Evidência Calçados)
+# 📦 Contexto Técnico - Integração Melhor Envio (Evidência Calçados)
 
 Documento de referência rápida e aprofundada sobre toda a integração com a API do **Melhor Envio** no projeto **Evidência Calçados**.
 
@@ -151,3 +151,13 @@ Ao acionar o botão **"Atualizar Status"** (`ShippingInfoCard.tsx`) ou carregar 
    - O armazenamento local (`localStorage`).
    - O documento no Firebase Firestore (`setDoc(..., { merge: true })`).
 4. O componente pai (`AdminOrderCard`) e a régua de etapas (`AdminStageStepper`) avançam imediatamente para a nova etapa sem necessidade de reload de página.
+
+---
+
+## 9. Limpeza de Código e Eliminação de Dead Code (Produção)
+
+A camada de frete passou por uma auditoria completa de eliminação de código morto (*Dead Code Elimination*):
+- **Remoção de Stubs Offline:** Métodos legados `getSandboxMockTracking` e `getSandboxMockLabel` foram permanentemente removidos. Todas as consultas usam as APIs reais da conta configurada no `.env`.
+- **Fim de Fallbacks Hardcoded:** Removidas condicionais que injetavam dados de prints de tela antigos (`QH8799...` e `ORD-202609295365`). Toda divergência de métrica e status é alimentada puramente pelas respostas HTTP da API.
+- **Centralização do Código Oficial:** O método `getOfficialTracking(shipmentId)` unifica a busca do código de rastreamento definitivo da transportadora logo após o fluxo de checkout e geração de etiquetas.
+- **Persistência Resiliente no Firestore:** `ShippingTrackerService` utiliza `setDoc(orderRef, updates, { merge: true })`, prevenindo falhas caso documentos de pedidos estejam em processo de sincronização inicial.

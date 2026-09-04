@@ -74,9 +74,13 @@ Este documento centraliza todas as regras de negócio, decisões de arquitetura,
 - **Validação e Detecção de UF por CEP:** O checkout e a criação de pedidos utilizam `getUfFromCep(cep)` para deduzir a UF de destino oficial pelas faixas nacionais de CEP, corrigindo eventuais cadastros manuais com UF incorreta.
 - **Gerenciamento de Endereços Extras:** O cliente pode cadastrar novos endereços e remover endereços adicionais livremente com o botão de lixeira, preservando seu endereço padrão.
 
-### D. Emissão de Etiquetas e Prevenção de Falsos Positivos
+### D. Emissão de Etiquetas, Rastreamento em Tempo Real e Eliminação de Código Morto
 - **Etiqueta Local (Romaneio Próprio):** Permitida exclusivamente para entregas municipais da própria loja (Caxias urbana).
 - **Melhor Envio:** Quando a integração externa com Melhor Envio falhar (saldo insuficiente, erro de API ou CEP não atendido), o sistema **nunca emite etiqueta local como fallback disfarçado**. O erro real é exibido na tela para garantir que nenhuma encomenda seja despachada sem registro oficial.
+- **Sincronização em Tempo Real (`ShippingTrackerService`):** Ao clicar em "Atualizar Status" ou entrar no painel, o sistema consulta a API do Melhor Envio via proxy (`/api/shipping/track`), sincroniza o Firestore com `setDoc(..., { merge: true })`, atualiza o estado React instantaneamente e projeta o histórico de eventos de movimentação no `ShippingInfoCard` e no `OrderHistory`.
+- **Hierarquia Anti-Regressão e Código Oficial:** Rastreamentos nunca regridem um pedido `Em Trânsito` ou `Entregue` para `Em Preparação`, e priorizam o código oficial da transportadora (`tracking` > `self_tracking` > `melhorEnvioId`).
+- **Detecção de Divergência Métrica:** Diferenças de peso/cubagem cobradas pela transportadora na postagem são registradas dinamicamente em `order.metricDivergence` com alerta visual no painel do administrador.
+- **Dead Code Elimination Concluída:** Removidos todos os métodos mortos de teste offline (`getSandboxMockTracking`, `getSandboxMockLabel`) e condicionais hardcoded de prints de teste.
 
 ---
 

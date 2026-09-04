@@ -40,9 +40,18 @@ updated: 2026-08-27
 ## 7. Rastreamento e Consulta na API do Melhor Envio (`melhorEnvioAdapter.ts` / `shippingTracker.ts`)
 - **Busca Indexada Direcionada:** A consulta a remessas utiliza prioritariamente `GET /api/v2/me/orders?q=<código>&per_page=10` e suporte nativo ao status `204 No Content`, permitindo localização imediata sem esbarrar no limite fixo de paginação (`per_page=50`).
 - **Eliminação de Falsos Positivos e Mocks Silenciosos:** Em caso de código inexistente ou falha de rede/autenticação, a consulta retorna `null` para alertar o lojista no Toast em vez de salvar dados fictícios no Firestore.
-- **Mapeamento Estrito de Trânsito:** O status `in_transit` só é acionado quando a transportadora parceira registrar explicitamente trânsito/saída para entrega (`in_transit`, `out_for_delivery`, `saiu para entrega`, `encaminhado`). Status como `released`, `generated` e `posted` mantêm a régua em `Em Preparação`.
+- **Mapeamento Estrito e Hierarquia Anti-Regressão:** 
+  - `delivered` avança para 'Entregue' (Etapa 5).
+  - `posted` e `in_transit` avançam para 'Em Trânsito' / 'postado' / 'em_transito' (Etapa 4).
+  - `released` e `generated` representam etiquetas liberadas/prontas e mantêm a régua em 'Em Preparação' (Etapa 3).
+  - Pedidos em trânsito ou entregues **nunca regridem** para preparação.
 - **Throttling e Sincronização em Lote:** `syncPendingOrders` aplica limite de frequência de 2 minutos por pedido em aberto para poupar requisições e evitar rate limit da API.
 
 ## 8. Resolução de UF por Prefixo de CEP (`orderUtils.ts`)
 - **Função `getUfFromCep(cep)`:** Mapeia a unidade federativa diretamente pelos dois primeiros dígitos do CEP brasileiro (ex: `64` = PI, `65` = MA, `01-19` = SP), garantindo consistência no formulário de endereço e no payload de compra de etiquetas do Melhor Envio.
+
+## 9. Eliminação de Código Morto na Integração de Frete (Dead Code Elimination)
+- **Stubs e Mocks Legados Removidos:** `getSandboxMockTracking` e `getSandboxMockLabel` eliminados de `melhorEnvioAdapter.ts`.
+- **Fim de Dados Hardcoded:** Removidos dados de prints de tela antigos (`QH8799...`); a divergência métrica é extraída dinamicamente com fallback numérico seguro (`?? 0`).
+- **Reutilização DRY:** `createAndBuyLabel` utiliza o método auxiliar `getOfficialTracking(shipmentId)` para capturar o código oficial da transportadora.
 

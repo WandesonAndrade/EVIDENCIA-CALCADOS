@@ -156,7 +156,12 @@ sequenceDiagram
    - Antes de enviar o payload de compra ao carrinho da API, o sistema deduz a UF correta a partir do prefixo do CEP do destinatário (ex: faixa 64xxx sempre é enviada como `PI`), prevenindo rejeição `422` por incompatibilidade entre UF e CEP.
 6. **Rastreamento Otimizado com Busca Direcionada (`q`):**
    - O rastreamento utiliza `GET /api/v2/me/orders?q=<código>` com tratamento para respostas `204 No Content`, evitando dependência do limite de paginação (`per_page=50`).
-   - Mocks silenciosos foram removidos da consulta; se a remessa não for localizada ou a API falhar, o sistema retorna `null` para que a tela informe que não há novas movimentações em vez de alterar status incorretamente.
+   - Mocks silenciosos e stubs legados (`getSandboxMockTracking`/`getSandboxMockLabel`) foram eliminados definitivamente.
+7. **Hierarquia Anti-Regressão de Status:**
+   - A régua de entrega respeita a progressão lógica da encomenda: `delivered` (5) > `in_transit` (4) > `posted` (3) > `released`/`generated` (2) > `pending` (1).
+   - Um pedido já registrado em trânsito ou entregue nunca regride para preparação caso a API de etiquetas retorne temporariamente status pendente ou em emissão.
+8. **Detecção e Alerta de Divergência de Métrica:**
+   - Caso a transportadora detecte diferença de peso ou cubagem na pesagem oficial da agência, o acréscimo é gravado estruturadamente em `metricDivergence` e notificado visualmente no painel administrativo para conferência contábil do lojista.
 
 ---
 

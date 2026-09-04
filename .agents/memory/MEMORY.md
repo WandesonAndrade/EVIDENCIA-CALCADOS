@@ -25,4 +25,5 @@
 - [tech] Gestão de Cache de Pedidos & SWR: Firestore como autoridade máxima. Pedidos deletados do banco não são ressuscitados pelo cache local → tech-decisions.md
 - [tech] Sanitização Recursiva Firestore: `cleanUndefinedProperties` para prevenção de erros de campos indefinidos e auto-cura → tech-decisions.md
 - [tech] Rastreamento Melhor Envio: busca indexada com `q`, sem mocks silenciosos em erros e sincronização em lote com throttle → tech-decisions.md
+- [tech] Logística Melhor Envio: hierarquia anti-regressão de status, dead code elimination completa e rastreamento oficial prioritário → tech-decisions.md
 
