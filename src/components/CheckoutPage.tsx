@@ -200,15 +200,12 @@ export const CheckoutPage: React.FC = () => {
     }
   };
 
-  const [paymentGroup, setPaymentGroup] = useState<'Online' | 'Crediário'>('Online');
   const [onlineTab, setOnlineTab] = useState<'pix' | 'credit'>('credit');
   const [installments, setInstallments] = useState<number>(1);
-  const [crediarioInstallments, setCrediarioInstallments] = useState<number>(1);
   const [selectedSellerName, setSelectedSellerName] = useState<string>('Atendimento Direto da Loja');
   const [teamSellers, setTeamSellers] = useState<UserProfile[]>([]);
   
-  const paymentMethod = paymentGroup === 'Crediário' ? 'Crediário da Loja' 
-    : (onlineTab === 'pix' ? 'Pix' : 'Cartão de Crédito');
+  const paymentMethod = onlineTab === 'pix' ? 'Pix' : 'Cartão de Crédito';
 
   useEffect(() => {
     let isMounted = true;
@@ -274,24 +271,8 @@ export const CheckoutPage: React.FC = () => {
   const cashbackDiscount = isCashbackValid ? Math.min(currentUser.cashbackBalance || 0, activeSubtotal + freightCost) : 0;
   const grandTotal = Math.max(0, activeSubtotal + freightCost - cashbackDiscount);
 
-  const isCrediarioApproved = currentUser.crediarioStatus === 'Aprovado';
-
-  const crediarioInstallmentOptions = Array.from({ length: 6 }, (_, i) => {
-    const count = i + 1;
-    const value = grandTotal / count;
-    return {
-      count,
-      value,
-      label: count === 1
-        ? `1x de R$ ${value.toFixed(2).replace('.', ',')} no Carnê`
-        : `${count}x de R$ ${value.toFixed(2).replace('.', ',')} sem juros no Carnê`
-    };
-  });
-
   const handleConfirmOrder = async (pixPaymentId?: number | string, customPaymentStatus?: PaymentStatus) => {
-    const selectedInstallments = paymentMethod === 'Cartão de Crédito' 
-      ? installments 
-      : (paymentMethod === 'Crediário da Loja' ? crediarioInstallments : 1);
+    const selectedInstallments = paymentMethod === 'Cartão de Crédito' ? installments : 1;
 
     const effectiveCep = (activeAddressObj?.cep || checkoutCep || currentUser?.cep || '65600060').replace(/\D/g, '');
     const autoUf = getUfFromCep(effectiveCep);
@@ -308,7 +289,7 @@ export const CheckoutPage: React.FC = () => {
     try {
       setIsProcessing(true);
       const determinedPaymentStatus: PaymentStatus = customPaymentStatus || (
-        paymentMethod === 'Pix' ? 'Pendente' : (paymentMethod === 'Crediário da Loja' ? 'Pendente' : 'Confirmado')
+        paymentMethod === 'Pix' ? 'Pendente' : 'Confirmado'
       );
       const determinedStatus = determinedPaymentStatus === 'Confirmado' ? 'Confirmado' : 'Pendente';
 
@@ -702,76 +683,45 @@ export const CheckoutPage: React.FC = () => {
                 3. Pagamento
               </h2>
 
-              <div className="flex gap-3 mb-6 bg-slate-100/50 dark:bg-white/5 p-1 rounded-[20px]">
-                <button
-                  type="button"
-                  onClick={() => setPaymentGroup('Online')}
-                  className={`flex-1 py-3 rounded-2xl text-sm font-semibold transition-all cursor-pointer ${
-                    paymentGroup === 'Online'
-                      ? 'bg-white dark:bg-[#2c2c2e] shadow-sm text-slate-900 dark:text-white'
-                      : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-                  }`}
-                >
-                  Cartão ou Pix
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (isCrediarioApproved) setPaymentGroup('Crediário');
-                  }}
-                  disabled={!isCrediarioApproved}
-                  className={`flex-1 py-3 rounded-2xl text-sm font-semibold transition-all flex flex-col items-center justify-center cursor-pointer ${
-                    paymentGroup === 'Crediário'
-                      ? 'bg-white dark:bg-[#2c2c2e] shadow-sm text-slate-900 dark:text-white'
-                      : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-                  } ${!isCrediarioApproved ? 'opacity-50 cursor-not-allowed' : ''}`}
-                >
-                  <div className="flex items-center gap-1.5">
-                    <span>Crediário da Loja</span>
-                  </div>
-                  {!isCrediarioApproved && <span className="text-[10px] text-amber-500 mt-0.5">Requer Análise</span>}
-                </button>
-              </div>
+              {/* Opções de Pagamento Online: Cartão de Crédito ou PIX */}
+              <div className="p-1">
+                <PaymentForm
+                  grandTotal={grandTotal}
+                  emailCliente={currentUser.email || ''}
+                  nomeCliente={currentUser.name}
+                  cpfCliente={currentUser.cpf}
+                  externalReference={`ped_${Date.now()}`}
+                  isDark={isDark}
+                  onActiveTabChange={(tab) => setOnlineTab(tab)}
+                  onPaymentApproved={(details) => handleConfirmOrder(details.paymentId, details.status)}
+                  onPaymentFailed={(err) => console.error("Payment failed", err)}
+                />
+                
+                {onlineTab === 'credit' && (
+                  <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 p-4 border border-slate-200 dark:border-slate-700 rounded-xl mt-4 bg-slate-50 dark:bg-slate-800">
+                    ℹ️ O pagamento via Cartão de Crédito é processado diretamente pelo painel acima. Preencha e clique no botão de pagamento para finalizar.
+                  </p>
+                )}
 
-              {paymentGroup === 'Online' ? (
-                <div className="p-1">
-                  <PaymentForm
-                    grandTotal={grandTotal}
-                    emailCliente={currentUser.email || ''}
-                    nomeCliente={currentUser.name}
-                    cpfCliente={currentUser.cpf}
-                    externalReference={`ped_${Date.now()}`}
-                    isDark={isDark}
-                    onActiveTabChange={(tab) => setOnlineTab(tab)}
-                    onPaymentApproved={(details) => handleConfirmOrder(details.paymentId, details.status)}
-                    onPaymentFailed={(err) => console.error("Payment failed", err)}
-                  />
-                  {/* Info para o usuário que Cartão é preenchido e já confirmado ali dentro (o brick tem botão próprio) */}
-                  {onlineTab === 'credit' && (
-                    <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 p-4 border border-slate-200 dark:border-slate-700 rounded-xl mt-4 bg-slate-50 dark:bg-slate-800">
-                      ℹ️ O pagamento via Cartão de Crédito é processado diretamente pelo painel acima. Preencha e clique no botão de pagamento acima para finalizar.
+                {/* Banner informativo de Crediário Próprio */}
+                <div className="mt-6 p-4 rounded-2xl border border-dashed border-amber-500/30 bg-amber-500/5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                  <div className="space-y-0.5">
+                    <p className="text-xs font-bold text-amber-700 dark:text-amber-400">
+                      Prefere comprar no Crediário Próprio?
                     </p>
-                  )}
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2 p-3 bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 rounded-xl text-sm font-bold">
-                    <ShieldCheck className="h-5 w-5" /> Parcelamento Exclusivo
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Solicite sua avaliação de limite ou envie seu carrinho diretamente para aprovação no módulo de crediário.
+                    </p>
                   </div>
-                  <label className="block text-sm font-bold">Escolha as parcelas:</label>
-                  <select
-                    value={crediarioInstallments}
-                    onChange={(e) => setCrediarioInstallments(Number(e.target.value))}
-                    className={`w-full p-4 rounded-xl font-bold border focus:outline-none cursor-pointer transition-colors ${
-                      isDark ? 'bg-slate-900 border-slate-700 text-white focus:border-amber-500' : 'bg-white border-slate-300 focus:border-amber-500'
-                    }`}
+                  <button
+                    type="button"
+                    onClick={() => setCurrentView('meu-crediario')}
+                    className="shrink-0 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-600 text-slate-950 transition-all cursor-pointer shadow-sm"
                   >
-                    {crediarioInstallmentOptions.map(opt => (
-                      <option key={opt.count} value={opt.count}>{opt.label}</option>
-                    ))}
-                  </select>
+                    Acessar Crediário
+                  </button>
                 </div>
-              )}
+              </div>
             </div>
 
           </div>
@@ -846,12 +796,12 @@ export const CheckoutPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Botão Oficial de Concluir para Pix e Crediário */}
+              {/* Botão Oficial de Concluir para Pix */}
               <button
                 onClick={() => handleConfirmOrder()}
-                disabled={isProcessing || (paymentGroup === 'Online' && onlineTab === 'credit')}
+                disabled={isProcessing || onlineTab === 'credit'}
                 className={`w-full mt-8 py-4 rounded-2xl font-semibold text-base transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                  isProcessing || (paymentGroup === 'Online' && onlineTab === 'credit') 
+                  isProcessing || onlineTab === 'credit' 
                     ? 'opacity-50 cursor-not-allowed bg-slate-100 dark:bg-white/5 text-slate-400' 
                     : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm'
                 }`}

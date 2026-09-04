@@ -30,10 +30,11 @@ import {
   Info, Sliders, Zap, Barcode, Image, ArrowUp, ArrowDown,
   BookOpen, PhoneCall, Globe, CheckCircle2, Sparkles, Layout, HelpCircle,
   FileText, Briefcase, MapPin, Gift, Heart, ShoppingCart, Cake, AlertTriangle, LogOut, Shield,
-  FolderTree, Tag, X, ExternalLink
+  FolderTree, Tag, X, ExternalLink, CreditCard
 } from 'lucide-react';
 import { AdminOrdersList } from './orders/AdminOrdersList';
 import { AdminBoxManager } from './AdminBoxManager';
+import { CreditManagement } from './admin/credit/CreditManagement';
 import { moblinkCategoriesService, normalizeCategoryName, normalizeSubcategoryName } from '../services/moblinkCategoriesService';
 
 type AdminTab = 
@@ -1002,7 +1003,7 @@ export const AdminPanel: React.FC = () => {
               <button
                 onClick={() => setActiveTab('customers')}
                 className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  activeTab === 'customers' || activeTab === 'crediario'
+                  activeTab === 'customers'
                     ? isDark ? 'bg-amber-400/10 text-amber-400 border border-amber-400/30' : 'bg-slate-900 text-white shadow-sm'
                     : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
                 }`}
@@ -1010,6 +1011,20 @@ export const AdminPanel: React.FC = () => {
                 <div className="flex items-center space-x-3">
                   <Users className="h-4 w-4" />
                   <span>Base de Clientes & CRM</span>
+                </div>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('crediario')}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  activeTab === 'crediario'
+                    ? isDark ? 'bg-amber-400/10 text-amber-400 border border-amber-400/30' : 'bg-slate-900 text-white shadow-sm'
+                    : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <div className="flex items-center space-x-3">
+                  <CreditCard className="h-4 w-4 text-amber-500" />
+                  <span>Crediário Próprio</span>
                 </div>
                 {users.filter(u => u.crediarioStatus === 'EmAnalise').length > 0 && (
                   <span className="bg-amber-400 text-slate-950 px-2 py-0.5 rounded-full text-[10px] font-black animate-pulse" title="Análises de crediário pendentes">
@@ -1360,6 +1375,9 @@ export const AdminPanel: React.FC = () => {
 
         {/* TAB 2: VENDAS & PEDIDOS DOS CLIENTES */}
         {activeTab === 'sales' && <AdminOrdersList isDark={isDark} />}
+
+        {/* TAB: GESTÃO DO CREDIÁRIO PRÓPRIO UNIFICADA POR ABAS */}
+        {activeTab === 'crediario' && <CreditManagement isDark={isDark} />}
 
 
         {/* TAB: BASE DE CLIENTES & CRM MOBLINK ERP (GESTÃO UNIFICADA) */}

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useApp } from '../context/AppContext';
 import {
@@ -9,6 +9,9 @@ import {
 } from '../services/moblinkClientesService';
 import { pixFirestoreService, PixTransacaoFirestore } from '../services/pixFirestoreService';
 import { PixPaymentModal } from './PixPaymentModal';
+import { creditService } from '../services/credit/creditService';
+import { WhatsAppButton } from './common/WhatsAppButton';
+import { ICreditOrder, ICreditEvaluation, OrderItem } from '../types';
 import {
   FileText,
   ChevronDown,
@@ -24,6 +27,14 @@ import {
   User,
   Smartphone,
   Sparkles,
+  ShoppingBag,
+  DollarSign,
+  Briefcase,
+  Phone,
+  MapPin,
+  Send,
+  HelpCircle,
+  Plus
 } from 'lucide-react';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -74,6 +85,7 @@ function validateCpf(cpf: string): boolean {
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 type ViewState = 'cpf-form' | 'loading' | 'not-found' | 'invoices';
+type ActiveTab = 'solicitar-credito' | 'comprar-crediario' | 'carne-erp';
 
 interface SaleGroup {
   saleKey: string;
@@ -94,12 +106,40 @@ interface SelectedParcel {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export const MeuCrediario: React.FC = () => {
-  const { currentUser, currentAdminUser, setCurrentView, theme } = useApp();
+  const { 
+    currentUser, 
+    currentAdminUser, 
+    setCurrentView, 
+    theme, 
+    cart, 
+    clearCart,
+    contactConfig 
+  } = useApp();
+  
   const activeUser = currentAdminUser || currentUser;
   const isDark = theme === 'dark';
 
-  // ── State ──
-  const [cpfInput, setCpfInput] = useState('');
+  // ── Abas do Módulo ──
+  const [activeTab, setActiveTab] = useState<ActiveTab>('solicitar-credito');
+
+  // ── Estado Formulário de Avaliação de Crédito ──
+  const [evalIncome, setEvalIncome] = useState(activeUser?.rendaMensal || '');
+  const [evalProfession, setEvalProfession] = useState(activeUser?.profissao || '');
+  const [evalReference, setEvalReference] = useState(activeUser?.referenciaPessoal || '');
+  const [evalPhone, setEvalPhone] = useState(activeUser?.telefone || '');
+  const [evalRequestedLimit, setEvalRequestedLimit] = useState('1000');
+  const [isSubmittingEval, setIsSubmittingEval] = useState(false);
+  const [evalSuccessMsg, setEvalSuccessMsg] = useState('');
+
+  // ── Estado Solicitação de Compra via Crediário ──
+  const [selectedInstallments, setSelectedInstallments] = useState(3);
+  const [isSubmittingCreditOrder, setIsSubmittingCreditOrder] = useState(false);
+  const [creditOrderSuccessMsg, setCreditOrderSuccessMsg] = useState('');
+  const [userCreditOrders, setUserCreditOrders] = useState<ICreditOrder[]>([]);
+  const [isLoadingUserOrders, setIsLoadingUserOrders] = useState(false);
+
+  // ── State ERP Moblink ──
+  const [cpfInput, setCpfInput] = useState(activeUser?.cpf ? formatCpfMask(activeUser.cpf) : '');
   const [viewState, setViewState] = useState<ViewState>('cpf-form');
   const [errorMsg, setErrorMsg] = useState('');
   const [invoices, setInvoices] = useState<MoblinkContaReceber[]>([]);
@@ -114,13 +154,127 @@ export const MeuCrediario: React.FC = () => {
   const [approvedPixList, setApprovedPixList] = useState<PixTransacaoFirestore[]>([]);
   const [paymentSuccessToast, setPaymentSuccessToast] = useState<string | null>(null);
 
-  // ── CPF Mask ──
+  // Telefone da Empresa (para o cliente falar com a loja)
+  const storePhone = contactConfig?.whatsapp || '5599984684867';
+
+  // ── Buscar Histórico de Pedidos de Crediário do Usuário ──
+  const loadUserOrders = useCallback(async () => {
+    if (!activeUser?.uid) return;
+    setIsLoadingUserOrders(true);
+    try {
+      const orders = await creditService.getUserCreditOrders(activeUser.uid);
+      setUserCreditOrders(orders);
+    } catch (err) {
+      console.error('Erro ao buscar pedidos de crediário do usuário:', err);
+    } finally {
+      setIsLoadingUserOrders(false);
+    }
+  }, [activeUser?.uid]);
+
+  useEffect(() => {
+    loadUserOrders();
+  }, [loadUserOrders]);
+
+  // ── Submeter Avaliação de Crédito ──
+  const handleSubmitEvaluation = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeUser) {
+      alert('Você precisa estar logado para solicitar crédito.');
+      return;
+    }
+
+    setIsSubmittingEval(true);
+    setEvalSuccessMsg('');
+
+    try {
+      await creditService.requestCreditEvaluation({
+        userId: activeUser.uid,
+        customerName: activeUser.name,
+        customerEmail: activeUser.email,
+        customerPhone: evalPhone || activeUser.telefone || '',
+        customerCpf: activeUser.cpf || '',
+        customerRg: activeUser.rg || '',
+        income: evalIncome,
+        profession: evalProfession,
+        referenceContact: evalReference,
+        requestedLimit: parseFloat(evalRequestedLimit) || 1000,
+        notes: 'Solicitação enviada pelo cliente através da página do Crediário.',
+      });
+
+      setEvalSuccessMsg('Sua solicitação de crédito foi enviada com sucesso! Nossa equipe analisará seu cadastro.');
+    } catch (err) {
+      console.error('Erro ao solicitar avaliação:', err);
+      alert('Não foi possível enviar sua solicitação no momento. Tente novamente.');
+    } finally {
+      setIsSubmittingEval(false);
+    }
+  };
+
+  // ── Submeter Solicitação de Compra (Importar Carrinho) ──
+  const cartTotal = useMemo(() => {
+    return cart.reduce((sum, item) => sum + (item.product.price * item.quantity), 0);
+  }, [cart]);
+
+  const handleSendCreditOrder = async () => {
+    if (!activeUser) {
+      alert('Você precisa estar logado para enviar uma solicitação.');
+      return;
+    }
+
+    if (cart.length === 0) {
+      alert('Seu carrinho está vazio. Adicione produtos na loja antes de enviar a solicitação.');
+      return;
+    }
+
+    setIsSubmittingCreditOrder(true);
+    setCreditOrderSuccessMsg('');
+
+    const itemsPayload: OrderItem[] = cart.map(item => ({
+      productId: item.product.id,
+      name: item.product.name,
+      price: item.product.price,
+      quantity: item.quantity,
+      selectedSize: item.selectedSize,
+      image: item.product.imageUrl || (item.product.images && item.product.images[0]) || '',
+      originalPrice: item.product.originalPrice
+    }));
+
+    const formattedAddress = `${activeUser.endereco || ''}, Nº ${activeUser.numero || 'S/N'} - ${activeUser.bairro || ''}, ${activeUser.cidade || 'Caxias'}/${activeUser.uf || 'MA'} (CEP: ${activeUser.cep || ''})`;
+
+    try {
+      const created = await creditService.createCreditOrder({
+        userId: activeUser.uid,
+        customerName: activeUser.name,
+        customerEmail: activeUser.email,
+        customerPhone: activeUser.telefone || '',
+        customerCpf: activeUser.cpf || '',
+        items: itemsPayload,
+        totalAmount: cartTotal,
+        subtotal: cartTotal,
+        installmentsRequested: selectedInstallments,
+        deliveryType: 'Entrega no Endereço',
+        deliveryAddress: formattedAddress,
+        adminNotes: 'Solicitação gerada a partir da importação do carrinho do cliente.',
+      });
+
+      setCreditOrderSuccessMsg(`Solicitação de compra #${created.id} enviada com sucesso! Acompanhe o status nesta página.`);
+      clearCart();
+      await loadUserOrders();
+    } catch (err) {
+      console.error('Erro ao enviar solicitação de compra:', err);
+      alert('Não foi possível enviar sua solicitação de compra.');
+    } finally {
+      setIsSubmittingCreditOrder(false);
+    }
+  };
+
+  // ── CPF Mask ERP ──
   const handleCpfChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setCpfInput(formatCpfMask(e.target.value));
     setErrorMsg('');
   };
 
-  // ── Verify CPF & fetch invoices ──
+  // ── Verify CPF & fetch invoices ERP ──
   const handleVerify = useCallback(async () => {
     const raw = cleanCpf(cpfInput);
     if (raw.length !== 11) {
@@ -132,13 +286,10 @@ export const MeuCrediario: React.FC = () => {
       return;
     }
 
-    // Checagem de segurança: CPF deve corresponder ao usuário logado
     if (activeUser) {
       const userCpf = cleanCpf(activeUser.cpf || (activeUser as any).documento || '');
       if (userCpf && userCpf !== raw) {
-        setErrorMsg(
-          'O CPF informado não corresponde ao cadastro da sua conta. Use o CPF vinculado ao seu perfil.'
-        );
+        setErrorMsg('O CPF informado não corresponde ao cadastro da sua conta. Use o CPF vinculado ao seu perfil.');
         return;
       }
     }
@@ -161,7 +312,6 @@ export const MeuCrediario: React.FC = () => {
       setInvoices(data);
       setViewState('invoices');
 
-      // Recupera parcelas com Pix aprovado salvos no Firestore / backend
       try {
         const firestorePixDocs = await pixFirestoreService.fetchAllPixTransacoes();
         setApprovedPixList(firestorePixDocs);
@@ -187,7 +337,6 @@ export const MeuCrediario: React.FC = () => {
         console.warn('Falha ao sincronizar Pix aprovados do Firestore:', err);
       }
 
-      // Auto-expande a primeira compra
       if (data.length > 0) {
         const firstKey = String(data[0].id_venda ?? data[0].documento ?? 'other');
         setExpandedSales(new Set([firstKey]));
@@ -197,13 +346,13 @@ export const MeuCrediario: React.FC = () => {
       setViewState('cpf-form');
       setErrorMsg('Erro ao consultar o servidor. Tente novamente em instantes.');
     }
-  }, [cpfInput, currentUser]);
+  }, [cpfInput, activeUser]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') handleVerify();
   };
 
-  // ── Agrupamento por Compra ──
+  // ── Agrupamento por Compra ERP ──
   const groupedSales = useMemo((): SaleGroup[] => {
     const map = new Map<string, MoblinkContaReceber[]>();
 
@@ -240,12 +389,10 @@ export const MeuCrediario: React.FC = () => {
 
       return { saleKey, items: sorted, totalValue, totalPending, hasOverdue };
     });
-  }, [invoices, paidParcelKeys]);
+  }, [invoices, paidParcelKeys, approvedPixList]);
 
   const totalPendingAll = groupedSales.reduce((s, g) => s + g.totalPending, 0);
-  const hasAnyOverdue = groupedSales.some((g) => g.hasOverdue);
 
-  // ── Confirmação de Pagamento Pix ──
   const handlePaymentSuccess = useCallback((paymentId: number) => {
     if (pixSelectedParcel) {
       const key = pixSelectedParcel.parcelId;
@@ -267,468 +414,691 @@ export const MeuCrediario: React.FC = () => {
     });
   };
 
-  // ─── Estilos Base Apple Store ──────────────────────────────────────────────
+  // Status de crediário do usuário
+  const credStatus = activeUser?.crediarioStatus || 'NaoSolicitado';
+  const approvedLimit = activeUser?.limite_cred;
+
   const cardBase = isDark
     ? 'bg-slate-900/90 border border-slate-800 rounded-3xl shadow-lg backdrop-blur-md'
-    : 'bg-white/95 border border-blue-900/10 rounded-3xl shadow-md backdrop-blur-md';
+    : 'bg-white/95 border border-slate-200/80 rounded-3xl shadow-sm backdrop-blur-md';
 
   return (
-    <div className={`min-h-screen py-8 px-4 sm:px-6 lg:px-8 ${isDark ? 'bg-[#0B0F19]' : 'bg-[#EAF5FF]'}`}>
-      <div className="max-w-3xl mx-auto space-y-6">
+    <div className={`min-h-screen py-8 px-4 sm:px-6 lg:px-8 ${isDark ? 'bg-[#0B0F19]' : 'bg-[#f5f5f7]'}`}>
+      <div className="max-w-4xl mx-auto space-y-6">
 
-        {/* Botão de Voltar com Alto Contraste */}
+        {/* Botão de Voltar */}
         <motion.button
           initial={{ opacity: 0, x: -10 }}
           animate={{ opacity: 1, x: 0 }}
           onClick={() => setCurrentView('home')}
-          className={`flex items-center space-x-2 text-xs font-extrabold uppercase tracking-wider transition-colors cursor-pointer ${
-            isDark ? 'text-slate-400 hover:text-white' : 'text-[#52708F] hover:text-[#003B73]'
+          className={`flex items-center space-x-2 text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer ${
+            isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'
           }`}
         >
           <ArrowLeft className="h-4 w-4" />
           <span>Voltar à loja</span>
         </motion.button>
 
-        {/* Cabeçalho da Página com Alto Contraste */}
+        {/* Cabeçalho da Página com Padrão Apple */}
         <motion.div
           initial={{ opacity: 0, y: -12 }}
           animate={{ opacity: 1, y: 0 }}
-          className={`flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b pb-6 ${
-            isDark ? 'border-slate-800' : 'border-blue-900/15'
+          className={`flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b pb-6 ${
+            isDark ? 'border-slate-800' : 'border-slate-200'
           }`}
         >
           <div className="flex items-center space-x-3.5">
-            <div className="w-12 h-12 rounded-2xl bg-[#003B73] text-white flex items-center justify-center shadow-md">
+            <div className="w-12 h-12 rounded-2xl bg-amber-500 text-slate-950 flex items-center justify-center shadow-md font-bold">
               <CreditCard className="h-6 w-6" />
             </div>
             <div>
-              <h1 className={`text-2xl sm:text-3xl font-black tracking-tight ${isDark ? 'text-white' : 'text-[#003B73]'}`}>
-                Meu Crediário Evidência
+              <h1 className={`text-2xl sm:text-3xl font-black tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                Crediário Próprio Evidência
               </h1>
-              <p className={`text-xs sm:text-sm font-bold mt-0.5 ${isDark ? 'text-slate-400' : 'text-[#52708F]'}`}>
-                Consulte carnês, parcelas em aberto e efetue pagamentos instantâneos via PIX
+              <p className={`text-xs sm:text-sm font-medium mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                Parcele suas compras em até 6x sem juros no carnê da loja física e online.
               </p>
             </div>
           </div>
+
+          {/* Botão de Atendimento via WhatsApp com a Loja */}
+          <div className="shrink-0">
+            <WhatsAppButton
+              phone={storePhone}
+              message="Olá equipe Evidência Calçados! Gostaria de tirar dúvidas sobre o Crediário da Loja."
+              label="Falar com a Loja"
+              size="md"
+              variant="outline"
+            />
+          </div>
         </motion.div>
 
-        {/* ── FORMULÁRIO DE CONSULTA CPF (ESTILO APPLE CARD) ── */}
-        <AnimatePresence mode="wait">
-          {viewState === 'cpf-form' && (
-            <motion.div
-              key="cpf-form"
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -16 }}
-              transition={{ duration: 0.2 }}
-              className={`${cardBase} p-6 sm:p-8 space-y-6`}
-            >
-              <div className="flex items-center space-x-2.5">
-                <ShieldCheck className="h-6 w-6 text-[#006EDB]" />
-                <h3 className={`text-base font-extrabold tracking-tight ${isDark ? 'text-white' : 'text-[#003B73]'}`}>
-                  Autenticação do Carnê Crediário
+        {/* Banner de Status do Crediário do Cliente */}
+        <div className={`p-5 rounded-3xl border ${
+          credStatus === 'Aprovado'
+            ? isDark ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-emerald-50 border-emerald-200'
+            : credStatus === 'EmAnalise'
+            ? isDark ? 'bg-amber-500/10 border-amber-500/30' : 'bg-amber-50 border-amber-200'
+            : isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
+        }`}>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              {credStatus === 'Aprovado' ? (
+                <div className="w-10 h-10 rounded-xl bg-emerald-500 text-white flex items-center justify-center shrink-0">
+                  <CheckCircle2 className="w-5 h-5" />
+                </div>
+              ) : credStatus === 'EmAnalise' ? (
+                <div className="w-10 h-10 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center shrink-0">
+                  <Clock className="w-5 h-5" />
+                </div>
+              ) : (
+                <div className="w-10 h-10 rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center shrink-0">
+                  <ShieldCheck className="w-5 h-5" />
+                </div>
+              )}
+
+              <div>
+                <h3 className={`text-sm font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                  {credStatus === 'Aprovado'
+                    ? 'Seu Crediário está Aprovado!'
+                    : credStatus === 'EmAnalise'
+                    ? 'Avaliação de Crédito em Andamento'
+                    : 'Crediário Não Solicitado ou Sob Consulta'}
                 </h3>
+                <p className={`text-xs mt-0.5 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                  {credStatus === 'Aprovado'
+                    ? `Limite liberado: ${approvedLimit ? formatCurrency(approvedLimit) : 'Padrão da loja'} para compras no carnê em até 6x.`
+                    : credStatus === 'EmAnalise'
+                    ? 'Recebemos seus dados e nossa equipe está analisando seu cadastro com carinho.'
+                    : 'Preencha seus dados na aba abaixo para solicitar sua linha de crédito.'}
+                </p>
+              </div>
+            </div>
+
+            {credStatus === 'Aprovado' && (
+              <button
+                type="button"
+                onClick={() => setActiveTab('comprar-crediario')}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-all cursor-pointer whitespace-nowrap"
+              >
+                Comprar com Crediário →
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Abas Superiores Estilo Apple Segmented Control */}
+        <div className={`p-1.5 rounded-2xl border flex items-center gap-1.5 overflow-x-auto ${
+          isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-slate-200/60 border-slate-200'
+        }`}>
+          <button
+            type="button"
+            onClick={() => setActiveTab('solicitar-credito')}
+            className={`flex-1 min-w-[160px] py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+              activeTab === 'solicitar-credito'
+                ? (isDark ? 'bg-[#2c2c2e] text-white shadow-sm' : 'bg-white text-slate-900 shadow-sm')
+                : (isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900')
+            }`}
+          >
+            <ShieldCheck className="w-4 h-4 text-amber-500" />
+            <span>1. Solicitar Avaliação</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('comprar-crediario')}
+            className={`flex-1 min-w-[160px] py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer relative ${
+              activeTab === 'comprar-crediario'
+                ? (isDark ? 'bg-[#2c2c2e] text-white shadow-sm' : 'bg-white text-slate-900 shadow-sm')
+                : (isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900')
+            }`}
+          >
+            <ShoppingBag className="w-4 h-4 text-emerald-500" />
+            <span>2. Comprar com Crediário</span>
+            {cart.length > 0 && (
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('carne-erp')}
+            className={`flex-1 min-w-[160px] py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+              activeTab === 'carne-erp'
+                ? (isDark ? 'bg-[#2c2c2e] text-white shadow-sm' : 'bg-white text-slate-900 shadow-sm')
+                : (isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900')
+            }`}
+          >
+            <FileText className="w-4 h-4 text-blue-500" />
+            <span>3. Carnês & Boletos ERP</span>
+          </button>
+        </div>
+
+        {/* ── ABA 1: SOLICITAR AVALIAÇÃO DE CRÉDITO ── */}
+        {activeTab === 'solicitar-credito' && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className={`${cardBase} p-6 sm:p-8 space-y-6`}
+          >
+            <div className="space-y-1">
+              <h3 className={`text-base font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                Formulário de Solicitação de Crédito
+              </h3>
+              <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                Preencha os dados abaixo para que a equipe da Evidência Calçados analise e libere seu limite para parcelar no carnê.
+              </p>
+            </div>
+
+            {evalSuccessMsg && (
+              <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-semibold flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 shrink-0" />
+                <span>{evalSuccessMsg}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSubmitEvaluation} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+                    Nome Completo
+                  </label>
+                  <input
+                    type="text"
+                    disabled
+                    value={activeUser?.name || ''}
+                    className="w-full px-4 py-2.5 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-slate-500 cursor-not-allowed"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+                    CPF
+                  </label>
+                  <input
+                    type="text"
+                    disabled
+                    value={activeUser?.cpf ? formatCpfMask(activeUser.cpf) : 'Não cadastrado'}
+                    className="w-full px-4 py-2.5 rounded-xl text-xs font-mono font-semibold bg-slate-100 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-slate-500 cursor-not-allowed"
+                  />
+                </div>
               </div>
 
-              <p className={`text-xs leading-relaxed font-medium ${isDark ? 'text-slate-400' : 'text-[#52708F]'}`}>
-                Informe o seu <strong>CPF</strong> cadastrado na loja para visualizar o extrato detalhado de faturas e efetuar a quitação via PIX com baixa automática.
-              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+                    Telefone para Contato / WhatsApp *
+                  </label>
+                  <input
+                    type="tel"
+                    required
+                    value={evalPhone}
+                    onChange={e => setEvalPhone(e.target.value)}
+                    placeholder="(99) 98765-4321"
+                    className={`w-full px-4 py-2.5 rounded-xl text-xs font-medium border focus:outline-none transition-all ${
+                      isDark ? 'bg-slate-800 border-slate-700 text-white focus:border-amber-500' : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-slate-900'
+                    }`}
+                  />
+                </div>
 
-              <div className="space-y-2">
-                <label className={`block text-[11px] font-extrabold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-[#003B73]'}`}>
-                  Número do CPF
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+                    Profissão / Ocupação *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={evalProfession}
+                    onChange={e => setEvalProfession(e.target.value)}
+                    placeholder="Ex: Vendedora, Autônomo, Servidor..."
+                    className={`w-full px-4 py-2.5 rounded-xl text-xs font-medium border focus:outline-none transition-all ${
+                      isDark ? 'bg-slate-800 border-slate-700 text-white focus:border-amber-500' : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-slate-900'
+                    }`}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+                    Renda Mensal Estimada (R$) *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={evalIncome}
+                    onChange={e => setEvalIncome(e.target.value)}
+                    placeholder="Ex: 2500,00"
+                    className={`w-full px-4 py-2.5 rounded-xl text-xs font-medium border focus:outline-none transition-all ${
+                      isDark ? 'bg-slate-800 border-slate-700 text-white focus:border-amber-500' : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-slate-900'
+                    }`}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+                    Limite Sugerido Pretendido (R$)
+                  </label>
+                  <input
+                    type="number"
+                    min="100"
+                    step="100"
+                    value={evalRequestedLimit}
+                    onChange={e => setEvalRequestedLimit(e.target.value)}
+                    placeholder="1000"
+                    className={`w-full px-4 py-2.5 rounded-xl text-xs font-medium border focus:outline-none transition-all ${
+                      isDark ? 'bg-slate-800 border-slate-700 text-white focus:border-amber-500' : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-slate-900'
+                    }`}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+                  Contato de Referência Pessoal (Nome e Telefone)
                 </label>
                 <input
                   type="text"
-                  inputMode="numeric"
-                  value={cpfInput}
-                  onChange={handleCpfChange}
-                  onKeyDown={handleKeyDown}
-                  maxLength={14}
-                  placeholder="000.000.000-00"
-                  autoFocus
-                  className={`w-full px-4 py-3.5 rounded-2xl border text-sm font-mono font-bold tracking-widest focus:outline-none transition-all ${
-                    isDark
-                      ? 'bg-slate-950 border-slate-700 text-white placeholder-slate-600 focus:border-[#006EDB] focus:ring-4 focus:ring-[#006EDB]/20'
-                      : 'bg-white border-blue-900/20 text-[#003B73] placeholder-slate-400 focus:border-[#006EDB] focus:ring-4 focus:ring-[#DDF1FF]'
+                  value={evalReference}
+                  onChange={e => setEvalReference(e.target.value)}
+                  placeholder="Ex: Maria Souza (Mãe) - (99) 98888-7777"
+                  className={`w-full px-4 py-2.5 rounded-xl text-xs font-medium border focus:outline-none transition-all ${
+                    isDark ? 'bg-slate-800 border-slate-700 text-white focus:border-amber-500' : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-slate-900'
                   }`}
                 />
               </div>
 
-              {errorMsg && (
-                <motion.div
-                  initial={{ opacity: 0, y: 4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="flex items-center space-x-2 text-xs font-bold text-rose-600 bg-rose-50 border border-rose-200 p-3 rounded-xl"
+              <div className="pt-2">
+                <button
+                  type="submit"
+                  disabled={isSubmittingEval}
+                  className="w-full sm:w-auto px-6 py-3 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-600 text-slate-950 transition-all cursor-pointer shadow-md flex items-center justify-center gap-2"
                 >
-                  <AlertTriangle className="h-4 w-4 shrink-0" />
-                  <span>{errorMsg}</span>
-                </motion.div>
+                  {isSubmittingEval ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  <span>{isSubmittingEval ? 'Enviando...' : 'Enviar Solicitação de Avaliação'}</span>
+                </button>
+              </div>
+            </form>
+          </motion.div>
+        )}
+
+        {/* ── ABA 2: COMPRAR NO CREDIÁRIO (IMPORTAR CARRINHO) ── */}
+        {activeTab === 'comprar-crediario' && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-6"
+          >
+            {/* Seção Importar Carrinho */}
+            <div className={`${cardBase} p-6 sm:p-8 space-y-6`}>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-4 border-slate-100 dark:border-slate-800">
+                <div>
+                  <h3 className={`text-base font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                    Importar Carrinho Atual
+                  </h3>
+                  <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                    Envie os itens que você selecionou na loja diretamente para nossa equipe aprovar no crediário.
+                  </p>
+                </div>
+
+                <div className="text-right">
+                  <span className="text-xs text-slate-400 block">Total do Carrinho</span>
+                  <strong className="text-lg font-black text-emerald-600 dark:text-emerald-400">
+                    {formatCurrency(cartTotal)}
+                  </strong>
+                </div>
+              </div>
+
+              {creditOrderSuccessMsg && (
+                <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-semibold flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 shrink-0" />
+                  <span>{creditOrderSuccessMsg}</span>
+                </div>
               )}
 
-              <motion.button
-                whileTap={{ scale: 0.98 }}
-                onClick={handleVerify}
-                disabled={cleanCpf(cpfInput).length < 11}
-                className="w-full py-3.5 rounded-full text-xs font-extrabold tracking-wider uppercase transition-all shadow-md cursor-pointer bg-[#006EDB] hover:bg-[#00509E] text-white disabled:bg-slate-200 disabled:text-slate-400 dark:disabled:bg-slate-800 dark:disabled:text-slate-600 disabled:shadow-none disabled:cursor-not-allowed"
-              >
-                Consultar Faturas do Crediário
-              </motion.button>
-
-              {!activeUser && (
-                <p className={`text-[11px] text-center font-medium ${isDark ? 'text-slate-500' : 'text-[#52708F]'}`}>
-                  Você precisa estar logado para consultar suas faturas.{' '}
+              {cart.length === 0 ? (
+                <div className="py-8 text-center space-y-3">
+                  <ShoppingBag className="w-12 h-12 mx-auto text-slate-400 opacity-60" />
+                  <p className={`text-xs font-medium ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                    Seu carrinho está vazio no momento. Adicione os calçados que você deseja comprar na vitrine e volte aqui!
+                  </p>
                   <button
-                    onClick={() => setCurrentView('login')}
-                    className="font-bold underline cursor-pointer text-[#006EDB]"
+                    type="button"
+                    onClick={() => setCurrentView('home')}
+                    className="px-5 py-2.5 rounded-xl text-xs font-bold bg-slate-900 dark:bg-white text-white dark:text-slate-900 transition-all cursor-pointer shadow-sm"
                   >
-                    Entrar na minha conta
+                    Explorar Produtos da Vitrine
                   </button>
-                </p>
-              )}
-            </motion.div>
-          )}
-
-          {/* ── CARREGAMENTO (SKELETON APPLE) ── */}
-          {viewState === 'loading' && (
-            <motion.div
-              key="loading"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className={`${cardBase} p-12 flex flex-col items-center justify-center space-y-4 text-center`}
-            >
-              <Loader2 className="h-9 w-9 animate-spin text-[#006EDB]" />
-              <p className={`text-sm font-extrabold ${isDark ? 'text-white' : 'text-[#003B73]'}`}>
-                Consultando o MobLink ERP...
-              </p>
-              <p className={`text-xs font-medium ${isDark ? 'text-slate-400' : 'text-[#52708F]'}`}>
-                Buscando suas faturas e saldo atualizado do crediário.
-              </p>
-            </motion.div>
-          )}
-
-          {/* ── NÃO ENCONTRADO ── */}
-          {viewState === 'not-found' && (
-            <motion.div
-              key="not-found"
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              className={`${cardBase} p-8 flex flex-col items-center space-y-5 text-center`}
-            >
-              <div className="w-16 h-16 rounded-full bg-[#EEF8FF] border border-blue-900/10 flex items-center justify-center">
-                <User className="h-8 w-8 text-[#006EDB]" />
-              </div>
-              <div className="space-y-1.5 max-w-md">
-                <h3 className={`text-base font-extrabold ${isDark ? 'text-white' : 'text-[#003B73]'}`}>
-                  CPF Não Localizado no Sistema
-                </h3>
-                <p className={`text-xs font-medium leading-relaxed ${isDark ? 'text-slate-400' : 'text-[#52708F]'}`}>
-                  Não identificamos nenhuma compra no crediário vinculada ao CPF informado. Caso tenha efetuado o cadastro recentemente, entre em contato com o atendimento.
-                </p>
-              </div>
-              <button
-                onClick={() => { setViewState('cpf-form'); setCpfInput(''); }}
-                className="px-6 py-2.5 rounded-full text-xs font-extrabold uppercase bg-[#006EDB] hover:bg-[#00509E] text-white transition-all shadow-md cursor-pointer"
-              >
-                Tentar Outro CPF
-              </button>
-            </motion.div>
-          )}
-
-          {/* ── LISTA DE FATURAS E PAINEL DO CREDIÁRIO ── */}
-          {viewState === 'invoices' && (
-            <motion.div
-              key="invoices"
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              className="space-y-5"
-            >
-              {/* Alerta de Sucesso no Pagamento */}
-              {paymentSuccessToast && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="p-4 rounded-2xl border flex items-center justify-between shadow-sm bg-emerald-50 border-emerald-300 text-emerald-900"
-                >
-                  <div className="flex items-center space-x-2.5">
-                    <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" />
-                    <p className="text-xs font-extrabold">{paymentSuccessToast}</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {/* Lista de Itens do Carrinho */}
+                  <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {cart.map((item, idx) => (
+                      <div key={idx} className="py-3 flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-3">
+                          {(item.product.imageUrl || (item.product.images && item.product.images[0])) && (
+                            <img
+                              src={item.product.imageUrl || item.product.images[0]}
+                              alt={item.product.name}
+                              className="w-12 h-12 object-cover rounded-xl border border-slate-200 dark:border-slate-700"
+                            />
+                          )}
+                          <div>
+                            <p className="font-bold text-slate-900 dark:text-white">{item.product.name}</p>
+                            <p className="text-[11px] text-slate-400">
+                              Tamanho: <strong>{item.selectedSize}</strong> | Qtd: <strong>{item.quantity}</strong>
+                            </p>
+                          </div>
+                        </div>
+                        <span className="font-bold text-slate-900 dark:text-white">
+                          {formatCurrency(item.product.price * item.quantity)}
+                        </span>
+                      </div>
+                    ))}
                   </div>
-                  <button
-                    onClick={() => setPaymentSuccessToast(null)}
-                    className="text-xs font-black hover:opacity-75 cursor-pointer ml-2"
-                  >
-                    ✕
-                  </button>
-                </motion.div>
-              )}
 
-              {/* Card Resumo do Cliente (Estilo Apple Wallet Header) */}
-              <div className={`${cardBase} p-6 space-y-4`}>
-                <div className="flex items-center justify-between flex-wrap gap-4 border-b pb-4 border-blue-900/10">
-                  <div>
-                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#52708F] block">
-                      Titular do Crediário
-                    </span>
-                    <h2 className={`text-lg font-black tracking-tight ${isDark ? 'text-white' : 'text-[#003B73]'}`}>
-                      {verifiedClientName}
-                    </h2>
-                    <div className="flex items-center space-x-2 mt-1">
-                      <span className="px-2.5 py-0.5 rounded-md bg-[#DDF1FF] text-[#003B73] text-[10px] font-bold">
-                        ID MobLink #{verifiedMoblinkId}
-                      </span>
-                      <span className="text-[11px] text-[#52708F] font-medium">
-                        {groupedSales.length} carnê(s) · {invoices.length} parcela(s)
-                      </span>
+                  {/* Parcelamento Carnê */}
+                  <div className="pt-4 border-t border-slate-100 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                        Escolha o Parcelamento no Carnê:
+                      </label>
+                      <select
+                        value={selectedInstallments}
+                        onChange={e => setSelectedInstallments(Number(e.target.value))}
+                        className={`w-full p-3 rounded-xl text-xs font-bold border focus:outline-none transition-colors ${
+                          isDark ? 'bg-slate-800 border-slate-700 text-white focus:border-amber-500' : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-slate-900'
+                        }`}
+                      >
+                        {[1, 2, 3, 4, 5, 6].map(num => (
+                          <option key={num} value={num}>
+                            {num === 1
+                              ? `1x de ${formatCurrency(cartTotal)} no carnê`
+                              : `${num}x de ${formatCurrency(cartTotal / num)} sem juros no carnê`}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                        Endereço de Entrega:
+                      </label>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
+                        {activeUser?.endereco
+                          ? `${activeUser.endereco}, Nº ${activeUser.numero || 'S/N'} - ${activeUser.bairro || ''}, ${activeUser.cidade || 'Caxias'}/${activeUser.uf || 'MA'}`
+                          : 'Endereço padrão cadastrado no seu perfil.'}
+                      </p>
                     </div>
                   </div>
 
-                  <div className="text-left sm:text-right">
-                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#52708F] block">
-                      Total Pendente
-                    </span>
-                    <p className={`text-2xl font-black font-mono tracking-tight ${
-                      hasAnyOverdue
-                        ? 'text-rose-600'
-                        : 'text-[#003B73] dark:text-white'
-                    }`}>
-                      {formatCurrency(totalPendingAll)}
-                    </p>
-                    {hasAnyOverdue && (
-                      <span className="text-[10px] font-extrabold uppercase text-rose-600 tracking-wider block mt-0.5">
-                        ⚠ Há parcelas vencidas
-                      </span>
-                    )}
+                  {/* Botão de Envio da Solicitação */}
+                  <div className="pt-3">
+                    <button
+                      type="button"
+                      onClick={handleSendCreditOrder}
+                      disabled={isSubmittingCreditOrder}
+                      className="w-full py-3.5 rounded-2xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition-all cursor-pointer shadow-md flex items-center justify-center gap-2"
+                    >
+                      {isSubmittingCreditOrder ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                      <span>{isSubmittingCreditOrder ? 'Enviando Solicitação...' : 'Enviar Solicitação de Compra via Crediário'}</span>
+                    </button>
                   </div>
                 </div>
+              )}
+            </div>
 
-                <div className="flex items-center justify-between pt-1">
-                  <button
-                    onClick={() => { setViewState('cpf-form'); setCpfInput(''); setInvoices([]); }}
-                    className="text-xs font-extrabold text-[#006EDB] hover:underline cursor-pointer flex items-center space-x-1"
-                  >
-                    <span>← Consultar outro CPF</span>
-                  </button>
+            {/* Histórico de Solicitações do Cliente */}
+            <div className={`${cardBase} p-6 sm:p-8 space-y-4`}>
+              <h3 className={`text-base font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                Minhas Solicitações de Compra
+              </h3>
 
-                  <span className="text-[10px] text-[#52708F] font-medium hidden sm:inline">
-                    Pagamento via PIX 24h com aprovação imediata
-                  </span>
+              {isLoadingUserOrders ? (
+                <div className="py-6 flex justify-center">
+                  <Loader2 className="w-6 h-6 text-amber-500 animate-spin" />
                 </div>
-              </div>
+              ) : userCreditOrders.length === 0 ? (
+                <p className="text-xs text-slate-400 py-4">
+                  Você ainda não enviou solicitações de compra via crediário.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {userCreditOrders.map(ord => (
+                    <div
+                      key={ord.id}
+                      className="p-4 rounded-2xl border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 text-xs space-y-2"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-mono font-bold text-slate-700 dark:text-slate-300">
+                          #{ord.id}
+                        </span>
+                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                          ord.status === 'Aprovado'
+                            ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
+                            : ord.status === 'Rejeitado'
+                            ? 'bg-rose-500/10 text-rose-500 border border-rose-500/20'
+                            : 'bg-amber-500/10 text-amber-500 border border-amber-500/20'
+                        }`}>
+                          {ord.status}
+                        </span>
+                      </div>
 
-              {/* Caso Sem Faturas */}
-              {groupedSales.length === 0 && (
-                <div className={`${cardBase} p-10 flex flex-col items-center space-y-3 text-center`}>
-                  <CheckCircle2 className="h-10 w-10 text-emerald-600" />
-                  <h3 className={`text-base font-black ${isDark ? 'text-white' : 'text-[#003B73]'}`}>
-                    Parabéns! Crediário 100% Quitado
-                  </h3>
-                  <p className="text-xs text-[#52708F] font-medium max-w-sm">
-                    Você não possui nenhuma parcela pendente no momento. Obrigado por manter sua conta em dia!
-                  </p>
+                      <div className="flex items-center justify-between text-slate-500">
+                        <span>{formatDate(ord.createdAt)}</span>
+                        <strong className="text-slate-900 dark:text-white font-bold text-sm">
+                          {formatCurrency(ord.totalAmount)}
+                        </strong>
+                      </div>
+
+                      {ord.adminNotes && (
+                        <p className="text-[11px] text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 p-2.5 rounded-xl">
+                          <strong>Parecer da loja:</strong> {ord.adminNotes}
+                        </p>
+                      )}
+                    </div>
+                  ))}
                 </div>
               )}
+            </div>
+          </motion.div>
+        )}
 
-              {/* Lista de Carnês / Compras em Acordeão */}
-              {groupedSales.map((group, gIdx) => {
-                const isExpanded = expandedSales.has(group.saleKey);
-                const pendingCount = group.items.filter((i) => {
-                  const st = (i.situacao || i.status || '').toUpperCase();
-                  return !st.includes('PAG') && !st.includes('BAIX') && st !== 'L';
-                }).length;
+        {/* ── ABA 3: CARNÊS & FATURAS ERP MOBLINK ── */}
+        {activeTab === 'carne-erp' && (
+          <AnimatePresence mode="wait">
+            {viewState === 'cpf-form' && (
+              <motion.div
+                key="cpf-form"
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -16 }}
+                transition={{ duration: 0.2 }}
+                className={`${cardBase} p-6 sm:p-8 space-y-6`}
+              >
+                <div className="flex items-center space-x-2.5">
+                  <ShieldCheck className="h-6 w-6 text-amber-500" />
+                  <h3 className={`text-base font-bold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                    Consulta de Carnês MobLink ERP
+                  </h3>
+                </div>
 
-                return (
-                  <motion.div
-                    key={group.saleKey}
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: gIdx * 0.05 }}
-                    className={cardBase}
+                <p className={`text-xs leading-relaxed font-medium ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                  Informe o seu <strong>CPF</strong> cadastrado na loja para visualizar faturas pendentes emitidas no sistema e efetuar o pagamento via PIX com baixa automática.
+                </p>
+
+                <div className="space-y-2">
+                  <label className={`block text-[11px] font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>
+                    Número do CPF
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={cpfInput}
+                    onChange={handleCpfChange}
+                    onKeyDown={handleKeyDown}
+                    maxLength={14}
+                    placeholder="000.000.000-00"
+                    className={`w-full px-4 py-3 rounded-2xl border text-sm font-mono font-bold tracking-widest focus:outline-none transition-all ${
+                      isDark
+                        ? 'bg-slate-800 border-slate-700 text-white focus:border-amber-500'
+                        : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-slate-900'
+                    }`}
+                  />
+                  {errorMsg && (
+                    <p className="text-xs font-semibold text-rose-500 flex items-center gap-1 mt-1">
+                      <AlertTriangle className="h-3.5 w-3.5" />
+                      {errorMsg}
+                    </p>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleVerify}
+                  className="w-full py-3.5 rounded-2xl text-xs font-bold bg-amber-500 hover:bg-amber-600 text-slate-950 transition-all cursor-pointer shadow-md flex items-center justify-center gap-2"
+                >
+                  <ShieldCheck className="w-4 h-4" />
+                  <span>Consultar Carnês & Boletos</span>
+                </button>
+              </motion.div>
+            )}
+
+            {viewState === 'loading' && (
+              <div className="py-20 flex flex-col items-center justify-center space-y-3">
+                <Loader2 className="w-8 h-8 text-amber-500 animate-spin" />
+                <p className={`text-xs font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                  Consultando faturas no sistema ERP...
+                </p>
+              </div>
+            )}
+
+            {viewState === 'not-found' && (
+              <div className={`${cardBase} p-8 text-center space-y-4`}>
+                <XCircle className="w-12 h-12 mx-auto text-rose-500" />
+                <h3 className="text-base font-bold">Nenhum carnê localizado para este CPF</h3>
+                <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                  Não encontramos contas em aberto para o CPF informado no ERP. Se você acabou de abrir o crediário, aguarde o faturamento da compra.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setViewState('cpf-form')}
+                  className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-900 dark:bg-white text-white dark:text-slate-900"
+                >
+                  Tentar outro CPF
+                </button>
+              </div>
+            )}
+
+            {viewState === 'invoices' && (
+              <motion.div
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="space-y-4"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-500">
+                    Carnês de <strong>{verifiedClientName}</strong>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setViewState('cpf-form')}
+                    className="text-xs font-bold text-amber-500 hover:underline cursor-pointer"
                   >
-                    {/* Cabeçalho do Carnê (Toggle) */}
-                    <button
-                      onClick={() => toggleSale(group.saleKey)}
-                      className={`w-full flex items-center justify-between p-5 cursor-pointer rounded-3xl transition-colors ${
-                        isDark ? 'hover:bg-slate-800/40' : 'hover:bg-[#EEF8FF]/50'
-                      }`}
+                    Trocar CPF
+                  </button>
+                </div>
+
+                {groupedSales.map((group) => {
+                  const isExpanded = expandedSales.has(group.saleKey);
+                  return (
+                    <div
+                      key={group.saleKey}
+                      className={`${cardBase} p-5 space-y-3 overflow-hidden`}
                     >
-                      <div className="flex items-center space-x-3.5 text-left">
-                        <div className={`p-2.5 rounded-2xl ${
-                          group.hasOverdue
-                            ? 'bg-rose-50 border border-rose-200 text-rose-600'
-                            : 'bg-[#EEF8FF] border border-blue-900/10 text-[#003B73]'
-                        }`}>
-                          <FileText className="h-5 w-5" />
-                        </div>
+                      <div
+                        onClick={() => toggleSale(group.saleKey)}
+                        className="flex items-center justify-between cursor-pointer"
+                      >
                         <div>
-                          <p className={`text-sm font-black leading-snug ${isDark ? 'text-white' : 'text-[#003B73]'}`}>
-                            Carnê de Compra #{group.saleKey}
+                          <p className="text-sm font-bold text-slate-900 dark:text-white">
+                            Carnê #{group.saleKey}
                           </p>
-                          <p className="text-[11px] text-[#52708F] font-medium mt-0.5">
-                            {group.items.length} parcela(s) · {pendingCount > 0 ? `${pendingCount} a pagar` : 'Totalmente pago'}
+                          <p className="text-xs text-slate-400">
+                            {group.items.length} parcela(s) | Total: {formatCurrency(group.totalValue)}
                           </p>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                          <span className="text-xs font-bold text-emerald-500">
+                            Pendente: {formatCurrency(group.totalPending)}
+                          </span>
+                          {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                         </div>
                       </div>
 
-                      <div className="flex items-center space-x-4 shrink-0">
-                        <div className="text-right">
-                          {group.totalPending > 0 ? (
-                            <p className={`text-base font-black font-mono ${
-                              group.hasOverdue ? 'text-rose-600' : 'text-[#003B73] dark:text-white'
-                            }`}>
-                              {formatCurrency(group.totalPending)}
-                            </p>
-                          ) : (
-                            <span className="text-xs font-extrabold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
-                              Quitado
-                            </span>
-                          )}
-                        </div>
-                        {isExpanded ? <ChevronUp className="h-5 w-5 text-[#52708F]" /> : <ChevronDown className="h-5 w-5 text-[#52708F]" />}
-                      </div>
-                    </button>
-
-                    {/* Lista das Parcelas do Carnê */}
-                    <AnimatePresence>
                       {isExpanded && (
-                        <motion.div
-                          initial={{ height: 0, opacity: 0 }}
-                          animate={{ height: 'auto', opacity: 1 }}
-                          exit={{ height: 0, opacity: 0 }}
-                          transition={{ duration: 0.2 }}
-                          className="overflow-hidden"
-                        >
-                          <div className={`px-5 pb-5 pt-2 border-t ${isDark ? 'border-slate-800' : 'border-blue-900/10'}`}>
-                            <div className="space-y-3 mt-2">
-                              {group.items.map((inv, idx) => {
-                                const parcNum = inv.parcela || `${idx + 1}/${group.items.length}`;
-                                const dtVenc = formatDate(inv.data_vencimento || inv.vencimento);
-                                const amountInfo = getInstallmentAmount(inv);
-                                const parcelUniqueKey = String(inv.id || `${group.saleKey}_${parcNum}`);
-                                const isPaidByFirebaseMatch = pixFirestoreService.checkIfParcelIsPaidInFirestore(inv, approvedPixList);
-                                const isPaidByPix = paidParcelKeys.has(parcelUniqueKey) || paidParcelKeys.has(String(inv.id)) || isPaidByFirebaseMatch;
-                                const isPaid = amountInfo.isPaid || isPaidByPix;
-                                const isOverdue = !isPaid && amountInfo.isOverdue;
+                        <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
+                          {group.items.map((inv, idx) => {
+                            const parcNum = inv.parcela || `${idx + 1}/${group.items.length}`;
+                            const amountInfo = getInstallmentAmount(inv);
+                            const parcelUniqueKey = String(inv.id || `${group.saleKey}_${parcNum}`);
+                            const isPaid = amountInfo.isPaid || paidParcelKeys.has(parcelUniqueKey) || paidParcelKeys.has(String(inv.id));
 
-                                return (
-                                  <div
-                                    key={inv.id || idx}
-                                    className={`flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-2xl border gap-3 transition-all ${
-                                      isPaid
-                                        ? 'bg-emerald-50/50 border-emerald-200'
-                                        : isOverdue
-                                          ? 'bg-rose-50/60 border-rose-300'
-                                          : 'bg-white border-blue-900/10 shadow-2xs'
-                                    }`}
-                                  >
-                                    {/* Lado Esquerdo: Ícone + Info da Parcela */}
-                                    <div className="flex items-center space-x-3.5">
-                                      <div className="shrink-0">
-                                        {isPaid ? (
-                                          <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-                                        ) : isOverdue ? (
-                                          <XCircle className="h-5 w-5 text-rose-600" />
-                                        ) : (
-                                          <Clock className="h-5 w-5 text-[#006EDB]" />
-                                        )}
-                                      </div>
-                                      <div className="space-y-0.5">
-                                        <div className="flex items-center space-x-2 flex-wrap">
-                                          <p className={`text-sm font-extrabold ${isDark ? 'text-white' : 'text-[#003B73]'}`}>
-                                            Parcela {parcNum}
-                                          </p>
-                                          {amountInfo.hasInterest && (
-                                            <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300">
-                                              + Juros ERP
-                                            </span>
-                                          )}
-                                        </div>
-                                        <p className="text-xs text-[#52708F] font-medium">
-                                          Vencimento:{' '}
-                                          <span className={`font-mono font-extrabold ${isOverdue ? 'text-rose-700' : 'text-[#003B73]'}`}>
-                                            {dtVenc}
-                                          </span>
-                                        </p>
-                                      </div>
-                                    </div>
+                            return (
+                              <div
+                                key={idx}
+                                className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 text-xs"
+                              >
+                                <div>
+                                  <p className="font-bold">Parcela {parcNum}</p>
+                                  <p className="text-[11px] text-slate-400">Vencimento: {formatDate(inv.vencimento)}</p>
+                                </div>
 
-                                    {/* Lado Direito: Status + Valor + Botão Pagar */}
-                                    <div className="flex items-center justify-between sm:justify-end space-x-4 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-blue-900/10">
-                                      <div>
-                                        {isPaidByPix || isPaid ? (
-                                          <span className="text-[10px] font-extrabold uppercase tracking-wider px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
-                                            ✓ Paga
-                                          </span>
-                                        ) : isOverdue ? (
-                                          <span className="text-[10px] font-extrabold uppercase tracking-wider px-3 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200">
-                                            Vencida
-                                          </span>
-                                        ) : (
-                                          <span className="text-[10px] font-extrabold uppercase tracking-wider px-3 py-1 rounded-full bg-[#DDF1FF] text-[#003B73] border border-[#006EDB]/30">
-                                            A Vencer
-                                          </span>
-                                        )}
-                                      </div>
+                                <div className="flex items-center gap-3">
+                                  <span className="font-bold text-sm">
+                                    {formatCurrency(amountInfo.displayAmount)}
+                                  </span>
 
-                                      <div className="text-right">
-                                        <p className={`text-base font-black font-mono tabular-nums leading-none ${
-                                          isPaid
-                                            ? 'text-slate-400 line-through'
-                                            : isOverdue
-                                              ? 'text-rose-600'
-                                              : 'text-[#003B73] dark:text-white'
-                                        }`}>
-                                          {formatCurrency(amountInfo.displayAmount)}
-                                        </p>
-                                      </div>
-
-                                      {/* Botão Pagar com PIX (Apenas para parcelas não pagas) */}
-                                      {!isPaid && (
-                                        <motion.button
-                                          whileTap={{ scale: 0.95 }}
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            const exactParcelId = String(inv.id || getParcelId(inv) || '').trim();
-                                            const exactSaleId = String(group.saleKey || inv.id_venda || '').trim();
-                                            setPixSelectedParcel({
-                                              parcelId: exactParcelId,
-                                              saleKey: exactSaleId,
-                                              parcNum: String(parcNum),
-                                              value: amountInfo.displayAmount,
-                                              description: `Parcela ${parcNum} – Carnê #${exactSaleId}`,
-                                            });
-                                            setPixModalOpen(true);
-                                          }}
-                                          className="flex items-center space-x-1.5 px-4 py-2 rounded-full text-xs font-extrabold uppercase tracking-wider bg-[#006EDB] hover:bg-[#00509E] text-white transition-all shadow-md cursor-pointer"
-                                        >
-                                          <Smartphone className="h-3.5 w-3.5" />
-                                          <span>Pagar</span>
-                                        </motion.button>
-                                      )}
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        </motion.div>
+                                  {isPaid ? (
+                                    <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-500">
+                                      Pago
+                                    </span>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setPixSelectedParcel({
+                                          parcelId: String(inv.id || getParcelId(inv) || ''),
+                                          saleKey: group.saleKey,
+                                          parcNum: String(parcNum),
+                                          value: amountInfo.displayAmount,
+                                          description: `Parcela ${parcNum} - Carnê #${group.saleKey}`,
+                                        });
+                                        setPixModalOpen(true);
+                                      }}
+                                      className="px-3 py-1.5 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-1 shadow-sm"
+                                    >
+                                      <Smartphone className="w-3.5 h-3.5" />
+                                      Pagar Pix
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
                       )}
-                    </AnimatePresence>
-                  </motion.div>
-                );
-              })}
+                    </div>
+                  );
+                })}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        )}
 
-              <p className="text-[10px] text-center text-[#52708F] font-medium pt-2 pb-6">
-                Informações integradas ao sistema de gestão MobLink ERP. Dúvidas sobre boletos ou liquidações? Fale conosco no WhatsApp.
-              </p>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Modal de Pagamento via Pix */}
+        {/* Modal de Pagamento Pix para Carnê ERP */}
         <PixPaymentModal
           isOpen={pixModalOpen}
           onClose={() => { setPixModalOpen(false); setPixSelectedParcel(null); }}
@@ -747,4 +1117,3 @@ export const MeuCrediario: React.FC = () => {
     </div>
   );
 };
-

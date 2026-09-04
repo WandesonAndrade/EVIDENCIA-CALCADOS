@@ -464,4 +464,43 @@ export interface StoreConfig {
   contactConfig: ContactConfig;
 }
 
+export interface ICreditEvaluation {
+  id: string;
+  userId: string;
+  customerName: string;
+  customerEmail?: string;
+  customerPhone?: string;
+  customerCpf?: string;
+  customerRg?: string;
+  income?: string;
+  profession?: string;
+  referenceContact?: string;
+  requestedLimit?: number;
+  approvedLimit?: number;
+  status: 'Pendente' | 'Aprovado' | 'Rejeitado';
+  notes?: string;
+  createdAt: string;
+  analyzedAt?: string;
+  analyzedBy?: string;
+}
 
+export interface ICreditOrder {
+  id: string;
+  userId: string;
+  customerName: string;
+  customerEmail?: string;
+  customerPhone?: string;
+  customerCpf?: string;
+  items: OrderItem[];
+  totalAmount: number;
+  subtotal?: number;
+  freightCost?: number;
+  installmentsRequested?: number;
+  deliveryType?: string;
+  deliveryAddress?: string;
+  status: 'Pendente' | 'Aprovado' | 'Rejeitado';
+  adminNotes?: string;
+  createdAt: string;
+  analyzedAt?: string;
+  analyzedBy?: string;
+}
