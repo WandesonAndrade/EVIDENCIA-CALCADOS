@@ -518,9 +518,33 @@ export class MelhorEnvioAdapter implements IShippingProvider {
             const trackingData = await trackingRes.json();
             const trackingItem = trackingData && typeof trackingData === "object" ? trackingData[matchedOrder.id] : null;
             if (trackingItem && !trackingItem.error) {
+              // Determina a hierarquia de status para nunca regredir (ex: delivered > in_transit > posted > released/pending)
+              const hierarchy: Record<string, number> = {
+                delivered: 5,
+                in_transit: 4,
+                posted: 3,
+                released: 2,
+                generated: 2,
+                paid: 1,
+                pending: 1,
+                canceled: 0,
+              };
+
+              const orderStatus = String(matchedOrder.status || "").toLowerCase().trim();
+              const itemStatus = String(trackingItem.status || "").toLowerCase().trim();
+              const bestStatus = (hierarchy[orderStatus] || 0) >= (hierarchy[itemStatus] || 0)
+                ? matchedOrder.status
+                : trackingItem.status;
+
               return this.normalizeTrackingData(
                 matchedOrder.tracking || matchedOrder.self_tracking || trackingCode,
-                { ...matchedOrder, ...trackingItem }
+                {
+                  ...matchedOrder,
+                  ...trackingItem,
+                  status: bestStatus,
+                  posted_at: matchedOrder.posted_at || trackingItem.posted_at,
+                  delivered_at: matchedOrder.delivered_at || trackingItem.delivered_at,
+                }
               );
             }
           }
