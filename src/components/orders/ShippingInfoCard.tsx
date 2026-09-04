@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Truck, MapPin, Store, Clock, CheckCircle2, Printer, Package, ExternalLink, XCircle, RefreshCw, AlertTriangle, Edit2, Check, X } from 'lucide-react';
+import { Truck, MapPin, Store, Clock, CheckCircle2, Printer, Package, ExternalLink, XCircle, RefreshCw, AlertTriangle, Edit2, Check, X, ChevronDown, ChevronUp } from 'lucide-react';
 import { Order } from '../../types';
 import { formatCurrency } from '../../utils/orderUtils';
 import { db } from '../../lib/firebase';
@@ -28,6 +28,7 @@ export const ShippingInfoCard: React.FC<Props> = ({ order, isDark: _isDark, vari
   const [currentOrder, setCurrentOrder] = useState<Order>(order);
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [isEditingTracking, setIsEditingTracking] = useState(false);
+  const [isTrackingHistoryOpen, setIsTrackingHistoryOpen] = useState(false);
   const [editedTrackingCode, setEditedTrackingCode] = useState(order.trackingCode || '');
   const [labelError, setLabelError] = useState<string | null>(null);
 
@@ -37,10 +38,14 @@ export const ShippingInfoCard: React.FC<Props> = ({ order, isDark: _isDark, vari
   }, [order]);
 
   const handleSyncTracking = async () => {
-    if (!currentOrder.trackingCode) return;
+    const code = currentOrder.trackingCode?.trim();
+    const meId = currentOrder.melhorEnvioId?.trim();
+    if (!code && !meId) return;
+
     setSyncingTracking(true);
+    setLabelError(null);
     try {
-      const res = await ShippingTrackerService.syncOrderTracking(currentOrder.id, currentOrder.trackingCode);
+      const res = await ShippingTrackerService.syncOrderTracking(currentOrder.id, code, meId);
       console.log(`📦 [ShippingInfoCard Admin] Rastreamento atualizado para o pedido #${currentOrder.orderNumber || currentOrder.id}:`, res);
       if (res.updated) {
         setCurrentOrder((prev) => ({
@@ -53,6 +58,10 @@ export const ShippingInfoCard: React.FC<Props> = ({ order, isDark: _isDark, vari
         }));
         if (res.trackingCode) {
           setEditedTrackingCode(res.trackingCode);
+        }
+      } else {
+        if (!code && meId) {
+          setLabelError('A transportadora ainda não liberou o código de rastreio no Melhor Envio. Você pode conferir na etiqueta impressa e inserir manualmente ao lado.');
         }
       }
     } catch (err) {
@@ -341,7 +350,7 @@ export const ShippingInfoCard: React.FC<Props> = ({ order, isDark: _isDark, vari
                     </button>
                   </div>
                 ) : (
-                  currentOrder.trackingCode && (
+                  currentOrder.trackingCode ? (
                     <div className="flex items-center gap-1.5">
                       <span className="text-[10px] font-mono font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30 px-2 py-0.5 rounded-full">
                         {currentOrder.trackingCode}
@@ -362,7 +371,28 @@ export const ShippingInfoCard: React.FC<Props> = ({ order, isDark: _isDark, vari
                         <RefreshCw className={`w-3 h-3 ${syncingTracking ? 'animate-spin text-[#0071E3]' : ''}`} />
                       </button>
                     </div>
-                  )
+                  ) : currentOrder.melhorEnvioId ? (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 rounded-full border border-amber-200/60 dark:border-amber-800/40">
+                        Aguardando transportadora
+                      </span>
+                      <button
+                        onClick={handleSyncTracking}
+                        disabled={syncingTracking}
+                        className="p-1 rounded-md text-amber-600 hover:text-amber-700 hover:bg-amber-100/50 transition cursor-pointer"
+                        title="Verificar se código de rastreamento já foi liberado"
+                      >
+                        <RefreshCw className={`w-3 h-3 ${syncingTracking ? 'animate-spin' : ''}`} />
+                      </button>
+                      <button
+                        onClick={() => setIsEditingTracking(true)}
+                        className="p-1 rounded-md text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition cursor-pointer"
+                        title="Informar Código Manualmente da Etiqueta"
+                      >
+                        <Edit2 className="w-2.5 h-2.5" />
+                      </button>
+                    </div>
+                  ) : null
                 )}
               </div>
 
@@ -412,7 +442,7 @@ export const ShippingInfoCard: React.FC<Props> = ({ order, isDark: _isDark, vari
                     </button>
                   </div>
 
-                  {currentOrder.trackingCode && (
+                  {currentOrder.trackingCode ? (
                     <div className="flex items-center justify-between gap-2 pt-0.5">
                       <a
                         href={`https://www.melhorrastreio.com.br/rastreio/${currentOrder.trackingCode}`}
@@ -431,29 +461,101 @@ export const ShippingInfoCard: React.FC<Props> = ({ order, isDark: _isDark, vari
                         <span>{syncingTracking ? 'Atualizando...' : 'Atualizar Status'}</span>
                       </button>
                     </div>
-                  )}
-
-                  {/* Resumo da última movimentação de rastreamento para o Admin */}
-                  {currentOrder.trackingEvents && currentOrder.trackingEvents.length > 0 && (
-                    <div className="text-[11px] text-slate-600 dark:text-slate-300 font-medium bg-slate-50 dark:bg-white/[0.03] p-2 rounded-lg border border-slate-100 dark:border-white/5 space-y-0.5">
-                      <div className="flex items-center justify-between text-[10px] text-slate-400">
-                        <span className="font-semibold text-slate-500">Último status:</span>
-                        <span className="font-mono">
-                          {currentOrder.trackingEvents[currentOrder.trackingEvents.length - 1].createdAt
-                            ? new Date(
-                                currentOrder.trackingEvents[currentOrder.trackingEvents.length - 1].createdAt
-                              ).toLocaleDateString('pt-BR', {
-                                day: '2-digit',
-                                month: '2-digit',
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              })
-                            : ''}
+                  ) : currentOrder.melhorEnvioId ? (
+                    <div className="p-2 rounded-lg bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200/50 dark:border-amber-800/40 text-[11px] text-amber-800 dark:text-amber-200 space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-[10px] uppercase tracking-wider text-amber-600 dark:text-amber-400">
+                          Rastreio em Processamento
                         </span>
+                        <button
+                          onClick={handleSyncTracking}
+                          disabled={syncingTracking}
+                          className="text-[10px] font-bold text-amber-700 dark:text-amber-300 hover:underline flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                        >
+                          <RefreshCw className={`w-2.5 h-2.5 ${syncingTracking ? 'animate-spin' : ''}`} />
+                          <span>{syncingTracking ? 'Consultando...' : 'Consultar Agora'}</span>
+                        </button>
                       </div>
-                      <p className="text-slate-700 dark:text-slate-200 text-[11px] leading-tight line-clamp-2">
-                        {currentOrder.trackingEvents[currentOrder.trackingEvents.length - 1].description}
+                      <p className="text-[10px] text-slate-600 dark:text-slate-400 leading-tight">
+                        A transportadora pode levar alguns minutos para liberar o código. Se já estiver impresso no PDF da etiqueta, clique no ícone de lápis acima para inseri-lo manualmente.
                       </p>
+                    </div>
+                  ) : null}
+
+                  {/* Histórico e Detalhamento das Movimentações de Rastreamento */}
+                  {currentOrder.trackingEvents && currentOrder.trackingEvents.length > 0 && (
+                    <div className="rounded-xl border border-slate-200/80 dark:border-white/10 bg-slate-50/90 dark:bg-white/[0.03] overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() => setIsTrackingHistoryOpen((prev) => !prev)}
+                        className="w-full p-2.5 flex items-center justify-between text-left hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition cursor-pointer"
+                      >
+                        <div className="space-y-0.5">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                              Último Status:
+                            </span>
+                            <span className="text-[10px] font-mono text-slate-400">
+                              {currentOrder.trackingEvents[currentOrder.trackingEvents.length - 1].createdAt
+                                ? new Date(
+                                    currentOrder.trackingEvents[currentOrder.trackingEvents.length - 1].createdAt
+                                  ).toLocaleDateString('pt-BR', {
+                                    day: '2-digit',
+                                    month: '2-digit',
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                  })
+                                : ''}
+                            </span>
+                          </div>
+                          <p className="text-slate-800 dark:text-slate-200 font-medium text-[11px] leading-snug line-clamp-1">
+                            {currentOrder.trackingEvents[currentOrder.trackingEvents.length - 1].description}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1 text-[10px] font-semibold text-[#0071E3] shrink-0 ml-2">
+                          <span>{currentOrder.trackingEvents.length} {currentOrder.trackingEvents.length === 1 ? 'evento' : 'eventos'}</span>
+                          {isTrackingHistoryOpen ? (
+                            <ChevronUp className="w-3.5 h-3.5" />
+                          ) : (
+                            <ChevronDown className="w-3.5 h-3.5" />
+                          )}
+                        </div>
+                      </button>
+
+                      {isTrackingHistoryOpen && (
+                        <div className="p-3 border-t border-slate-200/60 dark:border-white/5 bg-white/70 dark:bg-black/20 space-y-2.5">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 block">
+                            Trajetória Completa do Pacote
+                          </span>
+                          <div className="space-y-2 pl-2 border-l-2 border-blue-200 dark:border-blue-900/60 ml-1">
+                            {[...currentOrder.trackingEvents].reverse().map((event, idx) => (
+                              <div key={idx} className="relative pl-3 text-xs space-y-0.5">
+                                <div className="absolute -left-[17px] top-1.5 w-2 h-2 rounded-full bg-[#0071E3] ring-4 ring-blue-50 dark:ring-blue-950" />
+                                <div className="flex flex-wrap items-center justify-between gap-1">
+                                  <span className="font-semibold text-slate-800 dark:text-slate-200 text-[11px]">
+                                    {event.description || event.status}
+                                  </span>
+                                  <span className="text-[10px] text-slate-400 font-mono">
+                                    {event.createdAt
+                                      ? new Date(event.createdAt).toLocaleDateString('pt-BR', {
+                                          day: '2-digit',
+                                          month: '2-digit',
+                                          hour: '2-digit',
+                                          minute: '2-digit',
+                                        })
+                                      : ''}
+                                  </span>
+                                </div>
+                                {event.location && (
+                                  <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                                    📍 {event.location}
+                                  </p>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

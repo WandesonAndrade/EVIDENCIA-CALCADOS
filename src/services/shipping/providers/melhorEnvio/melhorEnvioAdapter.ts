@@ -364,7 +364,7 @@ export class MelhorEnvioAdapter implements IShippingProvider {
         console.warn("[MelhorEnvioAdapter] Print error:", printRes.status, await printRes.json().catch(() => ({})));
       }
 
-      // Consulta o pedido criado no Melhor Envio para obter o código de rastreamento oficial
+      // Consulta o pedido criado no Melhor Envio para verificar se o código de rastreamento oficial já está liberado
       let officialTracking = "";
       try {
         const orderCheckRes = await fetch(`${config.baseUrl}/api/v2/me/orders/${shipmentId}`, {
@@ -379,14 +379,12 @@ export class MelhorEnvioAdapter implements IShippingProvider {
           officialTracking = orderCheckData.tracking || orderCheckData.self_tracking || "";
         }
       } catch (checkErr) {
-        console.warn("[MelhorEnvioAdapter] Falha ao consultar tracking oficial:", checkErr);
+        console.warn("[MelhorEnvioAdapter] Falha ao consultar tracking oficial imediatamente após gerar:", checkErr);
       }
-
-      const trackingCode = officialTracking || `ME${Date.now().toString().slice(-8)}BR`;
 
       return {
         shipmentId: String(shipmentId),
-        trackingCode,
+        trackingCode: officialTracking || undefined,
         labelUrl: labelUrl || `${config.baseUrl}/imprimir/${shipmentId}`,
         status: "gerada",
       };
@@ -433,28 +431,48 @@ export class MelhorEnvioAdapter implements IShippingProvider {
       const headers = await this.getAuthHeaders();
       const cleanSearch = trackingCode.trim().toUpperCase();
 
-      // 1. Busca inteligente direcionada: tenta primeiro encontrar pelo parâmetro de busca q
+      // 0. Se for um UUID/ID de envio (ex: melhorEnvioId), tenta consultar direto o pedido
       let matchedOrder: any = null;
-      try {
-        const searchRes = await fetch(
-          `${config.baseUrl}/api/v2/me/orders?q=${encodeURIComponent(cleanSearch)}&per_page=10`,
-          { headers }
-        );
-        if (searchRes.ok && searchRes.status !== 204) {
-          const text = await searchRes.text();
-          if (text && text.trim()) {
-            const searchData = JSON.parse(text);
-            const list: any[] = searchData?.data || (Array.isArray(searchData) ? searchData : []);
-            matchedOrder = list.find((o: any) =>
-              (o.tracking && o.tracking.toUpperCase() === cleanSearch) ||
-              (o.self_tracking && o.self_tracking.toUpperCase() === cleanSearch) ||
-              (o.protocol && o.protocol.toUpperCase() === cleanSearch) ||
-              (o.id && o.id.toUpperCase() === cleanSearch)
-            );
+      const isUuidOrId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trackingCode.trim()) || /^\d+$/.test(trackingCode.trim());
+      if (isUuidOrId) {
+        try {
+          const directOrderRes = await fetch(`${config.baseUrl}/api/v2/me/orders/${trackingCode.trim()}`, {
+            headers,
+          });
+          if (directOrderRes.ok && directOrderRes.status !== 204) {
+            const directData = await directOrderRes.json();
+            if (directData && directData.id) {
+              matchedOrder = directData;
+            }
           }
+        } catch (directErr) {
+          console.warn("[MelhorEnvioAdapter] Falha ao consultar pedido direto por ID:", directErr);
         }
-      } catch (searchErr) {
-        console.warn("[MelhorEnvioAdapter] Falha na busca direcionada por q:", searchErr);
+      }
+
+      // 1. Busca inteligente direcionada: tenta encontrar pelo parâmetro de busca q
+      if (!matchedOrder) {
+        try {
+          const searchRes = await fetch(
+            `${config.baseUrl}/api/v2/me/orders?q=${encodeURIComponent(cleanSearch)}&per_page=10`,
+            { headers }
+          );
+          if (searchRes.ok && searchRes.status !== 204) {
+            const text = await searchRes.text();
+            if (text && text.trim()) {
+              const searchData = JSON.parse(text);
+              const list: any[] = searchData?.data || (Array.isArray(searchData) ? searchData : []);
+              matchedOrder = list.find((o: any) =>
+                (o.tracking && o.tracking.toUpperCase() === cleanSearch) ||
+                (o.self_tracking && o.self_tracking.toUpperCase() === cleanSearch) ||
+                (o.protocol && o.protocol.toUpperCase() === cleanSearch) ||
+                (o.id && o.id.toUpperCase() === cleanSearch)
+              );
+            }
+          }
+        } catch (searchErr) {
+          console.warn("[MelhorEnvioAdapter] Falha na busca direcionada por q:", searchErr);
+        }
       }
 
       // 2. Se não achou na busca direcionada, tenta listar as remessas gerais

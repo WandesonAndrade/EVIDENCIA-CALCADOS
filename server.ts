@@ -997,14 +997,15 @@ app.post("/api/shipping/labels/cancel", async (req, res) => {
 // --- ROTA PROXY DE RASTREAMENTO EM TEMPO REAL & ATUALIZAÇÃO SOB DEMANDA ---
 app.post("/api/shipping/track", async (req, res) => {
   try {
-    const { trackingCode, orderId } = req.body;
+    const { trackingCode, shipmentId, melhorEnvioId, orderId } = req.body;
+    const searchIdentifier = (trackingCode || shipmentId || melhorEnvioId || "").trim();
 
-    if (!trackingCode || typeof trackingCode !== "string") {
-      return res.status(400).json({ success: false, error: "trackingCode é obrigatório." });
+    if (!searchIdentifier) {
+      return res.status(400).json({ success: false, error: "trackingCode ou melhorEnvioId é obrigatório." });
     }
 
     const provider = ShippingService.getProvider();
-    const tracking = await provider.trackShipment(trackingCode);
+    const tracking = await provider.trackShipment(searchIdentifier);
 
     if (tracking) {
       console.log(

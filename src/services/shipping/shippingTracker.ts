@@ -19,8 +19,15 @@ export class ShippingTrackerService {
    * Consulta o rastreamento do código informado via API backend
    * e atualiza automaticamente o status e eventos do pedido no Firestore conforme a régua de 4 etapas.
    */
-  public static async syncOrderTracking(orderId: string, trackingCode: string): Promise<ITrackingSyncResult> {
-    if (!trackingCode || !trackingCode.trim()) {
+  public static async syncOrderTracking(
+    orderId: string,
+    trackingCode?: string,
+    shipmentId?: string
+  ): Promise<ITrackingSyncResult> {
+    const code = (trackingCode || "").trim();
+    const sId = (shipmentId || "").trim();
+
+    if (!code && !sId) {
       return { updated: false };
     }
 
@@ -28,7 +35,11 @@ export class ShippingTrackerService {
       const response = await fetch("/api/shipping/track", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ trackingCode: trackingCode.trim(), orderId }),
+        body: JSON.stringify({
+          trackingCode: code || undefined,
+          shipmentId: sId || undefined,
+          orderId,
+        }),
       });
 
       if (!response.ok) {
@@ -48,14 +59,10 @@ export class ShippingTrackerService {
       if (tracking.status === "delivered") {
         newStatus = "Entregue"; // Avança para a Etapa 5 da Régua ("Entregue ao Cliente")
         labelStatus = "entregue";
-      } else if (tracking.status === "in_transit") {
-        // Colocar em trânsito APENAS quando o Melhor Envio colocar em trânsito!
+      } else if (tracking.status === "in_transit" || tracking.status === "posted") {
+        // Quando a transportadora registra postagem na agência ou trânsito, avança para Etapa 4
         newStatus = "Em Trânsito"; // Avança para a Etapa 4 da Régua ("Em Trânsito")
-        labelStatus = "em_transito";
-      } else if (tracking.status === "posted") {
-        // Pacote postado na agência da transportadora (Etapa 3 da Régua)
-        newStatus = "Em Preparação";
-        labelStatus = "postado";
+        labelStatus = tracking.status === "posted" ? "postado" : "em_transito";
       } else if (tracking.status === "pending") {
         // Etiqueta liberada/gerada pronta para postagem (Etapa 3 da Régua)
         newStatus = "Em Preparação";
@@ -83,16 +90,16 @@ export class ShippingTrackerService {
         if (tracking.metricDivergence) {
           updates.metricDivergence = tracking.metricDivergence;
         }
-        if (tracking.trackingCode && tracking.trackingCode !== trackingCode) {
+        if (tracking.trackingCode && tracking.trackingCode !== code) {
           updates.trackingCode = tracking.trackingCode;
         }
 
         await updateDoc(orderRef, updates);
       }
 
-      console.log(`📦 [ShippingTracker] Pedido ${orderId} (${trackingCode}) atualizado com sucesso:`, {
+      console.log(`📦 [ShippingTracker] Pedido ${orderId} (${code || sId}) atualizado com sucesso:`, {
         orderId,
-        trackingCode: tracking.trackingCode || trackingCode,
+        trackingCode: tracking.trackingCode || code,
         newStatus: newStatus || "Status inalterado",
         statusText: tracking.statusText,
         eventsCount: tracking.events?.length || 0,
@@ -109,7 +116,7 @@ export class ShippingTrackerService {
         eventsCount: tracking.events?.length || 0,
         events: tracking.events || [],
         metricDivergence: tracking.metricDivergence,
-        trackingCode: tracking.trackingCode || trackingCode,
+        trackingCode: tracking.trackingCode || code,
       };
     } catch (err) {
       console.warn("[ShippingTrackerService] Erro ao sincronizar rastreamento:", err);
@@ -118,11 +125,11 @@ export class ShippingTrackerService {
   }
 
   /**
-   * Sincroniza em lote os pedidos pendentes com código de rastreio ao entrar na tela (Cliente ou Admin).
+   * Sincroniza em lote os pedidos pendentes com código de rastreio ou melhorEnvioId ao entrar na tela (Cliente ou Admin).
    * Aplica throttle para não sobrecarregar requisições nem ultrapassar cotas da API.
    */
   public static async syncPendingOrders(
-    orders: Array<Pick<Order, "id" | "trackingCode" | "status" | "lastTrackingCheck">>,
+    orders: Array<Pick<Order, "id" | "trackingCode" | "melhorEnvioId" | "status" | "lastTrackingCheck">>,
     minIntervalMinutes = 2
   ): Promise<number> {
     if (!orders || orders.length === 0) return 0;
@@ -130,9 +137,11 @@ export class ShippingTrackerService {
     const now = Date.now();
     const minIntervalMs = minIntervalMinutes * 60 * 1000;
 
-    // Filtra pedidos elegíveis: com trackingCode, não finalizados e que não foram checados recentemente
+    // Filtra pedidos elegíveis: com trackingCode ou melhorEnvioId, não finalizados e que não foram checados recentemente
     const eligibleOrders = orders.filter((o) => {
-      if (!o.trackingCode || !o.trackingCode.trim()) return false;
+      const hasCode = !!(o.trackingCode && o.trackingCode.trim());
+      const hasMeId = !!(o.melhorEnvioId && o.melhorEnvioId.trim());
+      if (!hasCode && !hasMeId) return false;
       if (o.status === "Entregue" || o.status === "Cancelado") return false;
 
       if (o.lastTrackingCheck) {
@@ -147,7 +156,7 @@ export class ShippingTrackerService {
     let count = 0;
     for (const order of eligibleOrders) {
       try {
-        await this.syncOrderTracking(order.id, order.trackingCode!);
+        await this.syncOrderTracking(order.id, order.trackingCode, order.melhorEnvioId);
         count++;
         // Pequena pausa entre requisições para evitar burst
         await new Promise((resolve) => setTimeout(resolve, 200));

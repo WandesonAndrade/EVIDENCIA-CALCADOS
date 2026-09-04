@@ -56,12 +56,11 @@ export const getUfFromCep = (cep: string | undefined | null): string => {
 export const getOrderProgressStep = (order: Order): number => {
   if (order.status === 'Cancelado') return 0;
   if (order.status === 'Entregue' || order.labelStatus === 'entregue') return 5;
-  if (order.status === 'Em Trânsito' || order.labelStatus === 'em_transito') return 4;
+  if (order.status === 'Em Trânsito' || order.labelStatus === 'em_transito' || order.labelStatus === 'postado') return 4;
   if (
     order.status === 'Em Preparação' || 
     order.labelStatus === 'gerada' || 
     order.labelStatus === 'impressa' || 
-    order.labelStatus === 'postado' || 
     order.labelStatus === 'liberada' ||
     Boolean(order.melhorEnvioId)
   ) return 3;
