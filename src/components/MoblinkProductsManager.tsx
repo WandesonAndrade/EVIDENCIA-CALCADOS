@@ -945,13 +945,13 @@ export const MoblinkProductsManager: React.FC = () => {
             }
           }
 
-          // APLICAÇÃO DA REGRA SOLICITADA:
-          // Se estoque > 0, TEM GRADE e TEM FOTO REAL => visible = true (Visível nas vitrines da loja virtual)
+          // APLICAÇÃO DA REGRA DE VISIBILIDADE POR FOTOS:
+          // Se estoque > 0 e TEM FOTO REAL => visible = true (Visível nas vitrines da loja virtual)
           // Caso contrário => visible = false (Desmarcado/Oculto nas vitrines da loja virtual)
           const itemHasPhoto = hasProductValidPhoto(item) || (existingDb ? hasProductValidPhoto(existingDb) : false);
-          const isVisibleInStore = hasGrade && itemHasPhoto;
+          const isVisibleInStore = estoqueAtual > 0 && itemHasPhoto;
 
-          if (hasGrade) {
+          if (isVisibleInStore) {
             withGradeCount++;
           } else {
             noGradeCount++;
@@ -991,14 +991,14 @@ export const MoblinkProductsManager: React.FC = () => {
               await updateProduct(mobId, updatedPayload);
             }
           } catch (writeErr) {
-            console.warn(`[MoblinkProductsManager] Aviso ao salvar auditoria de grade no Firestore: ${mobId}`, writeErr);
+            console.warn(`[MoblinkProductsManager] Aviso ao salvar auditoria de visibilidade no Firestore: ${mobId}`, writeErr);
           }
         }));
       }
 
       setFeedback({
         success: true,
-        message: `⚡ Auditoria de Grades Concluída com Sucesso! ${withGradeCount} produtos com Grade Ativa (Visíveis na Vitrine Virtual) e ${noGradeCount} produtos sem Grade (Desmarcados e Ocultos da Vitrine).`
+        message: `⚡ Auditoria Concluída com Sucesso! ${withGradeCount} produtos com foto real e estoque positivo ativos e visíveis na vitrine virtual, e ${noGradeCount} produtos sem foto (ocultos da vitrine).`
       });
     } catch (err: any) {
       console.error('Erro na auditoria de grades:', err);
@@ -1098,8 +1098,8 @@ export const MoblinkProductsManager: React.FC = () => {
         ? normalizeCategoryName(currentItem.categoria) 
         : extractClassificacaoCategoria(currentItem).category || 'Calçados');
     
-    const itemHasPhoto = hasProductValidPhoto(currentItem) || hasProductValidPhoto(existing);
-    const initialVisible = (initialStock > 0 && itemHasPhoto) ? true : (existing?.visible ?? false);
+    const itemHasPhoto = hasProductValidPhoto(currentItem) || hasProductValidPhoto(existing) || Boolean(existing?.imageUrl) || Boolean(currentItem.foto_uri) || (Array.isArray(existing?.images) && existing.images.length > 0);
+    const initialVisible = (initialStock > 0 && itemHasPhoto) ? (existing?.visible ?? true) : false;
     
     const initialSizes = liveGradeRes && liveGradeRes.tamanhos && liveGradeRes.tamanhos.length > 0
       ? liveGradeRes.tamanhos.join(', ')
@@ -3148,9 +3148,9 @@ export const MoblinkProductsManager: React.FC = () => {
                                 );
                               }
                               return (
-                                <span className="text-[9px] font-extrabold px-2 py-0.5 bg-rose-500/10 text-rose-600 dark:text-rose-400 rounded-md border border-rose-500/30 inline-flex items-center gap-1" title="Produtos sem desmembramento de grade de tamanhos/variações cadastrado no ERP ficam indisponíveis para venda">
-                                  <AlertCircle className="h-2.5 w-2.5 text-rose-500" />
-                                  ⚠️ Sem Grade (Indisponível p/ Venda)
+                                <span className="text-[9px] font-bold px-2 py-0.5 bg-slate-500/10 text-slate-600 dark:text-slate-400 rounded-md border border-slate-500/20 inline-flex items-center gap-1" title="Produto com estoque global ou tamanho único">
+                                  <Tag className="h-2.5 w-2.5 text-slate-400" />
+                                  Grade Livre / Única
                                 </span>
                               );
                             })()}
@@ -3531,7 +3531,7 @@ export const MoblinkProductsManager: React.FC = () => {
                           type="checkbox"
                           checked={editVisible}
                           onChange={(e) => setEditVisible(e.target.checked)}
-                          disabled={!hasProductValidPhoto(selectedProduct)}
+                          disabled={!hasProductValidPhoto(selectedProduct) && !images.some(img => img && !isPlaceholderUrl(img))}
                           className="w-4 h-4 rounded text-amber-500 border-slate-300 focus:ring-amber-500 cursor-pointer disabled:opacity-50"
                         />
                         <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
@@ -3553,10 +3553,10 @@ export const MoblinkProductsManager: React.FC = () => {
                       </label>
                     </div>
 
-                    {!hasProductValidPhoto(selectedProduct) && (
+                    {(!hasProductValidPhoto(selectedProduct) && !images.some(img => img && !isPlaceholderUrl(img))) && (
                       <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/25 text-amber-800 dark:text-amber-300 text-xs font-bold flex items-center gap-2.5 animate-fade-in">
                         <AlertCircle className="h-4 w-4 text-amber-500 shrink-0" />
-                        <span>⚠️ Produto sem foto real cadastrada. Faça o upload de uma foto do produto para ativar a visibilidade na loja virtual.</span>
+                        <span>⚠️ Produto sem foto real cadastrada. Faça o upload de uma foto do produto na Seção 2 abaixo para ativar a visibilidade na loja virtual.</span>
                       </div>
                     )}
                   </div>

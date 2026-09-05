@@ -5,7 +5,8 @@ import { Eye, Heart, ArrowRight, ArrowUpDown, Truck, CreditCard, RefreshCw, Shop
 import { motion, AnimatePresence } from "motion/react";
 import { scrollToSectionWithOffset } from "../lib/scrollUtils";
 import { normalizeCategoryName, normalizeSubcategoryName, isProductInCategory } from "../services/moblinkCategoriesService";
-import { hasProductValidGrade, hasProductValidPhoto, extractClassificacaoCategoria } from "../services/moblinkProductsService";
+import { extractClassificacaoCategoria } from "../services/moblinkProductsService";
+import { hasProductValidPhotos, hasProductValidPhoto } from "../utils/photoUtils";
 import { isSaldaoProduct, getSaldaoProductPrice } from "../services/saldaoService";
 import { getApplicablePromotion } from "../services/promotionsService";
 import { NO_PHOTO_SVG } from "../utils/placeholder";

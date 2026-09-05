@@ -8,9 +8,10 @@ import { evidenciaAuthService } from '../lib/evidenciaAuth';
 import { API_ENDPOINTS } from './api';
 import { parseValor } from '../utils/numberUtils';
 import { isPlaceholderUrl } from '../utils/placeholder';
+import { hasProductValidPhotos } from '../utils/photoUtils';
 
 export const MOBLINK_OFFICIAL_API_URL = API_ENDPOINTS.PRODUTOS;
-export { parseValor };
+export { parseValor, hasProductValidPhotos };
 
 
 /**
@@ -166,51 +167,7 @@ export const hasProductValidGrade = (item: any): boolean => {
  * REGRA EXPLICITA: Apenas produtos que possuem foto real estarão disponíveis para exibição na loja.
  */
 export const hasProductValidPhoto = (item: any): boolean => {
-  if (!item || typeof item !== "object") return false;
-
-  // 1. Array de imagens (images)
-  if (Array.isArray(item.images)) {
-    for (const img of item.images) {
-      if (img && typeof img === "string" && !isPlaceholderUrl(img)) {
-        return true;
-      }
-    }
-  }
-
-  // 2. imageUrl
-  if (item.imageUrl && typeof item.imageUrl === "string" && !isPlaceholderUrl(item.imageUrl)) {
-    return true;
-  }
-
-  // 3. foto_uri / foto_url / foto
-  const fotoUri = item.foto_uri || item.foto_url || item.foto;
-  if (fotoUri && typeof fotoUri === "string" && !isPlaceholderUrl(fotoUri)) {
-    return true;
-  }
-
-  // 4. Mapeamento de fotos por cor (colorImages)
-  if (item.colorImages && typeof item.colorImages === "object") {
-    for (const urls of Object.values(item.colorImages)) {
-      if (Array.isArray(urls)) {
-        for (const u of urls) {
-          if (u && typeof u === "string" && !isPlaceholderUrl(u as string)) {
-            return true;
-          }
-        }
-      }
-    }
-  }
-
-  // 5. Mapeamento de foto por cor (colorImageMap)
-  if (item.colorImageMap && typeof item.colorImageMap === "object") {
-    for (const u of Object.values(item.colorImageMap)) {
-      if (u && typeof u === "string" && !isPlaceholderUrl(u as string)) {
-        return true;
-      }
-    }
-  }
-
-  return false;
+  return hasProductValidPhotos(item);
 };
 
 export const isNonFootwearProduct = (item: any): boolean => {
@@ -644,13 +601,13 @@ export const mapMoblinkToProduct = (item: MoblinkProduto | any): Product => {
 
   const hasPhoto = hasProductValidPhoto(item);
 
-  // Visibilidade na vitrine: Apenas produtos COM FOTO REAL, COM GRADE e COM ESTOQUE estarão disponíveis para venda!
+  // Visibilidade na vitrine: Apenas produtos COM FOTO REAL e COM ESTOQUE estarão disponíveis para venda!
   const visible =
     item.visible !== undefined
-      ? (stock <= 0 || !hasGrade || !hasPhoto)
+      ? (stock <= 0 || !hasPhoto)
         ? false
         : Boolean(item.visible)
-      : (stock > 0 && hasGrade && hasPhoto);
+      : (stock > 0 && hasPhoto);
 
   const catInfo = extractClassificacaoCategoria({
     classificacao: cleanClassificacao,
@@ -792,7 +749,9 @@ export const mergeErpSyncWithExistingDbProduct = (
   const liveIdGrade = updatedErpProd.id_grade ?? updatedErpProd.gradeId ?? existingDbProd.id_grade ?? existingDbProd.gradeId ?? null;
 
   // Visibilidade: se o produto tem estoque > 0 e tem foto real => visível na loja virtual
-  const isVisibleInStore = liveStock > 0 ? liveHasPhoto : false;
+  const isVisibleInStore = (liveStock > 0 && liveHasPhoto)
+    ? (existingDbProd.visible !== undefined ? Boolean(existingDbProd.visible) : true)
+    : false;
 
   return {
     ...existingDbProd,
@@ -933,13 +892,13 @@ export const sanitizeProductForFirestore = (
 
   const hasPhoto = hasProductValidPhoto(product);
 
-  // Visibilidade estrita: Apenas visível para venda se tiver foto válida, grade e estoque > 0
+  // Visibilidade estrita: Apenas visível para venda se tiver foto válida e estoque > 0
   const visible =
     product.visible !== undefined
-      ? (stock <= 0 || !hasGrade || !hasPhoto)
+      ? (stock <= 0 || !hasPhoto)
         ? false
         : Boolean(product.visible)
-      : (stock > 0 && hasGrade && hasPhoto);
+      : (stock > 0 && hasPhoto);
 
   const updatedAt = product.updatedAt || new Date().toISOString();
 
@@ -1580,8 +1539,8 @@ export const filterProductsRequiringSync = (
     const stock = extractSaldoLojaMoblink(freshItem);
     const hasGrade = hasProductValidGrade(freshItem);
 
-    // Ignora e não envia para o Firebase como produto ativo para venda se tiver 0 saldo ou NÃO tiver grade
-    if (stock <= 0 || !hasGrade) return false;
+    // Ignora produtos sem saldo em estoque
+    if (stock <= 0) return false;
     const existing = existingMap.get(freshId);
     return hasProductChanged(existing, freshItem);
   });
