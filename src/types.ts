@@ -103,6 +103,7 @@ export interface Product {
   id_subgrupo?: string | number;
   id_pai?: string | number;
   images: string[];
+  managedPhotos?: boolean;
   sizes: (number | string)[];
   crediarioProprio: boolean;
   visible: boolean;

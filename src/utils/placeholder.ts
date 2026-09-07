@@ -3,6 +3,23 @@ export const NO_PHOTO_SVG = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.o
 export const isPlaceholderUrl = (url?: string | null): boolean => {
   if (!url || typeof url !== 'string') return true;
   const clean = url.trim().toLowerCase();
-  return !clean || clean.includes('unsplash.com') || clean.includes('placeholder') || clean.includes('via.placeholder') || clean.startsWith('data:image/svg');
+  if (!clean) return true;
+
+  // Detect known mock/dummy image generators
+  if (
+    clean.includes('via.placeholder.com') ||
+    clean.includes('placehold.co') ||
+    clean.includes('placehold.it') ||
+    clean.includes('dummyimage.com')
+  ) {
+    return true;
+  }
+
+  // Detect internal "Sem Foto" SVG placeholder
+  if (clean.startsWith('data:image/svg') && (clean.includes('sem%20foto') || clean.includes('sem foto') || clean.includes('sem-foto'))) {
+    return true;
+  }
+
+  return false;
 };
 

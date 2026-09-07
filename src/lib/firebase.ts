@@ -140,4 +140,4 @@ export async function cleanFirestoreUnsplashUrls() {
 }
 
 seedDatabaseIfNeeded();
-cleanFirestoreUnsplashUrls();
+// cleanFirestoreUnsplashUrls() foi desativada para não apagar fotos inseridas via link/administrador

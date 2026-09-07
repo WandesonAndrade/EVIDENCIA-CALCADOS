@@ -733,6 +733,24 @@ export const MoblinkProductsManager: React.FC = () => {
     }
   }, [products]);
 
+  // Migração suave e transparente: garante que qualquer produto existente com fotos receba managedPhotos: true no Firestore
+  const hasAutoTaggedPhotosRef = useRef(false);
+  useEffect(() => {
+    if (hasAutoTaggedPhotosRef.current || !products || products.length === 0) return;
+    hasAutoTaggedPhotosRef.current = true;
+
+    const needsTagging = products.filter(p => hasProductValidPhoto(p) && p.managedPhotos !== true);
+    if (needsTagging.length > 0) {
+      console.log(`[MoblinkProductsManager] Blindando ${needsTagging.length} produtos existentes com managedPhotos: true no Firestore...`);
+      needsTagging.forEach(p => {
+        const targetId = String(p.id || p.moblinkId);
+        if (targetId) {
+          setDoc(doc(db, 'products', targetId), { managedPhotos: true }, { merge: true }).catch(() => {});
+        }
+      });
+    }
+  }, [products]);
+
   // Resetar página ao mudar filtros de busca/categoria/origem/modelo/viewMode/grade
   useEffect(() => {
     setCurrentPage(1);
@@ -1370,6 +1388,7 @@ export const MoblinkProductsManager: React.FC = () => {
     const targetId = String(selectedProduct.id || selectedProduct.moblinkId);
     const updatedProd: Partial<Product> = {
       images: finalImagesList,
+      managedPhotos: finalImagesList.length > 0,
       imageUrl: finalImagesList[0] || '',
       foto_uri: finalImagesList[0] || '',
       visible: hasValidPhoto ? true : editVisible,
@@ -1556,6 +1575,7 @@ export const MoblinkProductsManager: React.FC = () => {
       nome_grupo: selectedProduct.nome_grupo,
       nome_subgrupo: selectedProduct.nome_subgrupo,
       images: finalImages,
+      managedPhotos: finalImages.length > 0,
       imageUrl: primaryCoverUrl,
       foto_uri: primaryCoverUrl,
       sizes: activeSizes,
@@ -1583,8 +1603,8 @@ export const MoblinkProductsManager: React.FC = () => {
 
     try {
       const existingInApp = products.find(p => p.id === mobId);
-      // Grava no Firestore apenas se tiver estoque > 0 e se houver alteração real
-      if (productStock > 0 && hasProductChanged(existingInApp, updatedProductPayload)) {
+      // Grava no Firestore se houver alteração real (incluindo fotos ou managedPhotos)
+      if (hasProductChanged(existingInApp, updatedProductPayload)) {
         const sanitizedPayload = sanitizeProductForFirestore(updatedProductPayload);
         await setDoc(doc(db, 'products', mobId), sanitizedPayload, { merge: true });
       }

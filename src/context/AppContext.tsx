@@ -965,16 +965,46 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const dbMap = new Map<string, Product>();
     effectiveDbProducts.forEach(p => {
-      if (p.id) dbMap.set(String(p.id), p);
-      if (p.moblinkId) dbMap.set(String(p.moblinkId), p);
+      const rawId = String(p.id || '').trim();
+      const rawMobId = String(p.moblinkId || '').trim();
+      const rawSku = String(p.sku || '').trim();
+
+      if (rawId) {
+        dbMap.set(rawId, p);
+        if (rawId.startsWith('MOB-')) {
+          dbMap.set(rawId.replace(/^MOB-/, ''), p);
+        } else {
+          dbMap.set(`MOB-${rawId}`, p);
+        }
+      }
+      if (rawMobId) {
+        dbMap.set(rawMobId, p);
+        if (rawMobId.startsWith('MOB-')) {
+          dbMap.set(rawMobId.replace(/^MOB-/, ''), p);
+        } else {
+          dbMap.set(`MOB-${rawMobId}`, p);
+        }
+      }
+      if (rawSku) {
+        dbMap.set(rawSku, p);
+      }
     });
 
     const processedMobIds = new Set<string>();
 
     const mergedFromMoblink = moblinkRawList.map((item) => {
       const mobId = String(item.id || item.moblinkId || 'MOB-101').trim();
+      const cleanNumeric = mobId.replace(/^MOB-/, '');
+      const prefixed = mobId.startsWith('MOB-') ? mobId : `MOB-${mobId}`;
       processedMobIds.add(mobId);
-      const dbRecord = dbMap.get(mobId);
+      processedMobIds.add(cleanNumeric);
+      processedMobIds.add(prefixed);
+
+      const itemSku = String(item.codigo || item.sku || '').trim();
+      const dbRecord = dbMap.get(mobId) ||
+                       dbMap.get(cleanNumeric) ||
+                       dbMap.get(prefixed) ||
+                       (itemSku ? dbMap.get(itemSku) : undefined);
 
       const rawFotoUri = item.foto_uri || item.foto_url || item.fotoUri || item.fotoUrl || item.imagem || item.image || item.foto;
 
@@ -1102,6 +1132,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // --------------------------------------------------------
         onSale: Boolean((liveOriginalPrice && liveOriginalPrice > livePrice) || dbRecord?.onSale),
         images: combinedImages, // Preserved from lojista
+        managedPhotos: dbRecord?.managedPhotos ?? (combinedImages.length > 0 ? true : false),
         imageUrl: primaryCoverUrl,
         foto_uri: primaryCoverUrl,
         colorImageMap,
@@ -1153,10 +1184,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // Incremental Sync: Salva no Firestore apenas os produtos com saldo > 0 que sofreram alterações reais
       const itemsToSync = filterProductsRequiringSync(currentDbProducts, moblinkRawList);
       if (itemsToSync.length > 0) {
-        const crossedMap = new Map(crossedCatalog.map(p => [p.id, p]));
+        const crossedMap = new Map<string, Product>();
+        crossedCatalog.forEach(p => {
+          const rawId = String(p.id || '').trim();
+          const cleanId = rawId.replace(/^MOB-/, '');
+          const prefId = rawId.startsWith('MOB-') ? rawId : `MOB-${rawId}`;
+          crossedMap.set(rawId, p);
+          crossedMap.set(cleanId, p);
+          crossedMap.set(prefId, p);
+          if (p.moblinkId) {
+            const mId = String(p.moblinkId).trim();
+            crossedMap.set(mId, p);
+            crossedMap.set(mId.replace(/^MOB-/, ''), p);
+          }
+        });
         for (const item of itemsToSync) {
           const mobId = String(item.id);
-          const prod = crossedMap.get(mobId);
+          const prod = crossedMap.get(mobId) || crossedMap.get(mobId.replace(/^MOB-/, '')) || crossedMap.get(`MOB-${mobId}`);
           if (prod && (prod.stock > 0 || (prod.saldo_loja ?? 0) > 0)) {
             try {
               const docRef = doc(db, 'products', prod.id);

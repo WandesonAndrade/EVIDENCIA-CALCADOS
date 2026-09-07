@@ -774,6 +774,7 @@ export const mergeErpSyncWithExistingDbProduct = (
     description: protectedDescription,
     descricao_completa: protectedDescription,
     images: protectedImages,
+    managedPhotos: existingDbProd.managedPhotos ?? updatedErpProd.managedPhotos ?? (protectedImages.length > 0 ? true : false),
     foto_uri: protectedFotoUri,
     colorImageMap: protectedColorImageMap,
     colorImages: protectedColorImages,
@@ -829,15 +830,15 @@ export const sanitizeProductForFirestore = (
   ).trim();
   const description = descriptionRaw.length > 0 ? descriptionRaw : name;
 
-  const isUnsplashUrl = (url?: string | null) => !url || typeof url !== 'string' || url.includes('unsplash.com') || url.includes('placeholder');
+  const isInvalidPhotoUrl = (url?: string | null) => !url || typeof url !== 'string' || isPlaceholderUrl(url);
 
   let imageUrl = "";
-  if (product.imageUrl && typeof product.imageUrl === "string" && !isUnsplashUrl(product.imageUrl)) {
+  if (product.imageUrl && typeof product.imageUrl === "string" && !isInvalidPhotoUrl(product.imageUrl)) {
     imageUrl = product.imageUrl.trim();
   } else if (Array.isArray(product.images) && product.images.length > 0) {
-    const valid = product.images.find(img => img && typeof img === 'string' && !isUnsplashUrl(img));
+    const valid = product.images.find(img => img && typeof img === 'string' && !isInvalidPhotoUrl(img));
     if (valid) imageUrl = valid.trim();
-  } else if (product.foto_uri && typeof product.foto_uri === "string" && !isUnsplashUrl(product.foto_uri)) {
+  } else if (product.foto_uri && typeof product.foto_uri === "string" && !isInvalidPhotoUrl(product.foto_uri)) {
     imageUrl = product.foto_uri.trim();
   }
 
@@ -905,7 +906,7 @@ export const sanitizeProductForFirestore = (
   const catInfo = extractClassificacaoCategoria(product);
 
   const finalImagesList = (Array.isArray(product.images) && product.images.length > 0)
-    ? product.images.filter(img => img && typeof img === 'string' && !isUnsplashUrl(img))
+    ? product.images.filter(img => img && typeof img === 'string' && !isInvalidPhotoUrl(img))
     : (effectiveImg ? [effectiveImg] : []);
 
   const rawGrupo = (product as any).nome_grupo || (product as any).categoria || catInfo.nome_grupo || catInfo.category;
@@ -934,6 +935,7 @@ export const sanitizeProductForFirestore = (
     hasGrade,
     updatedAt,
     images: finalImagesList,
+    managedPhotos: product.managedPhotos !== undefined ? Boolean(product.managedPhotos) : (finalImagesList.length > 0 ? true : false),
     foto_uri: finalImagesList[0] || "",
     preco_venda: price,
     precoVista: precoVistaVal,
@@ -1517,6 +1519,18 @@ export const hasProductChanged = (
   if ((fresh as any).visible !== undefined && (fresh as any).visible !== existing.visible) return true;
   if ((fresh as any).newArrival !== undefined && (fresh as any).newArrival !== existing.newArrival) return true;
 
+  // 10. Imagens e Proteção de Fotos (Garante que fotos anexadas por link ou alteradas sejam salvas)
+  if ((fresh as any).managedPhotos !== undefined && (fresh as any).managedPhotos !== existing.managedPhotos) return true;
+
+  if (Array.isArray((fresh as any).images)) {
+    const freshImages = (fresh as any).images;
+    const existingImages = Array.isArray(existing.images) ? existing.images : [];
+    if (freshImages.length !== existingImages.length) return true;
+    for (let i = 0; i < freshImages.length; i++) {
+      if (freshImages[i] !== existingImages[i]) return true;
+    }
+  }
+
   return false;
 };
 
@@ -1530,18 +1544,36 @@ export const filterProductsRequiringSync = (
 ): MoblinkProduto[] => {
   const existingMap = new Map<string, Product>();
   existingProducts.forEach((p) => {
-    const key = String(p.id || p.moblinkId);
-    existingMap.set(key, p);
+    const rawId = String(p.id || '').trim();
+    const rawMobId = String(p.moblinkId || '').trim();
+    if (rawId) {
+      existingMap.set(rawId, p);
+      existingMap.set(rawId.replace(/^MOB-/, ''), p);
+      if (!rawId.startsWith('MOB-')) existingMap.set(`MOB-${rawId}`, p);
+    }
+    if (rawMobId) {
+      existingMap.set(rawMobId, p);
+      existingMap.set(rawMobId.replace(/^MOB-/, ''), p);
+      if (!rawMobId.startsWith('MOB-')) existingMap.set(`MOB-${rawMobId}`, p);
+    }
+    if (p.sku) {
+      existingMap.set(String(p.sku).trim(), p);
+    }
   });
 
   return freshMoblinkList.filter((freshItem) => {
-    const freshId = String(freshItem.id);
+    const freshId = String(freshItem.id).trim();
+    const cleanNumeric = freshId.replace(/^MOB-/, '');
+    const prefixed = freshId.startsWith('MOB-') ? freshId : `MOB-${freshId}`;
+    const freshSku = String((freshItem as any).codigo || freshItem.sku || '').trim();
     const stock = extractSaldoLojaMoblink(freshItem);
-    const hasGrade = hasProductValidGrade(freshItem);
 
     // Ignora produtos sem saldo em estoque
     if (stock <= 0) return false;
-    const existing = existingMap.get(freshId);
+    const existing = existingMap.get(freshId) ||
+                     existingMap.get(cleanNumeric) ||
+                     existingMap.get(prefixed) ||
+                     (freshSku ? existingMap.get(freshSku) : undefined);
     return hasProductChanged(existing, freshItem);
   });
 };
