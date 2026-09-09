@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useApp } from "../context/AppContext";
 import { Product } from "../types";
-import { Eye, Heart, ArrowRight, ArrowUpDown, Truck, CreditCard, RefreshCw, ShoppingBag, Sparkles, ChevronLeft, ChevronRight, Tag } from "lucide-react";
+import { Eye, Heart, ArrowRight, ArrowUpDown, Truck, CreditCard, RefreshCw, ShoppingBag, Sparkles, ChevronLeft, ChevronRight, Tag, Search, X } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { scrollToSectionWithOffset } from "../lib/scrollUtils";
 import { normalizeCategoryName, normalizeSubcategoryName, isProductInCategory } from "../services/moblinkCategoriesService";
@@ -12,6 +12,7 @@ import { getApplicablePromotion } from "../services/promotionsService";
 import { NO_PHOTO_SVG } from "../utils/placeholder";
 
 import { ProductCard, StorefrontProductCard } from "./products/storefront/StorefrontProductCard";
+import { StorefrontProductGrid } from "./products/storefront/StorefrontProductGrid";
 import { SubcategoryCarousel } from "./products/storefront/SubcategoryCarousel";
 import { matchProductSearch } from "./products/utils/productFilterUtils";
 
@@ -38,6 +39,7 @@ export const ProductList: React.FC = () => {
     setSelectedSubcategory,
     setSelectedMenuTab,
     searchQuery,
+    setSearchQuery,
     setCurrentView,
     setSelectedProduct,
     favorites = [],
@@ -287,12 +289,72 @@ export const ProductList: React.FC = () => {
       ref={catalogSectionRef}
       className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-16"
     >
-      {/* 1. SEÇÃO COMPRE POR CATEGORIA (CARROSSEL DESLIZANTE DE SUBCATEGORIAS EM ESTOQUE) */}
-      <SubcategoryCarousel
-        subcategories={activeSubcategoriesInStock}
-        theme={theme}
-        onSelectSubcategory={handleSelectSubcategoryItem}
-      />
+      {/* RESULTADOS DA BUSCA INTELIGENTE (QUANDO HOUVER TERMO DE PESQUISA DIGITADO) */}
+      {searchQuery && searchQuery.trim() ? (
+        <div className="space-y-6 pt-2">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-blue-900/10 dark:border-white/10">
+            <div className="space-y-1">
+              <div className="flex items-center space-x-2">
+                <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-[#006EDB]/10 text-[#006EDB] dark:bg-amber-400/10 dark:text-amber-300 border border-[#006EDB]/20">
+                  <Search className="w-3 h-3 stroke-[2.5]" />
+                  <span>Busca Inteligente</span>
+                </span>
+                <span className="text-xs font-bold text-slate-500">
+                  {matchingCatalog.length} {matchingCatalog.length === 1 ? 'produto encontrado' : 'produtos encontrados'}
+                </span>
+              </div>
+              <h2 className={`text-2xl sm:text-3xl font-black tracking-tight ${isDark ? 'text-white' : 'text-[#003B73]'}`}>
+                Resultados para <span className="text-[#006EDB] dark:text-amber-400">"{searchQuery.trim()}"</span>
+              </h2>
+            </div>
+
+            <div className="flex items-center space-x-3 shrink-0">
+              {/* Seletor de Ordenação */}
+              <div className="flex items-center space-x-2 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold">
+                <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as any)}
+                  className="bg-transparent focus:outline-none text-slate-700 dark:text-slate-200 cursor-pointer text-xs"
+                >
+                  <option value="relevant">Mais Relevantes</option>
+                  <option value="price-asc">Menor Preço</option>
+                  <option value="price-desc">Maior Preço</option>
+                  <option value="launches">Lançamentos</option>
+                </select>
+              </div>
+
+              {/* Botão de Limpar Busca */}
+              <button
+                type="button"
+                onClick={() => setSearchQuery?.('')}
+                className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold transition-all cursor-pointer"
+                title="Limpar pesquisa"
+              >
+                <X className="w-3.5 h-3.5" />
+                <span>Limpar</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Grid Dinâmica com Todos os Produtos Encontrados */}
+          <StorefrontProductGrid
+            products={sortedCatalog}
+            theme={theme}
+            favorites={favorites}
+            onToggleFavorite={toggleFavorite}
+            onViewDetails={handleVerDetalhes}
+            onResetFilters={() => setSearchQuery?.('')}
+          />
+        </div>
+      ) : (
+        <>
+          {/* 1. SEÇÃO COMPRE POR CATEGORIA (CARROSSEL DESLIZANTE DE SUBCATEGORIAS EM ESTOQUE) */}
+          <SubcategoryCarousel
+            subcategories={activeSubcategoriesInStock}
+            theme={theme}
+            onSelectSubcategory={handleSelectSubcategoryItem}
+          />
 
 
       {/* 1.5 SEÇÃO SALDÃO DE CALÇADOS (ESTOQUE BAIXO COM DESCONTO EM %) */}
@@ -795,6 +857,8 @@ export const ProductList: React.FC = () => {
           </div>
         </div>
       </div>
+      </>
+      )}
 
     </section>
   );

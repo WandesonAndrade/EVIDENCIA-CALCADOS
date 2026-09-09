@@ -32,7 +32,8 @@ export function getParentClassificationCode(classificacao?: string | number): st
 export function matchProductSearch(item: Product | any, searchQuery: string): boolean {
   if (!searchQuery || !searchQuery.trim()) return true;
 
-  const query = normalizeSearchTerm(searchQuery);
+  const rawQuery = searchQuery.trim();
+  const query = normalizeSearchTerm(rawQuery);
   const rawName = String(item.name || item.nome || item.descricao || '');
   const normName = normalizeSearchTerm(rawName);
 
@@ -54,16 +55,19 @@ export function matchProductSearch(item: Product | any, searchQuery: string): bo
   const mobId = normalizeSearchTerm(String(item.id || item.moblinkId || ''));
   if (mobId && mobId.includes(query)) return true;
 
-  // 4. Códigos de Referência Pai / Modelo
-  const modelCode = normalizeSearchTerm(String(item.modelCode || item.referenceCode || ''));
+  // 4. Códigos de Referência Pai / Modelo / Barcode
+  const modelCode = normalizeSearchTerm(String(item.modelCode || item.referenceCode || item.referencia || ''));
   if (modelCode && modelCode.includes(query)) return true;
+
+  const barcode = normalizeSearchTerm(String(item.barcode || ''));
+  if (barcode && barcode.includes(query)) return true;
 
   // 5. Marca do Produto
   const brand = normalizeSearchTerm(String(item.brand || item.marca || ''));
   if (brand && brand.includes(query)) return true;
 
   // 6. Descrição e Categorias
-  const desc = normalizeSearchTerm(String(item.description || item.compl_descr || ''));
+  const desc = normalizeSearchTerm(String(item.description || item.compl_descr || item.descricao_completa || ''));
   if (desc && desc.includes(query)) return true;
 
   const category = normalizeSearchTerm(String(item.category || item.categoria || item.nome_grupo || ''));
@@ -75,6 +79,40 @@ export function matchProductSearch(item: Product | any, searchQuery: string): bo
   // 7. Código de classificação ERP direto
   const classCode = String(item.classificacao || '').trim();
   if (classCode && classCode.includes(query)) return true;
+
+  // 8. Cor
+  const color = normalizeSearchTerm(String(item.color || item.cor || ''));
+  if (color && color.includes(query)) return true;
+
+  // 9. Numeração / Tamanho (ex: buscar "37" ou "tam 37")
+  if (/^\d{2}$/.test(rawQuery)) {
+    const sizeQuery = rawQuery;
+    if (Array.isArray(item.sizes) && item.sizes.some((s: any) => String(s).trim() === sizeQuery)) {
+      return true;
+    }
+    if (item.stockBySize && (item.stockBySize[sizeQuery] ?? 0) > 0) {
+      return true;
+    }
+    if (item.sizeStockMap && (item.sizeStockMap[sizeQuery] ?? 0) > 0) {
+      return true;
+    }
+  }
+
+  // 10. Busca multi-palavras / tokens (ex: "tenis olympikus", "rasteira 37")
+  const tokens = query.split(/\s+/).filter(Boolean);
+  if (tokens.length > 1) {
+    const fullText = `${normName} ${sku} ${mobId} ${modelCode} ${brand} ${desc} ${category} ${subcategory} ${color}`;
+    const allTokensMatch = tokens.every((token) => {
+      if (/^\d{2}$/.test(token)) {
+        const sizeMatches = (Array.isArray(item.sizes) && item.sizes.some((s: any) => String(s).trim() === token)) ||
+          (item.stockBySize && (item.stockBySize[token] ?? 0) > 0) ||
+          (item.sizeStockMap && (item.sizeStockMap[token] ?? 0) > 0);
+        if (sizeMatches) return true;
+      }
+      return fullText.includes(token);
+    });
+    if (allTokensMatch) return true;
+  }
 
   return false;
 }

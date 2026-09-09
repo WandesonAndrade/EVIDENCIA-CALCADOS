@@ -23,7 +23,9 @@ export class PaymentProcessor {
       // Futuro adapter do Novo Banco será retornado aqui quando ativado
     }
 
-    const provider = (import.meta.env.VITE_PAYMENT_PROVIDER || 'mercadopago').toLowerCase().trim();
+    const provider = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_PAYMENT_PROVIDER
+      ? import.meta.env.VITE_PAYMENT_PROVIDER
+      : 'mercadopago').toLowerCase().trim();
     switch (provider) {
       case 'mercadopago':
       default:

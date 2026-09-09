@@ -168,6 +168,7 @@ export const CategoryPage: React.FC = () => {
     setCurrentView, 
     setSelectedProduct,
     searchQuery,
+    setSearchQuery,
     theme,
     categories,
     favorites = [],
@@ -961,12 +962,21 @@ export const CategoryPage: React.FC = () => {
         )}
 
         {/* PÍLULAS DOS FILTROS ATIVOS PARA REMOÇÃO RÁPIDA */}
-        {hasActiveFilters && (
+        {(hasActiveFilters || Boolean(searchQuery && searchQuery.trim())) && (
           <div className="flex flex-wrap items-center gap-2 p-3 rounded-2xl bg-[#DDF1FF]/60 border border-blue-900/10">
             <span className="text-xs font-bold text-[#003B73] flex items-center space-x-1 mr-1">
               <Filter className="h-3.5 w-3.5 text-[#006EDB]" />
               <span>Filtros ativos:</span>
             </span>
+
+            {searchQuery && searchQuery.trim() && (
+              <span className="inline-flex items-center space-x-1 px-3 py-1 rounded-full bg-[#006EDB] text-white border border-[#006EDB] text-xs font-bold shadow-2xs">
+                <span>Busca: "{searchQuery.trim()}"</span>
+                <button onClick={() => setSearchQuery?.('')} className="hover:text-amber-200 cursor-pointer ml-1" title="Limpar busca">
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </span>
+            )}
 
             {selectedBrands.map(b => (
               <span key={b} className="inline-flex items-center space-x-1 px-3 py-1 rounded-full bg-white text-[#003B73] border border-blue-900/20 text-xs font-bold shadow-2xs">
