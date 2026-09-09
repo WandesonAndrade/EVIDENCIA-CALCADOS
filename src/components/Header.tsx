@@ -23,6 +23,7 @@ import {
   Sparkles,
   ChevronRight,
   Gift,
+  X,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { BrandLogo } from "./BrandLogo";
@@ -400,20 +401,53 @@ export const Header: React.FC = () => {
             {/* Barra de Pesquisa em Formato Pílula Translucida */}
             <div className="flex-1 max-w-xl mx-2 hidden sm:block">
               <div className="relative w-full">
+                <Search className={`absolute left-4 top-3.5 h-4 w-4 pointer-events-none transition-colors ${
+                  isDark ? "text-slate-400" : "text-white/80"
+                }`} />
                 <input
                   type="text"
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="O que você procura?"
-                  className={`w-full pl-6 pr-12 py-3 text-xs sm:text-sm rounded-full focus:outline-none transition-all border ${
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setSearchQuery(val);
+                    if (val.trim() && currentView !== "home" && currentView !== "category-page") {
+                      setCurrentView("home");
+                      setTimeout(() => {
+                        scrollToSectionWithOffset("catalog-products-section");
+                      }, 50);
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      if (currentView !== "home" && currentView !== "category-page") {
+                        setCurrentView("home");
+                      }
+                      setTimeout(() => {
+                        scrollToSectionWithOffset("catalog-products-section");
+                      }, 50);
+                    }
+                  }}
+                  placeholder="Buscar por Modelo (ex: Sound Kids), ID MobLink ou SKU..."
+                  className={`w-full pl-11 pr-10 py-3 text-xs sm:text-sm rounded-full focus:outline-none transition-all border ${
                     isDark
                       ? "bg-slate-900 border-slate-800 text-slate-100 placeholder-slate-400 focus:border-amber-400"
                       : "bg-white/15 border-white/25 text-white placeholder-white/75 focus:bg-white focus:text-neutral-900 focus:placeholder-neutral-400 focus:border-white shadow-inner"
                   }`}
                 />
-                <Search className={`absolute right-4 top-3.5 h-4 w-4 ${
-                  isDark ? "text-slate-400" : "text-white/80"
-                }`} />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery("")}
+                    className={`absolute right-3.5 top-3 p-0.5 rounded-full transition-colors cursor-pointer ${
+                      isDark
+                        ? "text-slate-400 hover:text-slate-200 hover:bg-slate-800"
+                        : "text-white/80 hover:text-white hover:bg-white/20"
+                    }`}
+                    title="Limpar busca"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
               </div>
             </div>
 
@@ -679,20 +713,49 @@ export const Header: React.FC = () => {
           {/* Campo de Busca no Mobile */}
           <div className="pb-3 sm:hidden">
             <div className="relative w-full">
+              <Search className={`absolute left-3 top-2.5 h-3.5 w-3.5 pointer-events-none ${
+                isDark ? "text-neutral-400" : "text-white/80"
+              }`} />
               <input
                 type="text"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="O que você procura?"
-                className={`w-full pl-4 pr-9 py-2 text-xs border rounded-full focus:outline-none transition-all ${
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setSearchQuery(val);
+                  if (val.trim() && currentView !== "home" && currentView !== "category-page") {
+                    setCurrentView("home");
+                    setTimeout(() => {
+                      scrollToSectionWithOffset("catalog-products-section");
+                    }, 50);
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    if (currentView !== "home" && currentView !== "category-page") {
+                      setCurrentView("home");
+                    }
+                    setTimeout(() => {
+                      scrollToSectionWithOffset("catalog-products-section");
+                    }, 50);
+                  }
+                }}
+                placeholder="Buscar por Modelo, ID MobLink ou SKU..."
+                className={`w-full pl-9 pr-9 py-2 text-xs border rounded-full focus:outline-none transition-all ${
                   isDark
                     ? "bg-slate-900 border-slate-800 text-slate-100 placeholder-slate-500"
                     : "bg-white/15 border-white/25 text-white placeholder-white/75 focus:bg-white focus:text-neutral-900 focus:placeholder-neutral-400"
                 }`}
               />
-              <Search className={`absolute right-3 top-2.5 h-3.5 w-3.5 ${
-                isDark ? "text-neutral-400" : "text-white/80"
-              }`} />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-3 top-2 text-white/80 hover:text-white p-0.5 rounded cursor-pointer"
+                  title="Limpar busca"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
             </div>
           </div>
 

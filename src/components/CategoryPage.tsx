@@ -27,6 +27,7 @@ import { normalizeCategoryName, normalizeSubcategoryName, isProductInCategory } 
 import { isSaldaoProduct } from '../services/saldaoService';
 import { getApplicablePromotion, isCampaignActive } from '../services/promotionsService';
 import { hasProductValidPhoto } from '../services/moblinkProductsService';
+import { matchProductSearch } from './products/utils/productFilterUtils';
 
 interface TabConfig {
   title: string;
@@ -379,11 +380,7 @@ export const CategoryPage: React.FC = () => {
   // PRODUTOS BASE QUE PERTENCEM À CATEGORIA OU SUBCATEGORIA ATIVA
   const baseCategoryItems = useMemo(() => {
     return products.filter((prod) => {
-      const matchesSearch = searchQuery 
-        ? prod.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-          prod.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          prod.category.toLowerCase().includes(searchQuery.toLowerCase())
-        : true;
+      const matchesSearch = matchProductSearch(prod, searchQuery);
       
       const isAvailable = (prod.stock !== undefined ? prod.stock > 0 : (prod.saldo_loja ?? 0) > 0);
       return prod.visible && isAvailable && hasProductValidPhoto(prod) && matchesSearch && config.filter(prod);
@@ -443,11 +440,7 @@ export const CategoryPage: React.FC = () => {
     const subMap = new Map<string, number>();
 
     products.filter(prod => {
-      const matchesSearch = searchQuery 
-        ? prod.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-          prod.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          prod.category.toLowerCase().includes(searchQuery.toLowerCase())
-        : true;
+      const matchesSearch = matchProductSearch(prod, searchQuery);
       const isAvailable = (prod.stock !== undefined ? prod.stock > 0 : (prod.saldo_loja ?? 0) > 0);
       return prod.visible && isAvailable && hasProductValidPhoto(prod) && matchesSearch && config.filter(prod);
     }).forEach(prod => {
