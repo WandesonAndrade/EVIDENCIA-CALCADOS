@@ -164,8 +164,13 @@ export const ProductList: React.FC = () => {
   }, [products, searchQuery]);
 
   const matchingCatalog = useMemo(() => {
+    // Quando houver busca ativa por texto livre, buscamos dinamicamente em TODO o catálogo ativo
+    // (igual à busca global do MobLink ERP), evitando que uma categoria ou subcategoria anterior oculte resultados válidos.
+    if (searchQuery && searchQuery.trim()) {
+      return baseFilteredProducts;
+    }
     return baseFilteredProducts.filter(matchesFilter);
-  }, [baseFilteredProducts, matchesFilter]);
+  }, [baseFilteredProducts, matchesFilter, searchQuery]);
 
   const sortedCatalog = useMemo(() => {
     const items = [...matchingCatalog];
