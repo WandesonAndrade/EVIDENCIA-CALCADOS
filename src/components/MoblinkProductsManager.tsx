@@ -22,6 +22,7 @@ import {
 } from '../services/moblinkProductsService';
 import { moblinkCategoriesService, normalizeCategoryName, normalizeSubcategoryName, isProductInCategory } from '../services/moblinkCategoriesService';
 import { getProdutoGradesFromApi } from '../services/moblinkGradesService';
+import { AdminProductsTable } from './products';
 import { db } from '../lib/firebase';
 import { doc, setDoc } from 'firebase/firestore';
 import { uploadImageToSupabase, isSupabaseConfigured, deleteImageFromSupabase, auditSupabaseVsFirebasePhotos, PhotoAuditReport, SupabaseAuditItem, syncProductMediaToSupabase, autoLinkSupabasePhotosToFirestore } from '../services/supabaseStorageService';
@@ -3024,248 +3025,36 @@ export const MoblinkProductsManager: React.FC = () => {
           </div>
         ) : (
           <div>
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="bg-slate-50/80 dark:bg-slate-900/60 border-b border-slate-200/60 dark:border-slate-800 text-slate-400 font-extrabold uppercase text-[9px] tracking-wider">
-                    <th className="p-4 w-10 text-center">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const pageMobIds = paginatedList.map(i => String(i.id || i.moblinkId || 'MOB-000'));
-                          const allSelected = pageMobIds.length > 0 && pageMobIds.every(id => selectedMobIds[id]);
-                          setSelectedMobIds(prev => {
-                            const next = { ...prev };
-                            pageMobIds.forEach(id => {
-                              if (allSelected) {
-                                delete next[id];
-                              } else {
-                                next[id] = true;
-                              }
-                            });
-                            return next;
-                          });
-                        }}
-                        className="p-1 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-500 cursor-pointer"
-                        title="Selecionar/Desselecionar todos os produtos desta página"
-                      >
-                        {paginatedList.length > 0 && paginatedList.every(i => selectedMobIds[String(i.id || i.moblinkId || 'MOB-000')]) ? (
-                          <CheckSquare className="h-4 w-4 text-[#0071E3]" />
-                        ) : (
-                          <Square className="h-4 w-4 text-slate-400" />
-                        )}
-                      </button>
-                    </th>
-                    <th className="p-4 text-left">Ref MobLink</th>
-                    <th className="p-4 text-left">Produto &amp; SKU</th>
-                    <th className="p-4 text-left">Indicador de Sincronização</th>
-                    <th className="p-4 text-left">Preço à Vista</th>
-                    <th className="p-4 text-left">Estoque Actual</th>
-                    <th className="p-4 text-left">Status de Mídia</th>
-                    <th className="p-4 text-right">Ação</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
-                  {paginatedList.map((item) => {
-                    const mobId = String(item.id || item.moblinkId || 'MOB-000');
-                    const existingDb = getExistingDbProduct(mobId);
-                    const isErpSynced = !item.isManual && (item.moblinkId || String(item.id).startsWith('MOB-') || true);
-                    const hasEnrichedMedia = Boolean(existingDb && existingDb.images && existingDb.images.length > 0);
-                    const hasMedia = hasEnrichedMedia || Boolean(item.foto_uri || item.foto_url || item.foto || item.imagem || item.image);
-
-                    const precoVista = extractPrecoVistaMoblink(item) || Number(item.preco_venda_fracao ?? item.preco_venda ?? item.preco ?? item.price ?? 0);
-                    const estoqueAtual = extractSaldoLojaMoblink(item);
-                    const isItemSelected = Boolean(selectedMobIds[mobId]);
-
-                    return (
-                      <tr 
-                        key={mobId}
-                        onClick={() => handleOpenEnrichmentForm(item)}
-                        className={`transition-all cursor-pointer group ${
-                          isItemSelected 
-                            ? 'bg-[#0071E3]/10 dark:bg-[#0071E3]/10' 
-                            : 'hover:bg-slate-50/80 dark:hover:bg-slate-800/40'
-                        }`}
-                      >
-                        {/* CHECKBOX SELEÇÃO */}
-                        <td className="p-4 text-center" onClick={(e) => e.stopPropagation()}>
-                          <input
-                            type="checkbox"
-                            checked={isItemSelected}
-                            onChange={() => toggleSelectProduct(mobId)}
-                            className="w-4 h-4 rounded text-[#0071E3] border-slate-300 focus:ring-[#0071E3] cursor-pointer"
-                          />
-                        </td>
-                        {/* ID MOBLINK PRIMARY KEY */}
-                        <td className="p-4">
-                          <span className="font-mono font-black text-xs px-3 py-1 bg-slate-100 dark:bg-slate-800 text-[#003B73] dark:text-blue-300 rounded-xl border border-slate-200 dark:border-slate-700">
-                            {mobId}
-                          </span>
-                        </td>
-
-                        {/* PRODUCT NAME, SKU & CATEGORY */}
-                        <td className="p-4">
-                          <p className="font-bold text-slate-900 dark:text-slate-100 text-xs group-hover:text-[#0071E3] dark:group-hover:text-blue-400 transition-colors">
-                            {item.nome || item.name || item.descricao}
-                          </p>
-                          <div className="flex items-center gap-2 mt-1 flex-wrap">
-                            <span className="text-[10px] text-slate-400 font-mono">SKU: {item.sku || mobId}</span>
-                            {(() => {
-                              const catInfo = extractClassificacaoCategoria(item);
-                              const classCode = catInfo.classificacao || String(item.classificacao || (item as any).id_grupo || (item as any).cod_classificacao || (item as any).classificacao_erp || '').trim() || (existingDb as any)?.classificacao || '002.001';
-                              const subcategory = resolveProductSubcategory(item, existingDb);
-                              const rawCat = item.categoria || item.category || item.nome_grupo || existingDb?.category || 'Calçados';
-                              const normCat = normalizeCategoryName(rawCat) || 'Calçados';
-
-                              return (
-                                <>
-                                  <span className="font-mono text-[9px] font-black px-2 py-0.5 bg-[#0071E3]/10 text-[#0071E3] dark:bg-blue-900/40 dark:text-blue-300 rounded-md border border-[#0071E3]/20 inline-flex items-center gap-1" title="Código de Classificação no MobLink ERP (ex: 002.001)">
-                                    <Layers className="h-2.5 w-2.5 text-[#0071E3] shrink-0" />
-                                    <span>Classif ERP: {classCode}</span>
-                                  </span>
-
-                                  <span className="text-[9px] px-2.5 py-0.5 bg-slate-100 dark:bg-slate-800/90 text-[#003B73] dark:text-slate-200 rounded-md font-extrabold border border-slate-200/60 dark:border-slate-700/60 inline-flex items-center gap-1">
-                                    <Tag className="h-2.5 w-2.5 text-[#0071E3] shrink-0" />
-                                    <span>{normCat}</span>
-                                    <span className="text-[#0071E3] dark:text-blue-400 font-black"> › {subcategory}</span>
-                                  </span>
-                                </>
-                              );
-                            })()}
-                            {(() => {
-                              const itemSizesStr = Array.isArray(item.tamanhos) && item.tamanhos.length > 0
-                                ? item.tamanhos.join(', ')
-                                : (Array.isArray(existingDb?.sizes) && existingDb.sizes.length > 0 ? existingDb.sizes.join(', ') : '');
-
-                              const isExplicitSingle = Boolean(itemSizesStr && ['UN', 'UNICA', 'ÚNICA', 'U', 'TAMANHO ÚNICO', 'UNICO', 'ÚNICO'].includes(itemSizesStr.trim().toUpperCase()));
-
-                              if (isExplicitSingle) {
-                                return (
-                                  <span className="text-[9px] font-bold px-2 py-0.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-md border border-emerald-500/20 inline-flex items-center gap-1">
-                                    <Sparkles className="h-2.5 w-2.5 text-emerald-500" />
-                                    Tamanho Único
-                                  </span>
-                                );
-                              }
-                              return null;
-                            })()}
-                            {Boolean(existingDb?.newArrival || (item as any)?.newArrival || item.newArrival) && (
-                              <span className="text-[9px] font-extrabold px-2 py-0.5 bg-purple-500/10 text-purple-600 dark:text-purple-300 rounded-md border border-purple-500/30 inline-flex items-center gap-1">
-                                <Sparkles className="h-2.5 w-2.5 text-purple-500" />
-                                Lançamento
-                              </span>
-                            )}
-                            {(() => {
-                              const itemHasGrade = hasProductValidGrade(item);
-
-                              if (itemHasGrade) {
-                                return (
-                                  <span className="text-[9px] font-extrabold px-2 py-0.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-md border border-emerald-500/30 inline-flex items-center gap-1">
-                                    <Layers className="h-2.5 w-2.5 text-emerald-500" />
-                                    ✓ Grade Ativa
-                                  </span>
-                                );
-                              }
-                              return (
-                                <span className="text-[9px] font-bold px-2 py-0.5 bg-slate-500/10 text-slate-600 dark:text-slate-400 rounded-md border border-slate-500/20 inline-flex items-center gap-1" title="Produto com estoque global ou tamanho único">
-                                  <Tag className="h-2.5 w-2.5 text-slate-400" />
-                                  Grade Livre / Única
-                                </span>
-                              );
-                            })()}
-                          </div>
-                        </td>
-
-                        {/* INDICADOR VISUAL DE SINCRONIZAÇÃO */}
-                        <td className="p-4">
-                          {hasEnrichedMedia ? (
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-extrabold bg-emerald-50 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300 border border-emerald-300/50" title="Preço e estoque sincronizados via ERP com mídias salvas pelo lojista">
-                              <ShieldCheck className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                              <span>Sincronizado MobLink + Lojista</span>
-                            </span>
-                          ) : isErpSynced ? (
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-extrabold bg-emerald-50 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300 border border-emerald-300/50" title="Dados direto da API oficial MobLink ERP">
-                              <Zap className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                              <span>Sincronizado MobLink</span>
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-extrabold bg-blue-50 text-blue-800 dark:bg-blue-950/70 dark:text-blue-300 border border-blue-200">
-                              <Edit3 className="h-3.5 w-3.5 text-[#0071E3]" />
-                              <span>Cadastro Manual</span>
-                            </span>
-                          )}
-                        </td>
-
-                        {/* PREÇO À VISTA */}
-                        <td className="p-4 font-black text-xs sm:text-sm text-[#003B73] dark:text-white">
-                          R$ {precoVista.toFixed(2).replace('.', ',')}
-                        </td>
-
-                        {/* ESTOQUE ATUAL (saldo_loja >= 0) */}
-                        <td className="p-4">
-                          {estoqueAtual > 0 ? (
-                            <span className="font-mono font-extrabold text-xs text-emerald-800 dark:text-emerald-300 bg-emerald-100/80 dark:bg-emerald-950/80 px-2.5 py-1 rounded-xl border border-emerald-300/50">
-                              {estoqueAtual} un
-                            </span>
-                          ) : (
-                            <span className="font-mono font-extrabold text-xs text-rose-800 dark:text-rose-300 bg-rose-100/80 dark:bg-rose-950/80 px-2.5 py-1 rounded-xl border border-rose-300/50">
-                              Esgotado (0)
-                            </span>
-                          )}
-                        </td>
-
-                        {/* MEDIA STATUS BADGE */}
-                        <td className="p-4">
-                          {hasMedia ? (
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-extrabold bg-[#DDF1FF] text-[#003B73] dark:bg-blue-950/70 dark:text-blue-200 border border-[#006EDB]/20">
-                              <CheckCircle2 className="h-3.5 w-3.5 text-[#006EDB]" />
-                              <span>Com Fotos ({existingDb?.images?.length || 1})</span>
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-extrabold bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20">
-                              <AlertCircle className="h-3.5 w-3.5 text-amber-500" />
-                              <span>Pendente</span>
-                            </span>
-                          )}
-                        </td>
-
-                        {/* ACTIONS */}
-                        <td className="p-4 text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleOpenEnrichmentForm(item);
-                              }}
-                              className="px-4 py-2 bg-[#0071E3] hover:bg-[#00509E] text-white font-extrabold rounded-xl text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95 shrink-0"
-                              title="Editar nome, preço, estoque, mídias e descrição"
-                            >
-                              <Edit3 className="h-3.5 w-3.5" />
-                              <span>Editar</span>
-                            </button>
-
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (window.confirm(`Tem certeza que deseja excluir o produto "${item.nome || item.name || mobId}"?`)) {
-                                  deleteProduct(mobId);
-                                  setMoblinkList(prev => prev.filter(p => String(p.id || p.moblinkId) !== mobId));
-                                }
-                              }}
-                              className="p-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/20 rounded-lg text-xs font-bold transition-all cursor-pointer"
-                              title="Excluir produto do catálogo"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            <AdminProductsTable
+              products={paginatedList}
+              selectedMobIds={selectedMobIds}
+              onToggleSelectProduct={toggleSelectProduct}
+              onToggleSelectAll={() => {
+                const pageMobIds = paginatedList.map(i => String(i.id || i.moblinkId || 'MOB-000'));
+                const allSelected = pageMobIds.length > 0 && pageMobIds.every(id => selectedMobIds[id]);
+                setSelectedMobIds(prev => {
+                  const next = { ...prev };
+                  pageMobIds.forEach(id => {
+                    if (allSelected) {
+                      delete next[id];
+                    } else {
+                      next[id] = true;
+                    }
+                  });
+                  return next;
+                });
+              }}
+              onEditProduct={handleOpenEnrichmentForm}
+              onDeleteProduct={(mobId) => {
+                const item = paginatedList.find(p => String(p.id || p.moblinkId) === mobId);
+                if (window.confirm(`Tem certeza que deseja excluir o produto "${item?.nome || item?.name || mobId}"?`)) {
+                  deleteProduct(mobId);
+                  setMoblinkList(prev => prev.filter(p => String(p.id || p.moblinkId) !== mobId));
+                }
+              }}
+              getExistingDbProduct={getExistingDbProduct}
+              resolveSubcategory={resolveProductSubcategory}
+            />
 
             {/* CONTROLES DE PAGINAÇÃO DA TABELA */}
             {totalPages > 1 && (

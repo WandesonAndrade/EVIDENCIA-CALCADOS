@@ -11,193 +11,11 @@ import { isSaldaoProduct, getSaldaoProductPrice } from "../services/saldaoServic
 import { getApplicablePromotion } from "../services/promotionsService";
 import { NO_PHOTO_SVG } from "../utils/placeholder";
 
-interface ProductCardProps {
-  product: Product;
-  theme: string;
-  isFavorite: boolean;
-  onToggleFavorite: (id: string) => void;
-  onViewDetails: (product: Product) => void;
-}
+import { ProductCard, StorefrontProductCard } from "./products/storefront/StorefrontProductCard";
+import { SubcategoryCarousel } from "./products/storefront/SubcategoryCarousel";
+import { matchProductSearch } from "./products/utils/productFilterUtils";
 
-const ProductCardComponent: React.FC<ProductCardProps> = ({
-  product,
-  theme,
-  isFavorite,
-  onToggleFavorite,
-  onViewDetails,
-}) => {
-  const { saldaoConfig, promotions = [] } = useApp();
-  const isDark = theme === "dark";
-  const saldaoCalc = getSaldaoProductPrice(product, saldaoConfig);
-  const applicablePromo = getApplicablePromotion(product, promotions);
-
-  let mainPrice = saldaoCalc.price;
-  let originalPrice = saldaoCalc.isSaldao
-    ? saldaoCalc.originalPrice
-    : product.originalPrice && product.originalPrice > product.price
-      ? product.originalPrice
-      : null;
-
-  if (!saldaoCalc.isSaldao && applicablePromo) {
-    mainPrice = applicablePromo.promoPrice;
-    originalPrice = applicablePromo.originalPrice;
-  }
-
-  const discountPercent = saldaoCalc.isSaldao
-    ? saldaoCalc.discountPercent
-    : applicablePromo
-      ? (applicablePromo.campaign.discountType === 'percentage'
-          ? applicablePromo.campaign.discountValue
-          : (originalPrice ? Math.round(((originalPrice - mainPrice) / originalPrice) * 100) : 0))
-      : originalPrice
-        ? Math.round(((originalPrice - mainPrice) / originalPrice) * 100)
-        : 0;
-
-  const pixPrice = (saldaoCalc.isSaldao || applicablePromo) 
-    ? mainPrice.toFixed(2).replace(".", ",") 
-    : (mainPrice * 0.9).toFixed(2).replace(".", ",");
-  const parcelas = 6;
-  const valorParcela = (mainPrice / parcelas).toFixed(2).replace(".", ",");
-
-  return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, y: 15 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.95 }}
-      whileHover={{ y: -6 }}
-      transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-      className={`group relative flex flex-col justify-between h-full rounded-3xl border transition-all duration-300 overflow-hidden cursor-pointer ${
-        isDark
-          ? "bg-[#101828]/90 border-white/12 text-white hover:border-blue-400/40 hover:shadow-2xl hover:shadow-blue-950/80 backdrop-blur-md"
-          : "bg-white border border-blue-900/10 text-[#003B73] shadow-md shadow-blue-900/5 hover:border-[#006EDB] hover:shadow-xl hover:shadow-blue-900/15"
-      }`}
-      onClick={() => onViewDetails(product)}
-    >
-      {/* Moldura da Foto do Calçado */}
-      <div className={`relative aspect-square w-full overflow-hidden p-6 flex items-center justify-center border-b transition-colors ${
-        isDark 
-          ? "bg-[#18233a] border-white/5" 
-          : "bg-[#EEF8FF] border-blue-900/5 group-hover:bg-[#DDF1FF]"
-      }`}>
-        <img
-          src={
-            (product.images && product.images.length > 0 && product.images[0]) ||
-            product.foto_uri ||
-            product.imageUrl ||
-            (product.colorImages && typeof product.colorImages === 'object' && Object.values(product.colorImages).flat().filter(Boolean)[0]) ||
-            (product.colorImageMap && typeof product.colorImageMap === 'object' && Object.values(product.colorImageMap).filter(Boolean)[0]) ||
-            NO_PHOTO_SVG
-          }
-          alt={product.name}
-          className="w-full h-full object-contain drop-shadow-md group-hover:drop-shadow-xl group-hover:scale-106 transition-all duration-500 ease-out"
-          loading="lazy"
-          decoding="async"
-        />
-
-        {/* Badges no Canto Superior Esquerdo */}
-        <div className="absolute top-3.5 left-3.5 flex flex-col gap-1 z-10">
-          {saldaoCalc.isSaldao ? (
-            <span className="px-2.5 py-1 text-[10px] font-black text-white bg-gradient-to-r from-rose-600 to-amber-500 rounded-full shadow-md uppercase tracking-wider animate-pulse flex items-center gap-1">
-              🔥 SALDÃO -{saldaoCalc.discountPercent}%
-            </span>
-          ) : applicablePromo ? (
-            <span className="px-2.5 py-1 text-[10px] font-black text-slate-950 bg-gradient-to-r from-amber-400 to-amber-500 rounded-full shadow-md uppercase tracking-wider animate-bounce flex items-center gap-1">
-              🏷️ {applicablePromo.discountLabel}
-            </span>
-          ) : discountPercent > 0 ? (
-            <span className="px-2.5 py-0.5 text-[10px] font-bold text-white bg-[#e30000] rounded-full shadow-xs uppercase tracking-wider">
-              -{discountPercent}% OFF
-            </span>
-          ) : (
-            <span className="px-2.5 py-0.5 text-[10px] font-bold text-white bg-[#006EDB] rounded-full shadow-xs uppercase tracking-wider">
-              Novo
-            </span>
-          )}
-        </div>
-
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggleFavorite(product.id);
-          }}
-          className={`absolute top-3.5 right-3.5 p-2 rounded-full border transition-all z-10 cursor-pointer ${
-            isFavorite
-              ? "bg-rose-500 border-rose-500 text-white shadow-md"
-              : isDark
-                ? "bg-slate-900/80 border-white/10 text-slate-400 hover:text-white hover:bg-slate-800"
-                : "bg-white/90 border-blue-900/10 text-[#52708F] hover:text-rose-500 hover:bg-white"
-          }`}
-          title={isFavorite ? "Remover dos favoritos" : "Adicionar aos favoritos"}
-        >
-          <Heart className={`w-4 h-4 ${isFavorite ? "fill-white" : ""}`} />
-        </button>
-      </div>
-
-      {/* Informações do Produto */}
-      <div className="p-4 sm:p-5 flex flex-col justify-between flex-1 space-y-3">
-        <div className="space-y-1.5">
-          <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#52708F]">
-            {product.category || "Evidência Calçados"}
-          </span>
-
-          {/* Título: Azul Escuro #00509E */}
-          <h3 className={`text-sm font-bold tracking-tight line-clamp-2 min-h-[40px] leading-snug ${
-            isDark ? "text-slate-100" : "text-[#00509E]"
-          }`}>
-            {product.name}
-          </h3>
-
-          {/* Matriz de Preços: Preço em Destaque Conforme Saldão/Oferta/Regular */}
-          <div className="space-y-1 pt-1">
-            <div className="space-y-0.5">
-              <div className="flex items-center space-x-1.5 flex-wrap">
-                <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md border ${
-                  saldaoCalc.isSaldao 
-                    ? "text-rose-800 dark:text-rose-300 bg-rose-100 dark:bg-rose-950/80 border-rose-300/50" 
-                    : applicablePromo 
-                      ? "text-amber-900 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/80 border-amber-300/50" 
-                      : "text-emerald-800 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/80 border-emerald-300/50"
-                }`}>
-                  {saldaoCalc.isSaldao 
-                    ? `Saldão (${saldaoCalc.discountPercent}% OFF)` 
-                    : applicablePromo 
-                      ? `Oferta (${applicablePromo.discountLabel} OFF)` 
-                      : 'À Vista no PIX (-10%)'}
-                </span>
-                {originalPrice && (
-                  <span className="text-xs line-through text-[#52708F]">
-                    R$ {originalPrice.toFixed(2).replace(".", ",")}
-                  </span>
-                )}
-              </div>
-              <div className="flex items-baseline space-x-1.5">
-                <span className={`text-2xl sm:text-3xl font-black tracking-tight ${isDark ? "text-white" : "text-[#003B73]"}`}>
-                  R$ {pixPrice}
-                </span>
-              </div>
-            </div>
-
-            {/* Preço Parcelado / Regular Secundário */}
-            <p className="text-xs text-[#52708F] font-medium pt-0.5">
-              ou <strong className={isDark ? "text-slate-200" : "text-[#003B73]"}>R$ {mainPrice.toFixed(2).replace(".", ",")}</strong> em até <strong className={isDark ? "text-slate-200" : "text-[#003B73]"}>{parcelas}x de R$ {valorParcela}</strong> s/ juros
-            </p>
-          </div>
-        </div>
-
-        {/* Botão Comprar: Principal #006EDB hover #00509E */}
-        <div className="pt-1">
-          <button className="w-full py-2.5 px-4 rounded-full bg-[#006EDB] hover:bg-[#00509E] active:scale-[0.98] text-white text-xs font-extrabold tracking-wide transition-all shadow-xs flex items-center justify-center space-x-1.5 cursor-pointer">
-            <span>Comprar</span>
-            <ArrowRight className="w-3.5 h-3.5 stroke-[2.5]" />
-          </button>
-        </div>
-      </div>
-    </motion.div>
-  );
-};
-
-export const ProductCard = React.memo(ProductCardComponent);
+export { ProductCard, StorefrontProductCard };
 
 // 8 Categorias da Linha 'Compre por Categoria'
 const ESSENTIAL_CATEGORIES = [
@@ -230,15 +48,7 @@ export const ProductList: React.FC = () => {
 
   const [sortBy, setSortBy] = useState<"relevant" | "price-asc" | "price-desc" | "launches">("relevant");
   const catalogSectionRef = useRef<HTMLElement | null>(null);
-  const subcatCarouselRef = useRef<HTMLDivElement | null>(null);
   const isDark = theme === "dark";
-
-  const scrollSubcatCarousel = (direction: 'left' | 'right') => {
-    if (subcatCarouselRef.current) {
-      const scrollAmount = direction === 'left' ? -320 : 320;
-      subcatCarouselRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' });
-    }
-  };
 
   // Subcategorias dinâmicas extraídas prioritariamente dos produtos COM ESTOQUE DISPONÍVEL E FOTO VÁLIDA
   const activeSubcategoriesInStock = useMemo(() => {
@@ -346,14 +156,8 @@ export const ProductList: React.FC = () => {
 
   const baseFilteredProducts = useMemo(() => {
     return products.filter((prod) => {
-      const query = searchQuery.toLowerCase();
-      const matchesSearch =
-        prod.name.toLowerCase().includes(query) ||
-        prod.description.toLowerCase().includes(query) ||
-        (prod.nome_grupo && prod.nome_grupo.toLowerCase().includes(query)) ||
-        prod.category.toLowerCase().includes(query);
       const isAvailable = (prod.stock !== undefined ? prod.stock > 0 : (prod.saldo_loja ?? 0) > 0);
-      return matchesSearch && prod.visible && isAvailable && hasProductValidPhoto(prod);
+      return prod.visible && isAvailable && hasProductValidPhoto(prod) && matchProductSearch(prod, searchQuery);
     });
   }, [products, searchQuery]);
 
@@ -484,82 +288,11 @@ export const ProductList: React.FC = () => {
       className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-16"
     >
       {/* 1. SEÇÃO COMPRE POR CATEGORIA (CARROSSEL DESLIZANTE DE SUBCATEGORIAS EM ESTOQUE) */}
-      <div className="space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 border-b pb-3 border-blue-900/10 dark:border-white/10">
-          <div>
-            <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-widest bg-[#DDF1FF] text-[#003B73] dark:bg-blue-900/30 dark:text-blue-200 border border-[#006EDB]/20 mb-1.5">
-              Navegação Rápida
-            </span>
-            <h2 className={`text-2xl sm:text-3xl font-black tracking-tight ${isDark ? "text-white" : "text-[#003B73]"}`}>
-              Compre por Categoria
-            </h2>
-            <p className={`text-xs sm:text-sm font-medium mt-0.5 ${isDark ? "text-slate-400" : "text-[#52708F]"}`}>
-              Subcategorias com modelos em estoque pronto para entrega imediata.
-            </p>
-          </div>
-
-          <div className="flex items-center space-x-2 shrink-0">
-            <button
-              onClick={() => scrollSubcatCarousel('left')}
-              className={`p-2.5 rounded-full border transition-all cursor-pointer ${
-                isDark ? 'bg-slate-900 border-slate-800 text-white hover:bg-slate-800' : 'bg-white border-blue-900/15 text-[#003B73] hover:bg-[#DDF1FF] shadow-xs'
-              }`}
-              title="Anterior"
-            >
-              <ChevronLeft className="h-4 w-4 stroke-[2.5]" />
-            </button>
-            <button
-              onClick={() => scrollSubcatCarousel('right')}
-              className={`p-2.5 rounded-full border transition-all cursor-pointer ${
-                isDark ? 'bg-slate-900 border-slate-800 text-white hover:bg-slate-800' : 'bg-white border-blue-900/15 text-[#003B73] hover:bg-[#DDF1FF] shadow-xs'
-              }`}
-              title="Próximo"
-            >
-              <ChevronRight className="h-4 w-4 stroke-[2.5]" />
-            </button>
-          </div>
-        </div>
-
-        {/* Carrossel Deslizante de Subcategorias */}
-        <div
-          ref={subcatCarouselRef}
-          className="flex items-center space-x-3.5 sm:space-x-4 overflow-x-auto no-scrollbar scroll-smooth py-2 px-0.5"
-        >
-          {/* Subcategorias Dinâmicas em Estoque (Item 5 Especificação) */}
-          {activeSubcategoriesInStock.map((sub) => (
-            <div
-              key={sub.id}
-              onClick={() => handleSelectSubcategoryItem(sub.name)}
-              className={`group flex-shrink-0 min-w-[130px] sm:min-w-[150px] max-w-[170px] flex flex-col items-center p-3.5 rounded-2xl border transition-all duration-300 cursor-pointer text-center select-none ${
-                isDark
-                  ? 'bg-[#101828]/90 border-white/10 text-white hover:bg-[#006EDB] hover:border-[#006EDB] hover:shadow-lg backdrop-blur-md'
-                  : 'bg-white border-blue-900/10 text-[#003B73] shadow-md hover:bg-[#006EDB] hover:text-white hover:border-[#006EDB] hover:shadow-xl'
-              }`}
-            >
-              <div className="w-16 h-16 sm:w-20 sm:h-20 mb-2 overflow-hidden flex items-center justify-center rounded-xl p-1 bg-[#EEF8FF] group-hover:bg-white/20 transition-colors">
-                <img
-                  src={sub.image}
-                  alt={sub.name}
-                  className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-300"
-                  loading="lazy"
-                />
-              </div>
-              
-              <span className={`text-xs font-bold line-clamp-1 transition-colors ${
-                isDark ? 'text-slate-200 group-hover:text-white' : 'text-[#003B73] group-hover:text-white'
-              }`}>
-                {normalizeSubcategoryName(sub.name) || normalizeCategoryName(sub.name)}
-              </span>
-
-              <span className={`text-[10px] font-semibold mt-0.5 transition-colors ${
-                isDark ? 'text-slate-400 group-hover:text-blue-100' : 'text-[#52708F] group-hover:text-[#DDF1FF]'
-              }`}>
-                {sub.itemCount} {sub.itemCount === 1 ? 'modelo' : 'modelos'}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
+      <SubcategoryCarousel
+        subcategories={activeSubcategoriesInStock}
+        theme={theme}
+        onSelectSubcategory={handleSelectSubcategoryItem}
+      />
 
 
       {/* 1.5 SEÇÃO SALDÃO DE CALÇADOS (ESTOQUE BAIXO COM DESCONTO EM %) */}

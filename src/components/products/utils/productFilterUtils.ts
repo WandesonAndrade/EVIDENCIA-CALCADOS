@@ -1,0 +1,202 @@
+import { Product } from '../../../types';
+import { extractBaseNameAndVariant } from '../../../services/moblinkProductsService';
+import { normalizeCategoryName, normalizeSubcategoryName, isProductInCategory } from '../../../services/moblinkCategoriesService';
+import { hasProductValidPhoto } from '../../../utils/photoUtils';
+
+/**
+ * Remove acentos e normaliza texto para busca insensível
+ */
+export function normalizeSearchTerm(str: string = ''): string {
+  return str
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+}
+
+/**
+ * Extrai o código do grupo pai da classificação ERP (ex: "001" de "001.002")
+ */
+export function getParentClassificationCode(classificacao?: string | number): string {
+  if (!classificacao) return '';
+  const clean = String(classificacao).replace(/\s+/g, '').trim();
+  if (!clean) return '';
+  const parts = clean.split('.');
+  return parts[0] ? parts[0].trim() : '';
+}
+
+/**
+ * Verifica se um produto atende a uma consulta de busca por texto livre (nome, modelo base, SKU, ID, marca, etc.)
+ * Essa lógica unificada replica a precisão do painel administrativo.
+ */
+export function matchProductSearch(item: Product | any, searchQuery: string): boolean {
+  if (!searchQuery || !searchQuery.trim()) return true;
+
+  const query = normalizeSearchTerm(searchQuery);
+  const rawName = String(item.name || item.nome || item.descricao || '');
+  const normName = normalizeSearchTerm(rawName);
+
+  // 1. Nome direto do produto
+  if (normName.includes(query)) return true;
+
+  // 2. Modelo Base (ex: "Sound Kids" extraído de "TENIS SOUND KIDS PRETO/VERM")
+  try {
+    const { baseName } = extractBaseNameAndVariant(rawName);
+    if (normalizeSearchTerm(baseName).includes(query)) return true;
+  } catch {
+    // Fallback silencioso
+  }
+
+  // 3. Identificadores SKU, ID MobLink e ID do Firestore
+  const sku = normalizeSearchTerm(String(item.sku || ''));
+  if (sku && sku.includes(query)) return true;
+
+  const mobId = normalizeSearchTerm(String(item.id || item.moblinkId || ''));
+  if (mobId && mobId.includes(query)) return true;
+
+  // 4. Códigos de Referência Pai / Modelo
+  const modelCode = normalizeSearchTerm(String(item.modelCode || item.referenceCode || ''));
+  if (modelCode && modelCode.includes(query)) return true;
+
+  // 5. Marca do Produto
+  const brand = normalizeSearchTerm(String(item.brand || item.marca || ''));
+  if (brand && brand.includes(query)) return true;
+
+  // 6. Descrição e Categorias
+  const desc = normalizeSearchTerm(String(item.description || item.compl_descr || ''));
+  if (desc && desc.includes(query)) return true;
+
+  const category = normalizeSearchTerm(String(item.category || item.categoria || item.nome_grupo || ''));
+  if (category && category.includes(query)) return true;
+
+  const subcategory = normalizeSearchTerm(String(item.subcategory || item.subcategoria || item.nome_subgrupo || ''));
+  if (subcategory && subcategory.includes(query)) return true;
+
+  // 7. Código de classificação ERP direto
+  const classCode = String(item.classificacao || '').trim();
+  if (classCode && classCode.includes(query)) return true;
+
+  return false;
+}
+
+/**
+ * Validação de Categoria com suporte à taxonomia ERP e Firestore
+ */
+export function matchProductCategory(
+  product: Product,
+  selectedCategory: string,
+  dbCategories: any[] = []
+): boolean {
+  if (!selectedCategory || selectedCategory === 'TODOS' || selectedCategory === 'Todos') {
+    return true;
+  }
+
+  const target = selectedCategory.trim().toUpperCase();
+  let targetCode = '';
+
+  const matchedCat = (dbCategories || []).find(
+    (c) =>
+      c.id === target ||
+      (c.code && c.code === target) ||
+      c.name.toUpperCase().trim() === target ||
+      normalizeCategoryName(c.name).toUpperCase().trim() === normalizeCategoryName(target)
+  );
+
+  if (matchedCat) {
+    targetCode = matchedCat.code || matchedCat.id;
+  } else if (/^\d+$/.test(target)) {
+    targetCode = target;
+  }
+
+  const pParentCode = getParentClassificationCode(product.classificacao);
+  if (targetCode && pParentCode && pParentCode === targetCode) {
+    return true;
+  }
+
+  return isProductInCategory(product, selectedCategory);
+}
+
+/**
+ * Validação de Subcategoria com normalização flexível
+ */
+export function matchProductSubcategory(
+  product: Product,
+  selectedSubcategory: string
+): boolean {
+  if (!selectedSubcategory || selectedSubcategory === 'TODAS' || selectedSubcategory === 'TODOS' || selectedSubcategory === 'Todas') {
+    return true;
+  }
+
+  const targetSub = selectedSubcategory.trim().toUpperCase();
+  const normTargetSub = normalizeSubcategoryName(targetSub).toUpperCase();
+
+  const subgrupoRaw = String(product.nome_subgrupo || product.subcategory || '').toUpperCase().trim();
+  const normSubRaw = normalizeSubcategoryName(subgrupoRaw).toUpperCase();
+  const nameRaw = String(product.name || '').toUpperCase();
+
+  return subgrupoRaw.includes(targetSub) || normSubRaw.includes(normTargetSub) || nameRaw.includes(targetSub);
+}
+
+export interface StorefrontFilterOptions {
+  searchQuery?: string;
+  selectedCategory?: string;
+  selectedSubcategory?: string;
+  sortBy?: 'relevant' | 'price-asc' | 'price-desc' | 'launches';
+  dbCategories?: any[];
+}
+
+/**
+ * Executa a filtragem completa dos produtos para a vitrine/loja com verificação de estoque e fotos reais
+ */
+export function filterStorefrontProducts(
+  products: Product[] = [],
+  options: StorefrontFilterOptions = {}
+): Product[] {
+  const {
+    searchQuery = '',
+    selectedCategory = 'TODOS',
+    selectedSubcategory = 'TODAS',
+    sortBy = 'relevant',
+    dbCategories = [],
+  } = options;
+
+  const filtered = products.filter((prod) => {
+    if (!prod) return false;
+
+    // Regra rígida do e-commerce: apenas produtos visíveis, com estoque real e foto válida
+    const isAvailable = prod.stock !== undefined ? prod.stock > 0 : (prod.saldo_loja ?? 0) > 0;
+    if (!prod.visible || !isAvailable || !hasProductValidPhoto(prod)) {
+      return false;
+    }
+
+    // Busca textual inteligente (nome, modelo base, SKU, marca, etc.)
+    if (!matchProductSearch(prod, searchQuery)) {
+      return false;
+    }
+
+    // Filtro de Categoria
+    if (!matchProductCategory(prod, selectedCategory, dbCategories)) {
+      return false;
+    }
+
+    // Filtro de Subcategoria
+    if (!matchProductSubcategory(prod, selectedSubcategory)) {
+      return false;
+    }
+
+    return true;
+  });
+
+  // Ordenação dos itens resultantes
+  if (sortBy === 'price-asc') {
+    return filtered.sort((a, b) => a.price - b.price);
+  }
+  if (sortBy === 'price-desc') {
+    return filtered.sort((a, b) => b.price - a.price);
+  }
+  if (sortBy === 'launches') {
+    return filtered.sort((a, b) => (b.newArrival ? 1 : 0) - (a.newArrival ? 1 : 0));
+  }
+
+  return filtered;
+}
