@@ -114,7 +114,7 @@ export const HeaderLiveSearch: React.FC<HeaderLiveSearchProps> = ({ isMobile = f
           onFocus={() => setIsFocused(true)}
           onChange={(e) => setSearchQuery(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder={isMobile ? 'Buscar por Modelo, MobLink ou SKU...' : 'Buscar por Modelo (ex: Sound Kids), ID MobLink ou SKU...'}
+          placeholder={isMobile ? 'O que você procura?' : 'O que você procura? (ex: sandália, tênis, rasteira...)'}
           className={`w-full focus:outline-none transition-all border ${
             isMobile
               ? 'pl-9 pr-9 py-2 text-xs rounded-full'
@@ -172,7 +172,7 @@ export const HeaderLiveSearch: React.FC<HeaderLiveSearchProps> = ({ isMobile = f
                   <Zap className="h-3.5 w-3.5 stroke-[2.5]" />
                 </span>
                 <span className="font-extrabold text-[11px] tracking-tight text-slate-700 dark:text-slate-200">
-                  Busca Dinâmica MobLink
+                  Sugestões da Vitrine
                 </span>
               </div>
               <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
@@ -265,7 +265,7 @@ export const HeaderLiveSearch: React.FC<HeaderLiveSearchProps> = ({ isMobile = f
                   Nenhum produto encontrado para "{searchQuery.trim()}"
                 </p>
                 <p className="text-[11px] text-slate-400 max-w-xs mx-auto leading-relaxed">
-                  Tente buscar pelo modelo (ex: Sound Kids), ID MobLink, SKU ou numeração (ex: 37).
+                  Tente buscar pelo modelo (ex: Sound Kids), marca, categoria ou numeração (ex: 37).
                 </p>
               </div>
             )}
