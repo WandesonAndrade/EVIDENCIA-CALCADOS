@@ -8,11 +8,13 @@ Este documento centraliza todas as regras de negócio, decisões de arquitetura,
 - **Frontend:** React 19 + TypeScript + Vite.
 - **Estilização:** Tailwind CSS (Estética Premium "Apple-like", limpa, com muito respiro, cantos arredondados padrão Apple `rounded-2xl` e `rounded-3xl`, sombras ultra-leves e grid de 8pt).
 - **Cores da Marca e Destaque:** 
-  - Azul Apple (`#0071E3` / `#0A84FF`) para elementos de status ativo, foco, CTAs de pedidos e rastreamento.
+  - Azul Institucional Evidência (`#003B73` / `#006EDB` / `#008CFF`) para âncoras visuais, cabeçalhos, banners de alto impacto e estados primários.
+  - Azul Apple (`#0071E3` / `#0A84FF`) para status ativos, foco e CTAs de pedidos.
   - Verde Esmeralda (`emerald-600`) para badges de confirmação, frete grátis e ações de sucesso.
+  - Âmbar / Dourado (`amber-400` / `#FFC928`) para badges de campanhas de ofertas, saldão e destaques promocionais.
   - Roxo Suave (`purple-600` / `purple-400`) para a modalidade exclusiva de "Retirada na Loja".
 - **Backend / BaaS:** Firebase (Authentication e Cloud Firestore para banco de dados em tempo real, produtos, carrinho, pedidos e crediário).
-- **Backend Proxy (Node.js/Express):** Arquivo `server.ts` configurado para lidar com integrações externas e segurança (ex: proxy `/mp-api/payments` para evitar CORS no Mercado Pago, auditoria e webhooks).
+- **Backend Proxy (Node.js/Express):** Arquivo `server.ts` configurado para lidar com integrações externas e segurança (ex: proxy `/mp-api/payments` para evitar CORS no Mercado Pago, cotação de frete e webhooks).
 
 ---
 
@@ -38,7 +40,7 @@ Este documento centraliza todas as regras de negócio, decisões de arquitetura,
 - **Formas de Pagamento no Checkout:**
   - O checkout online aceita **estritamente apenas Cartão de Crédito e PIX**.
   - **Pix:** QR Code dinâmico e Pix Copia e Cola gerados via Mercado Pago, com verificação e conciliação em tempo real.
-  - **Cartão de Crédito:** Processamento seguro tokenizado via Mercado Pago SDK v2 com suporte a parcelamento sem juros.
+  - **Cartão de Crédito:** Processamento seguro tokenizado via Mercado Pago SDK v2 com suporte a parcelamento em até 10x sem juros.
   - **Desacoplamento do Crediário:** O Crediário Próprio não é mais uma opção tradicional de pagamento no checkout. Possui módulo dedicado para avaliação de limite e solicitação de compra via carrinho (`/meu-crediario`).
   - **Rastreabilidade Bancária:** O ID da transação (`paymentId`) é gravado no pedido para consulta e conciliação bancária.
 
@@ -77,7 +79,7 @@ Este documento centraliza todas as regras de negócio, decisões de arquitetura,
 
 ### D. Emissão de Etiquetas, Rastreamento em Tempo Real e Eliminação de Código Morto
 - **Etiqueta Local (Romaneio Próprio):** Permitida exclusivamente para entregas municipais da própria loja (Caxias urbana).
-- **Melhor Envio:** Quando a integração externa com Melhor Envio falhar (saldo insuficiente, erro de API ou CEP não atendido), o sistema **nunca emite etiqueta local como fallback disfarçado**. O erro real é exibido na tela para garantir que nenhuma encomenda seja despachada sem registro oficial.
+- **Melhor Envio:** Quando a integração externa com Melhor Envio falhar, o sistema **nunca emite etiqueta local como fallback disfarçado**. O erro real é exibido na tela para garantir que nenhuma encomenda seja despachada sem registro oficial.
 - **Sincronização em Tempo Real (`ShippingTrackerService`):** Ao clicar em "Atualizar Status" ou entrar no painel, o sistema consulta a API do Melhor Envio via proxy (`/api/shipping/track`), sincroniza o Firestore com `setDoc(..., { merge: true })`, atualiza o estado React instantaneamente e projeta o histórico de eventos de movimentação no `ShippingInfoCard` e no `OrderHistory`.
 - **Hierarquia Anti-Regressão e Código Oficial:** Rastreamentos nunca regridem um pedido `Em Trânsito` ou `Entregue` para `Em Preparação`, e priorizam o código oficial da transportadora (`tracking` > `self_tracking` > `melhorEnvioId`).
 - **Detecção de Divergência Métrica:** Diferenças de peso/cubagem cobradas pela transportadora na postagem são registradas dinamicamente em `order.metricDivergence` com alerta visual no painel do administrador.
@@ -154,50 +156,87 @@ A arquitetura de pedidos foi completamente modularizada em componentes atômicos
 
 ---
 
-## 8. Módulo de Crediário Próprio (Cliente & Painel Admin)
+## 8. Módulo de Crediário Próprio & Diretrizes de Exibição na Loja
 
-### A. Desacoplamento do Checkout
-- O Crediário não integra o checkout padrão de vendas online imediatas.
-- O checkout aceita estritamente **Cartão de Crédito** e **PIX**.
-- Na etapa de pagamento do checkout, há um banner informativo com link de direcionamento para o módulo de Crediário.
+### A. Desacoplamento da Vitrine e do Checkout
+- **Sem Poluição Visual na Home:** As menções diretas de crediário foram completamente removidas da barra de avisos do topo (Header) e dos Hero Banners principais, priorizando as ofertas e a experiência de compra por cartão e Pix.
+- **Seção da Vitrine Removida:** A seção antiga "Crediário & Facilidades" no corpo da home foi ocultada para manter a vitrine 100% focada na descoberta de produtos e coleções.
+- **Barra Superior de Benefícios Atualizada:**
+  - 💳 **Até 10x sem juros** no cartão de crédito.
+  - 🚚 **Entrega Rápida** em Caxias - MA e Região.
+  - 💬 **WhatsApp Oficial** (99) 98468-4867.
+- **Checkout:** O checkout online não processa crediário diretamente; aceita estritamente **Cartão de Crédito** e **PIX**. Na etapa de pagamento há apenas uma indicação informativa sobre a modalidade de crédito.
 
-### B. Nova Página do Cliente (`MeuCrediario.tsx`)
-- Estruturada em padrão visual Apple HIG com 3 abas principais:
-  1. **Aba 1 (Solicitar Avaliação):** Formulário completo onde o cliente informa renda mensal, profissão, telefone de contato, referência pessoal e limite pretendido. O status de crédito é exibido com destaque (Aprovado com limite em R$, Em Análise ou Pendente).
-  2. **Aba 2 (Comprar com Crediário / Importar Carrinho):**
-     - O cliente importa com 1 clique todos os itens do seu carrinho de compras atual.
-     - Seleção de parcelamento em até 6x no carnê com simulação do valor de cada parcela sem juros.
-     - Confirmação de endereço e envio da **Solicitação de Compra via Crediário**.
-     - Histórico em tempo real de solicitações de compra anteriores com parecer e notas da equipe da loja.
-  3. **Aba 3 (Carnês & Boletos ERP):** Consulta de carnês do MobLink ERP por CPF com quitação instantânea via Pix e baixa automática.
-  4. **Canal Oficial de WhatsApp:** Botão para o cliente falar com a equipe de atendimento da Evidência Calçados.
+### B. Módulo Especializado do Cliente (`MeuCrediario.tsx`)
+Acessível exclusivamente via menu de navegação ou link direto (`/meu-crediario`), estruturado em 3 abas principais:
+1. **Aba 1 (Solicitar Avaliação de Crédito):** Formulário onde o cliente informa renda mensal, profissão, telefone, referência pessoal e limite pretendido. Exibe o status da análise em tempo real (Aprovado, Em Análise ou Pendente).
+2. **Aba 2 (Comprar com Crediário / Importar Carrinho):**
+   - Importação em 1 clique dos itens atuais do carrinho.
+   - Simulação de parcelamento em até 6x no carnê próprio sem juros.
+   - Envio da **Solicitação de Compra via Crediário** para aprovação da equipe da loja física.
+   - Histórico completo de pedidos de crediário anteriores.
+3. **Aba 3 (Carnês & Boletos ERP):** Consulta das parcelas e carnês do MobLink ERP por CPF com quitação imediata via Pix e baixa automática.
 
-### C. Painel Administrativo de Crediário Unificado por Abas (`CreditManagement.tsx`)
-- Tela única e organizada no `AdminPanel.tsx` (item de menu lateral "Crediário Próprio"):
-  - **Cards de Métricas:** Contadores em tempo real de análises pendentes, compras pendentes, total de pedidos de crediário e volume financeiro solicitado (R$).
-  - **Aba 1: Avaliações de Crédito (`CreditEvaluationsList.tsx`):**
-    - Listagem com filtros por status (Todas, Pendentes, Aprovadas, Rejeitadas) e busca por nome, CPF ou telefone.
-    - Exibição de renda declarada, profissão, referência e limite solicitado.
-    - Modal de Aprovação para definir o limite aprovado em R$ e notas/parecer.
-    - Modal de Recusa com justificativa.
-    - **Botão de Ação Rápida WhatsApp:** Dispara conversa com o cliente abrindo `wa.me` com o **número cadastrado do cliente** e mensagem personalizada pré-formatada.
-  - **Aba 2: Solicitações de Compra (`CreditOrdersList.tsx`):**
-    - Listagem das compras solicitadas pelos clientes a partir do carrinho.
-    - Visualização dos itens comprados com miniatura, tamanho, quantidade e valores.
-    - Parcelamento solicitado no carnê e endereço de entrega.
-    - Ações para aprovar ou rejeitar a compra.
-    - **Botão de Ação Rápida WhatsApp:** Integrado ao telefone cadastrado do cliente com mensagem sobre o pedido e valor solicitado.
-
-### D. Camada de Dados e Coleções Firestore (`src/services/credit/creditService.ts`)
-- **`creditEvaluations`:** `{ id, userId, customerName, customerEmail, customerPhone, customerCpf, income, profession, referenceContact, requestedLimit, approvedLimit, status, notes, createdAt, analyzedAt, analyzedBy }`
-- **`creditOrders`:** `{ id, userId, customerName, customerEmail, customerPhone, customerCpf, items, totalAmount, subtotal, freightCost, installmentsRequested, deliveryType, deliveryAddress, status, adminNotes, createdAt, analyzedAt, analyzedBy }`
-- **Componente Reutilizável `WhatsAppButton.tsx`:** Formatação com DDI 55 nacional e abertura segura em nova aba.
+### C. Painel Administrativo de Crediário (`CreditManagement.tsx`)
+- Gerenciamento unificado no `AdminPanel.tsx`:
+  - **Aba 1: Avaliações de Crédito (`CreditEvaluationsList.tsx`):** Aprovação/recusa de limites de crédito com envio direto de mensagem no WhatsApp do cliente via `wa.me`.
+  - **Aba 2: Solicitações de Compra (`CreditOrdersList.tsx`):** Aprovação das compras solicitadas a partir do carrinho, verificação de itens, parcelas e endereço.
 
 ---
 
-## 9. Workflow de Desenvolvimento & Git
-- **Branch de Desenvolvimento:** Todo o código implementado deve ser testado e commitado na branch `api` (ou `dev`).
-- **Verificação Contínua:**
-  - Tipagem rigorosa: `npm run lint` (`tsc --noEmit`) deve passar com 0 erros.
-  - Compilação de produção: `npm run build` deve compilar todos os chunks e o proxy `server.ts` sem falhas.
-- **Idioma das Comunicações:** Todas as interfaces, feedbacks e respostas de usuário devem ser estritamente em **Português do Brasil (pt-BR)**.
+## 9. Navegação Dinâmica de Categorias & Subcategorias (`categoryNavigationUtils.ts`)
+
+### A. Lógica Centralizada de Público-Alvo e Subcategorias
+- Implementada em `src/components/products/utils/categoryNavigationUtils.ts`:
+  - **`isProductInAudience(product, audience)`:** Qualificação estrita por público (**Feminino**, **Masculino**, **Infantil**) através dos códigos oficiais de classificação do MobLink ERP:
+    - *Feminino*: códigos iniciados por `001.001`, `002.001`, ou termos normalizados na categoria/descrição.
+    - *Masculino*: códigos iniciados por `001.002`, `002.002`, etc.
+    - *Infantil*: códigos iniciados por `001.003`, `002.003`, "infantil", "kids", "bebê".
+  - **`extractAudienceSubcategories(products, audience)`:** Varredura dinâmica que extrai apenas subcategorias cadastradas com produtos ativos (`visible !== false`), estoque disponível (`stock > 0`) e foto real cadastrada (`hasProductValidPhoto`). Ordena por contagem decrescente de itens.
+  - **`buildCategoryUrl` & `matchSubcategorySlug`:** Geração e resolução de URLs canônicas (`?categoria=feminino&subcategoria=sandalias`).
+
+### B. Navegação Centralizada no Menu Superior
+- Para evitar duplicidade de componentes visuais na vitrine, toda a navegação por Feminino, Masculino e Infantil vive no **Header e Mega-menu** (`Header.tsx`) e na página especializada de listagem (`CategoryPage.tsx`).
+- Suporte a sincronização bidirecional de parâmetros de URL e histórico de navegação (`popstate`).
+
+---
+
+## 10. Busca Inteligente da Vitrine & Filtros Unificados (`StorefrontSearchBar.tsx`)
+
+- Implementada em `src/components/products/storefront/StorefrontSearchBar.tsx` com o utilitário centralizado `productFilterUtils.ts`:
+  - **Algoritmo de Correspondência Inteligente (`matchProductSearch`):** Busca tolerante a acentos e caracteres especiais, cobrindo:
+    - Nome do produto e descrição.
+    - Código de referência interna e ID MobLink.
+    - Código de barras (EAN/GTIN).
+    - Marca / Fabricante.
+    - Categoria e Subcategoria ERP.
+    - Público-alvo (Feminino, Masculino, Infantil).
+  - **Placeholders Dinâmicos Rotativos:** Textos contextuais que alternam suavemente convidando o cliente a buscar por marcas, tamanhos ou modelos.
+  - **Histórico Recente & Termos Sugeridos:** Armazenamento local das últimas pesquisas e badges de termos rápidos para busca instantânea com 1 clique.
+
+---
+
+## 11. Arquitetura dos Hero Banners da Home (`src/components/Hero.tsx`)
+
+- Componente de carrossel de alto impacto com design Apple-like, fundo azul gradiente padrão da marca (`bg-gradient-to-br from-[#003B73] via-[#006EDB] to-[#008CFF]` no tema claro) e tipografia de alto contraste:
+  - **Orientado a Objetos e Totalmente Dinâmico:** Utiliza tipagem `HeroSlide[]` e botões customizáveis `HeroSlideCTA[]`.
+  - **Banners Padrão Focados em Vendas & Moda:**
+    - **Slide 1 (Campanha de Ofertas):** Badge *"CAMPANHA DE OFERTAS"*, título *"Super Descontos de até 50% OFF"*, CTAs *"Aproveitar Ofertas"* e *"Ver Catálogo Completo"*.
+    - **Slide 2 (Coleção Feminina):** Badge *"COLEÇÃO FEMININA"*, título *"Charme, sofisticação e conforto extremo"*, CTAs *"Ver Moda Feminina"* e *"Ver Catálogo Completo"*.
+    - **Slide 3 (Coleção Masculina):** Badge *"COLEÇÃO MASCULINA"*, título *"Estilo moderno e robustez incomparável"*, CTAs *"Explorar Linha Masculina"* e *"Ver Catálogo Completo"*.
+  - **Sincronização com CMS / Firestore:** Compatível com os banners gerenciados no painel administrativo (`AdminPanel.tsx`) através de `AppContext.tsx` (`DEFAULT_HERO_BANNERS`).
+  - **Autoplay Inteligente:** Pausa automaticamente ao passar o cursor (`onMouseEnter` / `onMouseLeave`) e botões discretos com glassmorphism.
+
+---
+
+## 12. Workflow de Desenvolvimento, Git & Testes Automatizados
+
+- **Branch de Desenvolvimento:** Todo o código ativo é versionado e testado na branch **`dev`** (e sincronizado com `origin/dev`).
+- **Suíte de Testes Automatizados (`tests/`):**
+  - `tests/test-category-navigation.ts`: Testes unitários para qualificação de público-alvo, extração de subcategorias ativas e roteamento por slug.
+  - `tests/test-smart-search.ts`: Testes automatizados cobrindo a lógica de busca inteligente e filtros do catálogo.
+- **Portões de Qualidade Obrigatórios Antes de Qualquer Commit:**
+  1. `npx tsc --noEmit` — 0 erros de tipagem TypeScript.
+  2. `npx tsx tests/<test-file>.ts` — 100% dos testes passando.
+  3. `npm run build` — compilação bem-sucedida do bundle Vite e do servidor proxy Node.js (`server.ts`).
+- **Idioma Padrão:** Toda a interface, feedbacks visuais, mensagens de erro e respostas ao usuário devem ser exclusivamente em **Português do Brasil (pt-BR)**. Código-fonte, variáveis e comentários técnicos permanecem em inglês.

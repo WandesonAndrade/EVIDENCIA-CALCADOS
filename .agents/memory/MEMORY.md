@@ -1,31 +1,43 @@
-# Memory Index
+# System Memory & Project Conventions - Evidência Calçados
 
-## Project
-- [project] Regra de Foto Obrigatória: apenas produtos com foto real e válida (`hasProductValidPhoto`) e estoque > 0 aparecem na vitrine e menus → project-conventions.md
-- [project] Categorias e Subcategorias no MobLink ERP: resolução por código de classificação (`resolveClassificacao`) e nome normalizado → project-conventions.md
-- [project] Top Navbar Header & Mega-Menu: apenas 'Ofertas & Saldão', 'Feminino', 'Masculino', 'Infantil'. Subcategorias dinâmicas sem divisões engessadas → tech-decisions.md
-- [project] Filtro de Escopo de Categoria: seleção de subcategoria mantém filtro restrito à categoria pai → project-conventions.md
-- [project] Sincronização Individual por ID: administrador pode sincronizar um único produto específico pelo ID do MobLink ERP → tech-decisions.md
-- [project] Ciclo de Vida dos Pedidos (5 Etapas Sincronizadas): 'Pedido Recebido' → 'Pagamento Aprovado' → 'Em Preparação' (etiqueta gerada/postada) → 'Em Trânsito' (estrito à transportadora) → 'Entregue / Retirado' → project-conventions.md
-- [project] Modalidade Retirada na Loja: loja física do Centro, frete grátis, banner e etapa 'Pronto p/ Retirada' → project-conventions.md
-- [project] Vínculo ERP Local (`localSaleId`): integração do ID de venda física PDV ao pedido online com busca rápida → project-conventions.md
-- [project] Integridade de Frete e Endereços: detecção de UF por CEP (`getUfFromCep`), exclusão de endereços extras e bloqueio de falsos positivos na emissão de etiquetas → project-conventions.md
-- [project] Módulo de Crediário Próprio: checkout restrito a Cartão/Pix, página cliente (/meu-crediario) com importação de carrinho e carnê em até 6x sem juros → project-conventions.md
+Este arquivo é a memória persistente do projeto (AG Kit), consolidando decisões de arquitetura, preferências do usuário e histórico de implementação.
 
-## User
-- [user] Idioma principal: Português (Brasil) → user-preferences.md
-- [user] Workflow Git: sempre fazer commits das alterações finalizadas na branch `api` ou `dev` → user-preferences.md
-- [user] Preferência de Exibição: subcategorias reais cadastradas sem seções rígidas artificiais → user-preferences.md
-- [user] Visibilidade de Pedidos: itens comprados sempre abertos/visíveis por padrão sem necessidade de clicar em detalhes → user-preferences.md
-- [user] Rastreio e Etiquetas: 'Em Trânsito' apenas sob status real do transportador; etiquetas próprias locais apenas para entregas da própria loja → user-preferences.md
+---
 
-## Tech
-- [tech] Resolução de Fotos: verificar `images`, `imageUrl`, `foto_uri`, `colorImages`, `colorImageMap` ignorando placeholders → tech-decisions.md
-- [tech] Classificação de Público: identificação por código ERP (001.001 Fem, 001.002 Masc, 001.003 Inf) e inferência contextual → tech-decisions.md
-- [tech] Endpoint de Produto Único: `getSingleProdutoMoblink(id)` consulta endpoints diretos por ID e busca com fallback no catálogo ERP → tech-decisions.md
-- [tech] Gestão de Cache de Pedidos & SWR: Firestore como autoridade máxima. Pedidos deletados do banco não são ressuscitados pelo cache local → tech-decisions.md
-- [tech] Sanitização Recursiva Firestore: `cleanUndefinedProperties` para prevenção de erros de campos indefinidos e auto-cura → tech-decisions.md
-- [tech] Rastreamento Melhor Envio: busca indexada com `q`, sem mocks silenciosos em erros e sincronização em lote com throttle → tech-decisions.md
-- [tech] Logística Melhor Envio: hierarquia anti-regressão de status, dead code elimination completa e rastreamento oficial prioritário → tech-decisions.md
-- [tech] Arquitetura de Crediário Próprio: coleções `creditEvaluations` e `creditOrders`, WhatsApp com telefone cadastrado do cliente e abas unificadas no admin e cliente → tech-decisions.md
+## Informações Gerais
+- **Projeto:** Evidência Calçados (E-commerce)
+- **Localização:** Caxias - MA
+- **Branch Principal de Trabalho:** `dev`
+- **Stack:** React 19 + TypeScript + Vite + Tailwind CSS + Firebase (Firestore/Auth) + Node.js (Proxy `server.ts`)
+- **ERP:** MobLink
 
+---
+
+## Decisões Críticas e Convenções do Usuário
+
+1. **Crediário Próprio Desacoplado da Vitrine:**
+   - O Crediário Próprio possui fluxo dedicado em `/meu-crediario` (avaliação de crédito, consulta ERP de carnês e compra por importação de carrinho).
+   - Não fica exposto no checkout convencional (que aceita estritamente Cartão e Pix).
+   - **Vitrine e Home Limpas:** Foi expressamente solicitado e validado pelo usuário que **não devem existir menções ou seções invasivas de crediário na vitrine** (a seção antiga "Crediário & Facilidades" foi removida da home, e os Hero Banners foram limpos de botões/textos de crediário, assim como a barra superior de avisos).
+
+2. **Categorias e Subcategorias Principais (Feminino, Masculino, Infantil):**
+   - Qualificação estrita por público-alvo baseada na taxonomia MobLink ERP (`001.001`, `001.002`, `001.003`...).
+   - Apenas subcategorias com produtos ativos, estoque > 0 e fotos válidas são listadas.
+   - **Navegação Centralizada no Menu:** Para evitar duplicidade com a home, o ponto único de navegação por público e subcategorias é o **Mega-menu do topo** (`Header.tsx`) e a página de listagem (`CategoryPage.tsx`).
+
+3. **Busca Inteligente da Vitrine:**
+   - Sincronizada com o padrão de busca do MobLink ERP (`matchProductSearch`).
+   - Busca por nome, referência interna, código de barras, marca, categoria e público.
+   - Placeholders dinâmicos rotativos no campo de busca da vitrine.
+
+4. **Hero Banners:**
+   - Componentizados dinamicamente via `HeroSlide[]` e `HeroSlideCTA[]`.
+   - Focados em vendas e moda (Campanha de Ofertas até 50% OFF, Coleção Feminina, Coleção Masculina).
+   - Fundo gradiente azul da marca (`#003B73` / `#006EDB`).
+
+5. **Logística e Frete:**
+   - Melhor Envio via adapter desacoplado com fallback regional por CEP.
+   - Retirada na Loja Física (Rua Afonso Pena, 295 - Centro, Caxias - MA) com frete grátis.
+
+6. **Protocolo de Validação:**
+   - Antes de cada commit: `npx tsc --noEmit` (0 erros), testes automatizados (`tests/test-category-navigation.ts`, `tests/test-smart-search.ts`), e `npm run build`.
