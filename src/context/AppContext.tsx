@@ -18,6 +18,7 @@ import { syncProductMediaToSupabase, fetchProductMediaFromSupabase, fetchSupabas
 import { NO_PHOTO_SVG, isPlaceholderUrl } from '../utils/placeholder';
 import { getCachedCatalog, setCachedCatalog, safeSetLocalStorage, mergeStockIntoCachedProducts } from '../services/catalogCacheService';
 import { fetchLiveStockMapFromMoblink, fetchDirectProductStockAndGrade } from '../services/moblinkStockDirectService';
+import { slugifyParam } from '../components/products/utils/categoryNavigationUtils';
 
 
 interface AppContextProps {
@@ -1414,13 +1415,39 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [userUid, userEmail, userRole]);
 
 
-  // Detecção de parâmetros de URL para compartilhar links (Produtos e Link da Bio Instagram)
+  // Detecção de parâmetros de URL para compartilhar links (Produtos, Categorias e Link da Bio Instagram)
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const viewParam = urlParams.get('view') || urlParams.get('b');
-    if (viewParam === 'bio' || viewParam === 'bio-links' || urlParams.has('bio')) {
-      setCurrentView('bio-links');
-    }
+    const handleUrlSync = () => {
+      if (typeof window === 'undefined') return;
+      const urlParams = new URLSearchParams(window.location.search);
+      const viewParam = urlParams.get('view') || urlParams.get('b');
+      if (viewParam === 'bio' || viewParam === 'bio-links' || urlParams.has('bio')) {
+        setCurrentView('bio-links');
+        return;
+      }
+
+      const catParam = urlParams.get('categoria') || urlParams.get('category') || urlParams.get('c');
+      const subParam = urlParams.get('subcategoria') || urlParams.get('subcategory') || urlParams.get('sub') || urlParams.get('s');
+
+      if (catParam) {
+        const cleanCat = catParam.trim().toUpperCase();
+        setSelectedCategory(cleanCat);
+        setSelectedMenuTab(catParam.trim().toLowerCase());
+
+        if (subParam) {
+          const cleanSub = subParam.trim();
+          setSelectedSubcategory(cleanSub);
+        } else {
+          setSelectedSubcategory('TODAS');
+        }
+
+        setCurrentView('category-page');
+      }
+    };
+
+    handleUrlSync();
+    window.addEventListener('popstate', handleUrlSync);
+    return () => window.removeEventListener('popstate', handleUrlSync);
   }, []);
 
   useEffect(() => {
@@ -1438,20 +1465,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [products]);
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
     const urlParams = new URLSearchParams(window.location.search);
+
     if (currentView === 'product-detail' && selectedProduct) {
       urlParams.set('product', selectedProduct.id);
-      const newUrl = `${window.location.pathname}?${urlParams.toString()}`;
+      urlParams.delete('categoria');
+      urlParams.delete('subcategoria');
+      const newUrl = `${window.location.pathname}?${urlParams.toString()}#product-detail`;
+      window.history.replaceState(null, '', newUrl);
+    } else if (currentView === 'category-page' && selectedCategory) {
+      urlParams.delete('product');
+      urlParams.set('categoria', slugifyParam(selectedCategory));
+      if (selectedSubcategory && selectedSubcategory !== 'TODAS' && selectedSubcategory !== 'TODOS') {
+        urlParams.set('subcategoria', slugifyParam(selectedSubcategory));
+      } else {
+        urlParams.delete('subcategoria');
+      }
+      const newUrl = `${window.location.pathname}?${urlParams.toString()}#category-page`;
       window.history.replaceState(null, '', newUrl);
     } else {
-      if (urlParams.has('product')) {
-        urlParams.delete('product');
-        const searchStr = urlParams.toString();
-        const newUrl = `${window.location.pathname}${searchStr ? '?' + searchStr : ''}`;
-        window.history.replaceState(null, '', newUrl);
-      }
+      if (urlParams.has('product')) urlParams.delete('product');
+      if (urlParams.has('categoria')) urlParams.delete('categoria');
+      if (urlParams.has('subcategoria')) urlParams.delete('subcategoria');
+      const searchStr = urlParams.toString();
+      const hash = currentView !== 'home' ? `#${currentView}` : '';
+      const newUrl = `${window.location.pathname}${searchStr ? '?' + searchStr : ''}${hash}`;
+      window.history.replaceState(null, '', newUrl);
     }
-  }, [currentView, selectedProduct]);
+  }, [currentView, selectedProduct, selectedCategory, selectedSubcategory]);
 
   // Helper Cart Actions
   const addToCart = (product: Product, size: number | string) => {

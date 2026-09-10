@@ -84,6 +84,7 @@ export function normalizeSubcategoryName(raw: string): string {
   if (clean.includes("PROMOCOES") || clean.includes("PROMOÇÃO")) return "Promoções";
   if (clean.includes("SAPATILHA") || clean.includes("SAPATILHAS")) return "Sapatilhas";
   if (clean.includes("SANDALIA") || clean.includes("SANDÁLIA") || clean.includes("SANDALIAS") || clean.includes("SANDÁLIAS")) return "Sandálias";
+  if (clean.includes("SAPATENIS") || clean.includes("SAPATÊNIS")) return "Sapatênis";
   if (clean.includes("TENIS") || clean.includes("TÊNIS")) return "Tênis";
   if (clean.includes("CHINELO") || clean.includes("CHINELOS")) return "Chinelos";
   if (clean.includes("RASTEIRA") || clean.includes("RASTEIRAS") || clean.includes("RASTEIRINHA")) return "Rasteiras";

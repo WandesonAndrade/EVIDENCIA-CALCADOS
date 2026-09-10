@@ -34,6 +34,7 @@ import { scrollToSectionWithOffset } from "../lib/scrollUtils";
 import { normalizeCategoryName, normalizeSubcategoryName, isProductInCategory } from "../services/moblinkCategoriesService";
 import { hasProductValidPhoto } from "../services/moblinkProductsService";
 import { HeaderLiveSearch } from "./products/storefront/HeaderLiveSearch";
+import { extractAudienceSubcategories, buildCategoryUrl, AudienceKey } from "./products/utils/categoryNavigationUtils";
 
 export const Header: React.FC = () => {
   const {
@@ -79,20 +80,27 @@ export const Header: React.FC = () => {
 
   const handleMegaMenuCategoryClick = (categoryName: string, subcategoryName: string) => {
     setActiveMegaMenu(null);
-    if (categoryName.toUpperCase() === "OFERTAS") {
-      setSelectedCategory("OFERTAS");
-      if (setSelectedMenuTab) setSelectedMenuTab("ofertas");
-      if (setSelectedSubcategory) setSelectedSubcategory("TODAS");
-    } else if (categoryName.toUpperCase() === "TODOS") {
-      setSelectedCategory("TODOS");
-      if (setSelectedMenuTab) setSelectedMenuTab("todos");
-      if (setSelectedSubcategory) setSelectedSubcategory(subcategoryName);
-    } else {
-      setSelectedCategory(categoryName);
-      if (setSelectedMenuTab) setSelectedMenuTab(categoryName.toLowerCase());
-      if (setSelectedSubcategory) setSelectedSubcategory(subcategoryName);
-    }
+    const catUpper = categoryName.toUpperCase();
+    const targetSub = subcategoryName && subcategoryName !== 'TODAS' && subcategoryName !== 'TODOS'
+      ? subcategoryName
+      : 'TODAS';
+
+    setSelectedCategory(catUpper);
+    if (setSelectedMenuTab) setSelectedMenuTab(categoryName.toLowerCase());
+    if (setSelectedSubcategory) setSelectedSubcategory(targetSub);
     setCurrentView("category-page");
+
+    // Sincroniza query params na URL
+    const queryString = buildCategoryUrl(categoryName, targetSub);
+    if (typeof window !== 'undefined') {
+      try {
+        const fullUrl = `${window.location.pathname}${queryString}#category-page`;
+        window.history.pushState(null, '', fullUrl);
+      } catch (err) {
+        console.warn('Falha ao atualizar parâmetros de URL:', err);
+      }
+    }
+
     setTimeout(() => {
       scrollToSectionWithOffset("category-all-items-section");
     }, 100);
@@ -100,136 +108,7 @@ export const Header: React.FC = () => {
 
   const dynamicMegaMenuSubcategories = useMemo(() => {
     if (!activeMegaMenu || !products || products.length === 0) return [];
-
-    const subMap = new Map<string, { name: string; count: number; category: string }>();
-
-    products.forEach((prod) => {
-      // 1. Produto visível
-      if (prod.visible === false) return;
-
-      // 2. Produto com estoque
-      const hasStock = prod.stock !== undefined ? prod.stock > 0 : (prod.saldo_loja ?? 0) > 0;
-      if (!hasStock) return;
-
-      // 3. COM FOTO VÁLIDA
-      if (!hasProductValidPhoto(prod)) return;
-
-      const pCat = (prod.category || "").toUpperCase();
-      const pGrupo = (prod.nome_grupo || "").toUpperCase();
-      const pSub = (prod.nome_subgrupo || prod.subcategory || "").toUpperCase();
-      const pName = (prod.name || "").toUpperCase();
-      const pClass = String(prod.classificacao || "").trim();
-      const normSubRaw = normalizeSubcategoryName(pSub).toUpperCase();
-
-      // 4. Pertencimento ao público alvo
-      let matchesAudience = false;
-      if (activeMegaMenu === "feminino") {
-        if (pClass.startsWith("001.001") || pClass.startsWith("002.001") || pClass.startsWith("003.001") || pClass.startsWith("1.1")) {
-          matchesAudience = true;
-        } else {
-          const isExplicitFem =
-            pSub.includes("FEMININ") ||
-            normSubRaw.includes("FEMININ") ||
-            pCat.includes("FEMININ") ||
-            pGrupo.includes("FEMININ") ||
-            pName.includes("FEMININ") ||
-            pName.includes("FEMINA") ||
-            pName.includes("FEM ");
-          if (isExplicitFem) {
-            matchesAudience = true;
-          } else {
-            const isExplicitMasc = pSub.includes("MASCULIN") || normSubRaw.includes("MASCULIN") || pCat.includes("MASCULIN") || pGrupo.includes("MASCULIN") || pName.includes("MASCULIN") || pClass.startsWith("001.002");
-            const isExplicitInf = pSub.includes("INFANTIL") || normSubRaw.includes("INFANTIL") || pCat.includes("INFANTIL") || pGrupo.includes("INFANTIL") || pName.includes("INFANTIL") || pSub.includes("BEBÊ") || pClass.startsWith("001.003");
-
-            if (isExplicitMasc || isExplicitInf) {
-              matchesAudience = false;
-            } else {
-              // Por ser catálogo de calçados feminino/unissex em sua maioria, qualifica itens padrão
-              matchesAudience = true;
-            }
-          }
-        }
-      } else if (activeMegaMenu === "masculino") {
-        if (pClass.startsWith("001.002") || pClass.startsWith("002.002") || pClass.startsWith("003.002") || pClass.startsWith("1.2")) {
-          matchesAudience = true;
-        } else {
-          matchesAudience =
-            pSub.includes("MASCULIN") ||
-            normSubRaw.includes("MASCULIN") ||
-            pCat.includes("MASCULIN") ||
-            pGrupo.includes("MASCULIN") ||
-            pName.includes("MASCULIN") ||
-            pName.includes("MASCULINO") ||
-            pName.includes("MASC ") ||
-            pSub.includes("SAPATÊNIS") ||
-            pSub.includes("SAPATENIS") ||
-            pName.includes("SAPATÊNIS") ||
-            pName.includes("SAPATENIS");
-          if (matchesAudience && (pSub.includes("FEMININ") || pCat.includes("FEMININ") || pClass.startsWith("001.001"))) {
-            matchesAudience = false;
-          }
-        }
-      } else if (activeMegaMenu === "infantil") {
-        if (pClass.startsWith("001.003") || pClass.startsWith("001.004") || pClass.startsWith("002.003") || pClass.startsWith("1.3")) {
-          matchesAudience = true;
-        } else {
-          matchesAudience =
-            pSub.includes("INFANTIL") ||
-            normSubRaw.includes("INFANTIL") ||
-            pCat.includes("INFANTIL") ||
-            pGrupo.includes("INFANTIL") ||
-            pName.includes("INFANTIL") ||
-            pSub.includes("BEBÊ") ||
-            pSub.includes("BEBE") ||
-            pName.includes("KIDS") ||
-            pName.includes("BABY");
-        }
-      }
-
-      if (!matchesAudience) return;
-
-      // 5. Extração e normalização de nome de subcategoria cadastrada (com inferência de fallback)
-      let normName = "";
-      const rawSubName = (prod.nome_subgrupo || prod.subcategory || "").trim();
-
-      if (rawSubName && rawSubName.toUpperCase() !== "GERAL" && rawSubName.toUpperCase() !== "TODAS") {
-        normName = normalizeSubcategoryName(rawSubName);
-      }
-
-      if (!normName || normName.toUpperCase() === "GERAL" || normName.toUpperCase() === "FEMININO" || normName.toUpperCase() === "MASCULINO" || normName.toUpperCase() === "INFANTIL") {
-        // Inferência por nome do produto se a subcategoria for genérica ou em branco
-        if (pName.includes("SANDÁLIA") || pName.includes("SANDALIA")) normName = "Sandálias";
-        else if (pName.includes("RASTEIRA") || pName.includes("PAPETE")) normName = "Rasteiras & Papetes";
-        else if (pName.includes("TÊNIS") || pName.includes("TENIS") || pName.includes("SNEAKER")) normName = "Tênis";
-        else if (pName.includes("SAPATILHA")) normName = "Sapatilhas";
-        else if (pName.includes("SCARPIN") || pName.includes("SALTO")) normName = "Scarpins & Saltos";
-        else if (pName.includes("BOTA") || pName.includes("COTURNO")) normName = "Botas & Coturnos";
-        else if (pName.includes("CHINELO") || pName.includes("SLIDE")) normName = "Chinelos & Slides";
-        else if (pName.includes("MOCASSIM") || pName.includes("DRIVERS")) normName = "Mocassins";
-        else if (pName.includes("SAPATO") || pName.includes("SAPATÊNIS") || pName.includes("SAPATENIS")) normName = "Sapatos";
-        else if (pName.includes("BOLSA")) normName = "Bolsas";
-        else if (pName.includes("CARTEIRA")) normName = "Carteiras";
-        else if (pName.includes("CINTO")) normName = "Cintos";
-        else if (pName.includes("MOCHILA")) normName = "Mochilas";
-        else if (pName.includes("PERFUME") || pName.includes("COLÔNIA") || pName.includes("COLONIA") || pName.includes("BODY SPLASH")) normName = "Perfumes";
-        else if (pName.includes("BLUSA") || pName.includes("CAMISA") || pName.includes("VESTIDO") || pName.includes("CALÇA") || pName.includes("JEANS")) normName = "Confecções & Moda";
-      }
-
-      if (!normName) return;
-
-      const key = normName.toUpperCase();
-      if (key === "FEMININO" || key === "MASCULINO" || key === "INFANTIL" || key === "GERAL") return;
-
-      const catName = prod.category || prod.nome_grupo || "Calçados";
-      const existing = subMap.get(key);
-      if (existing) {
-        existing.count += 1;
-      } else {
-        subMap.set(key, { name: normName, count: 1, category: catName });
-      }
-    });
-
-    return Array.from(subMap.values()).sort((a, b) => b.count - a.count);
+    return extractAudienceSubcategories(products, activeMegaMenu as AudienceKey);
   }, [activeMegaMenu, products]);
 
   const activeUser = currentAdminUser || currentUser;
@@ -817,7 +696,7 @@ export const Header: React.FC = () => {
                         </p>
                       </div>
                       <button
-                        onClick={() => handleMegaMenuCategoryClick("TODOS", activeMegaMenu.toUpperCase())}
+                        onClick={() => handleMegaMenuCategoryClick(activeMegaMenu, 'TODAS')}
                         className="hidden sm:inline-flex items-center gap-2 text-xs font-black px-4 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 cursor-pointer transition-all shadow-sm shrink-0"
                       >
                         <span>Explorar Tudo {activeMegaMenu.toUpperCase()}</span>
@@ -831,7 +710,7 @@ export const Header: React.FC = () => {
                         {dynamicMegaMenuSubcategories.map((item, idx) => (
                           <button
                             key={idx}
-                            onClick={() => handleMegaMenuCategoryClick("TODOS", item.name)}
+                            onClick={() => handleMegaMenuCategoryClick(activeMegaMenu, item.name)}
                             className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between group ${
                               isDark
                                 ? "bg-slate-800/60 border-slate-700/80 hover:bg-[#003e92]/30 hover:border-amber-400/50 text-slate-100"

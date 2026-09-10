@@ -28,6 +28,7 @@ import { isSaldaoProduct } from '../services/saldaoService';
 import { getApplicablePromotion, isCampaignActive } from '../services/promotionsService';
 import { hasProductValidPhoto } from '../services/moblinkProductsService';
 import { matchProductSearch } from './products/utils/productFilterUtils';
+import { isProductInAudience, resolveProductSubcategoryName, matchSubcategorySlug } from './products/utils/categoryNavigationUtils';
 
 interface TabConfig {
   title: string;
@@ -150,6 +151,27 @@ const TAB_CONFIGS: Record<string, TabConfig> = {
     bannerImage: 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?q=80&w=1600&auto=format&fit=crop',
     badgeText: 'CAMPANHA PROMOCIONAL',
     filter: (prod) => !!prod.onSale || (prod.originalPrice && prod.originalPrice > prod.price)
+  },
+  'feminino': {
+    title: 'Coleção Feminina',
+    subtitle: 'Sandálias, sapatilhas, rasteiras, saltos, tênis e calçados femininos com elegância e conforto.',
+    bannerImage: 'https://images.unsplash.com/photo-1543163521-1bf539c55dd2?q=80&w=1600&auto=format&fit=crop',
+    badgeText: '✨ COLEÇÃO FEMININA',
+    filter: (prod) => isProductInAudience(prod, 'feminino')
+  },
+  'masculino': {
+    title: 'Coleção Masculina',
+    subtitle: 'Tênis, sapatênis, sapatos, chinelos e calçados masculinos com máxima sofisticação.',
+    bannerImage: 'https://images.unsplash.com/photo-1514989940723-e8e51635b782?q=80&w=1600&auto=format&fit=crop',
+    badgeText: '✨ COLEÇÃO MASCULINA',
+    filter: (prod) => isProductInAudience(prod, 'masculino')
+  },
+  'infantil': {
+    title: 'Coleção Infantil & Bebê',
+    subtitle: 'Calçados infantis resistentes, anatômicos e divertidos para todas as idades.',
+    bannerImage: 'https://images.unsplash.com/photo-1503919545889-aef636e10ad4?q=80&w=1600&auto=format&fit=crop',
+    badgeText: '✨ COLEÇÃO INFANTIL & BEBÊ',
+    filter: (prod) => isProductInAudience(prod, 'infantil')
   }
 };
 
@@ -230,6 +252,15 @@ export const CategoryPage: React.FC = () => {
     const cleanSubKey = (globalSubcategory || '').trim().toLowerCase();
     const cleanCatKey = (selectedCategory || '').trim().toLowerCase();
 
+    // Mapeamento prioritário para público-alvo (Feminino, Masculino, Infantil)
+    const effectiveKey = (cleanTabKey === 'feminino' || cleanCatKey === 'feminino')
+      ? 'feminino'
+      : (cleanTabKey === 'masculino' || cleanCatKey === 'masculino')
+      ? 'masculino'
+      : (cleanTabKey === 'infantil' || cleanCatKey === 'infantil' || cleanTabKey.includes('infantil') || cleanCatKey.includes('infantil'))
+      ? 'infantil'
+      : cleanTabKey;
+
     const isSaldaoOrOfertas = (
       cleanTabKey.includes('saldão') || cleanTabKey.includes('saldao') || cleanTabKey.includes('oferta') || cleanTabKey.includes('promoção') || cleanTabKey.includes('promocao') ||
       cleanSubKey.includes('saldão') || cleanSubKey.includes('saldao') || cleanSubKey.includes('oferta') || cleanSubKey.includes('promoção') || cleanSubKey.includes('promocao') ||
@@ -251,13 +282,13 @@ export const CategoryPage: React.FC = () => {
       };
     }
 
-    // 1. Resolve o filtro da categoria pai principal (ex: Perfumes, Calçados, Confecções, Acessórios, Todos)
+    // 1. Resolve o filtro da categoria pai principal (ex: Feminino, Masculino, Infantil, Perfumes, Calçados, etc.)
     let parentCategoryName = '';
     let parentFilter: (prod: Product) => boolean = () => true;
 
-    if (TAB_CONFIGS[cleanTabKey]) {
-      parentCategoryName = TAB_CONFIGS[cleanTabKey].title;
-      parentFilter = TAB_CONFIGS[cleanTabKey].filter;
+    if (TAB_CONFIGS[effectiveKey]) {
+      parentCategoryName = TAB_CONFIGS[effectiveKey].title;
+      parentFilter = TAB_CONFIGS[effectiveKey].filter;
     } else if (cleanTabKey === 'todos') {
       parentCategoryName = 'TODOS OS PRODUTOS';
       parentFilter = () => true;
@@ -282,12 +313,13 @@ export const CategoryPage: React.FC = () => {
       return {
         title: parentCategoryName ? `${parentCategoryName.toUpperCase()} - ${activeSubcategory.toUpperCase()}` : activeSubcategory.toUpperCase(),
         subtitle: `Confira todos os modelos de ${activeSubcategory} disponíveis com pronta entrega na Evidência Calçados.`,
-        bannerImage: 'https://images.unsplash.com/photo-1549298916-b41d501d3772?q=80&w=1600&auto=format&fit=crop',
+        bannerImage: TAB_CONFIGS[effectiveKey]?.bannerImage || 'https://images.unsplash.com/photo-1549298916-b41d501d3772?q=80&w=1600&auto=format&fit=crop',
         badgeText: `SUBCATEGORIA: ${activeSubcategory.toUpperCase()}`,
         filter: (prod: Product) => {
-          // Garante pertencimento à categoria pai primeiro (ex: Perfumes não trazem Calçados)
+          // Garante pertencimento à categoria pai primeiro (ex: Feminino não traz Calçados masculinos)
           if (!parentFilter(prod)) return false;
 
+          const resolvedSubName = resolveProductSubcategoryName(prod).toUpperCase();
           const subRaw = (prod.nome_subgrupo || prod.subcategory || '').toUpperCase();
           const normSubRaw = normalizeSubcategoryName(subRaw).toUpperCase();
           const catRaw = (prod.category || '').toUpperCase();
@@ -295,6 +327,8 @@ export const CategoryPage: React.FC = () => {
           const nameRaw = (prod.name || '').toUpperCase();
 
           const subMatch = (
+            resolvedSubName.includes(cleanSub) ||
+            matchSubcategorySlug(resolvedSubName, activeSubcategory) ||
             subRaw.includes(cleanSub) ||
             normSubRaw.includes(normSub) ||
             (!isGenderOrGenericSub && (catRaw.includes(cleanSub) || grupoRaw.includes(cleanSub) || nameRaw.includes(cleanSub)))
@@ -305,8 +339,8 @@ export const CategoryPage: React.FC = () => {
       };
     }
 
-    if (TAB_CONFIGS[cleanTabKey]) {
-      return TAB_CONFIGS[cleanTabKey];
+    if (TAB_CONFIGS[effectiveKey]) {
+      return TAB_CONFIGS[effectiveKey];
     }
 
     if (cleanTabKey === 'todos') {

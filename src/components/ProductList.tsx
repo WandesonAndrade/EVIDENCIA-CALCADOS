@@ -14,6 +14,7 @@ import { NO_PHOTO_SVG } from "../utils/placeholder";
 import { ProductCard, StorefrontProductCard } from "./products/storefront/StorefrontProductCard";
 import { StorefrontProductGrid } from "./products/storefront/StorefrontProductGrid";
 import { SubcategoryCarousel } from "./products/storefront/SubcategoryCarousel";
+import { CategorySubcategoryView } from "./products/storefront/CategorySubcategoryView";
 import { matchProductSearch } from "./products/utils/productFilterUtils";
 
 export { ProductCard, StorefrontProductCard };
@@ -354,7 +355,10 @@ export const ProductList: React.FC = () => {
         </div>
       ) : (
         <>
-          {/* 1. SEÇÃO COMPRE POR CATEGORIA (CARROSSEL DESLIZANTE DE SUBCATEGORIAS EM ESTOQUE) */}
+          {/* 1. NAVEGAÇÃO DINÂMICA POR CATEGORIAS PRINCIPAIS & SUBCATEGORIAS (FEMININO, MASCULINO, INFANTIL) */}
+          <CategorySubcategoryView />
+
+          {/* 1.1 SEÇÃO COMPRE POR CATEGORIA (CARROSSEL DESLIZANTE DE SUBCATEGORIAS EM ESTOQUE) */}
           <SubcategoryCarousel
             subcategories={activeSubcategoriesInStock}
             theme={theme}
