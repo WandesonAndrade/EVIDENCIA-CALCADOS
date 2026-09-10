@@ -431,6 +431,8 @@ export interface HeroBanner {
   buttonText: string;
   tabKey: string;
   active: boolean;
+  secondaryButtonText?: string;
+  secondaryTabKey?: string;
 }
 
 export interface HomeSectionConfig {

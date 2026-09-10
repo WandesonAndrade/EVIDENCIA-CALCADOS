@@ -1,69 +1,216 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
-import { ChevronLeft, ChevronRight, Sparkles, ArrowRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Sparkles, ArrowRight, CreditCard, ShoppingBag, ShieldCheck } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { scrollToSectionWithOffset } from '../lib/scrollUtils';
 import { sanitizeUrl } from '../lib/securityUtils';
 
-interface Slide {
-  id: number;
+export interface HeroSlideCTA {
+  text: string;
+  action: 'offers' | 'crediario' | 'category' | 'catalog';
+  targetParam?: string;
+  variant?: 'primary' | 'amber' | 'outline';
+  icon?: 'arrow' | 'credit' | 'sparkles' | 'bag';
+}
+
+export interface HeroSlide {
+  id: string | number;
   collectionTag: string;
   title: string;
   description: string;
   image: string;
-  buttonText: string;
-  categoryFilter: string;
+  ctas: HeroSlideCTA[];
+  badgeVariant?: 'amber' | 'blue' | 'default';
 }
 
-const SLIDES: Slide[] = [
+export const DEFAULT_SLIDES: HeroSlide[] = [
   {
-    id: 1,
-    collectionTag: 'Lançamento Exclusivo 2025',
-    title: 'Engenharia do Conforto. Design Inconfundível.',
-    description: 'Calçados projetados com precisão anatômica para elevar cada passo do seu dia.',
-    image: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=1600&auto=format&fit=crop',
-    buttonText: 'Comprar agora',
-    categoryFilter: 'TODOS'
+    id: 'banner-ofertas',
+    collectionTag: 'CAMPANHA DE OFERTAS',
+    title: 'Super Descontos de até 50% OFF',
+    description: 'Chegou o momento de adquirir aquele calçado desejado com preços incríveis. Conheça nosso novo Crediário Próprio e solicite sua análise de crédito!',
+    image: 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?q=80&w=1600&auto=format&fit=crop',
+    badgeVariant: 'amber',
+    ctas: [
+      {
+        text: 'Aproveitar Ofertas',
+        action: 'offers',
+        variant: 'primary',
+        icon: 'arrow'
+      },
+      {
+        text: 'Solicitar Crediário',
+        action: 'crediario',
+        variant: 'amber',
+        icon: 'credit'
+      }
+    ]
   },
   {
-    id: 2,
-    collectionTag: 'Linha Feminina Premium',
-    title: 'Leveza. Sofisticação. Elegância sem Esforço.',
-    description: 'Sandálias, saltos e sapatilhas confeccionadas com materiais nobres e acabamento artesanal.',
+    id: 'banner-crediario',
+    collectionTag: 'NOVIDADE / FACILIDADE',
+    title: 'Compre com o Crediário Próprio Evidência',
+    description: 'Faça sua avaliação de crédito online de forma rápida, importe seu carrinho e parcele suas compras com facilidade.',
+    image: 'https://images.unsplash.com/photo-1556742049-0a67c5574f73?q=80&w=1600&auto=format&fit=crop',
+    badgeVariant: 'amber',
+    ctas: [
+      {
+        text: 'Simular Meu Crédito',
+        action: 'crediario',
+        variant: 'amber',
+        icon: 'credit'
+      },
+      {
+        text: 'Aproveitar Ofertas',
+        action: 'offers',
+        variant: 'outline',
+        icon: 'arrow'
+      }
+    ]
+  },
+  {
+    id: 'banner-feminino',
+    collectionTag: 'COLEÇÃO FEMININA',
+    title: 'Charme, sofisticação e conforto extremo.',
+    description: 'Encontre sandálias, sapatilhas, saltos e acessórios refinados criados especialmente para destacar a sua personalidade única.',
     image: 'https://images.unsplash.com/photo-1543163521-1bf539c55dd2?q=80&w=1600&auto=format&fit=crop',
-    buttonText: 'Explorar Feminino',
-    categoryFilter: 'FEMININO'
+    badgeVariant: 'blue',
+    ctas: [
+      {
+        text: 'Ver Moda Feminina',
+        action: 'category',
+        targetParam: 'FEMININO',
+        variant: 'primary',
+        icon: 'arrow'
+      },
+      {
+        text: 'Solicitar Crediário',
+        action: 'crediario',
+        variant: 'amber',
+        icon: 'credit'
+      }
+    ]
   },
   {
-    id: 3,
-    collectionTag: 'Coleção Masculina Urban',
-    title: 'Robustez e Alta Performance.',
-    description: 'Sapatos sociais refinados, botas de couro legítimo e tênis tecnológicos.',
+    id: 'banner-masculino',
+    collectionTag: 'COLEÇÃO MASCULINA',
+    title: 'Estilo moderno e robustez incomparável.',
+    description: 'Sapatos sociais premium, botas indestrutíveis e tênis de alta performance para o homem contemporâneo que valoriza design e atitude.',
     image: 'https://images.unsplash.com/photo-1533867617858-e7b97e060509?q=80&w=1600&auto=format&fit=crop',
-    buttonText: 'Explorar Masculino',
-    categoryFilter: 'MASCULINO'
+    badgeVariant: 'blue',
+    ctas: [
+      {
+        text: 'Explorar Linha Masculina',
+        action: 'category',
+        targetParam: 'MASCULINO',
+        variant: 'primary',
+        icon: 'arrow'
+      },
+      {
+        text: 'Solicitar Crediário',
+        action: 'crediario',
+        variant: 'amber',
+        icon: 'credit'
+      }
+    ]
   }
 ];
 
 export const Hero: React.FC = () => {
-  const { setSelectedCategory, setCurrentView, theme, heroBanners } = useApp();
+  const { 
+    setSelectedCategory, 
+    setSelectedSubcategory, 
+    setSelectedMenuTab, 
+    setCurrentView, 
+    theme, 
+    heroBanners 
+  } = useApp();
+
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const autoplayTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const isDark = theme === 'dark';
 
-  const slides = heroBanners && heroBanners.filter(b => b.active).length > 0
-    ? heroBanners.filter(b => b.active).map((b, i) => ({
-        id: i + 1,
-        collectionTag: b.badge || 'Coleção Evidência 2025',
-        title: b.title,
-        description: b.description,
-        image: b.image,
-        buttonText: b.buttonText || 'Comprar agora',
-        categoryFilter: b.tabKey || 'TODOS'
-      }))
-    : SLIDES;
+  // Processa dinamicamente múltiplos slides via array de objetos suportando CMS ou os banners padrão otimizados
+  const slides: HeroSlide[] = useMemo(() => {
+    if (heroBanners && heroBanners.filter(b => b.active).length > 0) {
+      return heroBanners.filter(b => b.active).map((b, i) => {
+        const tab = (b.tabKey || '').toLowerCase();
+        const badgeText = b.badge || 'Coleção Evidência';
+        const isOffers = tab === 'ofertas' || badgeText.toUpperCase().includes('OFERTA') || b.title.includes('50% OFF');
+        const isCrediario = tab === 'meu-crediario' || tab === 'crediario' || b.title.toLowerCase().includes('crediário') || badgeText.toUpperCase().includes('FACILIDADE');
+
+        const ctas: HeroSlideCTA[] = [];
+
+        if (isOffers) {
+          ctas.push({
+            text: b.buttonText || 'Aproveitar Ofertas',
+            action: 'offers',
+            variant: 'primary',
+            icon: 'arrow'
+          });
+          ctas.push({
+            text: b.secondaryButtonText || 'Solicitar Crediário',
+            action: 'crediario',
+            variant: 'amber',
+            icon: 'credit'
+          });
+        } else if (isCrediario) {
+          ctas.push({
+            text: b.buttonText || 'Simular Meu Crédito',
+            action: 'crediario',
+            variant: 'amber',
+            icon: 'credit'
+          });
+          ctas.push({
+            text: b.secondaryButtonText || 'Aproveitar Ofertas',
+            action: 'offers',
+            variant: 'outline',
+            icon: 'arrow'
+          });
+        } else {
+          ctas.push({
+            text: b.buttonText || 'Comprar agora',
+            action: 'category',
+            targetParam: b.tabKey || 'TODOS',
+            variant: 'primary',
+            icon: 'arrow'
+          });
+
+          if (b.secondaryButtonText) {
+            ctas.push({
+              text: b.secondaryButtonText,
+              action: b.secondaryTabKey === 'meu-crediario' ? 'crediario' : 'category',
+              targetParam: b.secondaryTabKey || 'TODOS',
+              variant: b.secondaryTabKey === 'meu-crediario' ? 'amber' : 'outline',
+              icon: b.secondaryTabKey === 'meu-crediario' ? 'credit' : 'arrow'
+            });
+          } else {
+            ctas.push({
+              text: 'Solicitar Crediário',
+              action: 'crediario',
+              variant: 'amber',
+              icon: 'credit'
+            });
+          }
+        }
+
+        const isAmberBadge = isOffers || isCrediario || badgeText.toUpperCase().includes('NOVIDADE') || badgeText.toUpperCase().includes('CAMPANHA');
+
+        return {
+          id: b.id || i + 1,
+          collectionTag: badgeText,
+          title: b.title,
+          description: b.description,
+          image: b.image,
+          ctas,
+          badgeVariant: isAmberBadge ? 'amber' : 'blue'
+        };
+      });
+    }
+    return DEFAULT_SLIDES;
+  }, [heroBanners]);
 
   useEffect(() => {
     if (!isPaused && slides.length > 0) {
@@ -92,46 +239,123 @@ export const Hero: React.FC = () => {
     setCurrentSlide(prev => (prev - 1 + slides.length) % slides.length);
   };
 
-  const handleAction = (categoryFilter: string) => {
-    setSelectedCategory(categoryFilter.toUpperCase());
-    if (setCurrentView) setCurrentView('home');
-    setTimeout(() => {
-      scrollToSectionWithOffset('catalog-products-section');
-    }, 100);
+  const handleCtaClick = (cta: HeroSlideCTA) => {
+    switch (cta.action) {
+      case 'offers':
+        setSelectedCategory('OFERTAS');
+        if (setSelectedMenuTab) setSelectedMenuTab('ofertas');
+        if (setSelectedSubcategory) setSelectedSubcategory('TODAS');
+        setCurrentView('category-page');
+        setTimeout(() => {
+          scrollToSectionWithOffset('category-all-items-section');
+        }, 100);
+        break;
+
+      case 'crediario':
+        setCurrentView('meu-crediario');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        break;
+
+      case 'category':
+        if (cta.targetParam) {
+          const norm = cta.targetParam.toLowerCase();
+          if (norm === 'ofertas') {
+            setSelectedCategory('OFERTAS');
+            if (setSelectedMenuTab) setSelectedMenuTab('ofertas');
+            if (setSelectedSubcategory) setSelectedSubcategory('TODAS');
+            setCurrentView('category-page');
+            setTimeout(() => {
+              scrollToSectionWithOffset('category-all-items-section');
+            }, 100);
+          } else if (norm === 'meu-crediario' || norm === 'crediario') {
+            setCurrentView('meu-crediario');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          } else {
+            setSelectedCategory(cta.targetParam.toUpperCase());
+            if (setSelectedMenuTab) setSelectedMenuTab(cta.targetParam.toLowerCase());
+            setCurrentView('category-page');
+            setTimeout(() => {
+              scrollToSectionWithOffset('category-all-items-section');
+            }, 100);
+          }
+        } else {
+          setSelectedCategory('TODOS');
+          if (setCurrentView) setCurrentView('home');
+          setTimeout(() => {
+            scrollToSectionWithOffset('catalog-products-section');
+          }, 100);
+        }
+        break;
+
+      case 'catalog':
+      default:
+        setSelectedCategory('TODOS');
+        if (setSelectedMenuTab) setSelectedMenuTab('todos');
+        if (setCurrentView) setCurrentView('home');
+        setTimeout(() => {
+          scrollToSectionWithOffset('catalog-products-section');
+        }, 100);
+        break;
+    }
+  };
+
+  const renderIcon = (icon?: string) => {
+    switch (icon) {
+      case 'credit':
+        return <CreditCard className="w-4 h-4 stroke-[2.2] shrink-0" />;
+      case 'sparkles':
+        return <Sparkles className="w-4 h-4 stroke-[2.2] shrink-0" />;
+      case 'bag':
+        return <ShoppingBag className="w-4 h-4 stroke-[2.2] shrink-0" />;
+      case 'arrow':
+      default:
+        return <ArrowRight className="w-4 h-4 stroke-[2.5] shrink-0 transition-transform group-hover/btn:translate-x-1" />;
+    }
   };
 
   return (
     <div 
       id="hero-banner" 
-      className="relative overflow-hidden rounded-3xl mx-4 sm:mx-6 lg:mx-8 my-4 lg:my-6 min-h-[500px] lg:min-h-[560px] max-w-7xl lg:mx-auto select-none shadow-sm transition-all duration-300 group/hero border border-black/5 dark:border-white/10"
+      className="relative overflow-hidden rounded-3xl mx-4 sm:mx-6 lg:mx-8 my-4 lg:my-6 min-h-[500px] lg:min-h-[560px] max-w-7xl lg:mx-auto select-none shadow-md transition-all duration-300 group/hero border border-black/5 dark:border-white/10"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
     >
-      {/* Fundo Azul Vibrante #006EDB */}
+      {/* Fundo Azul Vibrante da Marca Evidência Calçados */}
       <div className={`absolute inset-0 transition-colors duration-500 ${
         isDark 
           ? 'bg-gradient-to-br from-[#020610] via-[#003B73] to-[#00509E]' 
           : 'bg-gradient-to-br from-[#003B73] via-[#006EDB] to-[#008CFF]'
       }`} />
 
+      {/* Elementos sutis de brilho para profundidade visual */}
+      <div className="absolute top-0 right-1/4 w-96 h-96 bg-white/10 rounded-full blur-3xl pointer-events-none -translate-y-1/2" />
+      <div className="absolute bottom-0 left-1/3 w-80 h-80 bg-amber-400/10 rounded-full blur-3xl pointer-events-none translate-y-1/2" />
+
       <div className="relative grid grid-cols-1 lg:grid-cols-12 h-full w-full z-10 min-h-[500px] lg:min-h-[560px]">
         
-        {/* Esquerda: Tipografia e Botões de Alto Contraste */}
+        {/* Esquerda: Tipografia e Botões de Ação (CTAs) de Alto Impacto */}
         <div className="lg:col-span-6 flex flex-col justify-between p-8 sm:p-12 lg:p-14 z-20">
           <div className="space-y-6 max-w-xl my-auto">
-            {/* Tag de Coleção */}
+            {/* Tag / Badge de Coleção ou Campanha */}
             <motion.div 
               key={`tag-${currentSlide}`}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               className="inline-flex items-center space-x-2"
             >
-              <span className="text-[11px] font-bold tracking-wider uppercase px-3.5 py-1 rounded-full border bg-white/20 text-[#DDF1FF] border-white/30 backdrop-blur-md">
-                {currentBanner.collectionTag}
-              </span>
+              {currentBanner.badgeVariant === 'amber' ? (
+                <span className="text-[11px] font-black tracking-wider uppercase px-4 py-1.5 rounded-full border bg-amber-400/20 text-amber-300 border-amber-400/40 backdrop-blur-md shadow-xs flex items-center space-x-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
+                  <span>{currentBanner.collectionTag}</span>
+                </span>
+              ) : (
+                <span className="text-[11px] font-bold tracking-wider uppercase px-3.5 py-1 rounded-full border bg-white/20 text-[#DDF1FF] border-white/30 backdrop-blur-md">
+                  {currentBanner.collectionTag}
+                </span>
+              )}
             </motion.div>
 
-            {/* Título Principal #FFFFFF e Descrição #DDF1FF */}
+            {/* Conteúdo Dinâmico: Título Principal e Descrição */}
             <AnimatePresence mode="wait">
               <motion.div
                 key={`content-${currentSlide}`}
@@ -149,28 +373,53 @@ export const Hero: React.FC = () => {
                   {currentBanner.description}
                 </p>
 
-                {/* Botão Principal: Fundo #FFFFFF com Texto #00509E */}
+                {/* Botões de Ação Dinâmicos (CTAs) */}
                 <div className="pt-4 flex flex-wrap items-center gap-3">
-                  <button
-                    onClick={() => handleAction(currentBanner.categoryFilter)}
-                    className="inline-flex items-center justify-center text-sm font-extrabold px-6 py-3.5 rounded-full bg-white text-[#00509E] hover:bg-[#DDF1FF] hover:text-[#003B73] active:scale-95 transition-all shadow-md cursor-pointer space-x-2"
-                  >
-                    <span>{currentBanner.buttonText}</span>
-                    <ArrowRight className="w-4 h-4 stroke-[2.5]" />
-                  </button>
+                  {currentBanner.ctas.map((cta, idx) => {
+                    if (cta.variant === 'amber') {
+                      return (
+                        <button
+                          key={`cta-${idx}`}
+                          onClick={() => handleCtaClick(cta)}
+                          className="inline-flex items-center justify-center text-sm font-black px-6 py-3.5 rounded-full bg-gradient-to-r from-amber-400 via-amber-300 to-amber-400 text-slate-950 hover:brightness-105 active:scale-95 transition-all shadow-md hover:shadow-amber-500/25 border border-amber-300/80 cursor-pointer space-x-2.5 group/btn"
+                        >
+                          {renderIcon(cta.icon)}
+                          <span>{cta.text}</span>
+                        </button>
+                      );
+                    }
 
-                  <button
-                    onClick={() => handleAction('TODOS')}
-                    className="inline-flex items-center justify-center text-sm font-bold px-6 py-3.5 rounded-full border border-white/30 text-white hover:bg-white/10 transition-all cursor-pointer"
-                  >
-                    Ver Catálogo Completo
-                  </button>
+                    if (cta.variant === 'outline') {
+                      return (
+                        <button
+                          key={`cta-${idx}`}
+                          onClick={() => handleCtaClick(cta)}
+                          className="inline-flex items-center justify-center text-sm font-bold px-6 py-3.5 rounded-full border border-white/35 text-white hover:bg-white/15 active:scale-95 transition-all backdrop-blur-sm cursor-pointer space-x-2 group/btn"
+                        >
+                          <span>{cta.text}</span>
+                          {renderIcon(cta.icon)}
+                        </button>
+                      );
+                    }
+
+                    // Botão Primário Padrão (Branco com texto azul institucional)
+                    return (
+                      <button
+                        key={`cta-${idx}`}
+                        onClick={() => handleCtaClick(cta)}
+                        className="inline-flex items-center justify-center text-sm font-black px-6 py-3.5 rounded-full bg-white text-[#00509E] hover:bg-[#DDF1FF] hover:text-[#003B73] active:scale-95 transition-all shadow-md hover:shadow-lg cursor-pointer space-x-2.5 group/btn"
+                      >
+                        <span>{cta.text}</span>
+                        {renderIcon(cta.icon)}
+                      </button>
+                    );
+                  })}
                 </div>
               </motion.div>
             </AnimatePresence>
           </div>
 
-          {/* Indicador de Banner estilo Apple dots */}
+          {/* Indicadores de Banner estilo Apple Dots */}
           <div className="pt-6 flex items-center space-x-2">
             {slides.map((_, idx) => (
               <button
@@ -178,8 +427,8 @@ export const Hero: React.FC = () => {
                 onClick={() => setCurrentSlide(idx)}
                 className={`h-1.5 rounded-full transition-all duration-300 cursor-pointer ${
                   currentSlide === idx 
-                    ? 'w-8 bg-[#0071e3]' 
-                    : isDark ? 'w-2 bg-white/20 hover:bg-white/40' : 'w-2 bg-black/20 hover:bg-black/40'
+                    ? 'w-8 bg-amber-400' 
+                    : isDark ? 'w-2 bg-white/25 hover:bg-white/45' : 'w-2 bg-white/40 hover:bg-white/70'
                 }`}
                 aria-label={`Ir para slide ${idx + 1}`}
               />
@@ -203,7 +452,7 @@ export const Hero: React.FC = () => {
                 alt={currentBanner.title} 
                 className="w-full h-full object-cover object-center rounded-2xl shadow-lg border border-black/5 dark:border-white/10"
               />
-              <div className="absolute inset-0 rounded-2xl bg-gradient-to-t from-black/30 via-transparent to-transparent pointer-events-none" />
+              <div className="absolute inset-0 rounded-2xl bg-gradient-to-t from-black/35 via-transparent to-transparent pointer-events-none" />
             </motion.div>
           </AnimatePresence>
 
@@ -239,4 +488,3 @@ export const Hero: React.FC = () => {
     </div>
   );
 };
-

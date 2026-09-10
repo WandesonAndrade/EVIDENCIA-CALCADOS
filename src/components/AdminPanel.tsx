@@ -1622,6 +1622,7 @@ export const AdminPanel: React.FC = () => {
                           <option value="feminino">Feminino</option>
                           <option value="masculino">Masculino</option>
                           <option value="ofertas">Ofertas</option>
+                          <option value="meu-crediario">Meu Crediário (Simulação / Análise)</option>
                           <option value="sapatos-sociais">Sapatos Sociais</option>
                           <option value="botas">Botas</option>
                           <option value="acessorios">Acessórios</option>

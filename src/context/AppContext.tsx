@@ -128,43 +128,51 @@ const AppContext = createContext<AppContextProps | undefined>(undefined);
 export const DEFAULT_HERO_BANNERS: HeroBanner[] = [
   {
     id: 'banner-1',
-    badge: 'LOJA OFICIAL CAXIAS - MA',
-    title: 'A sua loja de Caxias - MA está online!',
-    description: 'Compre no carnê em até 6x sem juros ou receba via entrega rápida com o atendimento exclusivo da equipe Evidência Calçados.',
-    image: 'https://images.unsplash.com/photo-1549298916-b41d501d3772?q=80&w=1600&auto=format&fit=crop',
-    buttonText: 'Ver Lançamentos',
-    tabKey: 'lançamentos',
-    active: true
+    badge: 'CAMPANHA DE OFERTAS',
+    title: 'Super Descontos de até 50% OFF',
+    description: 'Chegou o momento de adquirir aquele calçado desejado com preços incríveis. Conheça nosso novo Crediário Próprio e solicite sua análise de crédito!',
+    image: 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?q=80&w=1600&auto=format&fit=crop',
+    buttonText: 'Aproveitar Ofertas',
+    tabKey: 'ofertas',
+    active: true,
+    secondaryButtonText: 'Solicitar Crediário',
+    secondaryTabKey: 'meu-crediario'
   },
   {
     id: 'banner-2',
+    badge: 'NOVIDADE / FACILIDADE',
+    title: 'Compre com o Crediário Próprio Evidência',
+    description: 'Faça sua avaliação de crédito online de forma rápida, importe seu carrinho e parcele suas compras com facilidade.',
+    image: 'https://images.unsplash.com/photo-1556742049-0a67c5574f73?q=80&w=1600&auto=format&fit=crop',
+    buttonText: 'Simular Meu Crédito',
+    tabKey: 'meu-crediario',
+    active: true,
+    secondaryButtonText: 'Aproveitar Ofertas',
+    secondaryTabKey: 'ofertas'
+  },
+  {
+    id: 'banner-3',
     badge: 'COLEÇÃO FEMININA',
     title: 'Charme, sofisticação e conforto extremo.',
     description: 'Encontre sandálias, sapatilhas, saltos e acessórios refinados criados especialmente para destacar a sua personalidade única.',
     image: 'https://images.unsplash.com/photo-1543163521-1bf539c55dd2?q=80&w=1600&auto=format&fit=crop',
     buttonText: 'Ver Moda Feminina',
     tabKey: 'feminino',
-    active: true
+    active: true,
+    secondaryButtonText: 'Solicitar Crediário',
+    secondaryTabKey: 'meu-crediario'
   },
   {
-    id: 'banner-3',
+    id: 'banner-4',
     badge: 'COLEÇÃO MASCULINA',
     title: 'Estilo moderno e robustez incomparável.',
     description: 'Sapatos sociais premium, botas indestrutíveis e tênis de alta performance para o homem contemporâneo que valoriza design e atitude.',
     image: 'https://images.unsplash.com/photo-1533867617858-e7b97e060509?q=80&w=1600&auto=format&fit=crop',
     buttonText: 'Explorar Linha Masculina',
     tabKey: 'masculino',
-    active: true
-  },
-  {
-    id: 'banner-4',
-    badge: 'CAMPANHA DE OFERTAS',
-    title: 'Super Descontos de até 50% OFF.',
-    description: 'Chegou o momento de adquirir aquele calçado desejado com preços incríveis e parcelamento facilitado no Crediário Próprio Evidência.',
-    image: 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?q=80&w=1600&auto=format&fit=crop',
-    buttonText: 'Aproveitar Ofertas',
-    tabKey: 'ofertas',
-    active: true
+    active: true,
+    secondaryButtonText: 'Solicitar Crediário',
+    secondaryTabKey: 'meu-crediario'
   }
 ];
 
@@ -659,7 +667,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [heroBanners, setHeroBanners] = useState<HeroBanner[]>(() => {
     const saved = localStorage.getItem('evidencia_cms_hero_banners');
     if (saved) {
-      try { return JSON.parse(saved); } catch (e) {}
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const isLegacy = parsed.some((b: any) => b.title?.includes('A sua loja de Caxias - MA está online!') || !b.secondaryButtonText);
+          if (!isLegacy) {
+            return parsed;
+          }
+        }
+      } catch (e) {}
     }
     return DEFAULT_HERO_BANNERS;
   });
