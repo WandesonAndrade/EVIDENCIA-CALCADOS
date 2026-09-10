@@ -28,7 +28,7 @@ export const DEFAULT_SLIDES: HeroSlide[] = [
     id: 'banner-ofertas',
     collectionTag: 'CAMPANHA DE OFERTAS',
     title: 'Super Descontos de até 50% OFF',
-    description: 'Chegou o momento de adquirir aquele calçado desejado com preços incríveis. Conheça nosso novo Crediário Próprio e solicite sua análise de crédito!',
+    description: 'Chegou o momento de adquirir aquele calçado desejado com preços incríveis e condições especiais. Aproveite as melhores promoções da loja!',
     image: 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?q=80&w=1600&auto=format&fit=crop',
     badgeVariant: 'amber',
     ctas: [
@@ -39,30 +39,8 @@ export const DEFAULT_SLIDES: HeroSlide[] = [
         icon: 'arrow'
       },
       {
-        text: 'Solicitar Crediário',
-        action: 'crediario',
-        variant: 'amber',
-        icon: 'credit'
-      }
-    ]
-  },
-  {
-    id: 'banner-crediario',
-    collectionTag: 'NOVIDADE / FACILIDADE',
-    title: 'Compre com o Crediário Próprio Evidência',
-    description: 'Faça sua avaliação de crédito online de forma rápida, importe seu carrinho e parcele suas compras com facilidade.',
-    image: 'https://images.unsplash.com/photo-1556742049-0a67c5574f73?q=80&w=1600&auto=format&fit=crop',
-    badgeVariant: 'amber',
-    ctas: [
-      {
-        text: 'Simular Meu Crédito',
-        action: 'crediario',
-        variant: 'amber',
-        icon: 'credit'
-      },
-      {
-        text: 'Aproveitar Ofertas',
-        action: 'offers',
+        text: 'Ver Catálogo Completo',
+        action: 'catalog',
         variant: 'outline',
         icon: 'arrow'
       }
@@ -84,10 +62,10 @@ export const DEFAULT_SLIDES: HeroSlide[] = [
         icon: 'arrow'
       },
       {
-        text: 'Solicitar Crediário',
-        action: 'crediario',
-        variant: 'amber',
-        icon: 'credit'
+        text: 'Ver Catálogo Completo',
+        action: 'catalog',
+        variant: 'outline',
+        icon: 'arrow'
       }
     ]
   },
@@ -107,10 +85,10 @@ export const DEFAULT_SLIDES: HeroSlide[] = [
         icon: 'arrow'
       },
       {
-        text: 'Solicitar Crediário',
-        action: 'crediario',
-        variant: 'amber',
-        icon: 'credit'
+        text: 'Ver Catálogo Completo',
+        action: 'catalog',
+        variant: 'outline',
+        icon: 'arrow'
       }
     ]
   }
@@ -132,82 +110,73 @@ export const Hero: React.FC = () => {
 
   const isDark = theme === 'dark';
 
-  // Processa dinamicamente múltiplos slides via array de objetos suportando CMS ou os banners padrão otimizados
+  // Processa dinamicamente múltiplos slides via array de objetos suportando CMS ou os banners padrão
   const slides: HeroSlide[] = useMemo(() => {
     if (heroBanners && heroBanners.filter(b => b.active).length > 0) {
-      return heroBanners.filter(b => b.active).map((b, i) => {
+      // Filtra banners ativos e descarta qualquer banner de crediário
+      const activeBanners = heroBanners.filter(b => {
+        if (!b.active) return false;
         const tab = (b.tabKey || '').toLowerCase();
-        const badgeText = b.badge || 'Coleção Evidência';
-        const isOffers = tab === 'ofertas' || badgeText.toUpperCase().includes('OFERTA') || b.title.includes('50% OFF');
-        const isCrediario = tab === 'meu-crediario' || tab === 'crediario' || b.title.toLowerCase().includes('crediário') || badgeText.toUpperCase().includes('FACILIDADE');
+        const badge = (b.badge || '').toLowerCase();
+        const title = (b.title || '').toLowerCase();
+        return tab !== 'meu-crediario' && !title.includes('crediário') && !title.includes('crediario') && !badge.includes('crediário');
+      });
 
-        const ctas: HeroSlideCTA[] = [];
+      if (activeBanners.length > 0) {
+        return activeBanners.map((b, i) => {
+          const tab = (b.tabKey || '').toLowerCase();
+          const badgeText = b.badge || 'Coleção Evidência';
+          const isOffers = tab === 'ofertas' || badgeText.toUpperCase().includes('OFERTA') || b.title.includes('50% OFF');
 
-        if (isOffers) {
-          ctas.push({
-            text: b.buttonText || 'Aproveitar Ofertas',
-            action: 'offers',
-            variant: 'primary',
-            icon: 'arrow'
-          });
-          ctas.push({
-            text: b.secondaryButtonText || 'Solicitar Crediário',
-            action: 'crediario',
-            variant: 'amber',
-            icon: 'credit'
-          });
-        } else if (isCrediario) {
-          ctas.push({
-            text: b.buttonText || 'Simular Meu Crédito',
-            action: 'crediario',
-            variant: 'amber',
-            icon: 'credit'
-          });
-          ctas.push({
-            text: b.secondaryButtonText || 'Aproveitar Ofertas',
-            action: 'offers',
-            variant: 'outline',
-            icon: 'arrow'
-          });
-        } else {
-          ctas.push({
-            text: b.buttonText || 'Comprar agora',
-            action: 'category',
-            targetParam: b.tabKey || 'TODOS',
-            variant: 'primary',
-            icon: 'arrow'
-          });
+          // Limpeza de descrições que mencionavam crediário
+          const cleanDesc = (b.description || '')
+            .replace(/no Crediário Próprio Evidência\.?/gi, 'na Evidência Calçados.')
+            .replace(/Conheça nosso novo Crediário Próprio e solicite sua análise de crédito!?/gi, 'Aproveite as melhores promoções da loja!');
 
-          if (b.secondaryButtonText) {
+          const ctas: HeroSlideCTA[] = [];
+
+          if (isOffers) {
             ctas.push({
-              text: b.secondaryButtonText,
-              action: b.secondaryTabKey === 'meu-crediario' ? 'crediario' : 'category',
-              targetParam: b.secondaryTabKey || 'TODOS',
-              variant: b.secondaryTabKey === 'meu-crediario' ? 'amber' : 'outline',
-              icon: b.secondaryTabKey === 'meu-crediario' ? 'credit' : 'arrow'
+              text: b.buttonText || 'Aproveitar Ofertas',
+              action: 'offers',
+              variant: 'primary',
+              icon: 'arrow'
+            });
+            ctas.push({
+              text: 'Ver Catálogo Completo',
+              action: 'catalog',
+              variant: 'outline',
+              icon: 'arrow'
             });
           } else {
             ctas.push({
-              text: 'Solicitar Crediário',
-              action: 'crediario',
-              variant: 'amber',
-              icon: 'credit'
+              text: b.buttonText || 'Comprar agora',
+              action: 'category',
+              targetParam: b.tabKey || 'TODOS',
+              variant: 'primary',
+              icon: 'arrow'
+            });
+            ctas.push({
+              text: 'Ver Catálogo Completo',
+              action: 'catalog',
+              variant: 'outline',
+              icon: 'arrow'
             });
           }
-        }
 
-        const isAmberBadge = isOffers || isCrediario || badgeText.toUpperCase().includes('NOVIDADE') || badgeText.toUpperCase().includes('CAMPANHA');
+          const isAmberBadge = isOffers || badgeText.toUpperCase().includes('CAMPANHA');
 
-        return {
-          id: b.id || i + 1,
-          collectionTag: badgeText,
-          title: b.title,
-          description: b.description,
-          image: b.image,
-          ctas,
-          badgeVariant: isAmberBadge ? 'amber' : 'blue'
-        };
-      });
+          return {
+            id: b.id || i + 1,
+            collectionTag: badgeText,
+            title: b.title,
+            description: cleanDesc,
+            image: b.image,
+            ctas,
+            badgeVariant: isAmberBadge ? 'amber' : 'blue'
+          };
+        });
+      }
     }
     return DEFAULT_SLIDES;
   }, [heroBanners]);

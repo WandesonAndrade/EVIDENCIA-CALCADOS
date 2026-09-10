@@ -219,19 +219,19 @@ export const Header: React.FC = () => {
         isDark ? "bg-slate-950 text-white border-slate-800" : "bg-[#002850] text-[#DDF1FF] border-white/10"
       }`}>
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
-          {/* Esquerda: Crediário Próprio */}
+          {/* Esquerda: Parcelamento Cartão */}
           <div className="flex items-center space-x-2">
             <CreditCard className="h-4 w-4 text-[#FFC928] shrink-0" />
             <span>
-              <strong>Crediário Próprio</strong> em até 6x sem juros
+              <strong>Até 10x sem juros</strong> no cartão
             </span>
           </div>
 
-          {/* Centro: Parcelamento Cartão */}
+          {/* Centro: Entrega Rápida */}
           <div className="hidden md:flex items-center space-x-2">
-            <ShieldCheck className="h-4 w-4 text-[#DDF1FF] shrink-0" />
+            <Truck className="h-4 w-4 text-[#DDF1FF] shrink-0" />
             <span>
-              <strong>Até 10x sem juros</strong> no cartão
+              <strong>Entrega Rápida</strong> em Caxias - MA e Região
             </span>
           </div>
 

@@ -130,28 +130,16 @@ export const DEFAULT_HERO_BANNERS: HeroBanner[] = [
     id: 'banner-1',
     badge: 'CAMPANHA DE OFERTAS',
     title: 'Super Descontos de até 50% OFF',
-    description: 'Chegou o momento de adquirir aquele calçado desejado com preços incríveis. Conheça nosso novo Crediário Próprio e solicite sua análise de crédito!',
+    description: 'Chegou o momento de adquirir aquele calçado desejado com preços incríveis e condições especiais. Aproveite as melhores promoções da loja!',
     image: 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?q=80&w=1600&auto=format&fit=crop',
     buttonText: 'Aproveitar Ofertas',
     tabKey: 'ofertas',
     active: true,
-    secondaryButtonText: 'Solicitar Crediário',
-    secondaryTabKey: 'meu-crediario'
+    secondaryButtonText: 'Ver Catálogo Completo',
+    secondaryTabKey: 'todos'
   },
   {
     id: 'banner-2',
-    badge: 'NOVIDADE / FACILIDADE',
-    title: 'Compre com o Crediário Próprio Evidência',
-    description: 'Faça sua avaliação de crédito online de forma rápida, importe seu carrinho e parcele suas compras com facilidade.',
-    image: 'https://images.unsplash.com/photo-1556742049-0a67c5574f73?q=80&w=1600&auto=format&fit=crop',
-    buttonText: 'Simular Meu Crédito',
-    tabKey: 'meu-crediario',
-    active: true,
-    secondaryButtonText: 'Aproveitar Ofertas',
-    secondaryTabKey: 'ofertas'
-  },
-  {
-    id: 'banner-3',
     badge: 'COLEÇÃO FEMININA',
     title: 'Charme, sofisticação e conforto extremo.',
     description: 'Encontre sandálias, sapatilhas, saltos e acessórios refinados criados especialmente para destacar a sua personalidade única.',
@@ -159,11 +147,11 @@ export const DEFAULT_HERO_BANNERS: HeroBanner[] = [
     buttonText: 'Ver Moda Feminina',
     tabKey: 'feminino',
     active: true,
-    secondaryButtonText: 'Solicitar Crediário',
-    secondaryTabKey: 'meu-crediario'
+    secondaryButtonText: 'Ver Catálogo Completo',
+    secondaryTabKey: 'todos'
   },
   {
-    id: 'banner-4',
+    id: 'banner-3',
     badge: 'COLEÇÃO MASCULINA',
     title: 'Estilo moderno e robustez incomparável.',
     description: 'Sapatos sociais premium, botas indestrutíveis e tênis de alta performance para o homem contemporâneo que valoriza design e atitude.',
@@ -171,8 +159,8 @@ export const DEFAULT_HERO_BANNERS: HeroBanner[] = [
     buttonText: 'Explorar Linha Masculina',
     tabKey: 'masculino',
     active: true,
-    secondaryButtonText: 'Solicitar Crediário',
-    secondaryTabKey: 'meu-crediario'
+    secondaryButtonText: 'Ver Catálogo Completo',
+    secondaryTabKey: 'todos'
   }
 ];
 
@@ -670,8 +658,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          const isLegacy = parsed.some((b: any) => b.title?.includes('A sua loja de Caxias - MA está online!') || !b.secondaryButtonText);
-          if (!isLegacy) {
+          const hasCrediario = parsed.some((b: any) => 
+            b.title?.toLowerCase().includes('crediário') || 
+            b.title?.toLowerCase().includes('crediario') ||
+            b.description?.toLowerCase().includes('crediário') ||
+            b.description?.toLowerCase().includes('crediario') ||
+            b.buttonText?.toLowerCase().includes('crediário') ||
+            b.secondaryButtonText?.toLowerCase().includes('crediário') ||
+            b.tabKey === 'meu-crediario' ||
+            b.secondaryTabKey === 'meu-crediario' ||
+            b.title?.includes('A sua loja de Caxias - MA está online!')
+          );
+          if (!hasCrediario) {
             return parsed;
           }
         }
