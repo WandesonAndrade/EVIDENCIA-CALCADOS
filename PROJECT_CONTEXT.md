@@ -240,3 +240,41 @@ Acessível exclusivamente via menu de navegação ou link direto (`/meu-crediari
   2. `npx tsx tests/<test-file>.ts` — 100% dos testes passando.
   3. `npm run build` — compilação bem-sucedida do bundle Vite e do servidor proxy Node.js (`server.ts`).
 - **Idioma Padrão:** Toda a interface, feedbacks visuais, mensagens de erro e respostas ao usuário devem ser exclusivamente em **Português do Brasil (pt-BR)**. Código-fonte, variáveis e comentários técnicos permanecem em inglês.
+
+---
+
+## 13. Pipeline de Otimização de Fotos, Conversão WebP e Preservação (`imageOptimizationService.ts` & `supabaseStorageService.ts`)
+
+- **Formato Mandatório WebP:** Todas as imagens enviadas para o catálogo de produtos são convertidas para o formato de alta performance **WebP** com qualidade 80% e geração automática de miniaturas (*thumbnails*) quadradas de **150x150 px**.
+- **Limite de 8 MB com Compressão Adaptativa:**
+  - Suporte nativo a fotos de celulares modernos em alta resolução de até **8 MB**.
+  - Algoritmo de compressão adaptativa em duas fases: fotos que excedam 500KB na primeira passagem sofrem compressão secundária automática garantindo arquivos finais extremamente leves (**entre 150KB e 300KB**, redução de até 98% do tamanho original).
+  - Redimensionamento proporcional limitando a largura/altura máxima a **1600px**, preservando nitidez de tecidos e texturas.
+  - Processamento no navegador 100% compatível com Canvas 2D (zero dependências C++ nativas no cliente), mantendo o build do Vite leve e seguro.
+- **Preservação Absoluta de Fotos Existentes e Links Externos (`preserveExistingImages`):**
+  - Fotos já cadastradas no Firestore e URLs de fornecedores/CDNs externas **nunca são apagadas ou sobrescritas acidentalmente** durante novos uploads ou edições.
+- **Exclusão Limpa em Cascata (`deleteImageFromSupabase`):**
+  - Ao excluir uma foto do Supabase Storage, a miniatura correspondente (`_thumb.webp` ou subpasta `thumbnails/`) é detectada e excluída em lote no bucket.
+  - Links externos que não pertencem ao Supabase são desvinculados com segurança sem disparar requisições ao bucket.
+  - Desvinculação automática de variações de cor (`colorImages`, `colorImageMap`) e redefinição da imagem de capa (`imageUrl` e `foto_uri`).
+  - Prevenção do bug de ressurreição de fotos deletadas ao salvar o formulário (`handleSaveProductEnrichment`).
+- **Tratamento de Produtos sem Desmembramento de Grade:**
+  - Para produtos de estoque único global ou que não possuem variações de grade cadastradas no ERP (ex: cosméticos, cremes, carteiras, itens tamanho único), a seleção suspensa `-- Cor da foto --` debaixo das miniaturas é **completamente ocultada**, mantendo a galeria limpa e focada na foto e nos botões de capa e lixeira.
+
+---
+
+## 14. Menu Lateral & Painel Gestor Reorganizado com Menu Sanduíche (`AdminPanel.tsx`)
+
+- **Remoção de Itens Obsoletos:**
+  - *Adicionar Produto*: Removido do menu lateral, uma vez que todo o catálogo é importado e sincronizado de forma centralizada pelo **Integrador MobLink ERP**.
+  - *Ordem das Seções*: Removido do menu lateral, pois a arquitetura e a sequência de seções da Home vitrine são limpas e fixadas no código.
+- **Menu Sanduíche Responsivo (Mobile & Desktop):**
+  - **No Mobile (`md:hidden`):** Barra de topo fixa elegante com botão sanduíche (☰ / ✕), logo do Evidência CMS e atalho direto para visualizar a loja virtual (👁️). Ao tocar no botão, abre-se uma gaveta lateral (*drawer*) suave com *backdrop blur* escurecido. Ao selecionar qualquer aba, o menu se fecha automaticamente.
+  - **No Desktop:** Botão sanduíche integrado na barra lateral permitindo **recolher o menu lateral** para liberar 100% do espaço de tela (*Full View*), ideal para tabelas com muitos dados (Estoque, Vendas e Financeiro).
+  - **Barra Superior Integrada (Sem Sobreposição):** Quando o menu está recolhido no desktop, uma barra de navegação no fluxo normal do documento exibe o botão `[ ☰ Abrir Menu ]` acompanhado do logo e do botão de "Ver Loja", garantindo que títulos, métricas e cards de dados nunca fiquem cobertos.
+- **Reorganização dos Grupos de Navegação por Prioridade Operacional:**
+  1. **📊 DASHBOARD & VENDAS:** Visão Geral & Métricas -> Vendas & Pedidos -> Dashboard Financeiro -> Crediário Próprio -> Base de Clientes & CRM -> Vendedores (Cadastros).
+  2. **📦 CATÁLOGO & ESTOQUE:** Integrador MobLink ERP (destaque no topo do grupo) -> Gestão de Estoque -> Categorias da Loja -> Caixas & Frete (Melhor Envio).
+  3. **✨ CMS & VITRINE:** Banners Principais (Hero) -> Ofertas & Promoções -> Saldão de Calçados -> Editor "Sobre Nós" -> Suporte & Contatos.
+  4. **⚙️ SISTEMA:** Gestão de Equipe & Colaboradores -> Configurações Gerais.
+

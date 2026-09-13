@@ -41,3 +41,15 @@ Este arquivo é a memória persistente do projeto (AG Kit), consolidando decisõ
 
 6. **Protocolo de Validação:**
    - Antes de cada commit: `npx tsc --noEmit` (0 erros), testes automatizados (`tests/test-category-navigation.ts`, `tests/test-smart-search.ts`), e `npm run build`.
+
+7. **Gestão de Fotos e Grades no Cadastro de Produtos:**
+   - Produtos com desmembramento de grade e variações de cores ativas no ERP permitem vincular fotos a cada cor da grade.
+   - Produtos de estoque global/único sem desmembramento de grade no ERP (ex: cosméticos, produtos sem variações) não exibem a caixa de seleção `-- Cor da foto --` debaixo das miniaturas na galeria, mantendo o layout limpo e focado na foto e nas ações de capa e exclusão.
+
+8. **Painel Gestor (CMS & Menu Sanduíche):**
+   - Menu sanduíche responsivo (`Menu` / `X`) presente no mobile (drawer deslizante com overlay backdrop e fechamento automático ao selecionar tab) e colapsável no desktop para ganho de espaço útil em tabelas.
+   - Itens reorganizados por prioridade operacional:
+     1. *Dashboard & Vendas*: Métricas -> Pedidos -> Financeiro -> Crediário -> CRM -> Vendedores.
+     2. *Catálogo & Estoque*: Integrador MobLink ERP -> Estoque -> Categorias -> Frete.
+     3. *CMS & Vitrine*: Banners -> Promoções -> Saldão -> Sobre Nós -> Suporte.
+     4. *Sistema*: Equipe -> Configurações.
