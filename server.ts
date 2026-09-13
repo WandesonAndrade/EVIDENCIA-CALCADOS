@@ -5,13 +5,31 @@ import express from "express";
 import path from "path";
 import fs from "fs";
 import os from "os";
+import multer from "multer";
 import { createServer as createViteServer } from "vite";
 import { ShippingService } from "./src/services/shipping/shippingService.js";
 import { db } from "./src/lib/firebase.js";
 import { doc, getDoc, setDoc, updateDoc, collection, getDocs, query, where } from "firebase/firestore";
+import { createClient } from "@supabase/supabase-js";
+import { 
+  optimizeBufferToWebP, 
+  generateThumbnailBuffer 
+} from "./src/services/serverImageOptimizer.js";
+import { 
+  validateImageFile,
+  MAX_IMAGE_FILE_SIZE,
+  DEFAULT_WEBP_QUALITY 
+} from "./src/services/imageOptimizationService.js";
+import { preserveExistingImages } from "./src/services/supabaseStorageService.js";
 
 export const app = express();
 const PORT = 3000;
+
+const uploadStorage = multer.memoryStorage();
+const uploadMiddleware = multer({
+  storage: uploadStorage,
+  limits: { fileSize: MAX_IMAGE_FILE_SIZE }
+});
 
 const EVIDENCIA_API_BASE = process.env.VITE_API_URL
   ? process.env.VITE_API_URL.replace(/\/api\/v1\/?$/, "")
@@ -1028,6 +1046,139 @@ app.post("/api/shipping/track", async (req, res) => {
     return res.status(500).json({
       success: false,
       error: error.message || "Erro ao rastrear envio no Melhor Envio",
+    });
+  }
+});
+
+// --- ROTA DE UPLOAD E OTIMIZAÇÃO DE FOTOS (WEBP 80% + THUMBNAIL 150PX + PRESERVAÇÃO DE FOTOS E LINKS) ---
+app.post("/api/upload-photo", uploadMiddleware.single("file"), async (req, res) => {
+  try {
+    let inputBuffer: Buffer | null = null;
+    let fileName = req.file?.originalname || "foto.jpg";
+
+    if (req.file && req.file.buffer) {
+      inputBuffer = req.file.buffer;
+    } else if (req.body && req.body.image) {
+      const base64Str = String(req.body.image);
+      const matches = base64Str.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+      if (matches && matches.length === 3) {
+        inputBuffer = Buffer.from(matches[2], "base64");
+      } else {
+        inputBuffer = Buffer.from(base64Str, "base64");
+      }
+    }
+
+    if (!inputBuffer) {
+      return res.status(400).json({
+        success: false,
+        error: "Nenhum arquivo ou buffer de imagem foi enviado no campo 'file' ou 'image'."
+      });
+    }
+
+    // 1. Validação de tamanho (8MB com compressão adaptativa)
+    const val = validateImageFile({ size: inputBuffer.length, name: fileName });
+    if (!val.valid) {
+      return res.status(400).json({ success: false, error: val.error });
+    }
+
+    const productId = req.body?.productId ? String(req.body.productId).trim() : "geral";
+    const cleanProdId = productId.replace(/[^a-zA-Z0-9_-]/g, "_");
+    const timestamp = Date.now();
+    const randomHash = Math.random().toString(36).substring(2, 8);
+    const baseName = `foto_${timestamp}_${randomHash}`;
+
+    // 2. Conversão para WebP (Qualidade 80%) e Thumbnail (150x150)
+    const webpResult = await optimizeBufferToWebP(inputBuffer, { quality: DEFAULT_WEBP_QUALITY });
+    const thumbResult = await generateThumbnailBuffer(inputBuffer, { size: 150 });
+
+    const supabaseUrl = process.env.VITE_SUPABASE_URL || "";
+    const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_KEY || "";
+    const supabaseBucket = process.env.VITE_SUPABASE_BUCKET || "products";
+
+    let webpUrl = "";
+    let thumbUrl = "";
+
+    if (supabaseUrl && supabaseKey) {
+      const supabase = createClient(supabaseUrl, supabaseKey);
+      const mainPath = `produtos/${cleanProdId}/${baseName}.webp`;
+      const thumbPath = `produtos/${cleanProdId}/thumbnails/${baseName}_thumb.webp`;
+
+      const { error: upErr } = await supabase.storage
+        .from(supabaseBucket)
+        .upload(mainPath, webpResult.buffer!, {
+          contentType: "image/webp",
+          cacheControl: "31536000",
+          upsert: true
+        });
+
+      if (upErr) {
+        throw new Error(`Erro ao enviar foto para o Supabase: ${upErr.message}`);
+      }
+
+      await supabase.storage
+        .from(supabaseBucket)
+        .upload(thumbPath, thumbResult.buffer!, {
+          contentType: "image/webp",
+          cacheControl: "31536000",
+          upsert: true
+        });
+
+      const { data: mainPublic } = supabase.storage.from(supabaseBucket).getPublicUrl(mainPath);
+      const { data: thumbPublic } = supabase.storage.from(supabaseBucket).getPublicUrl(thumbPath);
+      webpUrl = mainPublic.publicUrl;
+      thumbUrl = thumbPublic.publicUrl;
+    } else {
+      // Fallback data URI se Supabase não configurado no backend
+      webpUrl = `data:image/webp;base64,${webpResult.buffer!.toString("base64")}`;
+      thumbUrl = `data:image/webp;base64,${thumbResult.buffer!.toString("base64")}`;
+    }
+
+    // 3. Preservação de fotos existentes e links externos no Firestore
+    let allImages: string[] = [webpUrl];
+    if (db && productId && productId !== "geral") {
+      try {
+        const prodRef = doc(db, "products", productId);
+        const snap = await getDoc(prodRef);
+        if (snap.exists()) {
+          const existingData = snap.data();
+          const existingImages = existingData?.images || [];
+          allImages = preserveExistingImages(existingImages, [
+            existingData?.imageUrl,
+            existingData?.foto_uri,
+            webpUrl
+          ]);
+
+          await updateDoc(prodRef, {
+            images: allImages,
+            imageUrl: allImages[0] || webpUrl,
+            foto_uri: allImages[0] || webpUrl,
+            thumbnailUrl: thumbUrl,
+            updatedAt: new Date().toISOString()
+          });
+        }
+      } catch (dbErr: any) {
+        console.warn("[Upload Photo] Aviso ao atualizar Firestore:", dbErr.message);
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      webpUrl,
+      thumbnailUrl: thumbUrl,
+      images: allImages,
+      stats: {
+        originalSize: webpResult.originalSize,
+        optimizedSize: webpResult.optimizedSize,
+        compressionRatio: webpResult.compressionRatio,
+        width: webpResult.width,
+        height: webpResult.height
+      }
+    });
+  } catch (err: any) {
+    console.error("[Upload Photo Error]:", err);
+    return res.status(500).json({
+      success: false,
+      error: err.message || "Erro interno ao processar e otimizar a imagem."
     });
   }
 });
