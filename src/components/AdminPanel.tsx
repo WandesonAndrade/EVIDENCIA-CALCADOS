@@ -30,7 +30,7 @@ import {
   Info, Sliders, Zap, Barcode, Image, ArrowUp, ArrowDown,
   BookOpen, PhoneCall, Globe, CheckCircle2, Sparkles, Layout, HelpCircle,
   FileText, Briefcase, MapPin, Gift, Heart, ShoppingCart, Cake, AlertTriangle, LogOut, Shield,
-  FolderTree, Tag, X, ExternalLink, CreditCard
+  FolderTree, Tag, X, ExternalLink, CreditCard, Menu
 } from 'lucide-react';
 import { AdminOrdersList } from './orders/AdminOrdersList';
 import { AdminBoxManager } from './AdminBoxManager';
@@ -194,6 +194,13 @@ export const AdminPanel: React.FC = () => {
   const isSeller = false;
 
   const [activeTab, setActiveTab] = useState<AdminTab>('overview');
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+
+  const handleSelectTab = (tab: AdminTab) => {
+    setActiveTab(tab);
+    setIsMobileMenuOpen(false);
+  };
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isRestoreModalOpen, setIsRestoreModalOpen] = useState(false);
   const [isSyncingCategories, setIsSyncingCategories] = useState(false);
@@ -868,10 +875,10 @@ export const AdminPanel: React.FC = () => {
       return;
     }
 
-    // Security Validation 2: Maximum File Size Limit (5MB)
-    const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
+    // Security Validation 2: Maximum File Size Limit (8MB com compressão adaptativa)
+    const MAX_FILE_SIZE_BYTES = 8 * 1024 * 1024; // 8MB
     if (file.size > MAX_FILE_SIZE_BYTES) {
-      addToast('Arquivo Muito Grande', 'O tamanho máximo da imagem permitida é de 5MB.', 'error');
+      addToast('Arquivo Muito Grande', 'O tamanho máximo da imagem permitida é de 8MB.', 'error');
       return;
     }
 
@@ -921,13 +928,66 @@ export const AdminPanel: React.FC = () => {
       isDark ? 'bg-[#0B0F19] text-slate-100' : 'bg-slate-50 text-slate-800'
     }`}>
       
-      {/* SIDEBAR NAVIGATION (Modern SaaS CMS Style) */}
-      <aside className={`w-full md:w-72 shrink-0 border-r border-b md:border-b-0 backdrop-blur-2xl flex flex-col justify-between z-30 transition-all ${
-        isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white/90 border-slate-200'
+      {/* MOBILE TOP BAR (Menu Sanduíche no Mobile) */}
+      <header className={`md:hidden flex items-center justify-between px-4 py-3 border-b sticky top-0 z-40 backdrop-blur-xl ${
+        isDark ? 'bg-slate-900/95 border-slate-800 text-white' : 'bg-white/95 border-slate-200 text-slate-900 shadow-xs'
       }`}>
+        <div className="flex items-center space-x-3">
+          <button
+            type="button"
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            className={`p-2 rounded-xl border transition-colors cursor-pointer ${
+              isDark ? 'bg-slate-800 border-slate-700 text-amber-400 hover:bg-slate-700' : 'bg-slate-100 border-slate-200 text-slate-800 hover:bg-slate-200'
+            }`}
+            aria-label="Alternar menu de navegação"
+            title="Menu de Navegação"
+          >
+            {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </button>
+          <div className="flex items-center space-x-2">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-amber-400 to-amber-500 text-slate-950 flex items-center justify-center font-black text-sm shadow-sm">
+              EC
+            </div>
+            <div>
+              <h1 className="text-xs font-black tracking-tight leading-none">EVIDÊNCIA CMS</h1>
+              <span className="text-[9px] text-amber-500 font-bold uppercase tracking-wider">Painel Gestor</span>
+            </div>
+          </div>
+        </div>
+
+        <button
+          onClick={() => setCurrentView('home')}
+          className={`p-2 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+            isDark ? 'bg-slate-800 border-slate-700 text-slate-300 hover:text-white' : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
+          }`}
+          title="Ir para a loja virtual"
+        >
+          <Eye className="h-4 w-4" />
+        </button>
+      </header>
+
+      {/* BACKDROP OVERLAY PARA MOBILE */}
+      {isMobileMenuOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-xs md:hidden transition-opacity"
+          onClick={() => setIsMobileMenuOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* SIDEBAR NAVIGATION (Drawer no Mobile + Colapsável no Desktop) */}
+      <aside className={`
+        ${isSidebarCollapsed ? 'md:hidden' : 'md:flex'}
+        ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+        fixed md:sticky top-0 bottom-0 left-0 z-50 md:z-30
+        w-72 shrink-0 border-r backdrop-blur-2xl flex flex-col justify-between
+        transition-all duration-300 ease-in-out
+        h-screen overflow-y-auto
+        ${isDark ? 'bg-slate-900/95 border-slate-800' : 'bg-white/95 border-slate-200 shadow-sm'}
+      `}>
         <div className="p-5 space-y-6">
           
-          {/* Logo & Store Return Link */}
+          {/* Logo, Botão Sanduíche & Retorno à Loja */}
           <div className="flex items-center justify-between pb-4 border-b border-slate-800/40">
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-400 to-amber-500 text-slate-950 flex items-center justify-center font-black text-lg shadow-lg">
@@ -939,26 +999,51 @@ export const AdminPanel: React.FC = () => {
               </div>
             </div>
 
-            <button
-              onClick={() => setCurrentView('home')}
-              className={`p-2 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
-                isDark ? 'bg-slate-800 border-slate-700 text-slate-300 hover:text-white' : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
-              }`}
-              title="Ir para a loja"
-            >
-              <Eye className="h-4 w-4" />
-            </button>
+            <div className="flex items-center space-x-1">
+              <button
+                onClick={() => setCurrentView('home')}
+                className={`p-2 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                  isDark ? 'bg-slate-800 border-slate-700 text-slate-300 hover:text-white' : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
+                }`}
+                title="Ir para a loja virtual"
+              >
+                <Eye className="h-4 w-4" />
+              </button>
+              
+              {/* Botão Sanduíche no Desktop para recolher a barra */}
+              <button
+                type="button"
+                onClick={() => setIsSidebarCollapsed(true)}
+                className={`hidden md:flex p-2 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                  isDark ? 'bg-slate-800 border-slate-700 text-slate-400 hover:text-amber-400' : 'bg-slate-100 border-slate-200 text-slate-600 hover:text-slate-900'
+                }`}
+                title="Recolher menu lateral"
+              >
+                <Menu className="h-4 w-4" />
+              </button>
+
+              {/* Botão fechar no Mobile */}
+              <button
+                type="button"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="md:hidden p-2 rounded-xl text-slate-400 hover:text-white cursor-pointer"
+                title="Fechar menu"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
           </div>
 
-          {/* Navigation Groups */}
+          {/* Navigation Groups Reorganizados */}
           <nav className="space-y-6">
             
-            {/* GROUP 1: DASHBOARD & OPERAÇÃO */}
+            {/* GRUPO 1: DASHBOARD & VENDAS */}
             <div className="space-y-1">
               <span className="text-[10px] font-black tracking-widest text-slate-400 uppercase px-3">DASHBOARD & VENDAS</span>
               
+              {/* 1. Visão Geral & Métricas */}
               <button
-                onClick={() => setActiveTab('overview')}
+                onClick={() => handleSelectTab('overview')}
                 className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                   activeTab === 'overview'
                     ? isDark ? 'bg-amber-400/10 text-amber-400 border border-amber-400/30' : 'bg-slate-900 text-white shadow-sm'
@@ -969,20 +1054,9 @@ export const AdminPanel: React.FC = () => {
                 <span>Visão Geral & Métricas</span>
               </button>
 
+              {/* 2. Vendas & Pedidos */}
               <button
-                onClick={() => setActiveTab('financeiro')}
-                className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  activeTab === 'financeiro'
-                    ? isDark ? 'bg-[#007aff]/15 text-[#007aff] border border-[#007aff]/30' : 'bg-[#007aff] text-white shadow-sm'
-                    : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                <DollarSign className="h-4 w-4 text-[#007aff]" />
-                <span>Dashboard Financeiro</span>
-              </button>
-
-              <button
-                onClick={() => setActiveTab('sales')}
+                onClick={() => handleSelectTab('sales')}
                 className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                   activeTab === 'sales'
                     ? isDark ? 'bg-amber-400/10 text-amber-400 border border-amber-400/30' : 'bg-slate-900 text-white shadow-sm'
@@ -1000,22 +1074,22 @@ export const AdminPanel: React.FC = () => {
                 )}
               </button>
 
+              {/* 3. Dashboard Financeiro */}
               <button
-                onClick={() => setActiveTab('customers')}
-                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  activeTab === 'customers'
-                    ? isDark ? 'bg-amber-400/10 text-amber-400 border border-amber-400/30' : 'bg-slate-900 text-white shadow-sm'
+                onClick={() => handleSelectTab('financeiro')}
+                className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  activeTab === 'financeiro'
+                    ? isDark ? 'bg-[#007aff]/15 text-[#007aff] border border-[#007aff]/30' : 'bg-[#007aff] text-white shadow-sm'
                     : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
                 }`}
               >
-                <div className="flex items-center space-x-3">
-                  <Users className="h-4 w-4" />
-                  <span>Base de Clientes & CRM</span>
-                </div>
+                <DollarSign className="h-4 w-4 text-[#007aff]" />
+                <span>Dashboard Financeiro</span>
               </button>
 
+              {/* 4. Crediário Próprio */}
               <button
-                onClick={() => setActiveTab('crediario')}
+                onClick={() => handleSelectTab('crediario')}
                 className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                   activeTab === 'crediario'
                     ? isDark ? 'bg-amber-400/10 text-amber-400 border border-amber-400/30' : 'bg-slate-900 text-white shadow-sm'
@@ -1033,8 +1107,24 @@ export const AdminPanel: React.FC = () => {
                 )}
               </button>
 
+              {/* 5. Base de Clientes & CRM */}
               <button
-                onClick={() => setActiveTab('vendedores')}
+                onClick={() => handleSelectTab('customers')}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  activeTab === 'customers'
+                    ? isDark ? 'bg-amber-400/10 text-amber-400 border border-amber-400/30' : 'bg-slate-900 text-white shadow-sm'
+                    : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <div className="flex items-center space-x-3">
+                  <Users className="h-4 w-4" />
+                  <span>Base de Clientes & CRM</span>
+                </div>
+              </button>
+
+              {/* 6. Vendedores (Cadastros) */}
+              <button
+                onClick={() => handleSelectTab('vendedores')}
                 className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                   activeTab === 'vendedores'
                     ? isDark ? 'bg-amber-400/10 text-amber-400 border border-amber-400/30' : 'bg-slate-900 text-white shadow-sm'
@@ -1048,60 +1138,13 @@ export const AdminPanel: React.FC = () => {
               </button>
             </div>
 
-            {/* GROUP 2: CATÁLOGO DE PRODUTOS */}
+            {/* GRUPO 2: CATÁLOGO & ESTOQUE */}
             <div className="space-y-1">
               <span className="text-[10px] font-black tracking-widest text-slate-400 uppercase px-3">CATÁLOGO & ESTOQUE</span>
               
+              {/* 1. Integrador MobLink ERP (Destaque Principal de Origem) */}
               <button
-                onClick={() => setActiveTab('inventory')}
-                className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  activeTab === 'inventory'
-                    ? isDark ? 'bg-amber-400/10 text-amber-400 border border-amber-400/30' : 'bg-slate-900 text-white shadow-sm'
-                    : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                <Package className="h-4 w-4" />
-                <span>Gestão de Estoque</span>
-              </button>
-
-              <button
-                onClick={() => setActiveTab('new-product')}
-                className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  activeTab === 'new-product'
-                    ? isDark ? 'bg-amber-400/10 text-amber-400 border border-amber-400/30' : 'bg-slate-900 text-white shadow-sm'
-                    : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                <Plus className="h-4 w-4" />
-                <span>Adicionar Produto</span>
-              </button>
-
-              <button
-                onClick={() => setActiveTab('categories')}
-                className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  activeTab === 'categories'
-                    ? isDark ? 'bg-amber-400/10 text-amber-400 border border-amber-400/30' : 'bg-slate-900 text-white shadow-sm'
-                    : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                <Layers className="h-4 w-4" />
-                <span>Categorias da Loja</span>
-              </button>
-
-              <button
-                onClick={() => setActiveTab('shipping-boxes')}
-                className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  activeTab === 'shipping-boxes'
-                    ? isDark ? 'bg-amber-400/10 text-amber-400 border border-amber-400/30' : 'bg-slate-900 text-white shadow-sm'
-                    : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                <Package className="h-4 w-4 text-blue-400" />
-                <span>Caixas & Frete (Melhor Envio)</span>
-              </button>
-
-              <button
-                onClick={() => setActiveTab('moblink')}
+                onClick={() => handleSelectTab('moblink')}
                 className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                   activeTab === 'moblink'
                     ? isDark ? 'bg-amber-400/10 text-amber-400 border border-amber-400/30' : 'bg-slate-900 text-white shadow-sm'
@@ -1114,9 +1157,48 @@ export const AdminPanel: React.FC = () => {
                 </div>
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               </button>
+
+              {/* 2. Gestão de Estoque */}
+              <button
+                onClick={() => handleSelectTab('inventory')}
+                className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  activeTab === 'inventory'
+                    ? isDark ? 'bg-amber-400/10 text-amber-400 border border-amber-400/30' : 'bg-slate-900 text-white shadow-sm'
+                    : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <Package className="h-4 w-4" />
+                <span>Gestão de Estoque</span>
+              </button>
+
+              {/* 3. Categorias da Loja */}
+              <button
+                onClick={() => handleSelectTab('categories')}
+                className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  activeTab === 'categories'
+                    ? isDark ? 'bg-amber-400/10 text-amber-400 border border-amber-400/30' : 'bg-slate-900 text-white shadow-sm'
+                    : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <Layers className="h-4 w-4" />
+                <span>Categorias da Loja</span>
+              </button>
+
+              {/* 4. Caixas & Frete (Melhor Envio) */}
+              <button
+                onClick={() => handleSelectTab('shipping-boxes')}
+                className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  activeTab === 'shipping-boxes'
+                    ? isDark ? 'bg-amber-400/10 text-amber-400 border border-amber-400/30' : 'bg-slate-900 text-white shadow-sm'
+                    : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <Package className="h-4 w-4 text-blue-400" />
+                <span>Caixas & Frete (Melhor Envio)</span>
+              </button>
             </div>
 
-            {/* GROUP 3: GESTOR DE CONTEÚDO (CMS DA LOJA - APENAS ADMIN) */}
+            {/* GRUPO 3: CMS & VITRINE */}
             {isAdmin && (
               <div className="space-y-1">
                 <span className="text-[10px] font-black tracking-widest text-amber-400 uppercase px-3 flex items-center space-x-1">
@@ -1124,8 +1206,9 @@ export const AdminPanel: React.FC = () => {
                   <span>CMS & VITRINE</span>
                 </span>
 
+                {/* 1. Banners Principais (Hero) */}
                 <button
-                  onClick={() => setActiveTab('banners')}
+                  onClick={() => handleSelectTab('banners')}
                   className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                     activeTab === 'banners'
                       ? isDark ? 'bg-amber-400/10 text-amber-400 border border-amber-400/30' : 'bg-slate-900 text-white shadow-sm'
@@ -1136,44 +1219,29 @@ export const AdminPanel: React.FC = () => {
                   <span>Banners Principais (Hero)</span>
                 </button>
 
+                {/* 2. Ofertas & Promoções */}
                 <button
-                  onClick={() => setActiveTab('home-sections')}
-                  className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                    activeTab === 'home-sections'
+                  onClick={() => handleSelectTab('promotions')}
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    activeTab === 'promotions'
                       ? isDark ? 'bg-amber-400/10 text-amber-400 border border-amber-400/30' : 'bg-slate-900 text-white shadow-sm'
                       : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
                   }`}
                 >
-                  <Sliders className="h-4 w-4" />
-                  <span>Ordem das Seções</span>
+                  <div className="flex items-center space-x-3">
+                    <Gift className="h-4 w-4 text-amber-500" />
+                    <span>Ofertas & Promoções</span>
+                  </div>
+                  {promotions.filter(p => isCampaignActive(p)).length > 0 && (
+                    <span className="px-1.5 py-0.5 text-[9px] font-black rounded-md bg-amber-500 text-slate-950 uppercase">
+                      {promotions.filter(p => isCampaignActive(p)).length}
+                    </span>
+                  )}
                 </button>
 
+                {/* 3. Saldão de Calçados */}
                 <button
-                  onClick={() => setActiveTab('about-editor')}
-                  className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                    activeTab === 'about-editor'
-                      ? isDark ? 'bg-amber-400/10 text-amber-400 border border-amber-400/30' : 'bg-slate-900 text-white shadow-sm'
-                      : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
-                  }`}
-                >
-                  <BookOpen className="h-4 w-4" />
-                  <span>Editor "Sobre Nós"</span>
-                </button>
-
-                <button
-                  onClick={() => setActiveTab('support-contact')}
-                  className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                    activeTab === 'support-contact'
-                      ? isDark ? 'bg-amber-400/10 text-amber-400 border border-amber-400/30' : 'bg-slate-900 text-white shadow-sm'
-                      : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
-                  }`}
-                >
-                  <PhoneCall className="h-4 w-4" />
-                  <span>Suporte & Contatos</span>
-                </button>
-
-                <button
-                  onClick={() => setActiveTab('saldao')}
+                  onClick={() => handleSelectTab('saldao')}
                   className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                     activeTab === 'saldao'
                       ? isDark ? 'bg-rose-500/10 text-rose-400 border border-rose-500/30' : 'bg-slate-900 text-white shadow-sm'
@@ -1191,34 +1259,42 @@ export const AdminPanel: React.FC = () => {
                   )}
                 </button>
 
+                {/* 4. Editor "Sobre Nós" */}
                 <button
-                  onClick={() => setActiveTab('promotions')}
-                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                    activeTab === 'promotions'
+                  onClick={() => handleSelectTab('about-editor')}
+                  className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    activeTab === 'about-editor'
                       ? isDark ? 'bg-amber-400/10 text-amber-400 border border-amber-400/30' : 'bg-slate-900 text-white shadow-sm'
                       : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
                   }`}
                 >
-                  <div className="flex items-center space-x-3">
-                    <Gift className="h-4 w-4 text-amber-500" />
-                    <span>Ofertas & Promoções</span>
-                  </div>
-                  {promotions.filter(p => isCampaignActive(p)).length > 0 && (
-                    <span className="px-1.5 py-0.5 text-[9px] font-black rounded-md bg-amber-500 text-slate-950 uppercase">
-                      {promotions.filter(p => isCampaignActive(p)).length}
-                    </span>
-                  )}
+                  <BookOpen className="h-4 w-4" />
+                  <span>Editor "Sobre Nós"</span>
+                </button>
+
+                {/* 5. Suporte & Contatos */}
+                <button
+                  onClick={() => handleSelectTab('support-contact')}
+                  className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    activeTab === 'support-contact'
+                      ? isDark ? 'bg-amber-400/10 text-amber-400 border border-amber-400/30' : 'bg-slate-900 text-white shadow-sm'
+                      : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <PhoneCall className="h-4 w-4" />
+                  <span>Suporte & Contatos</span>
                 </button>
               </div>
             )}
 
-            {/* GROUP 4: CONFIGURAÇÕES & SEGURANÇA (APENAS ADMIN) */}
+            {/* GRUPO 4: SISTEMA */}
             {isAdmin && (
               <div className="space-y-1">
                 <span className="text-[10px] font-black tracking-widest text-slate-400 uppercase px-3">SISTEMA</span>
                 
+                {/* 1. Gestão de Equipe & Colaboradores */}
                 <button
-                  onClick={() => setActiveTab('team')}
+                  onClick={() => handleSelectTab('team')}
                   className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                     activeTab === 'team'
                       ? isDark ? 'bg-amber-400/10 text-amber-400 border border-amber-400/30' : 'bg-slate-900 text-white shadow-sm'
@@ -1229,9 +1305,9 @@ export const AdminPanel: React.FC = () => {
                   <span>Gestão de Equipe & Colaboradores</span>
                 </button>
 
-
+                {/* 2. Configurações Gerais */}
                 <button
-                  onClick={() => setActiveTab('settings')}
+                  onClick={() => handleSelectTab('settings')}
                   className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                     activeTab === 'settings'
                       ? isDark ? 'bg-amber-400/10 text-amber-400 border border-amber-400/30' : 'bg-slate-900 text-white shadow-sm'
@@ -1285,6 +1361,56 @@ export const AdminPanel: React.FC = () => {
 
       {/* MAIN CONTENT AREA */}
       <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto space-y-6">
+        
+        {/* BARRA SUPERIOR INTEGRADA QUANDO A SIDEBAR ESTIVER RECOLHIDA NO DESKTOP */}
+        {isSidebarCollapsed && (
+          <div className="hidden md:flex items-center justify-between pb-4 border-b border-slate-200 dark:border-slate-800 animate-fade-in">
+            <div className="flex items-center space-x-3">
+              <button
+                type="button"
+                onClick={() => setIsSidebarCollapsed(false)}
+                className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl border text-xs font-bold transition-all cursor-pointer shadow-xs ${
+                  isDark 
+                    ? 'bg-slate-900 border-slate-700 text-amber-400 hover:bg-slate-800 hover:border-amber-400/50' 
+                    : 'bg-white border-slate-200 text-slate-800 hover:bg-slate-50 hover:border-slate-300'
+                }`}
+                title="Expandir menu lateral"
+              >
+                <Menu className="h-4 w-4" />
+                <span>Abrir Menu</span>
+              </button>
+
+              <div className="flex items-center space-x-2 pl-2 border-l border-slate-200 dark:border-slate-800">
+                <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-amber-400 to-amber-500 text-slate-950 flex items-center justify-center font-black text-xs shadow-xs">
+                  EC
+                </div>
+                <div>
+                  <h2 className="text-xs font-black tracking-tight leading-none text-slate-800 dark:text-slate-100">
+                    EVIDÊNCIA CMS
+                  </h2>
+                  <span className="text-[9px] text-amber-500 font-bold uppercase tracking-wider">
+                    Painel Gestor
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => setCurrentView('home')}
+                className={`flex items-center space-x-1.5 px-3 py-2 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                  isDark 
+                    ? 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800' 
+                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                }`}
+                title="Visualizar a loja virtual"
+              >
+                <Eye className="h-4 w-4" />
+                <span>Ver Loja</span>
+              </button>
+            </div>
+          </div>
+        )}
         
         {/* Global CMS Notification Banner */}
         {cmsFeedback && (
