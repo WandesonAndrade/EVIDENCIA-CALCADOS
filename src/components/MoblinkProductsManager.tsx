@@ -25,7 +25,19 @@ import { getProdutoGradesFromApi } from '../services/moblinkGradesService';
 import { AdminProductsTable } from './products';
 import { db } from '../lib/firebase';
 import { doc, setDoc } from 'firebase/firestore';
-import { uploadImageToSupabase, isSupabaseConfigured, deleteImageFromSupabase, auditSupabaseVsFirebasePhotos, PhotoAuditReport, SupabaseAuditItem, syncProductMediaToSupabase, autoLinkSupabasePhotosToFirestore } from '../services/supabaseStorageService';
+import { 
+  uploadImageToSupabase, 
+  uploadOptimizedProductPhoto,
+  preserveExistingImages,
+  isSupabaseConfigured, 
+  deleteImageFromSupabase, 
+  auditSupabaseVsFirebasePhotos, 
+  PhotoAuditReport, 
+  SupabaseAuditItem, 
+  syncProductMediaToSupabase, 
+  autoLinkSupabasePhotosToFirestore 
+} from '../services/supabaseStorageService';
+import { validateImageFile } from '../services/imageOptimizationService';
 import { NO_PHOTO_SVG, isPlaceholderUrl } from '../utils/placeholder';
 import { 
   Package, 
@@ -1411,7 +1423,7 @@ export const MoblinkProductsManager: React.FC = () => {
     return finalImagesList;
   };
 
-  // Add Image URL manualmente (salva no Firestore imediatamente e remove foto modelo padrão)
+  // Add Image URL manualmente (salva no Firestore imediatamente, preserva fotos anteriores e links externos)
   const handleAddImageUrl = async () => {
     const url = newImageUrl.trim();
     if (!url) return;
@@ -1420,21 +1432,56 @@ export const MoblinkProductsManager: React.FC = () => {
       return;
     }
 
-    const nextList = [...images, url];
+    // Preserva todas as fotos existentes e adiciona a nova URL de link externo
+    const nextList = preserveExistingImages(images, [url]);
     setNewImageUrl('');
     await syncImageUpdateToFirestore(nextList);
 
-    setFeedback({ success: true, message: 'Foto salva e vinculada no Firebase com sucesso!' });
+    setFeedback({ success: true, message: 'Foto por link salva e vinculada com sucesso!' });
     setTimeout(() => setFeedback(null), 3000);
   };
 
-  // Remove Image (exclui no estado, salva no Firestore e remove do Supabase Storage se for do Supabase)
+  // Remove Image (exclui no estado, salva no Firestore, desvincula de cores e remove do Supabase Storage com thumbnail)
   const handleRemoveImage = async (index: number) => {
     const targetUrl = images[index];
     const nextList = images.filter((_, i) => i !== index);
     
+    // 1. Desvincula imediatamente a foto deletada de qualquer variação de cor
+    if (targetUrl) {
+      setEditColorImages(prev => {
+        const copy: Record<string, string[]> = {};
+        let changed = false;
+        Object.entries(prev).forEach(([cKey, list]) => {
+          if (Array.isArray(list) && list.includes(targetUrl)) {
+            copy[cKey] = list.filter(u => u !== targetUrl);
+            changed = true;
+          } else {
+            copy[cKey] = list;
+          }
+        });
+        return changed ? copy : prev;
+      });
+
+      setEditColorImageMap(prev => {
+        const copy = { ...prev };
+        let changed = false;
+        Object.keys(copy).forEach(cKey => {
+          if (copy[cKey] === targetUrl) {
+            delete copy[cKey];
+            changed = true;
+          }
+        });
+        return changed ? copy : prev;
+      });
+    }
+
+    // 2. Atualiza no Firestore e no estado local imediatamente
     await syncImageUpdateToFirestore(nextList);
 
+    setFeedback({ success: true, message: 'Foto removida com sucesso!' });
+    setTimeout(() => setFeedback(null), 3000);
+
+    // 3. Exclui do Supabase Storage (foto principal + miniatura de 150px)
     if (targetUrl) {
       deleteImageFromSupabase(targetUrl).catch(err => {
         console.warn('Falha ao remover arquivo do Supabase Storage:', err);
@@ -1451,40 +1498,57 @@ export const MoblinkProductsManager: React.FC = () => {
     await syncImageUpdateToFirestore(nextList);
   };
 
-  // File Upload (Upload no Supabase Storage -> Salva a URL pública no Firebase imediatamente)
+  // File Upload (Converte para WebP 80% + Thumbnail 150px -> Upload Supabase -> Salva Firebase preservando fotos e links)
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // 1. Validação de tamanho (máximo 5MB) e formato
+    const val = validateImageFile(file);
+    if (!val.valid) {
+      setFeedback({ success: false, message: val.error || 'Arquivo inválido.' });
+      if (e.target) e.target.value = '';
+      return;
+    }
+
     setIsUploading(true);
-    setFeedback(null);
+    setFeedback({ success: true, message: 'Otimizando imagem para formato WebP e gerando miniaturas...' });
+
+    const prodId = String(selectedProduct?.id || selectedProduct?.moblinkId || 'novo');
 
     try {
-      const publicUrl = await uploadImageToSupabase(file, {
-        folder: 'produtos',
-        customFileName: `produto_${selectedProduct?.id || 'new'}_${Date.now()}`
-      });
+      // Converte para WebP com qualidade 80% e gera miniatura 150px
+      const result = await uploadOptimizedProductPhoto(file, prodId);
 
-      const nextList = [...images, publicUrl];
+      // Preserva rigorosamente todas as fotos já existentes no banco e adiciona a nova foto WebP
+      const nextList = preserveExistingImages(images, [result.publicUrl]);
       await syncImageUpdateToFirestore(nextList);
 
-      setFeedback({ success: true, message: 'Foto enviada para o Supabase Storage e salva no Firebase com sucesso!' });
+      const statsMsg = result.stats
+        ? ` (${(result.stats.optimizedSize / 1024).toFixed(0)}KB, -${result.stats.compressionRatio}%)`
+        : '';
+
+      setFeedback({ 
+        success: true, 
+        message: `Foto convertida para WebP${statsMsg} e salva no Supabase Storage com sucesso!` 
+      });
     } catch (err: any) {
-      console.warn("Upload no Supabase falhou (RLS ou permissão):", err);
+      console.warn("Upload otimizado falhou (tentando fallback local):", err);
       const reader = new FileReader();
       reader.onloadend = async () => {
         if (typeof reader.result === 'string') {
-          const nextList = [...images, reader.result as string];
+          const nextList = preserveExistingImages(images, [reader.result as string]);
           await syncImageUpdateToFirestore(nextList);
           setFeedback({ 
             success: false, 
-            message: `Atenção: ${err.message || 'Erro no Supabase'}. A foto foi salva no Firebase.` 
+            message: `Atenção: ${err.message || 'Erro no Supabase'}. A foto foi preservada no Firebase.` 
           });
         }
       };
       reader.readAsDataURL(file);
     } finally {
       setIsUploading(false);
+      if (e.target) e.target.value = '';
     }
   };
 
@@ -1513,6 +1577,7 @@ export const MoblinkProductsManager: React.FC = () => {
     const productStock = extractSaldoLojaMoblink(selectedProduct);
     const categoryName = normalizeCategoryName(selectedProduct.nome_grupo || selectedProduct.categoria || selectedProduct.category || 'Geral');
 
+    // As fotos ativas gerenciadas no formulário (images) são a lista canônica atualizada (respeitando exclusões do usuário)
     const finalImages = images.filter(img => img && typeof img === 'string' && img.trim() !== '' && !isPlaceholderUrl(img));
 
     // Garante que qualquer foto anexada a uma cor também seja incluída em finalImages
@@ -1537,17 +1602,19 @@ export const MoblinkProductsManager: React.FC = () => {
     const refCode = selectedProduct.referencia || selectedProduct.referenceCode || selectedProduct.modelCode || undefined;
     const activeSizes = selectedProductGrade?.tamanhos || (selectedProduct.tamanhos as any) || [];
 
-    // Constrói mapeamento de múltiplas fotos por cor + capa da cor
+    // Constrói mapeamento de múltiplas fotos por cor + capa da cor (apenas se o produto possuir grade com cores ativas)
     const finalColorImages: Record<string, string[]> = {};
     const finalColorImageMap: Record<string, string> = {};
 
-    Object.entries(editColorImages).forEach(([color, urls]) => {
-      const validUrls = (urls || []).filter(u => u && typeof u === 'string' && u.trim() && !isPlaceholderUrl(u));
-      if (validUrls.length > 0) {
-        finalColorImages[color] = validUrls;
-        finalColorImageMap[color] = validUrls[0];
-      }
-    });
+    if (hasDesmembramentoGrade && availableColorsForEditModal.length > 0) {
+      Object.entries(editColorImages).forEach(([color, urls]) => {
+        const validUrls = (urls || []).filter(u => u && typeof u === 'string' && u.trim() && !isPlaceholderUrl(u));
+        if (validUrls.length > 0) {
+          finalColorImages[color] = validUrls;
+          finalColorImageMap[color] = validUrls[0];
+        }
+      });
+    }
 
     const primaryCoverUrl = finalImages[0] || '';
 
@@ -2180,8 +2247,23 @@ export const MoblinkProductsManager: React.FC = () => {
     return Array.from(allSubs).sort();
   }, [categoryFilter, storeCategoryTree]);
 
+  // Indica se o produto possui desmembramento de grade de variações (cores e tamanhos) ativo no ERP
+  const hasDesmembramentoGrade = useMemo(() => {
+    return Boolean(
+      selectedProductGrade &&
+      selectedProductGrade.hasGrade &&
+      Array.isArray(selectedProductGrade.variacoes) &&
+      selectedProductGrade.variacoes.length > 0
+    );
+  }, [selectedProductGrade]);
+
   // Lista de Cores disponíveis extraídas ESTRITAMENTE da Grade / Estoque do Produto no ERP
   const availableColorsForEditModal = useMemo(() => {
+    // Se o produto NÃO possui desmembramento de grade no ERP, não há cores de grade para seleção
+    if (!hasDesmembramentoGrade) {
+      return [];
+    }
+
     const set = new Set<string>();
 
     // 1. Extrai cores diretamente da Grade de Estoque do ERP (Tabela de Saldo por Tamanho/Cor)
@@ -2197,25 +2279,8 @@ export const MoblinkProductsManager: React.FC = () => {
       });
     }
 
-    // 2. Se a grade do ERP ainda não tiver carregado, carrega da cor cadastrada no produto/modelo
-    if (set.size === 0) {
-      if (editColor && editColor.trim()) set.add(editColor.trim());
-      if (selectedProduct) {
-        const prodCor = selectedProduct.cor || selectedProduct.color;
-        if (prodCor && prodCor.trim()) set.add(prodCor.trim());
-
-        const { baseName } = extractBaseNameAndVariant(selectedProduct.nome || selectedProduct.name || selectedProduct.descricao || '');
-        combinedCatalog.forEach(i => {
-          const { baseName: bName, variant } = extractBaseNameAndVariant(i.nome || i.name || i.descricao || '');
-          if (bName.toLowerCase() === baseName.toLowerCase() && variant && variant !== 'Padrão') {
-            set.add(variant.trim());
-          }
-        });
-      }
-    }
-
     return Array.from(set).sort();
-  }, [editColor, selectedProductGrade, selectedProduct, combinedCatalog]);
+  }, [hasDesmembramentoGrade, selectedProductGrade]);
 
   // Estrutura Agrupada por Classificação ERP (Número do Grupo antes do ponto '.', ex: 001, 002)
   const groupedList = useMemo(() => {
@@ -3410,12 +3475,14 @@ export const MoblinkProductsManager: React.FC = () => {
                 {images.length > 0 ? (
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
                     {images.map((imgUrl, idx) => {
-                      // Procura cor atribuída neste mapeamento multi-foto
-                      const assignedColor = Object.keys(editColorImages).find(cKey => 
-                        Array.isArray(editColorImages[cKey]) && editColorImages[cKey].includes(imgUrl)
-                      ) || Object.keys(editColorImageMap).find(cKey => editColorImageMap[cKey] === imgUrl);
+                      // Procura cor atribuída neste mapeamento multi-foto apenas se o produto possuir desmembramento de grade
+                      const assignedColor = hasDesmembramentoGrade ? (
+                        Object.keys(editColorImages).find(cKey => 
+                          Array.isArray(editColorImages[cKey]) && editColorImages[cKey].includes(imgUrl)
+                        ) || Object.keys(editColorImageMap).find(cKey => editColorImageMap[cKey] === imgUrl)
+                      ) : undefined;
 
-                      const matchedDropdownValue = assignedColor
+                      const matchedDropdownValue = (hasDesmembramentoGrade && assignedColor)
                         ? availableColorsForEditModal.find(c => c.trim().toLowerCase() === assignedColor.trim().toLowerCase()) || assignedColor
                         : '';
 
@@ -3428,7 +3495,7 @@ export const MoblinkProductsManager: React.FC = () => {
                                 Capa
                               </span>
                             )}
-                            {assignedColor && (
+                            {assignedColor && hasDesmembramentoGrade && (
                               <span className="absolute bottom-1 left-1 bg-sky-500 text-white font-extrabold text-[9px] px-1.5 py-0.5 rounded shadow-xs z-10 truncate max-w-[85%]" title={`Cor: ${assignedColor}`}>
                                 {assignedColor}
                               </span>
@@ -3455,43 +3522,45 @@ export const MoblinkProductsManager: React.FC = () => {
                             </div>
                           </div>
 
-                          {/* VÍNCULO DA FOTO COM A COR DA GRADE DO ESTOQUE (Múltiplas Fotos Por Cor Permitidas) */}
-                          <select
-                            value={matchedDropdownValue}
-                            onChange={(e) => {
-                              const selColor = e.target.value;
-                              
-                              // Atualiza editColorImages (múltiplas fotos por cor)
-                              setEditColorImages(prev => {
-                                const copy: Record<string, string[]> = {};
-                                Object.entries(prev).forEach(([cKey, urls]) => {
-                                  copy[cKey] = (urls || []).filter(u => u !== imgUrl);
-                                });
-                                if (selColor) {
-                                  if (!copy[selColor]) copy[selColor] = [];
-                                  if (!copy[selColor].includes(imgUrl)) {
-                                    copy[selColor].push(imgUrl);
+                          {/* VÍNCULO DA FOTO COM A COR DA GRADE DO ESTOQUE (Exibido estritamente para produtos com desmembramento de grade e cores disponíveis) */}
+                          {hasDesmembramentoGrade && availableColorsForEditModal.length > 0 && (
+                            <select
+                              value={matchedDropdownValue}
+                              onChange={(e) => {
+                                const selColor = e.target.value;
+                                
+                                // Atualiza editColorImages (múltiplas fotos por cor)
+                                setEditColorImages(prev => {
+                                  const copy: Record<string, string[]> = {};
+                                  Object.entries(prev).forEach(([cKey, urls]) => {
+                                    copy[cKey] = (urls || []).filter(u => u !== imgUrl);
+                                  });
+                                  if (selColor) {
+                                    if (!copy[selColor]) copy[selColor] = [];
+                                    if (!copy[selColor].includes(imgUrl)) {
+                                      copy[selColor].push(imgUrl);
+                                    }
                                   }
-                                }
-                                return copy;
-                              });
+                                  return copy;
+                                });
 
-                              // Atualiza editColorImageMap (capa por cor)
-                              setEditColorImageMap(prev => {
-                                const copy = { ...prev };
-                                if (selColor && !copy[selColor]) {
-                                  copy[selColor] = imgUrl;
-                                }
-                                return copy;
-                              });
-                            }}
-                            className="w-full p-1 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-[10px] font-bold focus:outline-none focus:border-amber-500"
-                          >
-                            <option value="">-- Cor da foto --</option>
-                            {availableColorsForEditModal.map(c => (
-                              <option key={c} value={c}>{c}</option>
-                            ))}
-                          </select>
+                                // Atualiza editColorImageMap (capa por cor)
+                                setEditColorImageMap(prev => {
+                                  const copy = { ...prev };
+                                  if (selColor && !copy[selColor]) {
+                                    copy[selColor] = imgUrl;
+                                  }
+                                  return copy;
+                                });
+                              }}
+                              className="w-full p-1 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-[10px] font-bold focus:outline-none focus:border-amber-500"
+                            >
+                              <option value="">-- Cor da foto --</option>
+                              {availableColorsForEditModal.map(c => (
+                                <option key={c} value={c}>{c}</option>
+                              ))}
+                            </select>
+                          )}
                         </div>
                       );
                     })}

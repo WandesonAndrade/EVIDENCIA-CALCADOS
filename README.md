@@ -14,9 +14,11 @@ Sistema Full-Stack completo para a **Evidência Calçados**, combinando uma expe
 - **Recursos Interativos:** Carrinho persistente, busca com preenchimento automático de endereço via ViaCEP, lista de favoritos e suporte a modo escuro/claro.
 
 ### ⚙️ Painel Administrativo & CMS
-- **Gestão de Banners (Hero):** Upload, edição e ordenação de banners da página inicial.
-- **Personalização de Layout:** Reordenação dinâmica de seções da Home e edição dos conteúdos institucionais ("Sobre Nós", "Suporte", "Contatos").
-- **Gestão de Produtos & Mídia:** Integração com **Supabase Storage** para upload e mapeamento de fotos reais por referência/ID do produto, além de auditoria de imagens órfãs.
+- **Menu Sanduíche Responsivo:** Navegação moderna com menu hambúrguer para mobile (drawer deslizante com backdrop) e modo colapsável no desktop para ganho de espaço útil de tela.
+- **Estrutura Operacional em 4 Grupos:** Dashboard & Vendas, Catálogo & Estoque, CMS & Vitrine e Sistema.
+- **Pipeline WebP & Fotos até 8 MB:** Upload com compressão adaptativa no navegador, conversão automática para WebP, geração de miniaturas (150x150) e exclusão limpa em cascata no Supabase Storage.
+- **Gestão Inteligente de Grades:** Vinculação de fotos por cor exclusiva para calçados com desmembramento de grade no MobLink ERP; interface simplificada para itens sem variações.
+- **Gestão de Banners (Hero):** Upload, edição e ordenação de banners da página inicial focados em conversão e moda.
 - **Gestão Comercial:** Controle de campanhas promocionais, módulo de Saldão/Outlet, gestão de vendedores e registro de auditoria de sincronização.
 
 ### 🔒 Segurança & Backend Proxy

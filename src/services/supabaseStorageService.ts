@@ -2,6 +2,43 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { doc, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { isPlaceholderUrl } from '../utils/placeholder';
+import { 
+  optimizeImageToWebP, 
+  generateThumbnailWebP, 
+  validateImageFile, 
+  OptimizationResult,
+  ThumbnailResult,
+  MAX_IMAGE_FILE_SIZE,
+  DEFAULT_WEBP_QUALITY,
+  DEFAULT_THUMBNAIL_SIZE
+} from './imageOptimizationService';
+
+/**
+ * Garante a preservação total de fotos existentes no banco de dados e links externos anexados.
+ * Nenhuma foto válida existente é descartada, e novas URLs são mescladas sem duplicatas.
+ */
+export function preserveExistingImages(existingImages: any[], newUrls: (string | null | undefined)[]): string[] {
+  const result: string[] = [];
+
+  const addUrl = (url: any) => {
+    if (typeof url === 'string' && url.trim() && !isPlaceholderUrl(url)) {
+      const clean = url.trim();
+      if (!result.includes(clean)) {
+        result.push(clean);
+      }
+    }
+  };
+
+  if (Array.isArray(existingImages)) {
+    existingImages.forEach(addUrl);
+  }
+
+  if (Array.isArray(newUrls)) {
+    newUrls.forEach(addUrl);
+  }
+
+  return result;
+}
 
 // Cache em memória do cliente Supabase para reutilização
 let supabaseClientInstance: SupabaseClient | null = null;
@@ -89,17 +126,24 @@ function base64ToBlob(base64Data: string): Blob {
   return new Blob([uInt8Array], { type: contentType });
 }
 
+export interface UploadImageOptions {
+  customFileName?: string;
+  folder?: string;
+  bucket?: string;
+  productId?: string;
+  generateThumbnail?: boolean;
+  skipOptimization?: boolean;
+  quality?: number;
+}
+
 /**
- * Faz o upload de uma imagem (File, Blob ou Base64) para o Supabase Storage e retorna a URL pública gerada.
- * Esta URL deve ser salva no Firebase Firestore.
+ * Faz o upload de uma imagem (File, Blob ou Base64) para o Supabase Storage
+ * convertendo automaticamente para WebP (qualidade 80) e gerando miniatura de 150px quando aplicável.
+ * Retorna a URL pública gerada para salvar no Firebase Firestore.
  */
 export async function uploadImageToSupabase(
   input: File | Blob | string,
-  options?: {
-    customFileName?: string;
-    folder?: string;
-    bucket?: string;
-  }
+  options?: UploadImageOptions
 ): Promise<string> {
   const supabase = getSupabaseClient();
   const config = getSupabaseConfig();
@@ -109,32 +153,54 @@ export async function uploadImageToSupabase(
     throw new Error('Supabase não configurado. Por favor, preencha o URL e a Chave Anon do Supabase nas configurações.');
   }
 
-  let fileBlob: Blob;
-  let fileExtension = 'png';
-  let mimeType = 'image/png';
-
+  // 1. URLs externas pré-existentes são mantidas e preservadas imediatamente sem re-upload
   if (typeof input === 'string') {
-    if (input.startsWith('data:image/')) {
-      fileBlob = base64ToBlob(input);
-      const matchedMime = input.match(/data:(image\/[a-zA-Z0-9.+]+);base64,/);
-      if (matchedMime && matchedMime[1]) {
-        mimeType = matchedMime[1];
-        fileExtension = mimeType.split('/')[1] || 'png';
-      }
-    } else {
-      // Já é uma URL HTTP externa válida
+    if (input.startsWith('http://') || input.startsWith('https://')) {
       return input;
     }
-  } else if (input instanceof File) {
-    fileBlob = input;
-    mimeType = input.type || 'image/png';
-    const nameParts = input.name.split('.');
-    if (nameParts.length > 1) {
-      fileExtension = nameParts.pop() || 'png';
+  }
+
+  let fileBlob: Blob | Buffer;
+  let fileExtension = 'webp';
+  let mimeType = 'image/webp';
+  let rawSource: File | Blob | Buffer;
+
+  if (typeof input === 'string' && input.startsWith('data:image/')) {
+    rawSource = base64ToBlob(input);
+  } else if (input instanceof File || input instanceof Blob) {
+    rawSource = input;
+  } else {
+    throw new Error('Tipo de imagem não suportado para upload.');
+  }
+
+  // 2. Validação de tamanho (Limite de 8MB com compressão adaptativa)
+  if (!options?.skipOptimization && 'size' in rawSource) {
+    const validation = validateImageFile(rawSource as any);
+    if (!validation.valid) {
+      throw new Error(validation.error || 'A imagem excede o limite máximo de 8MB.');
+    }
+  }
+
+  // 3. Otimização automática para formato WebP para alta performance na Web
+  if (!options?.skipOptimization) {
+    try {
+      const optResult = await optimizeImageToWebP(rawSource, {
+        quality: options?.quality ?? DEFAULT_WEBP_QUALITY
+      });
+      fileBlob = optResult.blob || (optResult.buffer ? optResult.buffer : rawSource);
+      mimeType = 'image/webp';
+      fileExtension = 'webp';
+      console.log(`[SupabaseStorageService] Imagem convertida para WebP: de ${(optResult.originalSize / 1024).toFixed(1)}KB para ${(optResult.optimizedSize / 1024).toFixed(1)}KB (${optResult.compressionRatio}% de economia)`);
+    } catch (optErr) {
+      console.warn('[SupabaseStorageService] Falha na conversão WebP, usando arquivo original:', optErr);
+      fileBlob = rawSource;
+      mimeType = (rawSource as any).type || 'image/jpeg';
+      fileExtension = mimeType.split('/')[1] || 'jpg';
     }
   } else {
-    fileBlob = input;
-    mimeType = input.type || 'image/png';
+    fileBlob = rawSource;
+    mimeType = (rawSource as any).type || 'image/png';
+    fileExtension = mimeType.split('/')[1] || 'png';
   }
 
   const folder = options?.folder ? `${options.folder.replace(/\/$/, '')}/` : 'produtos/';
@@ -146,12 +212,12 @@ export async function uploadImageToSupabase(
 
   const filePath = `${folder}${cleanFileName}.${fileExtension}`;
 
-  // 1. Faz o upload do arquivo para o bucket do Supabase Storage
+  // 4. Faz o upload do arquivo WebP para o bucket do Supabase Storage
   const { data: uploadData, error: uploadError } = await supabase.storage
     .from(targetBucket)
     .upload(filePath, fileBlob, {
       contentType: mimeType,
-      cacheControl: '3600',
+      cacheControl: '31536000', // Cache imutável de 1 ano
       upsert: true,
     });
 
@@ -167,7 +233,25 @@ export async function uploadImageToSupabase(
     throw new Error(`Erro no Supabase Storage: ${uploadError.message}`);
   }
 
-  // 2. Obtém a URL pública oficial do objeto no Supabase
+  // 5. Gera e envia miniatura (thumbnail) de 150px se solicitado
+  if (options?.generateThumbnail && !options?.skipOptimization) {
+    try {
+      const thumbResult = await generateThumbnailWebP(rawSource, { size: DEFAULT_THUMBNAIL_SIZE });
+      const thumbBlob = thumbResult.blob || thumbResult.buffer;
+      if (thumbBlob) {
+        const thumbPath = `${folder}thumbnails/${cleanFileName}_thumb.webp`;
+        await supabase.storage.from(targetBucket).upload(thumbPath, thumbBlob, {
+          contentType: 'image/webp',
+          cacheControl: '31536000',
+          upsert: true,
+        });
+      }
+    } catch (thumbErr) {
+      console.warn('[SupabaseStorageService] Aviso: Falha ao gerar miniatura auxiliar:', thumbErr);
+    }
+  }
+
+  // 6. Obtém a URL pública oficial do objeto no Supabase
   const { data: publicUrlData } = supabase.storage
     .from(targetBucket)
     .getPublicUrl(uploadData?.path || filePath);
@@ -178,6 +262,107 @@ export async function uploadImageToSupabase(
 
   console.log(`[SupabaseStorageService] Imagem salva no Supabase com sucesso. URL publica:`, publicUrlData.publicUrl);
   return publicUrlData.publicUrl;
+}
+
+/**
+ * Upload especializado para fotos de produtos com conversão WebP,
+ * thumbnail de 150px e isolamento por pasta do produto.
+ */
+export async function uploadOptimizedProductPhoto(
+  input: File | Blob | string,
+  productId: string,
+  options?: {
+    customFileName?: string;
+    bucket?: string;
+  }
+): Promise<{
+  publicUrl: string;
+  thumbnailUrl: string;
+  stats?: OptimizationResult;
+}> {
+  const supabase = getSupabaseClient();
+  const config = getSupabaseConfig();
+  const targetBucket = options?.bucket || config.bucket || 'products';
+
+  if (!supabase) {
+    throw new Error('Supabase não configurado. Por favor, preencha as credenciais nas configurações.');
+  }
+
+  // Se já for link externo (URL http/https), preserva intacto
+  if (typeof input === 'string' && (input.startsWith('http://') || input.startsWith('https://'))) {
+    return { publicUrl: input, thumbnailUrl: input };
+  }
+
+  let rawSource: File | Blob | Buffer;
+  if (typeof input === 'string' && input.startsWith('data:image/')) {
+    rawSource = base64ToBlob(input);
+  } else if (input instanceof File || input instanceof Blob) {
+    rawSource = input;
+  } else {
+    throw new Error('Formato de imagem não reconhecido.');
+  }
+
+  // Validação de tamanho (Limite de 8MB com compressão adaptativa)
+  if ('size' in rawSource) {
+    const val = validateImageFile(rawSource as any);
+    if (!val.valid) {
+      throw new Error(val.error || 'A imagem excede o limite máximo de 8MB.');
+    }
+  }
+
+  const cleanProdId = String(productId || 'geral').replace(/[^a-zA-Z0-9_-]/g, '_');
+  const timestamp = Date.now();
+  const randomHash = Math.random().toString(36).substring(2, 8);
+  const baseName = options?.customFileName || `foto_${timestamp}_${randomHash}`;
+
+  // Otimização para WebP com qualidade 80%
+  const optResult = await optimizeImageToWebP(rawSource, { quality: DEFAULT_WEBP_QUALITY });
+  const thumbResult = await generateThumbnailWebP(rawSource, { size: DEFAULT_THUMBNAIL_SIZE, quality: 0.75 });
+
+  const mainPath = `produtos/${cleanProdId}/${baseName}.webp`;
+  const thumbPath = `produtos/${cleanProdId}/thumbnails/${baseName}_thumb.webp`;
+
+  const mainBlob = optResult.blob || optResult.buffer;
+  const thumbBlob = thumbResult.blob || thumbResult.buffer;
+
+  if (!mainBlob || !thumbBlob) {
+    throw new Error('Falha ao gerar arquivos WebP');
+  }
+
+  // Upload imagem principal WebP
+  const { error: mainErr } = await supabase.storage
+    .from(targetBucket)
+    .upload(mainPath, mainBlob, {
+      contentType: 'image/webp',
+      cacheControl: '31536000',
+      upsert: true,
+    });
+
+  if (mainErr) {
+    throw new Error(`Erro no upload da foto principal WebP: ${mainErr.message}`);
+  }
+
+  // Upload thumbnail 150px WebP
+  const { error: thumbErr } = await supabase.storage
+    .from(targetBucket)
+    .upload(thumbPath, thumbBlob, {
+      contentType: 'image/webp',
+      cacheControl: '31536000',
+      upsert: true,
+    });
+
+  if (thumbErr) {
+    console.warn('[SupabaseStorageService] Aviso: Erro ao enviar thumbnail:', thumbErr);
+  }
+
+  const { data: mainPublic } = supabase.storage.from(targetBucket).getPublicUrl(mainPath);
+  const { data: thumbPublic } = supabase.storage.from(targetBucket).getPublicUrl(thumbPath);
+
+  return {
+    publicUrl: mainPublic.publicUrl,
+    thumbnailUrl: thumbPublic.publicUrl,
+    stats: optResult
+  };
 }
 
 /**
@@ -211,15 +396,17 @@ export function extractSupabaseFilePath(publicUrl: string): { bucket: string; fi
 }
 
 /**
- * Exclui uma imagem do Supabase Storage a partir da sua URL pública
+ * Exclui uma imagem e sua respectiva miniatura (thumbnail) do Supabase Storage a partir da sua URL pública.
+ * Se for uma URL externa (link de outro servidor), ignora com segurança sem gerar erro.
  */
 export async function deleteImageFromSupabase(publicUrl: string): Promise<boolean> {
   if (!publicUrl || typeof publicUrl !== 'string') return false;
 
   const parsed = extractSupabaseFilePath(publicUrl);
   if (!parsed) {
-    console.log('[SupabaseStorageService] URL não pertence ao Supabase Storage. Ignorando remoção remota:', publicUrl);
-    return false;
+    // Link externo ou CDN que não pertence ao bucket do Supabase. Retorna true com segurança.
+    console.log('[SupabaseStorageService] URL externa preservada. Ignorando deleção no bucket:', publicUrl);
+    return true;
   }
 
   const supabase = getSupabaseClient();
@@ -230,18 +417,48 @@ export async function deleteImageFromSupabase(publicUrl: string): Promise<boolea
 
   const { bucket, filePath } = parsed;
 
-  console.log(`[SupabaseStorageService] Deletando arquivo "${filePath}" do bucket "${bucket}"...`);
+  // 1. Identifica os caminhos do arquivo principal e da miniatura correspondente
+  const pathsToDelete = [filePath];
+
+  const lastSlashIndex = filePath.lastIndexOf('/');
+  const dir = lastSlashIndex !== -1 ? filePath.substring(0, lastSlashIndex) : '';
+  const fileName = lastSlashIndex !== -1 ? filePath.substring(lastSlashIndex + 1) : filePath;
+  const dotIndex = fileName.lastIndexOf('.');
+  const baseName = dotIndex !== -1 ? fileName.substring(0, dotIndex) : fileName;
+  const ext = dotIndex !== -1 ? fileName.substring(dotIndex) : '.webp';
+
+  if (!baseName.endsWith('_thumb')) {
+    // Arquivo principal -> busca remover miniatura correspondente (na subpasta thumbnails ou direto)
+    if (dir) {
+      pathsToDelete.push(`${dir}/thumbnails/${baseName}_thumb.webp`);
+      pathsToDelete.push(`${dir}/${baseName}_thumb.webp`);
+    } else {
+      pathsToDelete.push(`thumbnails/${baseName}_thumb.webp`);
+      pathsToDelete.push(`${baseName}_thumb.webp`);
+    }
+  } else {
+    // Caso a URL passada seja de uma miniatura -> remove também o arquivo principal
+    const cleanBase = baseName.replace(/_thumb$/, '');
+    const parentDir = dir.endsWith('/thumbnails') ? dir.replace(/\/thumbnails$/, '') : dir;
+    if (parentDir) {
+      pathsToDelete.push(`${parentDir}/${cleanBase}${ext}`);
+    } else {
+      pathsToDelete.push(`${cleanBase}${ext}`);
+    }
+  }
+
+  console.log(`[SupabaseStorageService] Deletando arquivo(s) "${pathsToDelete.join(', ')}" do bucket "${bucket}"...`);
 
   const { data, error } = await supabase.storage
     .from(bucket)
-    .remove([filePath]);
+    .remove(pathsToDelete);
 
   if (error) {
-    console.error(`[SupabaseStorageService] Erro ao deletar arquivo do Supabase Storage:`, error);
+    console.error(`[SupabaseStorageService] Erro ao deletar arquivo(s) do Supabase Storage:`, error);
     return false;
   }
 
-  console.log(`[SupabaseStorageService] Arquivo deletado com sucesso do Supabase Storage:`, data);
+  console.log(`[SupabaseStorageService] Arquivo(s) deletado(s) com sucesso do Supabase Storage:`, data);
   return true;
 }
 
@@ -294,6 +511,24 @@ export async function auditSupabaseVsFirebasePhotos(
     }
     if (prod.imageUrl && typeof prod.imageUrl === 'string') urlsToRegister.push(prod.imageUrl.trim());
     if (prod.foto_uri && typeof prod.foto_uri === 'string') urlsToRegister.push(prod.foto_uri.trim());
+    if (prod.thumbnailUrl && typeof prod.thumbnailUrl === 'string') urlsToRegister.push(prod.thumbnailUrl.trim());
+
+    // Protege fotos mapeadas por variação de cor
+    if (prod.colorImages && typeof prod.colorImages === 'object') {
+      Object.values(prod.colorImages).forEach((list: any) => {
+        if (Array.isArray(list)) {
+          list.forEach(u => {
+            if (typeof u === 'string' && u.trim()) urlsToRegister.push(u.trim());
+          });
+        }
+      });
+    }
+
+    if (prod.colorImageMap && typeof prod.colorImageMap === 'object') {
+      Object.values(prod.colorImageMap).forEach((u: any) => {
+        if (typeof u === 'string' && u.trim()) urlsToRegister.push(u.trim());
+      });
+    }
 
     urlsToRegister.forEach(url => {
       registeredUrlsMap.set(url, { id: prodId, name: prodName });
@@ -529,12 +764,8 @@ export async function autoLinkSupabasePhotosToFirestore(productsList: any[]): Pr
     }
 
     if (supabasePhotos.length > 0) {
-      const existingImages = Array.isArray(prod.images) ? prod.images.filter((u: any) => u && typeof u === 'string' && !isPlaceholderUrl(u)) : [];
-      
-      const newImages = [...existingImages];
-      supabasePhotos.forEach(url => {
-        if (!newImages.includes(url)) newImages.push(url);
-      });
+      const existingImages = preserveExistingImages(prod.images, [prod.imageUrl, prod.foto_uri]);
+      const newImages = preserveExistingImages(existingImages, supabasePhotos);
 
       const coverUrl = newImages[0];
       const stockVal = prod.stock !== undefined ? prod.stock : (prod.saldo_loja ?? 0);
