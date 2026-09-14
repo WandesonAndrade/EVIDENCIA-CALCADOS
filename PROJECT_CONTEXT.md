@@ -278,3 +278,38 @@ Acessível exclusivamente via menu de navegação ou link direto (`/meu-crediari
   3. **✨ CMS & VITRINE:** Banners Principais (Hero) -> Ofertas & Promoções -> Saldão de Calçados -> Editor "Sobre Nós" -> Suporte & Contatos.
   4. **⚙️ SISTEMA:** Gestão de Equipe & Colaboradores -> Configurações Gerais.
 
+---
+
+## 15. Dashboard Financeiro — Clientes em Atraso (Planejado)
+
+### A. Objetivo
+Exibir no painel administrativo, em tempo real, todos os clientes com pagamentos pendentes cujo vencimento já foi ultrapassado. A seção deve se manter automaticamente atualizada via listeners Firestore e incluir mecanismos de manutenção proativa (jobs programados para envio de lembretes).
+
+### B. Fontes de Dados
+- **Coleção `pix_transacoes` (Firestore):** Registros de transações Pix com campos `paymentStatus`, `dueDate`, `amount`, `orderId`, `createdAt`. Acessada via `src/services/pixFirestoreService.ts`.
+- **Coleção `orders` (Firestore):** Dados do pedido incluindo cliente, itens, status geral, e dados de pagamento. Acessada via `src/services/orderService.ts`.
+- **Coleção de clientes (a definir):** Para enriquecer com nome, email e telefone do comprador.
+
+### C. Critério de Inadimplência
+- Transação é considerada **em atraso** quando `paymentStatus !== 'paid' && dueDate < Date.now()`.
+- O número de **dias em atraso** é calculado dinamicamente como `Math.floor((Date.now() - dueDate) / 86400000)`.
+
+### D. Componentes Planejados
+| Arquivo | Descrição |
+|---------|-----------|
+| `src/components/ClientsOverdueDashboard.tsx` (novo) | Componente principal do dashboard com tabela de clientes inadimplentes, filtros e ações. |
+| `src/context/OverdueContext.tsx` (novo, opcional) | Contexto React para compartilhar estado de inadimplência entre componentes. |
+| `src/services/cronJobs.ts` (novo) | Job diário para consultar transações em atraso e disparar lembretes. |
+| `src/services/emailService.ts` (novo) | Wrapper para envio de emails de lembrete via SendGrid ou SMTP. |
+| `src/services/overdueCacheService.ts` (novo, opcional) | Coleção derivada `overdue_customers` mantida por Cloud Function para reduzir custo de leitura. |
+| `tests/clients-overdue.test.ts` (novo) | Testes unitários para lógica de filtro de inadimplência. |
+
+### E. Integração no Painel Admin
+- Nova aba **"Clientes em Atraso"** adicionada ao `AdminPanel.tsx` dentro do grupo **📊 DASHBOARD & VENDAS**.
+- Tabela com colunas: Cliente, Email, Telefone, Valor, Vencimento, Dias em Atraso, Ações.
+- Ações disponíveis: **Enviar lembrete** (WhatsApp/email), **Marcar como pago**.
+
+### F. Estratégia de Atualização Automática
+- **Tempo real (Frontend):** Listener `onSnapshot` em `pix_transacoes` garante que qualquer mudança de status reflete instantaneamente na UI.
+- **Job programado (Backend):** `cronJobs.ts` executa diariamente às 8h, consulta `getOverdueTransactions()` e dispara lembretes via `emailService.ts`.
+- **Cache local:** `localStorage('evidencia_overdue_last_sync')` evita releituras desnecessárias ao reabrir o painel.
