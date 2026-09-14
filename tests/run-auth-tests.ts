@@ -166,6 +166,7 @@ async function runAuthAndProfileTests() {
     price: 349.9,
     originalPrice: undefined,
     stock: -5, // deve converter para 0
+    imageUrl: 'https://evidenciacalcados.com.br/fotos/sapato-1000.webp',
     images: undefined,
     description: undefined
   };

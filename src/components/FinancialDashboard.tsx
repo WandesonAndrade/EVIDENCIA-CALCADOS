@@ -7,8 +7,13 @@ import {
   Smartphone, FileText, Sparkles, AlertCircle, ExternalLink
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { moblinkClientesService, MoblinkContaReceber } from '../services/moblinkClientesService';
-import { pixFirestoreService } from '../services/pixFirestoreService';
+import { 
+  moblinkClientesService, 
+  MoblinkContaReceber, 
+  getInstallmentAmount, 
+  getParcelId 
+} from '../services/moblinkClientesService';
+import { pixFirestoreService, PixTransacaoFirestore } from '../services/pixFirestoreService';
 
 import { parseValor } from '../utils/numberUtils';
 
@@ -94,6 +99,8 @@ export const FinancialDashboard: React.FC = () => {
   const [receivedPayments, setReceivedPayments] = useState<ReceivedPayment[]>([]);
   const [overdueClientGroups, setOverdueClientGroups] = useState<OverdueClientGroup[]>([]);
   const [expandedClientIds, setExpandedClientIds] = useState<Set<string>>(new Set());
+  const [syncStatusMessage, setSyncStatusMessage] = useState<string>('');
+  const [isLoadingOverdue, setIsLoadingOverdue] = useState<boolean>(false);
 
   // ── Load Financial Data ──
   const loadData = useCallback(async () => {
@@ -202,120 +209,135 @@ export const FinancialDashboard: React.FC = () => {
         setReceivedPayments(mappedReceived);
       }
 
-      // 2. Carrega Clientes com Mensalidades em Atraso (Inadimplentes)
-      const mockOverdueGroups: OverdueClientGroup[] = [
-        {
-          moblinkId: 'CLI-8841',
-          clientName: 'João Pedro de Oliveira',
-          clientCpf: '123.456.789-00',
-          clientPhone: '88998765432',
-          clientEmail: 'joao.pedro@gmail.com',
-          totalOverdueAmount: 120.00,
-          installments: [
-            {
-              id: '4375-1',
-              saleKey: '4375',
-              parcelNum: '01/04',
-              description: 'Parcela 01/04 – Venda #4375',
-              dueDate: '2026-07-11',
-              originalAmount: 30.00,
-              displayAmount: 30.00,
-              daysOverdue: 32,
-              hasInterest: false,
-            },
-            {
-              id: '4375-2',
-              saleKey: '4375',
-              parcelNum: '02/04',
-              description: 'Parcela 02/04 – Venda #4375',
-              dueDate: '2026-08-11',
-              originalAmount: 30.00,
-              displayAmount: 30.00,
-              daysOverdue: 1,
-              hasInterest: false,
-            },
-            {
-              id: '4375-3',
-              saleKey: '4375',
-              parcelNum: '03/04',
-              description: 'Parcela 03/04 – Venda #4375',
-              dueDate: '2026-09-11',
-              originalAmount: 30.00,
-              displayAmount: 30.00,
-              daysOverdue: 0,
-              hasInterest: false,
-            },
-            {
-              id: '4375-4',
-              saleKey: '4375',
-              parcelNum: '04/04',
-              description: 'Parcela 04/04 – Venda #4375',
-              dueDate: '2026-10-11',
-              originalAmount: 30.00,
-              displayAmount: 30.00,
-              daysOverdue: 0,
-              hasInterest: false,
-            },
-          ],
-        },
-        {
-          moblinkId: 'CLI-9923',
-          clientName: 'Ana Beatriz Souza',
-          clientCpf: '987.654.321-11',
-          clientPhone: '88991234567',
-          clientEmail: 'ana.souza@gmail.com',
-          totalOverdueAmount: 185.50,
-          installments: [
-            {
-              id: '4210-2',
-              saleKey: '4210',
-              parcelNum: '02/03',
-              description: 'Parcela 02/03 – Venda #4210',
-              dueDate: '2026-07-05',
-              originalAmount: 90.00,
-              displayAmount: 92.75,
-              daysOverdue: 38,
-              hasInterest: true,
-            },
-            {
-              id: '4210-3',
-              saleKey: '4210',
-              parcelNum: '03/03',
-              description: 'Parcela 03/03 – Venda #4210',
-              dueDate: '2026-08-05',
-              originalAmount: 90.00,
-              displayAmount: 92.75,
-              daysOverdue: 7,
-              hasInterest: true,
-            },
-          ],
-        },
-        {
-          moblinkId: 'CLI-7712',
-          clientName: 'Francisca Lima Ferreira',
-          clientCpf: '456.789.123-44',
-          clientPhone: '88988112233',
-          clientEmail: 'francisca.ferreira@gmail.com',
-          totalOverdueAmount: 64.90,
-          installments: [
-            {
-              id: '3890-1',
-              saleKey: '3890',
-              parcelNum: '01/02',
-              description: 'Parcela 01/02 – Venda #3890',
-              dueDate: '2026-08-01',
-              originalAmount: 64.90,
-              displayAmount: 64.90,
-              daysOverdue: 11,
-              hasInterest: false,
-            },
-          ],
-        },
-      ];
+      // 2. Carrega Clientes com Mensalidades em Atraso (Inadimplentes) Dinamicamente do MobLink ERP
+      try {
+        setIsLoadingOverdue(true);
+        setSyncStatusMessage('Consultando inadimplência em tempo real no MobLink ERP...');
 
-      setOverdueClientGroups(mockOverdueGroups);
-      if (mockOverdueGroups.length > 0) {
-        setExpandedClientIds(new Set([mockOverdueGroups[0].moblinkId]));
+        // 2.1 Busca clientes direto da API MobLink
+        const allClients = await moblinkClientesService.fetchMoblinkClientesDirect();
+
+        // 2.2 Filtra clientes que possuem valor vencido informado no cadastro do ERP
+        const overdueCandidates = allClients.filter(c => {
+          const anyC = c as any;
+          const vVencido = parseValor(c.valor_vencido ?? anyC.valor_vencido);
+          return vVencido > 0;
+        });
+
+        // 2.3 Para cada cliente com débito, consulta faturas detalhadas no MobLink ERP
+        const groups: OverdueClientGroup[] = [];
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        for (const client of overdueCandidates) {
+          const moblinkId = client.moblinkId || (client as any).id;
+          if (!moblinkId) continue;
+
+          try {
+            const rawInvoices = await moblinkClientesService.fetchClienteContasReceber(String(moblinkId));
+
+            const overdueInstallments: OverdueInstallment[] = [];
+
+            for (const inv of rawInvoices) {
+              // Verifica se a parcela já foi quitada via Pix no site
+              const isPaidInPix = pixFirestoreService.checkIfParcelIsPaidInFirestore(inv, pixTxs);
+              if (isPaidInPix) continue;
+
+              const amountInfo = getInstallmentAmount(inv);
+              if (amountInfo.isPaid) continue;
+
+              // Calcula data de vencimento e dias de atraso
+              const rawDueDateStr = inv.data_vencimento || inv.vencimento;
+              let daysOverdue = 0;
+
+              if (rawDueDateStr) {
+                const dueDateObj = new Date(rawDueDateStr);
+                if (!isNaN(dueDateObj.getTime())) {
+                  dueDateObj.setHours(0, 0, 0, 0);
+                  const diffTime = today.getTime() - dueDateObj.getTime();
+                  if (diffTime > 0) {
+                    daysOverdue = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+                  }
+                }
+              }
+
+              // Considera inadimplente se tem dias em atraso ou marcado como vencido no ERP
+              if (daysOverdue > 0 || amountInfo.isOverdue) {
+                const saleKey = String(inv.id_venda ?? inv.documento ?? '0');
+                const parcelNum = String(inv.parcela ?? inv.numero_documento ?? inv.nro_parcela ?? inv.num_parcela ?? '1');
+                const desc = String(inv.historico || inv.historico_origem || `Parcela ${parcelNum} – Venda #${saleKey}`);
+
+                overdueInstallments.push({
+                  id: getParcelId(inv),
+                  saleKey,
+                  parcelNum,
+                  description: desc,
+                  dueDate: rawDueDateStr || '',
+                  originalAmount: amountInfo.originalAmount,
+                  displayAmount: amountInfo.displayAmount,
+                  daysOverdue: Math.max(daysOverdue, 1),
+                  hasInterest: amountInfo.hasInterest,
+                });
+              }
+            }
+
+            // Se encontrou parcelas em atraso, monta o grupo do cliente
+            if (overdueInstallments.length > 0) {
+              const totalOverdue = overdueInstallments.reduce((acc, curr) => acc + curr.displayAmount, 0);
+              groups.push({
+                moblinkId: String(moblinkId),
+                clientName: client.name || 'Cliente Evidência',
+                clientCpf: client.cpf,
+                clientPhone: client.telefone,
+                clientEmail: client.email,
+                totalOverdueAmount: totalOverdue,
+                installments: overdueInstallments,
+              });
+            } else {
+              // Caso o ERP aponte valor_vencido mas o endpoint de parcelas não retorne contas desmembradas,
+              // cria uma parcela sintética com o saldo vencido global cadastrado no ERP
+              const globalVencido = parseValor(client.valor_vencido);
+              if (globalVencido > 0) {
+                groups.push({
+                  moblinkId: String(moblinkId),
+                  clientName: client.name || 'Cliente Evidência',
+                  clientCpf: client.cpf,
+                  clientPhone: client.telefone,
+                  clientEmail: client.email,
+                  totalOverdueAmount: globalVencido,
+                  installments: [
+                    {
+                      id: `mob_${moblinkId}_saldo_vencido`,
+                      saleKey: 'ERP',
+                      parcelNum: '1/1',
+                      description: 'Mensalidade em Atraso (MobLink ERP)',
+                      dueDate: new Date().toISOString().split('T')[0],
+                      originalAmount: globalVencido,
+                      displayAmount: globalVencido,
+                      daysOverdue: 1,
+                      hasInterest: false,
+                    }
+                  ],
+                });
+              }
+            }
+          } catch (errInvoices) {
+            console.warn(`Erro ao carregar faturas do cliente #${moblinkId}:`, errInvoices);
+          }
+        }
+
+        // Ordena clientes por maior valor devido em atraso
+        groups.sort((a, b) => b.totalOverdueAmount - a.totalOverdueAmount);
+
+        setOverdueClientGroups(groups);
+        if (groups.length > 0) {
+          setExpandedClientIds(new Set([groups[0].moblinkId]));
+        }
+      } catch (errOverdue) {
+        console.error('Erro ao processar inadimplência do ERP:', errOverdue);
+      } finally {
+        setIsLoadingOverdue(false);
+        setSyncStatusMessage('');
       }
     } catch (err) {
       console.error('Erro ao carregar dados do dashboard financeiro:', err);
@@ -508,18 +530,29 @@ export const FinancialDashboard: React.FC = () => {
           </p>
         </div>
 
-        <button
-          onClick={() => { setRefreshing(true); loadData(); }}
-          disabled={loading || refreshing}
-          className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
-            isDark
-              ? 'bg-slate-800 hover:bg-slate-700 text-white border border-slate-700'
-              : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200'
-          }`}
-        >
-          <RefreshCw className={`h-3.5 w-3.5 ${refreshing || loading ? 'animate-spin' : ''}`} />
-          <span>Sincronizar Dados</span>
-        </button>
+        <div className="flex items-center space-x-3">
+          {syncStatusMessage && (
+            <span className={`text-xs font-bold animate-pulse flex items-center space-x-1.5 ${
+              isDark ? 'text-amber-400' : 'text-amber-600'
+            }`}>
+              <RefreshCw className="h-3 w-3 animate-spin" />
+              <span>{syncStatusMessage}</span>
+            </span>
+          )}
+
+          <button
+            onClick={() => { setRefreshing(true); loadData(); }}
+            disabled={loading || refreshing || isLoadingOverdue}
+            className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
+              isDark
+                ? 'bg-slate-800 hover:bg-slate-700 text-white border border-slate-700'
+                : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200'
+            } ${(loading || refreshing || isLoadingOverdue) ? 'opacity-70 cursor-not-allowed' : ''}`}
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${(refreshing || loading || isLoadingOverdue) ? 'animate-spin' : ''}`} />
+            <span>{(loading || refreshing || isLoadingOverdue) ? 'Sincronizando...' : 'Sincronizar Dados'}</span>
+          </button>
+        </div>
       </div>
 
       {/* ── Banner de Alerta: Pagamentos Pix Aprovados Aguardando Baixa Manual no ERP ── */}
@@ -876,7 +909,17 @@ export const FinancialDashboard: React.FC = () => {
             </span>
           </div>
 
-          {filteredOverdueGroups.length === 0 ? (
+          {isLoadingOverdue ? (
+            <div className={`py-12 text-center space-y-3 rounded-2xl border ${cardBase}`}>
+              <RefreshCw className="h-8 w-8 text-[#007aff] animate-spin mx-auto opacity-80" />
+              <p className={`text-sm font-bold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                {syncStatusMessage || 'Consultando inadimplência em tempo real no MobLink ERP...'}
+              </p>
+              <p className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                Cruzando dados de clientes, parcelas vencidas e pagamentos Pix.
+              </p>
+            </div>
+          ) : filteredOverdueGroups.length === 0 ? (
             <div className={`py-12 text-center space-y-2 rounded-2xl border ${cardBase}`}>
               <CheckCircle2 className="h-10 w-10 text-emerald-500 mx-auto opacity-75" />
               <p className={`text-sm font-bold ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>

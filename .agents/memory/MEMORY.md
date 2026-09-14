@@ -54,12 +54,11 @@ Este arquivo é a memória persistente do projeto (AG Kit), consolidando decisõ
      3. *CMS & Vitrine*: Banners -> Promoções -> Saldão -> Sobre Nós -> Suporte.
      4. *Sistema*: Equipe -> Configurações.
 
-9. **Dashboard Financeiro — Clientes em Atraso (Em Planejamento):**
-   - Planejado como nova aba no `AdminPanel.tsx` dentro do grupo **📊 DASHBOARD & VENDAS**.
-   - Dados alimentados pelas coleções Firestore `pix_transacoes` e `orders`.
-   - Critério de inadimplência: `paymentStatus !== 'paid' && dueDate < now`.
-   - Atualização em tempo real via `onSnapshot` + job diário de lembretes (`cronJobs.ts`).
-   - Componente principal: `ClientsOverdueDashboard.tsx` (a ser criado).
-   - Arquitetura documentada na seção 15 do `PROJECT_CONTEXT.md`.
-   - **Status:** Plano de implementação criado e aguardando aprovação do usuário para iniciar desenvolvimento.
+9. **Dashboard Financeiro — Clientes em Atraso & Auditoria Pix (Implementado):**
+   - Integrado na aba `financeiro` do `AdminPanel.tsx` no componente `FinancialDashboard.tsx`.
+   - Consulta em tempo real clientes inadimplentes no MobLink ERP (`valor_vencido > 0`) e suas faturas (`fetchClienteContasReceber`).
+   - Cruzamento inteligente anti-cobrança com transações Pix aprovadas no Firestore (`pix_transacoes`).
+   - Cálculo dinâmico dos dias em atraso e juros/saldo devedor oficial do ERP.
+   - Cobrança ativa via WhatsApp com links personalizados individuais e em lote.
+   - Documentado na seção 15 do `PROJECT_CONTEXT.md`.
 

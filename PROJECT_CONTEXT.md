@@ -280,36 +280,18 @@ Acessível exclusivamente via menu de navegação ou link direto (`/meu-crediari
 
 ---
 
-## 15. Dashboard Financeiro — Clientes em Atraso (Planejado)
+## 15. Dashboard Financeiro — Clientes em Atraso & Auditoria Pix (`FinancialDashboard.tsx`)
 
-### A. Objetivo
-Exibir no painel administrativo, em tempo real, todos os clientes com pagamentos pendentes cujo vencimento já foi ultrapassado. A seção deve se manter automaticamente atualizada via listeners Firestore e incluir mecanismos de manutenção proativa (jobs programados para envio de lembretes).
+### A. Objetivo e Funcionamento
+O Dashboard Financeiro (`FinancialDashboard.tsx`) no `AdminPanel.tsx` (aba `financeiro` no grupo *📊 DASHBOARD & VENDAS*) é dividido em duas seções operacionais sincronizadas:
+1. **Seção 1: Pagamentos Pix Recebidos:** Exibe as transações Pix geradas e aprovadas pelo Mercado Pago no site com auditoria de conferência e persistência local e no Firestore (`pix_transacoes`).
+2. **Seção 2: Clientes com Mensalidades em Atraso (Cobrança Ativa):** Consulta clientes em tempo real direto da API do MobLink ERP, verifica faturas vencidas e possibilita a cobrança instantânea via WhatsApp.
 
-### B. Fontes de Dados
-- **Coleção `pix_transacoes` (Firestore):** Registros de transações Pix com campos `paymentStatus`, `dueDate`, `amount`, `orderId`, `createdAt`. Acessada via `src/services/pixFirestoreService.ts`.
-- **Coleção `orders` (Firestore):** Dados do pedido incluindo cliente, itens, status geral, e dados de pagamento. Acessada via `src/services/orderService.ts`.
-- **Coleção de clientes (a definir):** Para enriquecer com nome, email e telefone do comprador.
+### B. Integração Dinâmica com MobLink ERP & Firestore Pix
+- **Busca em Tempo Real de Inadimplentes:** Conecta-se à API MobLink (`moblinkClientesService.fetchMoblinkClientesDirect()`), filtrando clientes com `valor_vencido > 0`.
+- **Detalhamento das Contas a Receber:** Para cada inadimplente, consulta suas parcelas no ERP via `moblinkClientesService.fetchClienteContasReceber(moblinkId)`.
+- **Cruzamento Anti-Cobrança Indevida:** Valida cada parcela com a coleção `pix_transacoes` do Firestore (`pixFirestoreService.checkIfParcelIsPaidInFirestore`). Se o cliente já pagou no site, a parcela é excluída da cobrança.
+- **Cálculo Preciso de Dias em Atraso:** Calcula `daysOverdue = Math.floor((today - dueDate) / 86400000)` dinamicamente com base na data atual e preserva os encargos e juros do ERP (`getInstallmentAmount`).
+- **Cobrança Personalizada via WhatsApp:** Geração automática de links `wa.me` com mensagens personalizadas contendo o nome do cliente, descrição da parcela, data de vencimento original, dias em atraso e valor atualizado com opção de cobrança individual ou de todas as parcelas agrupadas.
+- **Sincronização Ativa:** Botão "Sincronizar Dados" recarrega clientes e faturas em tempo real com spinner e feedback visual animado.
 
-### C. Critério de Inadimplência
-- Transação é considerada **em atraso** quando `paymentStatus !== 'paid' && dueDate < Date.now()`.
-- O número de **dias em atraso** é calculado dinamicamente como `Math.floor((Date.now() - dueDate) / 86400000)`.
-
-### D. Componentes Planejados
-| Arquivo | Descrição |
-|---------|-----------|
-| `src/components/ClientsOverdueDashboard.tsx` (novo) | Componente principal do dashboard com tabela de clientes inadimplentes, filtros e ações. |
-| `src/context/OverdueContext.tsx` (novo, opcional) | Contexto React para compartilhar estado de inadimplência entre componentes. |
-| `src/services/cronJobs.ts` (novo) | Job diário para consultar transações em atraso e disparar lembretes. |
-| `src/services/emailService.ts` (novo) | Wrapper para envio de emails de lembrete via SendGrid ou SMTP. |
-| `src/services/overdueCacheService.ts` (novo, opcional) | Coleção derivada `overdue_customers` mantida por Cloud Function para reduzir custo de leitura. |
-| `tests/clients-overdue.test.ts` (novo) | Testes unitários para lógica de filtro de inadimplência. |
-
-### E. Integração no Painel Admin
-- Nova aba **"Clientes em Atraso"** adicionada ao `AdminPanel.tsx` dentro do grupo **📊 DASHBOARD & VENDAS**.
-- Tabela com colunas: Cliente, Email, Telefone, Valor, Vencimento, Dias em Atraso, Ações.
-- Ações disponíveis: **Enviar lembrete** (WhatsApp/email), **Marcar como pago**.
-
-### F. Estratégia de Atualização Automática
-- **Tempo real (Frontend):** Listener `onSnapshot` em `pix_transacoes` garante que qualquer mudança de status reflete instantaneamente na UI.
-- **Job programado (Backend):** `cronJobs.ts` executa diariamente às 8h, consulta `getOverdueTransactions()` e dispara lembretes via `emailService.ts`.
-- **Cache local:** `localStorage('evidencia_overdue_last_sync')` evita releituras desnecessárias ao reabrir o painel.
