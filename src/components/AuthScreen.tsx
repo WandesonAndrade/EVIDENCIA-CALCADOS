@@ -32,16 +32,14 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
   const [authorizedUser, setAuthorizedUser] = useState<UserProfile | null>(activeUser);
   const [showChoiceScreen, setShowChoiceScreen] = useState<boolean>(isUserCollaborator(activeUser));
 
-  // --- CPF + SENHA STATES ---
-  const [authTab, setAuthTab] = useState<'login' | 'register'>('login');
+  // --- CPF + SENHA STATES (FLUXO UNIFICADO INTELIGENTE) ---
   const [cpf, setCpf] = useState('');
   const [senha, setSenha] = useState('');
   const [name, setName] = useState('');
   const [telefone, setTelefone] = useState('');
-  const [confirmarSenha, setConfirmarSenha] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isFirstAccessOpen, setIsFirstAccessOpen] = useState(false);
+  const [isNewUserRegistration, setIsNewUserRegistration] = useState(false);
 
   const [errorMessage, setErrorMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -89,28 +87,54 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
 
     try {
       setIsLoading(true);
-      let loggedUser: UserProfile;
 
-      if (authTab === 'register') {
+      // Se estiver no passo de completar nome para novo usuário do site
+      if (isNewUserRegistration) {
         if (!name || name.trim().length < 2) {
-          setErrorMessage('Por favor, informe seu nome completo para criar a conta.');
+          setErrorMessage('Por favor, informe seu nome completo para criar sua conta.');
           setIsLoading(false);
           return;
         }
-        if (senha !== confirmarSenha) {
-          setErrorMessage('As senhas digitadas não coincidem. Por favor, verifique e digite novamente.');
-          setIsLoading(false);
-          return;
-        }
-        loggedUser = await registerWithCpf(cpfLimpo, senha, name, telefone);
-      } else {
-        loggedUser = await loginWithCpf(cpfLimpo, senha);
+        const newUser = await registerWithCpf(cpfLimpo, senha, name, telefone);
+        processPostAuth(newUser);
+        return;
       }
 
-      processPostAuth(loggedUser);
+      // Tenta login direto com CPF e senha
+      try {
+        const loggedUser = await loginWithCpf(cpfLimpo, senha);
+        processPostAuth(loggedUser);
+        return;
+      } catch (loginError: any) {
+        // Se usuário não foi encontrado no Firebase Auth, verifica se é da loja física (MobLink ERP)
+        if (
+          loginError.message === 'USER_NOT_FOUND' ||
+          loginError.code === 'auth/user-not-found'
+        ) {
+          const { firstAccessAuthService } = await import('../services/firstAccessAuthService');
+          const moblinkStatus = await firstAccessAuthService.checkMoblinkCpfStatus(cpfLimpo);
+
+          if (moblinkStatus.found) {
+            // Cliente da loja física localizado no ERP: abre o fluxo nativo de Primeiro Acesso
+            setIsFirstAccessOpen(true);
+            setIsLoading(false);
+            return;
+          } else {
+            // Novo cliente: solicita apenas o nome para criar a conta com a senha já digitada
+            setIsNewUserRegistration(true);
+            setIsLoading(false);
+            return;
+          }
+        }
+
+        // Senha incorreta ou outro erro
+        throw loginError;
+      }
     } catch (error: any) {
-      console.error(error);
-      setErrorMessage(error.message || 'Erro ao realizar login. Verifique se o CPF e senha estão corretos.');
+      console.error("Erro na autenticação por CPF:", error);
+      setErrorMessage(
+        error.message || 'Erro ao realizar login. Verifique se o CPF e senha estão corretos.'
+      );
     } finally {
       setIsLoading(false);
     }
@@ -125,8 +149,10 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
         processPostAuth(user);
       }
     } catch (error: any) {
-      console.error("Google popup error", error);
-      setErrorMessage('A janela de login do Google foi fechada ou cancelada.');
+      console.error("Google login error", error);
+      setErrorMessage(
+        error.message || 'Não foi possível conectar com o Google. Use seu CPF e senha.'
+      );
     } finally {
       setIsLoading(false);
     }
@@ -274,56 +300,14 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
 
           <div className="space-y-1">
             <h2 className={`text-2xl sm:text-3xl font-black tracking-tight ${isDark ? 'text-white' : 'text-[#003B73]'}`}>
-              {authTab === 'login' ? 'Acesse sua Conta Evidência' : 'Criar Nova Conta Evidência'}
+              {isNewUserRegistration ? 'Complete seu Cadastro' : 'Acesse sua Conta Evidência'}
             </h2>
             <p className={`text-xs sm:text-sm max-w-xs mx-auto leading-relaxed font-medium ${isDark ? 'text-slate-400' : 'text-[#52708F]'}`}>
-              {authTab === 'login' 
-                ? 'Digite seu CPF e senha para acompanhar seus pedidos e acessar seu Crediário.'
-                : 'Preencha seus dados com CPF e crie uma senha para acessar a loja.'}
+              {isNewUserRegistration
+                ? 'Identificamos que é seu primeiro acesso no site. Informe seu nome completo para concluir:'
+                : 'Digite seu CPF e senha para entrar na loja ou ativar seu cadastro automaticamente.'}
             </p>
           </div>
-        </div>
-
-        {/* Abas de Troca (Entrar x Cadastrar) */}
-        <div className={`grid grid-cols-2 p-1 rounded-2xl border ${
-          isDark ? 'bg-slate-950/60 border-slate-800' : 'bg-slate-100 border-slate-200'
-        }`}>
-          <button
-            type="button"
-            onClick={() => {
-              setAuthTab('login');
-              setErrorMessage('');
-            }}
-            className={`py-2 px-3 rounded-xl text-xs font-black transition-all cursor-pointer ${
-              authTab === 'login'
-                ? isDark 
-                  ? 'bg-amber-400 text-slate-950 shadow-md' 
-                  : 'bg-white text-slate-900 shadow-sm'
-                : isDark 
-                  ? 'text-slate-400 hover:text-white' 
-                  : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            Entrar com CPF
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setAuthTab('register');
-              setErrorMessage('');
-            }}
-            className={`py-2 px-3 rounded-xl text-xs font-black transition-all cursor-pointer ${
-              authTab === 'register'
-                ? isDark 
-                  ? 'bg-amber-400 text-slate-950 shadow-md' 
-                  : 'bg-white text-slate-900 shadow-sm'
-                : isDark 
-                  ? 'text-slate-400 hover:text-white' 
-                  : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            Criar Conta
-          </button>
         </div>
 
         {/* Mensagem de Erro */}
@@ -333,12 +317,12 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
           </div>
         )}
 
-        {/* Form de Autenticação via CPF + Senha */}
+        {/* Form de Autenticação via CPF + Senha Unificado */}
         <form onSubmit={handleCpfSubmit} className="space-y-4">
           
-          {/* Nome Completo (Apenas no Cadastro) */}
-          {authTab === 'register' && (
-            <div className="space-y-1.5">
+          {/* Nome Completo (Apenas se for um novo usuário do site) */}
+          {isNewUserRegistration && (
+            <div className="space-y-1.5 animate-fade-in">
               <label className={`block text-xs font-bold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
                 Nome Completo <span className="text-amber-500">*</span>
               </label>
@@ -347,6 +331,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
                 <input
                   type="text"
                   required
+                  autoFocus
                   placeholder="Seu nome completo"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
@@ -373,19 +358,20 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
                 maxLength={14}
                 placeholder="000.000.000-00"
                 value={cpf}
+                disabled={isNewUserRegistration}
                 onChange={(e) => setCpf(formatCPF(e.target.value))}
                 className={`w-full pl-10 pr-4 py-3 rounded-2xl border text-xs font-semibold transition-all outline-none font-mono ${
                   isDark 
-                    ? 'bg-slate-950/80 border-slate-700 text-white focus:border-amber-400' 
-                    : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-slate-400'
+                    ? 'bg-slate-950/80 border-slate-700 text-white focus:border-amber-400 disabled:opacity-60' 
+                    : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-slate-400 disabled:opacity-60'
                 }`}
               />
             </div>
           </div>
 
-          {/* Telefone (Apenas no Cadastro) */}
-          {authTab === 'register' && (
-            <div className="space-y-1.5">
+          {/* Telefone / WhatsApp (Opcional se for novo usuário) */}
+          {isNewUserRegistration && (
+            <div className="space-y-1.5 animate-fade-in">
               <label className={`block text-xs font-bold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
                 Telefone / WhatsApp <span className="text-slate-400 font-normal">(Opcional)</span>
               </label>
@@ -420,11 +406,12 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
                 minLength={6}
                 placeholder="Mínimo 6 caracteres"
                 value={senha}
+                disabled={isNewUserRegistration}
                 onChange={(e) => setSenha(e.target.value)}
                 className={`w-full pl-10 pr-10 py-3 rounded-2xl border text-xs font-semibold transition-all outline-none ${
                   isDark 
-                    ? 'bg-slate-950/80 border-slate-700 text-white focus:border-amber-400' 
-                    : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-slate-400'
+                    ? 'bg-slate-950/80 border-slate-700 text-white focus:border-amber-400 disabled:opacity-60' 
+                    : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-slate-400 disabled:opacity-60'
                 }`}
               />
               <button
@@ -437,39 +424,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
             </div>
           </div>
 
-          {/* Campo Confirmar Senha (Apenas no Cadastro) */}
-          {authTab === 'register' && (
-            <div className="space-y-1.5">
-              <label className={`block text-xs font-bold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                Confirmar Senha <span className="text-amber-500">*</span>
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                <input
-                  type={showConfirmPassword ? 'text' : 'password'}
-                  required
-                  minLength={6}
-                  placeholder="Repita sua senha"
-                  value={confirmarSenha}
-                  onChange={(e) => setConfirmarSenha(e.target.value)}
-                  className={`w-full pl-10 pr-10 py-3 rounded-2xl border text-xs font-semibold transition-all outline-none ${
-                    isDark 
-                      ? 'bg-slate-950/80 border-slate-700 text-white focus:border-amber-400' 
-                      : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-slate-400'
-                  }`}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 cursor-pointer"
-                >
-                  {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Botão de Envio Principal */}
+          {/* Botão de Ação Principal */}
           <button
             type="submit"
             disabled={isLoading}
@@ -480,9 +435,24 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
             }`}
           >
             {isLoading 
-              ? 'Processando...' 
-              : (authTab === 'login' ? 'Entrar com CPF e Senha' : 'Criar minha Conta')}
+              ? 'Verificando...' 
+              : isNewUserRegistration 
+                ? 'Concluir Cadastro e Entrar' 
+                : 'Acessar ou Criar Conta'}
           </button>
+
+          {isNewUserRegistration && (
+            <button
+              type="button"
+              onClick={() => {
+                setIsNewUserRegistration(false);
+                setErrorMessage('');
+              }}
+              className="w-full text-center text-xs text-slate-400 hover:text-slate-300 font-semibold pt-1 cursor-pointer"
+            >
+              Voltar para login com outro CPF
+            </button>
+          )}
         </form>
 
         {/* Divisor Visual */}

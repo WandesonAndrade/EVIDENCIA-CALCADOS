@@ -7,6 +7,7 @@ import {
   Calendar,
   MapPin,
   Phone,
+  Mail,
   ShieldCheck,
   Sparkles,
   AlertCircle,
@@ -33,6 +34,7 @@ export const CompleteProfileModal: React.FC<CompleteProfileModalProps> = ({
   const [solicitarCrediario, setSolicitarCrediario] = useState(true);
   const [rg, setRg] = useState("");
   const [cpf, setCpf] = useState("");
+  const [email, setEmail] = useState("");
   const [nomePai, setNomePai] = useState("");
   const [nomeMae, setNomeMae] = useState("");
   const [dataNascimento, setDataNascimento] = useState("");
@@ -218,6 +220,8 @@ export const CompleteProfileModal: React.FC<CompleteProfileModalProps> = ({
 
         setRg(currentUser.rg || anyUser.rg_numero || "");
         setCpf(formattedCpf);
+        const currentEmail = currentUser.email || "";
+        setEmail(currentEmail.endsWith("@evidencia.com") ? "" : currentEmail);
         setNomePai(currentUser.nomePai || anyUser.pai || "");
         setNomeMae(currentUser.nomeMae || anyUser.mae || "");
         setDataNascimento(
@@ -358,6 +362,7 @@ export const CompleteProfileModal: React.FC<CompleteProfileModalProps> = ({
       await updateUserProfile({
         rg: rg.trim(),
         cpf: cpf.trim(),
+        email: email.trim() ? email.trim().toLowerCase() : currentUser.email,
         nomePai: nomePai.trim(),
         nomeMae: nomeMae.trim(),
         dataNascimento: dataNascimento.trim(),
@@ -560,6 +565,24 @@ export const CompleteProfileModal: React.FC<CompleteProfileModalProps> = ({
                     className="w-full pl-8 pr-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-primary text-slate-800 font-medium"
                   />
                   <Phone className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
+                </div>
+              </div>
+
+              {/* E-mail para Acesso Rápido e Notificações */}
+              <div className="space-y-1 sm:col-span-2">
+                <label className="text-[10px] font-bold text-slate-700 uppercase tracking-wider block">
+                  E-mail de Contato / Acesso Rápido{" "}
+                  <span className="text-slate-400 font-normal">(Opcional - Usado para login rápido com Google)</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="email"
+                    placeholder="seuemail@exemplo.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full pl-8 pr-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-primary text-slate-800 font-medium"
+                  />
+                  <Mail className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
                 </div>
               </div>
 

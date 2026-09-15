@@ -413,12 +413,39 @@ export const firebaseAuthService = {
   },
 
   /**
-   * Realiza login via Google com popup e verificação de registro no Firestore
+   * Realiza login via Google com popup.
+   * Não permite criação direta de contas de cliente do zero: exige cadastro prévio por CPF e senha.
    */
   async loginWithGoogle(): Promise<UserProfile | null> {
     const provider = new GoogleAuthProvider();
     const result = await signInWithPopup(auth, provider);
     if (result.user) {
+      const email = (result.user.email || "").toLowerCase().trim();
+      const isMasterAdminEmail =
+        email === "wandesonandrade33@gmail.com" ||
+        email === "admin@evidencia.com" ||
+        email === "vendedor@evidencia.com";
+
+      // Verifica se o usuário já possui cadastro prévio no Firestore
+      const userRef = doc(db, "users", result.user.uid);
+      const snap = await getDoc(userRef);
+
+      // Também verifica se há documento vinculado pelo e-mail
+      let hasEmailDoc = false;
+      if (email) {
+        const q = query(collection(db, "users"), where("email", "==", email));
+        const querySnap = await getDocs(q);
+        hasEmailDoc = !querySnap.empty;
+      }
+
+      // Se não for admin e não tiver registro prévio no Firestore, desloga e impede criação direta
+      if (!snap.exists() && !hasEmailDoc && !isMasterAdminEmail) {
+        await firebaseSignOut(auth);
+        throw new Error(
+          "Nenhuma conta cadastrada foi encontrada com este Google. Por favor, faça seu primeiro acesso utilizando seu CPF e senha."
+        );
+      }
+
       return this.fetchOrSyncUserProfile(result.user);
     }
     return null;
@@ -444,7 +471,14 @@ export const firebaseAuthService = {
         error.code === "auth/invalid-credential" ||
         error.code === "auth/wrong-password"
       ) {
-        throw new Error("CPF ou senha incorretos. Caso ainda não tenha conta, faça o seu cadastro.");
+        // Se for erro de credencial genérica ou usuário inexistente, repassa código para detecção inteligente
+        const err = new Error(
+          error.code === "auth/user-not-found"
+            ? "USER_NOT_FOUND"
+            : "CPF ou senha incorretos. Caso seja seu primeiro acesso, ative sua conta."
+        );
+        (err as any).code = error.code;
+        throw err;
       }
       if (error.code === "auth/invalid-email") {
         throw new Error("CPF inválido. Verifique os números digitados.");

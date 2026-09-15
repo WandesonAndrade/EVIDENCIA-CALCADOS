@@ -62,3 +62,11 @@ Este arquivo é a memória persistente do projeto (AG Kit), consolidando decisõ
    - Cobrança ativa via WhatsApp com links personalizados individuais e em lote.
    - Documentado na seção 15 do `PROJECT_CONTEXT.md`.
 
+10. **Autenticação Unificada por CPF e Proteção Google (Implementado):**
+    - **Fim da Dúvida no Formulário**: O cliente informa apenas CPF e Senha na tela de login (`AuthScreen.tsx`), sem alternar abas de "Criar Conta" ou "Entrar".
+    - **Detecção Inteligente**:
+      - Se o cliente já possui conta: entra diretamente.
+      - Se não possui conta no Firebase mas possui cadastro na loja física (MobLink ERP): aciona o fluxo nativo de Primeiro Acesso (`FirstAccessModal`) com CPF já preenchido.
+      - Se for novo cliente no site: solicita o Nome Completo e cria a conta com a senha informada.
+    - **Proteção do Google Sign-In**: O login pelo Google não cria contas anônimas do zero; exige cadastro prévio associado ao CPF ou e-mail vinculado no perfil (`CompleteProfileModal.tsx`).
+

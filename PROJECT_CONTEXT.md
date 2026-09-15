@@ -295,3 +295,24 @@ O Dashboard Financeiro (`FinancialDashboard.tsx`) no `AdminPanel.tsx` (aba `fina
 - **Cobrança Personalizada via WhatsApp:** Geração automática de links `wa.me` com mensagens personalizadas contendo o nome do cliente, descrição da parcela, data de vencimento original, dias em atraso e valor atualizado com opção de cobrança individual ou de todas as parcelas agrupadas.
 - **Sincronização Ativa:** Botão "Sincronizar Dados" recarrega clientes e faturas em tempo real com spinner e feedback visual animado.
 
+---
+
+## 16. Autenticação Unificada por CPF e Proteção Google Sign-In (`AuthScreen.tsx` & `firebaseAuthService.ts`)
+
+### A. Fim da Dúvida no Login/Cadastro (Experiência Fluida e Direta)
+- A tela de autenticação do cliente (`AuthScreen.tsx`) foi totalmente simplificada para apresentar apenas os campos de **CPF** e **Senha**.
+- O cliente não precisa escolher ou alternar entre abas de *"Entrar"* e *"Criar Conta"*.
+- **Fluxo Inteligente Automático:**
+  1. O cliente preenche o CPF e a senha e clica em **"Acessar ou Criar Conta"**.
+  2. O sistema tenta autenticar diretamente com as credenciais fornecidas.
+  3. Se a conta existir: o login é efetuado instantaneamente.
+  4. Se o usuário não existir no Firebase Auth:
+     - O sistema consulta o CPF no MobLink ERP (`firstAccessAuthService.checkMoblinkCpfStatus`).
+     - Se for cliente da loja física: abre o modal de **Primeiro Acesso** (`FirstAccessModal`) com o CPF já preenchido para validar a data de nascimento e ativar a senha de acesso.
+     - Se for um novo cliente no site: solicita apenas o **Nome Completo** na mesma tela e cria a conta de forma imediata com a senha informada.
+
+### B. Bloqueio de Criação Direta via Google Sign-In
+- A conta Google não pode ser utilizada para provisionar clientes anônimos do zero no sistema.
+- Se o usuário tentar logar pelo Google e o seu e-mail não estiver previamente associado a um CPF no Firestore ou configurado como colaborador/administrador, o sistema bloqueia a criação e orienta a fazer o primeiro acesso via CPF e Senha.
+- Dentro do perfil do cliente (`CompleteProfileModal.tsx`), o usuário pode adicionar ou alterar seu e-mail de contato para habilitar o acesso rápido (inclusive via Google) em sessões futuras.
+
