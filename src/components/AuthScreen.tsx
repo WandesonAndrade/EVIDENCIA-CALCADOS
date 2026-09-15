@@ -32,14 +32,15 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
   const [authorizedUser, setAuthorizedUser] = useState<UserProfile | null>(activeUser);
   const [showChoiceScreen, setShowChoiceScreen] = useState<boolean>(isUserCollaborator(activeUser));
 
-  // --- CPF + SENHA STATES (FLUXO UNIFICADO INTELIGENTE) ---
+  // --- CPF PROGRESSIVE AUTH STATES ---
+  const [step, setStep] = useState<'cpf' | 'password' | 'register'>('cpf');
   const [cpf, setCpf] = useState('');
   const [senha, setSenha] = useState('');
   const [name, setName] = useState('');
   const [telefone, setTelefone] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isFirstAccessOpen, setIsFirstAccessOpen] = useState(false);
-  const [isNewUserRegistration, setIsNewUserRegistration] = useState(false);
+  const [identifiedUserName, setIdentifiedUserName] = useState('');
 
   const [errorMessage, setErrorMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -70,7 +71,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
     }
   };
 
-  const handleCpfSubmit = async (e: React.FormEvent) => {
+  // 1. Etapa de Verificação do CPF
+  const handleCheckCpf = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
 
@@ -80,6 +82,36 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
       return;
     }
 
+    try {
+      setIsLoading(true);
+      const { firebaseAuthService } = await import('../services/firebaseAuthService');
+      const checkResult = await firebaseAuthService.checkCpfStatus(cpfLimpo);
+
+      if (checkResult.status === 'has_account') {
+        // Já tem cadastro no site -> Solicita senha
+        setIdentifiedUserName(checkResult.clientName || '');
+        setStep('password');
+      } else if (checkResult.status === 'erp_first_access') {
+        // Já tem cadastro na loja física (MobLink ERP) -> Vai para o fluxo do primeiro acesso
+        setIsFirstAccessOpen(true);
+      } else {
+        // Não tem cadastro -> Vai para a etapa/página de criar cadastro
+        setStep('register');
+      }
+    } catch (error: any) {
+      console.error("Erro ao verificar CPF:", error);
+      setErrorMessage(error.message || 'Erro ao consultar o CPF informado. Tente novamente.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // 2. Etapa de Login com Senha (para quem já tem cadastro)
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMessage('');
+
+    const cpfLimpo = cpf.replace(/\D/g, '');
     if (!senha || senha.length < 6) {
       setErrorMessage('Sua senha deve conter no mínimo 6 caracteres.');
       return;
@@ -87,54 +119,39 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
 
     try {
       setIsLoading(true);
-
-      // Se estiver no passo de completar nome para novo usuário do site
-      if (isNewUserRegistration) {
-        if (!name || name.trim().length < 2) {
-          setErrorMessage('Por favor, informe seu nome completo para criar sua conta.');
-          setIsLoading(false);
-          return;
-        }
-        const newUser = await registerWithCpf(cpfLimpo, senha, name, telefone);
-        processPostAuth(newUser);
-        return;
-      }
-
-      // Tenta login direto com CPF e senha
-      try {
-        const loggedUser = await loginWithCpf(cpfLimpo, senha);
-        processPostAuth(loggedUser);
-        return;
-      } catch (loginError: any) {
-        // Se usuário não foi encontrado no Firebase Auth, verifica se é da loja física (MobLink ERP)
-        if (
-          loginError.message === 'USER_NOT_FOUND' ||
-          loginError.code === 'auth/user-not-found'
-        ) {
-          const { firstAccessAuthService } = await import('../services/firstAccessAuthService');
-          const moblinkStatus = await firstAccessAuthService.checkMoblinkCpfStatus(cpfLimpo);
-
-          if (moblinkStatus.found) {
-            // Cliente da loja física localizado no ERP: abre o fluxo nativo de Primeiro Acesso
-            setIsFirstAccessOpen(true);
-            setIsLoading(false);
-            return;
-          } else {
-            // Novo cliente: solicita apenas o nome para criar a conta com a senha já digitada
-            setIsNewUserRegistration(true);
-            setIsLoading(false);
-            return;
-          }
-        }
-
-        // Senha incorreta ou outro erro
-        throw loginError;
-      }
+      const loggedUser = await loginWithCpf(cpfLimpo, senha);
+      processPostAuth(loggedUser);
     } catch (error: any) {
-      console.error("Erro na autenticação por CPF:", error);
-      setErrorMessage(
-        error.message || 'Erro ao realizar login. Verifique se o CPF e senha estão corretos.'
-      );
+      console.error("Erro no login com senha:", error);
+      setErrorMessage(error.message || 'Senha incorreta. Verifique e tente novamente.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // 3. Etapa de Cadastro de Novo Cliente
+  const handleRegisterSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMessage('');
+
+    const cpfLimpo = cpf.replace(/\D/g, '');
+    if (!name || name.trim().length < 2) {
+      setErrorMessage('Por favor, informe seu nome completo.');
+      return;
+    }
+
+    if (!senha || senha.length < 6) {
+      setErrorMessage('Crie uma senha com no mínimo 6 caracteres.');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      const newUser = await registerWithCpf(cpfLimpo, senha, name, telefone);
+      processPostAuth(newUser);
+    } catch (error: any) {
+      console.error("Erro ao criar cadastro:", error);
+      setErrorMessage(error.message || 'Erro ao criar conta. Verifique os dados e tente novamente.');
     } finally {
       setIsLoading(false);
     }
@@ -300,12 +317,14 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
 
           <div className="space-y-1">
             <h2 className={`text-2xl sm:text-3xl font-black tracking-tight ${isDark ? 'text-white' : 'text-[#003B73]'}`}>
-              {isNewUserRegistration ? 'Complete seu Cadastro' : 'Acesse sua Conta Evidência'}
+              {step === 'cpf' && 'Acesse ou Crie sua Conta'}
+              {step === 'password' && `Olá, ${identifiedUserName || 'Cliente'}!`}
+              {step === 'register' && 'Criar Nova Conta'}
             </h2>
             <p className={`text-xs sm:text-sm max-w-xs mx-auto leading-relaxed font-medium ${isDark ? 'text-slate-400' : 'text-[#52708F]'}`}>
-              {isNewUserRegistration
-                ? 'Identificamos que é seu primeiro acesso no site. Informe seu nome completo para concluir:'
-                : 'Digite seu CPF e senha para entrar na loja ou ativar seu cadastro automaticamente.'}
+              {step === 'cpf' && 'Digite seu CPF para continuar. Nós identificamos seu cadastro automaticamente.'}
+              {step === 'password' && 'Digite sua senha para acessar sua conta:'}
+              {step === 'register' && 'Não encontramos um cadastro para este CPF. Preencha seus dados abaixo para se cadastrar:'}
             </p>
           </div>
         </div>
@@ -317,12 +336,129 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
           </div>
         )}
 
-        {/* Form de Autenticação via CPF + Senha Unificado */}
-        <form onSubmit={handleCpfSubmit} className="space-y-4">
-          
-          {/* Nome Completo (Apenas se for um novo usuário do site) */}
-          {isNewUserRegistration && (
-            <div className="space-y-1.5 animate-fade-in">
+        {/* PASSO 1: APENAS O CAMPO CPF */}
+        {step === 'cpf' && (
+          <form onSubmit={handleCheckCpf} className="space-y-4 animate-fade-in">
+            <div className="space-y-1.5">
+              <label className={`block text-xs font-bold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                CPF <span className="text-amber-500">*</span>
+              </label>
+              <div className="relative">
+                <UserCheck className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <input
+                  type="text"
+                  required
+                  autoFocus
+                  maxLength={14}
+                  placeholder="000.000.000-00"
+                  value={cpf}
+                  onChange={(e) => setCpf(formatCPF(e.target.value))}
+                  className={`w-full pl-10 pr-4 py-3.5 rounded-2xl border text-sm font-semibold transition-all outline-none font-mono ${
+                    isDark 
+                      ? 'bg-slate-950/80 border-slate-700 text-white focus:border-amber-400' 
+                      : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-slate-400'
+                  }`}
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={isLoading}
+              className={`w-full py-3.5 px-6 rounded-2xl font-black text-xs uppercase tracking-wider transition-all shadow-md cursor-pointer disabled:opacity-50 active:scale-[0.98] ${
+                isDark
+                  ? 'bg-amber-400 text-slate-950 hover:bg-amber-300 shadow-amber-400/10'
+                  : 'bg-slate-900 text-white hover:bg-slate-800 shadow-slate-900/20'
+              }`}
+            >
+              {isLoading ? 'Consultando CPF...' : 'Continuar'}
+            </button>
+          </form>
+        )}
+
+        {/* PASSO 2: USUÁRIO JÁ POSSUI CADASTRO -> SOLICITA SENHA */}
+        {step === 'password' && (
+          <form onSubmit={handlePasswordSubmit} className="space-y-4 animate-fade-in">
+            <div className="p-3 rounded-2xl bg-slate-100 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs">
+              <span className="font-mono font-bold text-slate-700 dark:text-slate-300">CPF: {formatCPF(cpf)}</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setStep('cpf');
+                  setSenha('');
+                  setErrorMessage('');
+                }}
+                className="text-amber-500 font-bold hover:underline cursor-pointer"
+              >
+                Trocar
+              </button>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className={`block text-xs font-bold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                Sua Senha <span className="text-amber-500">*</span>
+              </label>
+              <div className="relative">
+                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  autoFocus
+                  minLength={6}
+                  placeholder="Digite sua senha"
+                  value={senha}
+                  onChange={(e) => setSenha(e.target.value)}
+                  className={`w-full pl-10 pr-10 py-3.5 rounded-2xl border text-sm font-semibold transition-all outline-none ${
+                    isDark 
+                      ? 'bg-slate-950/80 border-slate-700 text-white focus:border-amber-400' 
+                      : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-slate-400'
+                  }`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 cursor-pointer"
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={isLoading}
+              className={`w-full py-3.5 px-6 rounded-2xl font-black text-xs uppercase tracking-wider transition-all shadow-md cursor-pointer disabled:opacity-50 active:scale-[0.98] ${
+                isDark
+                  ? 'bg-amber-400 text-slate-950 hover:bg-amber-300 shadow-amber-400/10'
+                  : 'bg-slate-900 text-white hover:bg-slate-800 shadow-slate-900/20'
+              }`}
+            >
+              {isLoading ? 'Entrando...' : 'Entrar na Conta'}
+            </button>
+          </form>
+        )}
+
+        {/* PASSO 3: NÃO POSSUI CADASTRO -> PÁGINA/ETAPA DE CRIAR CADASTRO */}
+        {step === 'register' && (
+          <form onSubmit={handleRegisterSubmit} className="space-y-4 animate-fade-in">
+            <div className="p-3 rounded-2xl bg-slate-100 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs">
+              <span className="font-mono font-bold text-slate-700 dark:text-slate-300">CPF: {formatCPF(cpf)}</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setStep('cpf');
+                  setName('');
+                  setTelefone('');
+                  setSenha('');
+                  setErrorMessage('');
+                }}
+                className="text-amber-500 font-bold hover:underline cursor-pointer"
+              >
+                Trocar
+              </button>
+            </div>
+
+            <div className="space-y-1.5">
               <label className={`block text-xs font-bold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
                 Nome Completo <span className="text-amber-500">*</span>
               </label>
@@ -343,35 +479,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
                 />
               </div>
             </div>
-          )}
 
-          {/* Campo CPF */}
-          <div className="space-y-1.5">
-            <label className={`block text-xs font-bold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-              CPF <span className="text-amber-500">*</span>
-            </label>
-            <div className="relative">
-              <UserCheck className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-              <input
-                type="text"
-                required
-                maxLength={14}
-                placeholder="000.000.000-00"
-                value={cpf}
-                disabled={isNewUserRegistration}
-                onChange={(e) => setCpf(formatCPF(e.target.value))}
-                className={`w-full pl-10 pr-4 py-3 rounded-2xl border text-xs font-semibold transition-all outline-none font-mono ${
-                  isDark 
-                    ? 'bg-slate-950/80 border-slate-700 text-white focus:border-amber-400 disabled:opacity-60' 
-                    : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-slate-400 disabled:opacity-60'
-                }`}
-              />
-            </div>
-          </div>
-
-          {/* Telefone / WhatsApp (Opcional se for novo usuário) */}
-          {isNewUserRegistration && (
-            <div className="space-y-1.5 animate-fade-in">
+            <div className="space-y-1.5">
               <label className={`block text-xs font-bold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
                 Telefone / WhatsApp <span className="text-slate-400 font-normal">(Opcional)</span>
               </label>
@@ -391,69 +500,49 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
                 />
               </div>
             </div>
-          )}
 
-          {/* Campo Senha */}
-          <div className="space-y-1.5">
-            <label className={`block text-xs font-bold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-              Senha <span className="text-amber-500">*</span>
-            </label>
-            <div className="relative">
-              <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-              <input
-                type={showPassword ? 'text' : 'password'}
-                required
-                minLength={6}
-                placeholder="Mínimo 6 caracteres"
-                value={senha}
-                disabled={isNewUserRegistration}
-                onChange={(e) => setSenha(e.target.value)}
-                className={`w-full pl-10 pr-10 py-3 rounded-2xl border text-xs font-semibold transition-all outline-none ${
-                  isDark 
-                    ? 'bg-slate-950/80 border-slate-700 text-white focus:border-amber-400 disabled:opacity-60' 
-                    : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-slate-400 disabled:opacity-60'
-                }`}
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 cursor-pointer"
-              >
-                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
+            <div className="space-y-1.5">
+              <label className={`block text-xs font-bold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                Crie sua Senha de Acesso <span className="text-amber-500">*</span>
+              </label>
+              <div className="relative">
+                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  minLength={6}
+                  placeholder="Mínimo 6 caracteres"
+                  value={senha}
+                  onChange={(e) => setSenha(e.target.value)}
+                  className={`w-full pl-10 pr-10 py-3 rounded-2xl border text-xs font-semibold transition-all outline-none ${
+                    isDark 
+                      ? 'bg-slate-950/80 border-slate-700 text-white focus:border-amber-400' 
+                      : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-slate-400'
+                  }`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 cursor-pointer"
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
             </div>
-          </div>
 
-          {/* Botão de Ação Principal */}
-          <button
-            type="submit"
-            disabled={isLoading}
-            className={`w-full py-3.5 px-6 rounded-2xl font-black text-xs uppercase tracking-wider transition-all shadow-md cursor-pointer disabled:opacity-50 active:scale-[0.98] ${
-              isDark
-                ? 'bg-amber-400 text-slate-950 hover:bg-amber-300 shadow-amber-400/10'
-                : 'bg-slate-900 text-white hover:bg-slate-800 shadow-slate-900/20'
-            }`}
-          >
-            {isLoading 
-              ? 'Verificando...' 
-              : isNewUserRegistration 
-                ? 'Concluir Cadastro e Entrar' 
-                : 'Acessar ou Criar Conta'}
-          </button>
-
-          {isNewUserRegistration && (
             <button
-              type="button"
-              onClick={() => {
-                setIsNewUserRegistration(false);
-                setErrorMessage('');
-              }}
-              className="w-full text-center text-xs text-slate-400 hover:text-slate-300 font-semibold pt-1 cursor-pointer"
+              type="submit"
+              disabled={isLoading}
+              className={`w-full py-3.5 px-6 rounded-2xl font-black text-xs uppercase tracking-wider transition-all shadow-md cursor-pointer disabled:opacity-50 active:scale-[0.98] ${
+                isDark
+                  ? 'bg-amber-400 text-slate-950 hover:bg-amber-300 shadow-amber-400/10'
+                  : 'bg-slate-900 text-white hover:bg-slate-800 shadow-slate-900/20'
+              }`}
             >
-              Voltar para login com outro CPF
+              {isLoading ? 'Criando Conta...' : 'Concluir Cadastro e Entrar'}
             </button>
-          )}
-        </form>
+          </form>
+        )}
 
         {/* Divisor Visual */}
         <div className="relative flex items-center justify-center my-2">

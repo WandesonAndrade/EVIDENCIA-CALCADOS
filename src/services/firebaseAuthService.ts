@@ -452,6 +452,56 @@ export const firebaseAuthService = {
   },
 
   /**
+   * Verifica o status de um CPF no sistema:
+   * 1. 'has_account': Já possui conta no Firebase/Firestore -> Solicita senha
+   * 2. 'erp_first_access': Cadastrado na loja física (MobLink ERP), mas sem senha web -> Vai para Primeiro Acesso
+   * 3. 'new_user': Não possui nenhum cadastro -> Vai para tela/etapa de Criar Cadastro
+   */
+  async checkCpfStatus(cpfInput: string): Promise<{
+    status: 'has_account' | 'erp_first_access' | 'new_user';
+    clientName?: string;
+    maskedName?: string;
+    erpClient?: any;
+  }> {
+    const cleanCpf = cpfInput.replace(/\D/g, "");
+    if (!cleanCpf || cleanCpf.length !== 11) {
+      throw new Error("Por favor, digite um CPF válido contendo 11 dígitos.");
+    }
+
+    // 1. Verifica se já existe conta no Firestore com este CPF
+    const directRef = doc(db, "users", `erp_cpf_${cleanCpf}`);
+    const directSnap = await getDoc(directRef);
+    if (directSnap.exists()) {
+      const data = directSnap.data() as UserProfile;
+      return { status: 'has_account', clientName: data.name };
+    }
+
+    const q = query(collection(db, "users"), where("cpf", "==", cleanCpf));
+    const querySnap = await getDocs(q);
+    if (!querySnap.empty) {
+      const data = querySnap.docs[0].data() as UserProfile;
+      return { status: 'has_account', clientName: data.name };
+    }
+
+    // 2. Consulta no MobLink ERP se o cliente já compra na loja física
+    try {
+      const erpClient = await moblinkClientesService.fetchClienteByCpfDirectly(cleanCpf);
+      if (erpClient) {
+        return {
+          status: 'erp_first_access',
+          clientName: erpClient.name,
+          erpClient,
+        };
+      }
+    } catch (err) {
+      console.warn("📌 Erro ao verificar CPF no MobLink ERP:", err);
+    }
+
+    // 3. Novo cliente no sistema
+    return { status: 'new_user' };
+  },
+
+  /**
    * Realiza login do cliente via CPF e Senha utilizando e-mail sintético (@evidencia.com)
    */
   async loginComCpf(cpf: string, senha: string): Promise<UserProfile> {
