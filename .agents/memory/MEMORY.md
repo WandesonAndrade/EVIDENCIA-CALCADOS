@@ -68,5 +68,16 @@ Este arquivo é a memória persistente do projeto (AG Kit), consolidando decisõ
       - Se o cliente já possui conta: entra diretamente.
       - Se não possui conta no Firebase mas possui cadastro na loja física (MobLink ERP): aciona o fluxo nativo de Primeiro Acesso (`FirstAccessModal`) com CPF já preenchido.
       - Se for novo cliente no site: solicita o Nome Completo e cria a conta com a senha informada.
-    - **Proteção do Google Sign-In**: O login pelo Google não cria contas anônimas do zero; exige cadastro prévio associado ao CPF ou e-mail vinculado no perfil (`CompleteProfileModal.tsx`).
+    - **Proteção do Google Sign-In & Magic Link**: O login pelo Google ou link de e-mail não cria contas anônimas do zero; exige cadastro prévio associado ao CPF ou e-mail vinculado no perfil (`MeusDados.tsx`).
+    - **Limpeza de Órfãos**: Usuários rejeitados pelo login Google são excluídos via `deleteUser()`.
+
+11. **Blindagem de Fotos e Proteção Anti-Sobrescrita ERP (Implementado):**
+    - `isValidWebPhotoUrl` descarta caminhos locais de servidores Windows do ERP (`C:\...`).
+    - `mergeErpSyncWithExistingDbProduct` preserva com prioridade máxima as fotos e galerias salvas pelo lojista.
+    - `sanitizeProductForFirestore` omite campos de foto vazios em sincronizações automáticas de preço/estoque, impedindo que `setDoc({ merge: true })` esvazie o array `images: []` no Firestore.
+
+12. **Sistema de Backup e Restauração de Fotos no Supabase (Implementado):**
+    - Dupla contingência na nuvem: JSON consolidado no bucket (`backups/photos_backup_latest.json`) + tabela `products_media` no Supabase DB + `localStorage`.
+    - Botões no painel (`MoblinkProductsManager.tsx`): "🛡️ Fazer Backup Fotos (Supabase)" e "📥 Restaurar Fotos (Supabase)".
+
 

@@ -314,5 +314,47 @@ O Dashboard Financeiro (`FinancialDashboard.tsx`) no `AdminPanel.tsx` (aba `fina
 ### B. Bloqueio de Criação Direta via Google Sign-In
 - A conta Google não pode ser utilizada para provisionar clientes anônimos do zero no sistema.
 - Se o usuário tentar logar pelo Google e o seu e-mail não estiver previamente associado a um CPF no Firestore ou configurado como colaborador/administrador, o sistema bloqueia a criação e orienta a fazer o primeiro acesso via CPF e Senha.
-- Dentro do perfil do cliente (`CompleteProfileModal.tsx`), o usuário pode adicionar ou alterar seu e-mail de contato para habilitar o acesso rápido (inclusive via Google) em sessões futuras.
+- Dentro do perfil do cliente (`MeusDados.tsx` / `CompleteProfileModal.tsx`), o usuário pode adicionar ou alterar seu e-mail de contato (`emailReal`) para habilitar o acesso rápido (inclusive via Google ou Magic Link) em sessões futuras.
+- **Exclusão Imediata de Usuários Órfãos:** Se um usuário tentar logar com Google e for rejeitado por não estar vinculado, o sistema executa `deleteUser(userCredential.user)` no Firebase Auth antes de deslogar, impedindo a criação de registros órfãos no Authentication.
+
+---
+
+## 17. Blindagem Anti-Sobrescrita de Fotos e Links do Catálogo MobLink ERP
+
+- **Validação Estrita de URLs Web (`isValidWebPhotoUrl` em `placeholder.ts`):**
+  - O sistema valida rigorosamente se uma string de foto é uma URL web acessível (`http://`, `https://`, `data:image/`, `blob:`).
+  - Caminhos de disco locais de servidores Windows (ex: `C:\...`, compartilhamentos de rede `\\...` ou nomes brutos de arquivos) retornados pela API do MobLink ERP são **automaticamente descartados**, impedindo que substituam URLs web válidas.
+- **Proteção no Merge ERP vs Firestore (`mergeErpSyncWithExistingDbProduct` em `moblinkProductsService.ts`):**
+  - As fotos, capas e galerias cadastradas pelo lojista no banco de dados possuem **prioridade máxima absoluta**.
+  - O merge destrutura e isola os dados do ERP, garantindo que `images`, `imageUrl`, `foto_uri`, `colorImages`, `colorImageMap` e `managedPhotos` não sejam sobrescritos por valores vazios do ERP.
+- **Proteção Anti-Exclusão no Firestore (`sanitizeProductForFirestore` em `moblinkProductsService.ts`):**
+  - Em rotinas automáticas de sincronização em segundo plano (como ao abrir a página do produto em `ProductDetail.tsx` ou delta sync de preços/estoque em `AppContext.tsx`), se o payload não contiver novas fotos, os campos de mídia **NÃO são enviados** para o Firestore.
+  - O `setDoc(..., { merge: true })` do Firebase atualiza estritamente preço, estoque e metadados, mantendo 100% dos links de fotos existentes intactos.
+  - A exclusão de fotos só ocorre quando o lojista intencionalmente limpa a galeria no painel e salva o formulário (`options?.allowEmptyPhotos === true`).
+
+---
+
+## 18. Sistema de Backup Redundante e Restauração de Fotos no Supabase
+
+- **Camada Dupla de Backup na Nuvem (`supabaseStorageService.ts`):**
+  - **Arquivo JSON Consolidado no Storage Bucket:** Salva um snapshot completo de todos os produtos que possuem fotos e galerias em `backups/photos_backup_latest.json` (e cópias com carimbo de data/hora para histórico de versões).
+  - **Tabela Relacional no Supabase DB (`products_media`):** Persiste em lote registros com `id`, `name`, `images`, `imageUrl`, `foto_uri`, `colorImages`, `colorImageMap` e `updated_at`.
+  - **Contingência no Navegador:** Salva cópia local em `localStorage` sob a chave `evidencia_supabase_photos_backup`.
+- **Varredura e Mapeamento Unificado (`fetchSupabaseStoragePhotosMap`):**
+  - Cruza arquivos de fotos físicas do Storage (`produto_{id}_...`), backups JSON e registros da tabela do banco de dados, mapeando por `id`, `MOB-{id}`, `sku` e `referencia`.
+- **Botões de Ação Rápida no Painel Gestor (`MoblinkProductsManager.tsx`):**
+  - **🛡️ Fazer Backup Fotos (Supabase):** Dispara a varredura e cria um snapshot atualizado de todas as fotos e links no Supabase.
+  - **📥 Restaurar Fotos (Supabase):** Restaura e revincula todas as fotos salvas aos produtos correspondentes no Firestore e no catálogo local em 1 clique.
+
+---
+
+## 19. Acesso Rápido por Link Mágico (E-mail Sem Senha) & Regras de Vínculo de Contas
+
+- **Identificador Único Primário: CPF:**
+  - Todas as contas de clientes são baseadas no CPF (`gerarEmailDoCpf(cpf)` gera `cpf@evidencia.com`).
+  - O acesso por e-mail real ou Google Sign-In funciona como um atalho rápido de conveniência e **nunca substitui o CPF**.
+- **Vínculo Seguro de E-mail Real (`emailLinkAuthService.ts` & `MeusDados.tsx`):**
+  - O cliente pode vincular seu e-mail real na área logada ("Meus Dados" / Perfil).
+  - O e-mail é validado e registrado no Firestore (`/users/{uid}`) no campo `emailReal`.
+  - Na tela de login, o "Acesso Rápido por E-mail" busca previamente no Firestore se o e-mail informado já está vinculado. Se não estiver, o envio do link é bloqueado com mensagem amigável, prevenindo criação acidental de contas órfãs.
 

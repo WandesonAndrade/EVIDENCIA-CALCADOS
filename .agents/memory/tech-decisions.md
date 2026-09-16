@@ -1,7 +1,7 @@
 ---
 type: tech
 created: 2026-08-26
-updated: 2026-08-27
+updated: 2026-09-16
 ---
 
 # Decisões Tecnológicas & Arquitetura
@@ -61,3 +61,17 @@ updated: 2026-08-27
 - **Ações Rápidas de WhatsApp:** Integração nativa com `wa.me` utilizando o telefone cadastrado do cliente (`WhatsAppButton.tsx`).
 - **Padrão Estético Apple HIG:** Abas unificadas no painel administrativo e na visão do cliente, métricas em tempo real e parcelamento em até 6x sem juros no carnê.
 
+## 11. Blindagem Anti-Sobrescrita de Fotos e Sanitização ERP (`placeholder.ts` / `moblinkProductsService.ts` / `AppContext.tsx`)
+- **Validação Estrita de URLs de Imagens (`isValidWebPhotoUrl`):** Rejeita caminhos locais do Windows (`C:\...`), caminhos de rede UNC (`\\...`) e strings vazias ou nulas que vinham do ERP.
+- **Preservação de Mídias Existentes no Merge (`mergeErpSyncWithExistingDbProduct`):** Ao sincronizar dados de estoque e preço do MobLink ERP, os campos de foto (`images`, `imageUrl`, `foto_uri`, `colorImages`, `colorImageMap`) são preservados caso o payload do ERP venha sem foto válida.
+- **Proteção no `setDoc` com `merge: true` (`sanitizeProductForFirestore`):** Arrays de fotos vazios são omitidos da serialização Firestore (a menos que explicitamente solicitado via `options.allowEmptyPhotos = true`), impedindo que updates de preço/estoque apaguem acidentalmente fotos já salvas.
+
+## 12. Sistema de Backup Redundante de Fotos no Supabase (`supabaseStorageService.ts` / `MoblinkProductsManager.tsx`)
+- **Snapshot JSON no Bucket Supabase:** Salva o mapeamento completo de fotos e variantes em `backups/photos_backup_latest.json`.
+- **Tabela Espelho `products_media`:** Mantém registros relacionais no banco relacional do Supabase com chave primária no ID do produto.
+- **Restauração em 1 Clique:** Botões administrativos para disparar backup preventivo e restauração total no Firestore a partir do snapshot do Supabase.
+
+## 13. Autenticação Híbrida e Acesso Rápido por E-mail (`authService.ts` / `AuthScreen.tsx` / `MeusDadosModal.tsx`)
+- **CPF como Identificador Primário Inegociável:** Todas as contas, histórico de compras, pedidos e limites de crediário são vinculados unicamente ao CPF do cliente no Firestore (`users/{cpf}`).
+- **Acesso por E-mail como Facilitador:** Login via Google Auth ou Link Mágico busca primeiro o perfil cujo campo `email` coincida com o e-mail autenticado. Se o e-mail não estiver vinculado a nenhum CPF, a interface solicita o CPF para completar a vinculação.
+- **Vínculo Seguro em "Meus Dados":** Usuários logados por CPF podem associar ou alterar seu e-mail a qualquer momento na tela "Meus Dados", habilitando login futuro em um clique.
