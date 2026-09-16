@@ -57,8 +57,37 @@ export const firebaseAuthService = {
         existingProfile = snap.data() as UserProfile;
       }
 
-      // 2. Se o documento não existir por UID OU possuir apenas perfil de 'customer',
-      // pesquisa na whitelist por e-mail para verificar se há pré-autorização de equipe
+      // 2. Se o documento não existir por UID, busca por vínculo de emailReal, googleEmail ou email existente
+      if (!existingProfile && email) {
+        const usersCol = collection(db, "users");
+
+        // 2.1 Busca por emailReal
+        const qEmailReal = query(usersCol, where("emailReal", "==", email));
+        const snapReal = await getDocs(qEmailReal);
+        if (!snapReal.empty) {
+          existingProfile = snapReal.docs[0].data() as UserProfile;
+        }
+
+        // 2.2 Busca por googleEmail
+        if (!existingProfile) {
+          const qGoogle = query(usersCol, where("googleEmail", "==", email));
+          const snapGoogle = await getDocs(qGoogle);
+          if (!snapGoogle.empty) {
+            existingProfile = snapGoogle.docs[0].data() as UserProfile;
+          }
+        }
+
+        // 2.3 Busca por email cadastrado
+        if (!existingProfile) {
+          const qEmail = query(usersCol, where("email", "==", email));
+          const snapEmail = await getDocs(qEmail);
+          if (!snapEmail.empty) {
+            existingProfile = snapEmail.docs[0].data() as UserProfile;
+          }
+        }
+      }
+
+      // 3. Verificação de permissões e whitelist de colaboradores
       if (!existingProfile || existingProfile.role === "customer") {
         if (email) {
           const q = query(collection(db, "users"), where("email", "==", email));
@@ -111,7 +140,7 @@ export const firebaseAuthService = {
         }
       }
 
-      // 3. VINCULAÇÃO E PREVENÇÃO DE CADASTRO DUPLICADO COM O MOBLINK ERP (por CPF ou E-mail Sintético)
+      // 4. VINCULAÇÃO E PREVENÇÃO DE CADASTRO DUPLICADO COM O MOBLINK ERP (por CPF ou E-mail Sintético)
       if (!existingProfile || !existingProfile.moblinkId) {
         let cpfToSearch = existingProfile?.cpf || "";
         if (!cpfToSearch && email && email.endsWith("@evidencia.com")) {
@@ -154,15 +183,6 @@ export const firebaseAuthService = {
         existingProfile.isAuthorizedCollaborator ||
         existingProfile.role === "admin" ||
         existingProfile.role === "seller";
-
-      // Se for cliente comum e NÃO possuir CPF cadastrado (conta órfã/incompleta via Google)
-      if (!isTeamAuthorized && !existingProfile.cpf) {
-        await firebaseSignOut(auth);
-        throw new Error(
-          "Nenhum cadastro com CPF vinculado foi encontrado para esta conta Google. Por favor, acesse informando seu CPF e senha."
-        );
-      }
-
       const inheritedRole: UserRole = isTeamAuthorized
         ? "admin"
         : existingProfile.role || "customer";
@@ -172,6 +192,7 @@ export const firebaseAuthService = {
         uid,
         name: existingProfile.name || name,
         email: existingProfile.email || email,
+        googleEmail: email,
         role: inheritedRole,
         photoURL: photoURL || existingProfile.photoURL,
       };
@@ -189,34 +210,35 @@ export const firebaseAuthService = {
 
       return mergedProfile;
     } else {
-      // Se for conta de administrador mestre, inicializa o perfil admin
-      if (isMasterAdminEmail) {
-        const initialProfile: UserProfile = {
-          uid,
-          name,
-          email,
-          role: "admin",
-          photoURL,
-          createdAt: new Date().toISOString(),
-        };
-
-        try {
-          await setDoc(userRef, cleanUndefinedProperties(initialProfile), {
-            merge: true,
-          });
-        } catch (err) {
-          console.warn("📌 Erro ao criar perfil admin no Firestore:", err);
-        }
-
-        return initialProfile;
+      // REGRA ESTRITA: Se o e-mail não estiver vinculado a um CPF pré-existente e não for admin,
+      // BLOQUEIA A CRIAÇÃO DE CONTA ANÔNIMA PELO GOOGLE
+      const isCpfAuth = email.endsWith("@evidencia.com");
+      if (!isCpfAuth && !isMasterAdminEmail) {
+        throw new Error(
+          "Esta conta do Google não está vinculada a nenhum cadastro. Por favor, acesse primeiro com seu CPF e senha (ou crie seu cadastro) e vincule seu Google no seu perfil para ativar o acesso rápido."
+        );
       }
 
-      // Usuário comum sem cadastro prévio por CPF tentando entrar direto com conta externa:
-      // Rejeita a criação automática e encerra a sessão no Firebase Auth imediatamente
-      await firebaseSignOut(auth);
-      throw new Error(
-        "Nenhuma conta cadastrada foi encontrada com este Google. Por favor, faça seu cadastro ou primeiro acesso informando seu CPF e senha."
-      );
+      const initialRole: UserRole = isMasterAdminEmail ? "admin" : "customer";
+
+      const initialProfile: UserProfile = {
+        uid,
+        name,
+        email,
+        role: initialRole,
+        photoURL,
+        createdAt: new Date().toISOString(),
+      };
+
+      try {
+        await setDoc(userRef, cleanUndefinedProperties(initialProfile), {
+          merge: true,
+        });
+      } catch (err) {
+        console.warn("📌 Erro ao criar perfil no Firestore:", err);
+      }
+
+      return initialProfile;
     }
   },
 
@@ -431,7 +453,8 @@ export const firebaseAuthService = {
 
   /**
    * Realiza login via Google com popup.
-   * Não permite criação direta de contas de cliente do zero: exige cadastro prévio por CPF e senha.
+   * REGRA DE NEGÓCIO: Não permite criação de novas contas pelo Google.
+   * O usuário só consegue acessar se a conta Google já estiver previamente vinculada ao seu cadastro de CPF.
    */
   async loginWithGoogle(): Promise<UserProfile | null> {
     const provider = new GoogleAuthProvider();
@@ -443,54 +466,56 @@ export const firebaseAuthService = {
         email === "admin@evidencia.com" ||
         email === "vendedor@evidencia.com";
 
+      // 1. Verifica se o usuário já possui cadastro prévio no Firestore pelo UID
       const userRef = doc(db, "users", result.user.uid);
       const snap = await getDoc(userRef);
-      const snapData = snap.exists() ? (snap.data() as UserProfile) : null;
-      let isAllowed = Boolean(
-        isMasterAdminEmail ||
-        snapData?.isAuthorizedCollaborator ||
-        snapData?.role === "admin" ||
-        snapData?.role === "seller" ||
-        snapData?.cpf
-      );
 
-      // Também verifica se há documento vinculado pelo e-mail
-      if (!isAllowed && email) {
-        const q = query(collection(db, "users"), where("email", "==", email));
-        const querySnap = await getDocs(q);
-        if (!querySnap.empty) {
-          const matched = querySnap.docs.find((d) => {
-            const data = d.data() as UserProfile;
-            return Boolean(
-              data.cpf ||
-              data.role === "admin" ||
-              data.role === "seller" ||
-              data.isAuthorizedCollaborator
-            );
-          });
-          if (matched) isAllowed = true;
+      // 2. Verifica se há cadastro prévio vinculado por emailReal, googleEmail ou email
+      let hasLinkedDoc = false;
+      if (email) {
+        const usersCol = collection(db, "users");
+
+        const qEmailReal = query(usersCol, where("emailReal", "==", email));
+        const snapReal = await getDocs(qEmailReal);
+        if (!snapReal.empty) {
+          hasLinkedDoc = true;
+        }
+
+        if (!hasLinkedDoc) {
+          const qGoogle = query(usersCol, where("googleEmail", "==", email));
+          const snapGoogle = await getDocs(qGoogle);
+          if (!snapGoogle.empty) {
+            hasLinkedDoc = true;
+          }
+        }
+
+        if (!hasLinkedDoc) {
+          const qEmail = query(usersCol, where("email", "==", email));
+          const snapEmail = await getDocs(qEmail);
+          if (!snapEmail.empty) {
+            hasLinkedDoc = true;
+          }
         }
       }
 
-      // Se não for admin e não tiver registro com CPF no Firestore, desloga e impede login
-      if (!isAllowed) {
+      // Se não for admin e não tiver registro prévio/vinculado no Firestore, desloga e impede criação
+      if (!snap.exists() && !hasLinkedDoc && !isMasterAdminEmail) {
         await firebaseSignOut(auth);
         throw new Error(
-          "Nenhuma conta cadastrada foi encontrada com este Google. Por favor, acesse utilizando seu CPF e senha."
+          "Esta conta do Google não está vinculada a nenhum cadastro. Por favor, acesse primeiro com seu CPF e senha (ou crie seu cadastro) e vincule seu Google no seu perfil para ativar o acesso rápido."
         );
       }
 
-      return this.fetchOrSyncUserProfile(result.user);
+      try {
+        return await this.fetchOrSyncUserProfile(result.user);
+      } catch (err: any) {
+        await firebaseSignOut(auth);
+        throw err;
+      }
     }
     return null;
   },
 
-  /**
-   * Verifica o status de um CPF no sistema:
-   * 1. 'has_account': Já possui conta no Firebase/Firestore -> Solicita senha
-   * 2. 'erp_first_access': Cadastrado na loja física (MobLink ERP), mas sem senha web -> Vai para Primeiro Acesso
-   * 3. 'new_user': Não possui nenhum cadastro -> Vai para tela/etapa de Criar Cadastro
-   */
   async checkCpfStatus(cpfInput: string): Promise<{
     status: 'has_account' | 'erp_first_access' | 'new_user';
     clientName?: string;

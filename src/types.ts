@@ -419,6 +419,9 @@ export interface UserProfile {
   tempPassword?: string;
   isSeller?: boolean;
   isAuthorizedCollaborator?: boolean;
+  emailReal?: string;
+  temEmailVinculado?: boolean;
+  googleEmail?: string;
 }
 
 

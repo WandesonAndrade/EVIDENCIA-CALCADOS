@@ -830,65 +830,64 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           isRestoringEngagementRef.current = true;
           const fullProfile = await firebaseAuthService.fetchOrSyncUserProfile(fbUser);
           
-          setCurrentUser(fullProfile);
-          localStorage.setItem('evidencia_user', JSON.stringify(fullProfile));
-          saveLocalUser(fullProfile.uid, fullProfile);
+          if (fullProfile) {
+            setCurrentUser(fullProfile);
+            localStorage.setItem('evidencia_user', JSON.stringify(fullProfile));
+            saveLocalUser(fullProfile.uid, fullProfile);
 
-          // Restaura Favoritos diretamente do perfil do Firestore
-          const rawFavs = fullProfile.favorites || fullProfile.favoriteIds;
-          if (Array.isArray(rawFavs)) {
-            setFavorites(rawFavs);
-            userDataService.saveLocalFavorites(fullProfile.uid, rawFavs);
-          }
+            // Restaura Favoritos diretamente do perfil do Firestore
+            const rawFavs = fullProfile.favorites || fullProfile.favoriteIds;
+            if (Array.isArray(rawFavs)) {
+              setFavorites(rawFavs);
+              userDataService.saveLocalFavorites(fullProfile.uid, rawFavs);
+            }
 
-          // Restaura Carrinho diretamente do perfil do Firestore
-          const rawCart = fullProfile.cart || fullProfile.cartItems;
-          if (Array.isArray(rawCart) && rawCart.length > 0) {
-            const restoredCart: CartItem[] = rawCart.map((item: any) => {
-              const baseProduct = products.find(p => p.id === item.productId);
-              return {
-                product: baseProduct ? {
-                  ...baseProduct,
-                  price: item.price !== undefined ? item.price : baseProduct.price,
-                  originalPrice: item.originalPrice !== undefined ? item.originalPrice : baseProduct.originalPrice
-                } : {
-                  id: item.productId,
-                  name: item.name,
-                  price: item.price,
-                  originalPrice: item.originalPrice,
-                  images: [],
-                  sizes: [String(item.selectedSize)]
-                } as Product,
-                selectedSize: item.selectedSize,
-                quantity: item.quantity
-              };
-            });
-            setCart(restoredCart);
-            userDataService.saveLocalCart(fullProfile.uid, restoredCart);
+            // Restaura Carrinho diretamente do perfil do Firestore
+            const rawCart = fullProfile.cart || fullProfile.cartItems;
+            if (Array.isArray(rawCart) && rawCart.length > 0) {
+              const restoredCart: CartItem[] = rawCart.map((item: any) => {
+                const baseProduct = products.find(p => p.id === item.productId);
+                return {
+                  product: baseProduct ? {
+                    ...baseProduct,
+                    price: item.price !== undefined ? item.price : baseProduct.price,
+                    originalPrice: item.originalPrice !== undefined ? item.originalPrice : baseProduct.originalPrice
+                  } : {
+                    id: item.productId,
+                    name: item.name,
+                    price: item.price,
+                    originalPrice: item.originalPrice,
+                    images: [],
+                    sizes: [String(item.selectedSize)]
+                  } as Product,
+                  selectedSize: item.selectedSize,
+                  quantity: item.quantity
+                };
+              });
+              setCart(restoredCart);
+              userDataService.saveLocalCart(fullProfile.uid, restoredCart);
+            }
           }
         } catch (err) {
-          console.warn("📌 Erro na sincronização onAuthStateChanged com Firestore:", err);
+          console.warn("📌 Conta Google não vinculada ou erro de sincronização onAuthStateChanged:", err);
           setCurrentUser(null);
           localStorage.removeItem('evidencia_user');
-          try {
-            await firebaseAuthService.logout();
-          } catch (e) {}
         } finally {
           setTimeout(() => {
             isRestoringEngagementRef.current = false;
           }, 500);
         }
       } else {
-        // Quando a sessão do Firebase Auth for encerrada
-        const savedUserStr = localStorage.getItem('evidencia_user');
-        if (savedUserStr) {
+        // Quando o Firebase Auth está deslogado, limpa sessões online (não simulações locais offline)
+        const savedUser = localStorage.getItem('evidencia_user');
+        if (savedUser) {
           try {
-            const parsed = JSON.parse(savedUserStr);
-            if (!parsed?.uid?.startsWith('sim_')) {
+            const parsed = JSON.parse(savedUser);
+            if (parsed?.uid && !parsed.uid.startsWith('offline_')) {
               setCurrentUser(null);
               localStorage.removeItem('evidencia_user');
             }
-          } catch (e) {}
+          } catch {}
         }
       }
     });

@@ -21,6 +21,8 @@ import {
 } from 'lucide-react';
 import { moblinkClientesService } from '../services/moblinkClientesService';
 import { cepService } from '../services/cepService';
+import { emailLinkAuthService } from '../services/emailLinkAuthService';
+import { Mail, Link2, ExternalLink } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 export const MeusDados: React.FC = () => {
@@ -38,6 +40,10 @@ export const MeusDados: React.FC = () => {
   const [profissao, setProfissao] = useState('');
   const [rendaMensal, setRendaMensal] = useState('');
   const [referenciaPessoal, setReferenciaPessoal] = useState('');
+  const [emailReal, setEmailReal] = useState('');
+  const [isSendingLink, setIsSendingLink] = useState(false);
+  const [emailLinkStatusMsg, setEmailLinkStatusMsg] = useState('');
+  const [emailLinkErrorMsg, setEmailLinkErrorMsg] = useState('');
 
   // Structured address fields
   const [cep, setCep] = useState('');
@@ -203,6 +209,16 @@ export const MeusDados: React.FC = () => {
       setProfissao(currentUser.profissao || anyUser.cargo || '');
       setRendaMensal(currentUser.rendaMensal || '');
       setReferenciaPessoal(currentUser.referenciaPessoal || '');
+      // Inicializa apenas se for um e-mail real (nunca sintético @evidencia.com)
+      const rawLinkedEmail = currentUser.emailReal || currentUser.googleEmail || '';
+      const isSyntheticEmail = (em?: string) => !em || em.includes('@evidencia.com') || em.includes('@evidenciacalcados.com');
+      if (!isSyntheticEmail(rawLinkedEmail)) {
+        setEmailReal(rawLinkedEmail);
+      } else if (!isSyntheticEmail(currentUser.email)) {
+        setEmailReal(currentUser.email);
+      } else {
+        setEmailReal('');
+      }
 
       setCep(formatCEP(currentUser.cep || anyUser.codigo_postal || ''));
       setEndereco(currentUser.endereco || anyUser.address || anyUser.logradouro || '');
@@ -247,6 +263,54 @@ export const MeusDados: React.FC = () => {
     setCpf(formatted);
     const cleanDigits = formatted.replace(/\D/g, '');
     lookupAndAutofillErpClient(cleanDigits);
+  };
+
+  
+  // Intercepta retorno de confirmação de vinculação de e-mail
+  useEffect(() => {
+    if (typeof window !== 'undefined' && emailLinkAuthService.isAuthEmailLink() && currentUser) {
+      const handleLinkingReturn = async () => {
+        try {
+          setEmailLinkErrorMsg('');
+          setEmailLinkStatusMsg('Confirmando vinculação de e-mail...');
+          const result = await emailLinkAuthService.completeEmailLinking();
+          setEmailLinkStatusMsg(`E-mail (${result.email}) vinculado com sucesso! Seu Acesso Rápido está ativo.`);
+          setEmailReal(result.email);
+          await updateUserProfile({
+            emailReal: result.email,
+            temEmailVinculado: true,
+            googleEmail: result.email,
+          });
+        } catch (err: any) {
+          console.error("Erro ao confirmar vinculação de e-mail:", err);
+          setEmailLinkErrorMsg(err.message || 'Falha ao concluir a vinculação do e-mail.');
+          setEmailLinkStatusMsg('');
+        }
+      };
+
+      handleLinkingReturn();
+    }
+  }, [currentUser]);
+
+  const handleSendLinkingEmail = async () => {
+    setEmailLinkErrorMsg('');
+    setEmailLinkStatusMsg('');
+    const emailTrim = emailReal.trim().toLowerCase();
+    if (!emailTrim || !emailTrim.includes('@')) {
+      setEmailLinkErrorMsg('Por favor, informe um endereço de e-mail válido.');
+      return;
+    }
+
+    try {
+      setIsSendingLink(true);
+      await emailLinkAuthService.sendLinkingEmail(emailTrim);
+      setEmailLinkStatusMsg(`Link de confirmação enviado para ${emailTrim}! Verifique sua caixa de entrada e clique no link para concluir a vinculação.`);
+    } catch (err: any) {
+      console.error("Erro ao enviar link de vinculação:", err);
+      setEmailLinkErrorMsg(err.message || 'Falha ao enviar link de vinculação.');
+    } finally {
+      setIsSendingLink(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -413,6 +477,93 @@ export const MeusDados: React.FC = () => {
 
       <form onSubmit={handleSubmit} className="space-y-8">
         
+        
+        {/* CARD: VINCULAÇÃO DE E-MAIL REAL & ACESSO RÁPIDO */}
+        <div className={`p-6 sm:p-8 rounded-3xl border space-y-5 shadow-md backdrop-blur-md ${
+          isDark ? 'bg-slate-900/90 border-slate-800 text-white' : 'bg-white border-blue-900/10 text-[#003B73]'
+        }`}>
+          <div className="flex items-center justify-between border-b pb-4 border-blue-900/10">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-400/10 text-amber-500 flex items-center justify-center">
+                <Mail className="h-5 w-5" />
+              </div>
+              <div>
+                <h2 className="text-base font-black tracking-tight text-[#003B73] dark:text-white flex items-center gap-2">
+                  <span>Vincular Conta Google (Acesso Rápido)</span>
+                  {currentUser.temEmailVinculado ? (
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800">
+                      ✓ Vinculado
+                    </span>
+                  ) : (
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 border border-amber-300 dark:border-amber-800">
+                      Pendente
+                    </span>
+                  )}
+                </h2>
+                <p className="text-xs text-[#52708F] dark:text-slate-400 font-medium">
+                  Sua conta principal é identificada pelo seu <strong>CPF</strong>. Você pode vincular sua conta Google para entrar mais rápido com 1 clique.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {emailLinkStatusMsg && (
+            <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-xs font-semibold flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 shrink-0" />
+              <span>{emailLinkStatusMsg}</span>
+            </div>
+          )}
+
+          {emailLinkErrorMsg && (
+            <div className="p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-semibold flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              <span>{emailLinkErrorMsg}</span>
+            </div>
+          )}
+
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <label className="text-[11px] font-extrabold text-[#003B73] dark:text-slate-300 uppercase tracking-wider block">
+                Seu E-mail do Google (Gmail)
+              </label>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="relative flex-1">
+                  <input
+                    type="email"
+                    placeholder="seuemail@gmail.com"
+                    value={emailReal}
+                    onChange={(e) => setEmailReal(e.target.value)}
+                    className="w-full pl-9 pr-4 py-2.5 text-xs rounded-xl border border-blue-900/15 bg-white dark:bg-slate-950 text-[#003B73] dark:text-white font-bold focus:outline-none focus:border-[#006EDB]"
+                  />
+                  <Mail className="absolute left-3 top-3 h-4 w-4 text-[#52708F]" />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleSendLinkingEmail}
+                  disabled={isSendingLink || !emailReal.trim()}
+                  className="py-2.5 px-5 rounded-xl font-black text-xs bg-amber-400 hover:bg-amber-300 text-slate-950 transition-all shadow-sm cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2 whitespace-nowrap"
+                >
+                  {isSendingLink ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      <span>Enviando...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Link2 className="h-3.5 w-3.5" />
+                      <span>{currentUser.temEmailVinculado ? 'Atualizar Vínculo de E-mail' : 'Vincular E-mail para Acesso Rápido'}</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+            <p className="text-[11px] text-slate-400">
+              💡 Ao vincular seu Gmail, você poderá clicar em 'Acesso Rápido com Google' na tela de login para entrar direto na sua conta do CPF sem digitar senha.
+            </p>
+          </div>
+        </div>
+
         {/* CARD 1: CARTÃO DE IDENTIDADE APPLE ID STYLE */}
         <div className={`p-6 sm:p-8 rounded-3xl border space-y-6 shadow-md backdrop-blur-md ${
           isDark ? 'bg-slate-900/90 border-slate-800 text-white' : 'bg-white border-blue-900/10 text-[#003B73]'
