@@ -7,6 +7,7 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   updatePassword,
+  deleteUser,
   User,
 } from "firebase/auth";
 import {
@@ -31,14 +32,8 @@ export const firebaseAuthService = {
   },
 
   /**
-   * Verifica existência no Firestore no login:
-   * Se o documento não existir por UID ou e-mail, cria um registro inicial com dados básicos.
-   * Se já existir, carrega todos os dados cadastrados preservando campos reais preenchidos.
-   */
-  /**
    * Verifica e sincroniza existência no Firestore no login (Google ou E-mail):
-   * Procura por UID ou por E-mail (Whitelist de colaboradores).
-   * Se o e-mail estiver pré-autorizado como admin ou seller, eleva o perfil com a role correspondente.
+   * Procura por UID ou por E-mail vinculado / Whitelist de colaboradores.
    */
   async fetchOrSyncUserProfile(user: User): Promise<UserProfile> {
     const uid = user.uid;
@@ -455,6 +450,8 @@ export const firebaseAuthService = {
    * Realiza login via Google com popup.
    * REGRA DE NEGÓCIO: Não permite criação de novas contas pelo Google.
    * O usuário só consegue acessar se a conta Google já estiver previamente vinculada ao seu cadastro de CPF.
+   * Caso o usuário tente entrar sem ter vínculo, a conta recém-criada é IMEDIATAMENTE DELETADA do Firebase Authentication (deleteUser)
+   * para não deixar registros órfãos no painel de Authentication.
    */
   async loginWithGoogle(): Promise<UserProfile | null> {
     const provider = new GoogleAuthProvider();
@@ -498,8 +495,15 @@ export const firebaseAuthService = {
         }
       }
 
-      // Se não for admin e não tiver registro prévio/vinculado no Firestore, desloga e impede criação
+      // Se não for admin e não tiver registro prévio/vinculado no Firestore:
+      // 1. DELETA o usuário recém-criado do Firebase Authentication
+      // 2. Desloga a sessão e impede criação
       if (!snap.exists() && !hasLinkedDoc && !isMasterAdminEmail) {
+        try {
+          await deleteUser(result.user);
+        } catch (delErr) {
+          console.warn("📌 Erro ao remover usuário órfão do Firebase Auth:", delErr);
+        }
         await firebaseSignOut(auth);
         throw new Error(
           "Esta conta do Google não está vinculada a nenhum cadastro. Por favor, acesse primeiro com seu CPF e senha (ou crie seu cadastro) e vincule seu Google no seu perfil para ativar o acesso rápido."
@@ -509,6 +513,9 @@ export const firebaseAuthService = {
       try {
         return await this.fetchOrSyncUserProfile(result.user);
       } catch (err: any) {
+        try {
+          await deleteUser(result.user);
+        } catch {}
         await firebaseSignOut(auth);
         throw err;
       }
@@ -516,6 +523,12 @@ export const firebaseAuthService = {
     return null;
   },
 
+  /**
+   * Verifica o status de um CPF no sistema:
+   * 1. 'has_account': Já possui conta no Firebase/Firestore -> Solicita senha
+   * 2. 'erp_first_access': Cadastrado na loja física (MobLink ERP), mas sem senha web -> Vai para Primeiro Acesso
+   * 3. 'new_user': Não possui nenhum cadastro -> Vai para tela/etapa de Criar Cadastro
+   */
   async checkCpfStatus(cpfInput: string): Promise<{
     status: 'has_account' | 'erp_first_access' | 'new_user';
     clientName?: string;
@@ -580,7 +593,6 @@ export const firebaseAuthService = {
         error.code === "auth/invalid-credential" ||
         error.code === "auth/wrong-password"
       ) {
-        // Se for erro de credencial genérica ou usuário inexistente, repassa código para detecção inteligente
         const err = new Error(
           error.code === "auth/user-not-found"
             ? "USER_NOT_FOUND"
