@@ -15,7 +15,7 @@ import { moblinkCategoriesService, normalizeCategoryName } from '../services/mob
 import { cleanUndefinedProperties } from '../utils/cleanObject';
 import { API_ENDPOINTS } from '../services/api';
 import { syncProductMediaToSupabase, fetchProductMediaFromSupabase, fetchSupabaseStoragePhotosMap, autoLinkSupabasePhotosToFirestore } from '../services/supabaseStorageService';
-import { NO_PHOTO_SVG, isPlaceholderUrl } from '../utils/placeholder';
+import { NO_PHOTO_SVG, isPlaceholderUrl, isValidWebPhotoUrl } from '../utils/placeholder';
 import { getCachedCatalog, setCachedCatalog, safeSetLocalStorage, mergeStockIntoCachedProducts } from '../services/catalogCacheService';
 import { fetchLiveStockMapFromMoblink, fetchDirectProductStockAndGrade } from '../services/moblinkStockDirectService';
 import { slugifyParam } from '../components/products/utils/categoryNavigationUtils';
@@ -266,15 +266,15 @@ const saveLocalProducts = (updatedProducts: Product[]) => {
         const id = String(p.id);
         const old = existingMap.get(id);
         if (old) {
-          const oldPhotos = (old.images || []).filter(u => u && !isPlaceholderUrl(u));
-          const currentPhotos = (p.images || []).filter(u => u && !isPlaceholderUrl(u));
+          const oldPhotos = (old.images || []).filter(u => u && isValidWebPhotoUrl(u));
+          const currentPhotos = (p.images || []).filter(u => u && isValidWebPhotoUrl(u));
           
           const oldColorImages = old.colorImages;
           const oldColorImageMap = old.colorImageMap;
 
           if (currentPhotos.length === 0 && oldPhotos.length > 0) {
-            const oldCover = (!isPlaceholderUrl(old.imageUrl) ? old.imageUrl : null) 
-              || (!isPlaceholderUrl(old.foto_uri) ? old.foto_uri : null) 
+            const oldCover = (isValidWebPhotoUrl(old.imageUrl) ? old.imageUrl : null) 
+              || (isValidWebPhotoUrl(old.foto_uri) ? old.foto_uri : null) 
               || oldPhotos[0];
             return {
               ...p,
@@ -1082,7 +1082,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       let combinedImages: string[] = [];
 
       const addValidPhoto = (url: any) => {
-        if (url && typeof url === 'string' && url.trim() && !isPlaceholderUrl(url)) {
+        if (url && typeof url === 'string' && isValidWebPhotoUrl(url)) {
           const clean = url.trim();
           if (!combinedImages.includes(clean)) combinedImages.push(clean);
         }
@@ -1117,7 +1117,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       }
 
-      const primaryCoverUrl = combinedImages[0] || (dbRecord?.imageUrl && !isPlaceholderUrl(dbRecord.imageUrl) ? dbRecord.imageUrl : '') || (dbRecord?.foto_uri && !isPlaceholderUrl(dbRecord.foto_uri) ? dbRecord.foto_uri : '');
+      const primaryCoverUrl = combinedImages[0] || (dbRecord?.imageUrl && isValidWebPhotoUrl(dbRecord.imageUrl) ? dbRecord.imageUrl : '') || (dbRecord?.foto_uri && isValidWebPhotoUrl(dbRecord.foto_uri) ? dbRecord.foto_uri : '');
 
       // Adaptation for Complete Description (Preserva cadastro manual do lojista se existir)
       let adaptedFullDescription = '';

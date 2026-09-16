@@ -3,7 +3,12 @@ export const NO_PHOTO_SVG = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.o
 export const isPlaceholderUrl = (url?: string | null): boolean => {
   if (!url || typeof url !== 'string') return true;
   const clean = url.trim().toLowerCase();
-  if (!clean) return true;
+  if (!clean || clean === 'null' || clean === 'undefined' || clean === 'none' || clean === 'sem foto') return true;
+
+  // Rejeita caminhos de disco locais do Windows (C:\...), compartilhamentos de rede (\\...) ou arquivos locais não-web
+  if (/^[a-z]:[\\/]/.test(clean) || clean.startsWith('\\\\')) {
+    return true;
+  }
 
   // Detect known mock/dummy image generators
   if (
@@ -22,4 +27,29 @@ export const isPlaceholderUrl = (url?: string | null): boolean => {
 
   return false;
 };
+
+/**
+ * Valida estritamente se a URL é uma URL web acessível (HTTP, HTTPS, Supabase, Cloudinary, data:image, blob, etc.)
+ * Rejeita qualquer caminho local de sistema de arquivo do ERP ou valor nulo.
+ */
+export const isValidWebPhotoUrl = (url?: string | null): boolean => {
+  if (!url || typeof url !== 'string') return false;
+  const clean = url.trim();
+  if (!clean || clean.length < 5) return false;
+  if (isPlaceholderUrl(clean)) return false;
+
+  const lower = clean.toLowerCase();
+  if (
+    lower.startsWith('http://') ||
+    lower.startsWith('https://') ||
+    lower.startsWith('data:image/') ||
+    lower.startsWith('blob:') ||
+    (lower.startsWith('/') && !lower.startsWith('//') && !lower.includes('\\'))
+  ) {
+    return true;
+  }
+
+  return false;
+};
+
 

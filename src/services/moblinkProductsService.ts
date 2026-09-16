@@ -7,7 +7,7 @@ import {
 import { evidenciaAuthService } from '../lib/evidenciaAuth';
 import { API_ENDPOINTS } from './api';
 import { parseValor } from '../utils/numberUtils';
-import { isPlaceholderUrl } from '../utils/placeholder';
+import { isPlaceholderUrl, isValidWebPhotoUrl } from '../utils/placeholder';
 import { hasProductValidPhotos } from '../utils/photoUtils';
 
 export const MOBLINK_OFFICIAL_API_URL = API_ENDPOINTS.PRODUTOS;
@@ -566,7 +566,7 @@ export const mapMoblinkToProduct = (item: MoblinkProduto | any): Product => {
     item.imageUrl ||
     item.foto_uri ||
     (Array.isArray(item.images) ? item.images[0] : "");
-  const imageUrl = typeof rawImage === "string" ? rawImage.trim() : "";
+  const imageUrl = (typeof rawImage === "string" && isValidWebPhotoUrl(rawImage)) ? rawImage.trim() : "";
 
   // Chave mestra numérica 'classificacao' sem espaços
   const rawClass = String(
@@ -679,7 +679,7 @@ export const mergeErpSyncWithExistingDbProduct = (
   let validDbImages: string[] = [];
 
   const addValidPhoto = (url: any) => {
-    if (url && typeof url === 'string' && url.trim() && !isPlaceholderUrl(url)) {
+    if (url && typeof url === 'string' && isValidWebPhotoUrl(url)) {
       const clean = url.trim();
       if (!validDbImages.includes(clean)) validDbImages.push(clean);
     }
@@ -705,13 +705,30 @@ export const mergeErpSyncWithExistingDbProduct = (
     Object.values(protectedColorImageMap).forEach(addValidPhoto);
   }
 
+  // Coleta fotos válidas do ERP apenas se forem URLs web válidas (HTTP/HTTPS)
+  const validErpImages: string[] = [];
+  if (Array.isArray(updatedErpProd.images)) {
+    updatedErpProd.images.forEach((u: any) => {
+      if (u && typeof u === 'string' && isValidWebPhotoUrl(u)) {
+        const clean = u.trim();
+        if (!validErpImages.includes(clean)) validErpImages.push(clean);
+      }
+    });
+  }
+  if (updatedErpProd.foto_uri && isValidWebPhotoUrl(updatedErpProd.foto_uri)) {
+    const clean = updatedErpProd.foto_uri.trim();
+    if (!validErpImages.includes(clean)) validErpImages.push(clean);
+  }
+  if (updatedErpProd.imageUrl && isValidWebPhotoUrl(updatedErpProd.imageUrl)) {
+    const clean = updatedErpProd.imageUrl.trim();
+    if (!validErpImages.includes(clean)) validErpImages.push(clean);
+  }
+
   const protectedImages = validDbImages.length > 0
     ? validDbImages
-    : (Array.isArray(updatedErpProd.images) && updatedErpProd.images.length > 0)
-    ? updatedErpProd.images
-    : (existingDbProd.foto_uri ? [existingDbProd.foto_uri] : updatedErpProd.foto_uri ? [updatedErpProd.foto_uri] : []);
+    : validErpImages;
 
-  const protectedFotoUri = validDbImages[0] || existingDbProd.foto_uri || (protectedImages.length > 0 ? protectedImages[0] : updatedErpProd.foto_uri);
+  const protectedFotoUri = validDbImages[0] || protectedImages[0] || '';
 
   // 4. ATUALIZAÇÃO COMPLETA EM TEMPO REAL A PARTIR DO ERP (Classificação, Categorias, Preços, Estoque e Grade)
   const liveClassificacao = (updatedErpProd.classificacao && String(updatedErpProd.classificacao).trim() !== '')
@@ -744,7 +761,7 @@ export const mergeErpSyncWithExistingDbProduct = (
     ? updatedErpProd.sizes
     : (existingDbProd.sizes || []);
 
-  const liveHasPhoto = hasProductValidPhoto(updatedErpProd) || hasProductValidPhoto(existingDbProd);
+  const liveHasPhoto = protectedImages.length > 0 || hasProductValidPhoto(existingDbProd);
   const liveHasGrade = hasProductValidGrade(updatedErpProd) || liveSizes.length > 0;
   const liveIdGrade = updatedErpProd.id_grade ?? updatedErpProd.gradeId ?? existingDbProd.id_grade ?? existingDbProd.gradeId ?? null;
 
@@ -753,9 +770,20 @@ export const mergeErpSyncWithExistingDbProduct = (
     ? (existingDbProd.visible !== undefined ? Boolean(existingDbProd.visible) : true)
     : false;
 
+  // Extrai dados seguros do ERP sem permitir que campos de fotos do ERP sobrescrevam os do banco
+  const {
+    images: _erpImages,
+    foto_uri: _erpFotoUri,
+    imageUrl: _erpImageUrl,
+    colorImages: _erpColorImages,
+    colorImageMap: _erpColorImageMap,
+    managedPhotos: _erpManagedPhotos,
+    ...safeErpData
+  } = (updatedErpProd || {});
+
   return {
     ...existingDbProd,
-    ...updatedErpProd,
+    ...safeErpData,
 
     // Classificação & Categorias ATUALIZADAS DO ERP
     classificacao: liveClassificacao,
@@ -774,8 +802,9 @@ export const mergeErpSyncWithExistingDbProduct = (
     description: protectedDescription,
     descricao_completa: protectedDescription,
     images: protectedImages,
-    managedPhotos: existingDbProd.managedPhotos ?? updatedErpProd.managedPhotos ?? (protectedImages.length > 0 ? true : false),
+    imageUrl: protectedFotoUri,
     foto_uri: protectedFotoUri,
+    managedPhotos: existingDbProd.managedPhotos ?? (protectedImages.length > 0 ? true : false),
     colorImageMap: protectedColorImageMap,
     colorImages: protectedColorImages,
 
@@ -814,6 +843,7 @@ export const mergeErpSyncWithExistingDbProduct = (
  */
 export const sanitizeProductForFirestore = (
   product: Partial<Product>,
+  options?: { allowEmptyPhotos?: boolean }
 ): Record<string, any> => {
   const id = String(
     product.id || (product as any).moblinkId || (product as any).sku || "",
@@ -830,7 +860,7 @@ export const sanitizeProductForFirestore = (
   ).trim();
   const description = descriptionRaw.length > 0 ? descriptionRaw : name;
 
-  const isInvalidPhotoUrl = (url?: string | null) => !url || typeof url !== 'string' || isPlaceholderUrl(url);
+  const isInvalidPhotoUrl = (url?: string | null) => !url || typeof url !== 'string' || !isValidWebPhotoUrl(url);
 
   let imageUrl = "";
   if (product.imageUrl && typeof product.imageUrl === "string" && !isInvalidPhotoUrl(product.imageUrl)) {
@@ -917,7 +947,6 @@ export const sanitizeProductForFirestore = (
     id,
     name,
     description,
-    imageUrl: finalImagesList[0] || "",
     classificacao: cleanClassificacao || catInfo.classificacao,
     id_grupo: (product as any).id_grupo ?? (cleanClassificacao.split('.')[0] || ''),
     id_subgrupo: (product as any).id_subgrupo ?? (cleanClassificacao.split('.')[1] || ''),
@@ -934,9 +963,6 @@ export const sanitizeProductForFirestore = (
     visible,
     hasGrade,
     updatedAt,
-    images: finalImagesList,
-    managedPhotos: product.managedPhotos !== undefined ? Boolean(product.managedPhotos) : (finalImagesList.length > 0 ? true : false),
-    foto_uri: finalImagesList[0] || "",
     preco_venda: price,
     precoVista: precoVistaVal,
     preco_vista: precoVistaVal,
@@ -945,11 +971,42 @@ export const sanitizeProductForFirestore = (
     saldo_loja: stock,
   };
 
-  const validPhotosCount = finalImagesList.filter(u => !isPlaceholderUrl(u)).length;
-  const hasColorPhotos = product.colorImages && typeof product.colorImages === 'object' && Object.values(product.colorImages).flat().some(u => !isPlaceholderUrl(u));
+  // Proteção Absoluta de Fotos no Firestore:
+  // Se houver fotos válidas, inclui as fotos e URLs de capa.
+  // Se NÃO houver fotos válidas no payload:
+  // - Apenas inclui 'images: []' / 'imageUrl: ""' se options?.allowEmptyPhotos === true (remoção manual e intencional do lojista no painel)
+  // - Em rotinas de sincronização automática com o ERP, NÃO inclui esses campos para que o Firestore NUNCA apague fotos já existentes!
+  if (finalImagesList.length > 0) {
+    cleanPayload.images = finalImagesList;
+    cleanPayload.imageUrl = finalImagesList[0];
+    cleanPayload.foto_uri = finalImagesList[0];
+    cleanPayload.managedPhotos = true;
+  } else if (options?.allowEmptyPhotos) {
+    cleanPayload.images = [];
+    cleanPayload.imageUrl = "";
+    cleanPayload.foto_uri = "";
+    cleanPayload.managedPhotos = false;
+  }
+
+  const validPhotosCount = finalImagesList.filter(u => isValidWebPhotoUrl(u)).length;
+  const hasColorPhotos = product.colorImages && typeof product.colorImages === 'object' && Object.values(product.colorImages).flat().some(u => isValidWebPhotoUrl(u));
   const hasMedia = validPhotosCount > 0 || Boolean(hasColorPhotos);
-  cleanPayload.hasMedia = hasMedia;
-  cleanPayload.hasCustomData = hasMedia || Boolean(product.description && product.description !== name);
+  if (hasMedia || options?.allowEmptyPhotos) {
+    cleanPayload.hasMedia = hasMedia;
+    cleanPayload.hasCustomData = hasMedia || Boolean(product.description && product.description !== name);
+  }
+
+  if (product.colorImages && typeof product.colorImages === 'object' && Object.keys(product.colorImages).length > 0) {
+    cleanPayload.colorImages = product.colorImages;
+  } else if (options?.allowEmptyPhotos) {
+    cleanPayload.colorImages = {};
+  }
+
+  if (product.colorImageMap && typeof product.colorImageMap === 'object' && Object.keys(product.colorImageMap).length > 0) {
+    cleanPayload.colorImageMap = product.colorImageMap;
+  } else if (options?.allowEmptyPhotos) {
+    cleanPayload.colorImageMap = {};
+  }
 
   const refVal = extractReferenciaMoblink(product);
   if (refVal) {
@@ -1305,7 +1362,7 @@ export const mapMoblinkProdutoToClean = (items: any[]): MoblinkProduto[] => {
         ? item.images[0]
         : "");
 
-    const foto_uri = typeof rawFoto === "string" ? rawFoto.trim() : "";
+    const foto_uri = (typeof rawFoto === "string" && isValidWebPhotoUrl(rawFoto)) ? rawFoto.trim() : "";
 
     let id_grade = item.id_grade ?? item.gradeId ?? item.grade_id;
     if (

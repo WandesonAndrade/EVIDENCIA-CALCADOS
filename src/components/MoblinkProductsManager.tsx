@@ -1673,7 +1673,7 @@ export const MoblinkProductsManager: React.FC = () => {
       const existingInApp = products.find(p => p.id === mobId);
       // Grava no Firestore se houver alteração real (incluindo fotos ou managedPhotos)
       if (hasProductChanged(existingInApp, updatedProductPayload)) {
-        const sanitizedPayload = sanitizeProductForFirestore(updatedProductPayload);
+        const sanitizedPayload = sanitizeProductForFirestore(updatedProductPayload, { allowEmptyPhotos: true });
         await setDoc(doc(db, 'products', mobId), sanitizedPayload, { merge: true });
       }
 
