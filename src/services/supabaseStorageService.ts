@@ -1,7 +1,7 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { doc, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { isPlaceholderUrl } from '../utils/placeholder';
+import { isPlaceholderUrl, isValidWebPhotoUrl } from '../utils/placeholder';
 import { 
   optimizeImageToWebP, 
   generateThumbnailWebP, 
@@ -21,7 +21,7 @@ export function preserveExistingImages(existingImages: any[], newUrls: (string |
   const result: string[] = [];
 
   const addUrl = (url: any) => {
-    if (typeof url === 'string' && url.trim() && !isPlaceholderUrl(url)) {
+    if (typeof url === 'string' && isValidWebPhotoUrl(url)) {
       const clean = url.trim();
       if (!result.includes(clean)) {
         result.push(clean);
@@ -613,8 +613,30 @@ export async function auditSupabaseVsFirebasePhotos(
   };
 }
 
+export interface ProductPhotoBackupItem {
+  id: string;
+  name: string;
+  images: string[];
+  imageUrl?: string;
+  foto_uri?: string;
+  colorImages?: Record<string, string[]>;
+  colorImageMap?: Record<string, string>;
+  description?: string;
+  sku?: string;
+  referencia?: string;
+  updatedAt: string;
+}
+
+export interface ProductPhotosBackupPayload {
+  version: string;
+  timestamp: string;
+  totalProducts: number;
+  totalPhotos: number;
+  products: Record<string, ProductPhotoBackupItem>;
+}
+
 /**
- * Salva os metadados enriquecidos do produto (fotos por cor, imagens, descricao) no Supabase DB
+ * Salva os metadados enriquecidos de um produto individual no Supabase DB
  */
 export async function syncProductMediaToSupabase(product: Partial<any>): Promise<void> {
   const supabase = getSupabaseClient();
@@ -624,12 +646,14 @@ export async function syncProductMediaToSupabase(product: Partial<any>): Promise
     const id = String(product.id || product.moblinkId || '').trim();
     if (!id) return;
 
+    const validImages = preserveExistingImages(product.images, [product.imageUrl, product.foto_uri]);
+
     const payload = {
       id,
       name: product.name || product.descricao || '',
-      images: Array.isArray(product.images) ? product.images : [],
-      imageUrl: product.imageUrl || product.foto_uri || '',
-      foto_uri: product.foto_uri || product.imageUrl || '',
+      images: validImages,
+      imageUrl: validImages[0] || (isValidWebPhotoUrl(product.imageUrl) ? product.imageUrl : ''),
+      foto_uri: validImages[0] || (isValidWebPhotoUrl(product.foto_uri) ? product.foto_uri : ''),
       colorImages: product.colorImages || {},
       colorImageMap: product.colorImageMap || {},
       description: product.description || '',
@@ -659,7 +683,220 @@ export async function fetchProductMediaFromSupabase(): Promise<any[]> {
 }
 
 /**
- * Mapeia automaticamente todas as fotos do Supabase Storage identificadas pelo ID no nome do arquivo:
+ * Realiza backup integral de todas as fotos e links de produtos no Supabase
+ * (salva em arquivo JSON no Storage Bucket 'backups/photos_backup_latest.json' e na tabela products_media do Supabase DB)
+ */
+export async function backupAllProductPhotosToSupabase(
+  productsList: any[]
+): Promise<{ backedUpCount: number; timestamp: string; publicUrl?: string; error?: string }> {
+  const supabase = getSupabaseClient();
+  const config = getSupabaseConfig();
+  const targetBucket = config.bucket || 'products';
+
+  if (!Array.isArray(productsList) || productsList.length === 0) {
+    return { backedUpCount: 0, timestamp: new Date().toISOString() };
+  }
+
+  // Filtra apenas produtos com fotos válidas
+  const productsWithPhotos = productsList.filter(p => {
+    if (!p) return false;
+    const hasImages = Array.isArray(p.images) && p.images.some((u: any) => isValidWebPhotoUrl(u));
+    const hasCover = isValidWebPhotoUrl(p.imageUrl) || isValidWebPhotoUrl(p.foto_uri);
+    const hasColorPhotos = p.colorImages && typeof p.colorImages === 'object' && Object.values(p.colorImages).flat().some((u: any) => isValidWebPhotoUrl(u));
+    return hasImages || hasCover || Boolean(hasColorPhotos);
+  });
+
+  const timestamp = new Date().toISOString();
+  const backupMap: Record<string, ProductPhotoBackupItem> = {};
+  let totalPhotos = 0;
+
+  productsWithPhotos.forEach(p => {
+    const rawId = String(p.id || p.moblinkId || '').trim();
+    if (!rawId) return;
+
+    const validImages = preserveExistingImages(p.images, [p.imageUrl, p.foto_uri]);
+    totalPhotos += validImages.length;
+
+    const item: ProductPhotoBackupItem = {
+      id: rawId,
+      name: p.name || p.descricao || '',
+      images: validImages,
+      imageUrl: validImages[0] || (isValidWebPhotoUrl(p.imageUrl) ? p.imageUrl : ''),
+      foto_uri: validImages[0] || (isValidWebPhotoUrl(p.foto_uri) ? p.foto_uri : ''),
+      colorImages: p.colorImages || {},
+      colorImageMap: p.colorImageMap || {},
+      description: p.description || '',
+      sku: p.sku || p.codigo,
+      referencia: p.referencia || p.referenceCode || p.modelCode,
+      updatedAt: timestamp,
+    };
+
+    backupMap[rawId] = item;
+    if (rawId.startsWith('MOB-')) {
+      backupMap[rawId.replace(/^MOB-/, '')] = item;
+    } else {
+      backupMap[`MOB-${rawId}`] = item;
+    }
+  });
+
+  const payload: ProductPhotosBackupPayload = {
+    version: '1.0',
+    timestamp,
+    totalProducts: productsWithPhotos.length,
+    totalPhotos,
+    products: backupMap,
+  };
+
+  const payloadStr = JSON.stringify(payload, null, 2);
+
+  // 1. Salva cópia de contingência no localStorage
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('evidencia_supabase_photos_backup', payloadStr);
+      localStorage.setItem('evidencia_supabase_photos_backup_time', timestamp);
+    }
+  } catch {}
+
+  if (!supabase) {
+    return {
+      backedUpCount: productsWithPhotos.length,
+      timestamp,
+      error: 'Supabase não configurado. O backup foi salvo apenas localmente.',
+    };
+  }
+
+  let publicBackupUrl = '';
+
+  // 2. Salva o arquivo JSON de backup no bucket do Supabase Storage
+  try {
+    const blob = new Blob([payloadStr], { type: 'application/json' });
+    const latestPath = 'backups/photos_backup_latest.json';
+    const timestampPath = `backups/photos_backup_${Date.now()}.json`;
+
+    await supabase.storage.from(targetBucket).upload(latestPath, blob, {
+      contentType: 'application/json',
+      cacheControl: '0',
+      upsert: true,
+    });
+
+    try {
+      await supabase.storage.from(targetBucket).upload(timestampPath, blob, {
+        contentType: 'application/json',
+        cacheControl: '31536000',
+        upsert: true,
+      });
+    } catch {}
+
+    const { data: pubData } = supabase.storage.from(targetBucket).getPublicUrl(latestPath);
+    publicBackupUrl = pubData?.publicUrl || '';
+  } catch (storageErr: any) {
+    console.warn('[SupabaseStorageService] Aviso no upload do JSON de backup para o Storage:', storageErr?.message);
+  }
+
+  // 3. Salva também na tabela products_media no Supabase DB (batch de 50)
+  try {
+    const rows = productsWithPhotos.map(p => {
+      const rawId = String(p.id || p.moblinkId || '').trim();
+      const validImages = preserveExistingImages(p.images, [p.imageUrl, p.foto_uri]);
+      return {
+        id: rawId,
+        name: p.name || p.descricao || '',
+        images: validImages,
+        imageUrl: validImages[0] || (isValidWebPhotoUrl(p.imageUrl) ? p.imageUrl : ''),
+        foto_uri: validImages[0] || (isValidWebPhotoUrl(p.foto_uri) ? p.foto_uri : ''),
+        colorImages: p.colorImages || {},
+        colorImageMap: p.colorImageMap || {},
+        description: p.description || '',
+        updated_at: timestamp,
+      };
+    });
+
+    const chunkSize = 50;
+    for (let i = 0; i < rows.length; i += chunkSize) {
+      const chunk = rows.slice(i, i + chunkSize);
+      await supabase.from('products_media').upsert(chunk, { onConflict: 'id' });
+    }
+  } catch (dbErr: any) {
+    console.warn('[SupabaseStorageService] Aviso no upsert do products_media DB:', dbErr?.message);
+  }
+
+  return {
+    backedUpCount: productsWithPhotos.length,
+    timestamp,
+    publicUrl: publicBackupUrl,
+  };
+}
+
+/**
+ * Busca o backup consolidado do Supabase (unindo arquivo JSON do Storage, tabela do DB e localStorage)
+ */
+export async function fetchSupabasePhotosBackup(): Promise<ProductPhotosBackupPayload | null> {
+  const supabase = getSupabaseClient();
+  const config = getSupabaseConfig();
+  const targetBucket = config.bucket || 'products';
+
+  // 1. Tenta baixar o arquivo JSON mais recente do Supabase Storage
+  if (supabase) {
+    try {
+      const { data, error } = await supabase.storage.from(targetBucket).download('backups/photos_backup_latest.json');
+      if (!error && data) {
+        const text = await data.text();
+        const parsed = JSON.parse(text) as ProductPhotosBackupPayload;
+        if (parsed && parsed.products && Object.keys(parsed.products).length > 0) {
+          return parsed;
+        }
+      }
+    } catch {}
+  }
+
+  // 2. Fallback: busca da tabela products_media do Supabase DB
+  if (supabase) {
+    try {
+      const mediaList = await fetchProductMediaFromSupabase();
+      if (Array.isArray(mediaList) && mediaList.length > 0) {
+        const productsMap: Record<string, ProductPhotoBackupItem> = {};
+        mediaList.forEach(m => {
+          if (!m.id) return;
+          const rawId = String(m.id).trim();
+          const validImages = preserveExistingImages(m.images, [m.imageUrl, m.foto_uri]);
+          productsMap[rawId] = {
+            id: rawId,
+            name: m.name || '',
+            images: validImages,
+            imageUrl: validImages[0] || m.imageUrl || '',
+            foto_uri: validImages[0] || m.foto_uri || '',
+            colorImages: m.colorImages || {},
+            colorImageMap: m.colorImageMap || {},
+            description: m.description || '',
+            updatedAt: m.updated_at || new Date().toISOString(),
+          };
+        });
+        return {
+          version: '1.0',
+          timestamp: new Date().toISOString(),
+          totalProducts: Object.keys(productsMap).length,
+          totalPhotos: Object.values(productsMap).reduce((acc, p) => acc + p.images.length, 0),
+          products: productsMap,
+        };
+      }
+    } catch {}
+  }
+
+  // 3. Fallback: localStorage
+  if (typeof localStorage !== 'undefined') {
+    const local = localStorage.getItem('evidencia_supabase_photos_backup');
+    if (local) {
+      try {
+        return JSON.parse(local) as ProductPhotosBackupPayload;
+      } catch {}
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Mapeia automaticamente todas as fotos do Supabase Storage e do Backup no Supabase:
  * Exemplo: produto_1998_1787273728 -> liga ao produto ID 1998 e MOB-1998
  */
 export async function fetchSupabaseStoragePhotosMap(): Promise<Map<string, string[]>> {
@@ -667,8 +904,33 @@ export async function fetchSupabaseStoragePhotosMap(): Promise<Map<string, strin
   const config = getSupabaseConfig();
   const photoMap = new Map<string, string[]>();
 
+  // 1. Incorpora fotos do arquivo JSON de backup do Supabase e da tabela products_media
+  try {
+    const backup = await fetchSupabasePhotosBackup();
+    if (backup && backup.products) {
+      Object.entries(backup.products).forEach(([key, item]) => {
+        if (!key || !item) return;
+        const validImages = preserveExistingImages(item.images, [item.imageUrl, item.foto_uri]);
+        if (validImages.length > 0) {
+          const cleanKey = key.replace(/^MOB-/i, '');
+          const mobKey = `MOB-${cleanKey}`;
+
+          [key, cleanKey, mobKey].forEach(k => {
+            if (!k) return;
+            const list = photoMap.get(k) || [];
+            validImages.forEach(u => {
+              if (!list.includes(u)) list.push(u);
+            });
+            photoMap.set(k, list);
+          });
+        }
+      });
+    }
+  } catch {}
+
   if (!supabase) return photoMap;
 
+  // 2. Varre os buckets do Supabase Storage para arquivos enviados diretamente
   const configuredBucket = config.bucket || 'products';
   const bucketsToScan = Array.from(new Set([configuredBucket, 'products', 'produtos', 'evidenciacalcados', 'evidencia-calcados', 'evidencia']));
   const foldersToScan = ['', 'produtos', 'produtos_moblink', 'fotos', 'images', 'public'];
@@ -689,7 +951,7 @@ export async function fetchSupabaseStoragePhotosMap(): Promise<Map<string, strin
             const filePath = folder ? `${folder}/${item.name}` : item.name;
             const { data: publicUrlData } = supabase.storage.from(bucketName).getPublicUrl(filePath);
             const publicUrl = publicUrlData?.publicUrl;
-            if (!publicUrl) return;
+            if (!publicUrl || !isValidWebPhotoUrl(publicUrl)) return;
 
             // Extrai o ID entre os underline (_): ex: produto_1998_1787273728 -> 1998
             let extractedId = '';
@@ -728,7 +990,7 @@ export async function fetchSupabaseStoragePhotosMap(): Promise<Map<string, strin
 }
 
 /**
- * Varre todo o Supabase Storage e salva/atualiza as URLs no Firestore para todos os produtos correspondentes por ID
+ * Varre todo o Supabase Storage e o backup do Supabase e salva/atualiza as URLs no Firestore para todos os produtos correspondentes por ID
  */
 export async function autoLinkSupabasePhotosToFirestore(productsList: any[]): Promise<{ updatedCount: number; matchedMap: Map<string, string[]> }> {
   const photoMap = await fetchSupabaseStoragePhotosMap();
@@ -804,4 +1066,14 @@ export async function autoLinkSupabasePhotosToFirestore(productsList: any[]): Pr
 
   return { updatedCount, matchedMap: photoMap };
 }
+
+/**
+ * Restaura todas as fotos de produtos a partir do backup do Supabase para o Firestore
+ */
+export async function restoreAllProductPhotosFromSupabase(
+  currentProducts: any[]
+): Promise<{ updatedCount: number; matchedMap: Map<string, string[]> }> {
+  return autoLinkSupabasePhotosToFirestore(currentProducts);
+}
+
 

@@ -35,10 +35,12 @@ import {
   PhotoAuditReport, 
   SupabaseAuditItem, 
   syncProductMediaToSupabase, 
-  autoLinkSupabasePhotosToFirestore 
+  autoLinkSupabasePhotosToFirestore,
+  backupAllProductPhotosToSupabase,
+  restoreAllProductPhotosFromSupabase
 } from '../services/supabaseStorageService';
 import { validateImageFile } from '../services/imageOptimizationService';
-import { NO_PHOTO_SVG, isPlaceholderUrl } from '../utils/placeholder';
+import { NO_PHOTO_SVG, isPlaceholderUrl, isValidWebPhotoUrl } from '../utils/placeholder';
 import { 
   Package, 
   Search, 
@@ -382,6 +384,58 @@ export const MoblinkProductsManager: React.FC = () => {
     } finally {
       setIsLinkingSupabase(false);
       setIsAuditingPhotos(false);
+    }
+  };
+
+  const [isBackingUpPhotos, setIsBackingUpPhotos] = useState(false);
+  const [isRestoringPhotos, setIsRestoringPhotos] = useState(false);
+
+  /**
+   * Salva um backup consolidado de todos os links de fotos no Supabase Storage e Supabase DB
+   */
+  const handleBackupPhotosToSupabase = async () => {
+    setIsBackingUpPhotos(true);
+    try {
+      const result = await backupAllProductPhotosToSupabase(products);
+      if (result.error) {
+        setFeedback({
+          success: true,
+          message: `⚠️ Backup local concluído para ${result.backedUpCount} produto(s). ${result.error}`,
+        });
+      } else {
+        setFeedback({
+          success: true,
+          message: `🛡️ Backup no Supabase concluído com sucesso! ${result.backedUpCount} produto(s) com fotos e links protegidos na nuvem.`,
+        });
+      }
+    } catch (err: any) {
+      setFeedback({
+        success: false,
+        message: `Erro ao realizar backup no Supabase: ${err.message || 'Falha na gravação.'}`,
+      });
+    } finally {
+      setIsBackingUpPhotos(false);
+    }
+  };
+
+  /**
+   * Restaura todas as fotos a partir do backup do Supabase
+   */
+  const handleRestorePhotosFromSupabase = async () => {
+    setIsRestoringPhotos(true);
+    try {
+      const result = await restoreAllProductPhotosFromSupabase(products);
+      setFeedback({
+        success: true,
+        message: `🎉 Restauração concluída! ${result.updatedCount} produto(s) recuperaram suas fotos salvas a partir do backup do Supabase.`,
+      });
+    } catch (err: any) {
+      setFeedback({
+        success: false,
+        message: `Erro ao restaurar fotos do Supabase: ${err.message || 'Falha na recuperação.'}`,
+      });
+    } finally {
+      setIsRestoringPhotos(false);
     }
   };
 
@@ -2449,6 +2503,26 @@ export const MoblinkProductsManager: React.FC = () => {
               >
                 <ImageIcon className={`h-4.5 w-4.5 text-purple-200 ${isAuditingPhotos || isLinkingSupabase ? 'animate-spin' : ''}`} />
                 <span>{isAuditingPhotos || isLinkingSupabase ? 'Sincronizando Fotos...' : '📸 Sincronizar & Auditar Fotos (Supabase)'}</span>
+              </button>
+
+              <button
+                onClick={handleBackupPhotosToSupabase}
+                disabled={isBackingUpPhotos || isLoading}
+                className="px-5 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold rounded-2xl text-xs transition-all flex items-center gap-2.5 cursor-pointer shadow-md active:scale-95 disabled:opacity-50 shadow-indigo-500/20 shrink-0"
+                title="Salva um backup completo de todas as fotos e links de produtos no Supabase Storage e Supabase DB"
+              >
+                <Save className={`h-4.5 w-4.5 text-indigo-200 ${isBackingUpPhotos ? 'animate-spin' : ''}`} />
+                <span>{isBackingUpPhotos ? 'Salvando Backup...' : '🛡️ Fazer Backup Fotos (Supabase)'}</span>
+              </button>
+
+              <button
+                onClick={handleRestorePhotosFromSupabase}
+                disabled={isRestoringPhotos || isLoading}
+                className="px-5 py-3 bg-cyan-600 hover:bg-cyan-700 text-white font-extrabold rounded-2xl text-xs transition-all flex items-center gap-2.5 cursor-pointer shadow-md active:scale-95 disabled:opacity-50 shadow-cyan-500/20 shrink-0"
+                title="Restaura todas as fotos de produtos a partir do backup salvo no Supabase"
+              >
+                <Upload className={`h-4.5 w-4.5 text-cyan-200 ${isRestoringPhotos ? 'animate-spin' : ''}`} />
+                <span>{isRestoringPhotos ? 'Restaurando...' : '📥 Restaurar Fotos (Supabase)'}</span>
               </button>
 
               <button

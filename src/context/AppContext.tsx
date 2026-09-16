@@ -14,7 +14,15 @@ import { getProdutosMoblink, extractPrecoTabelaMoblink, extractPrecoVistaMoblink
 import { moblinkCategoriesService, normalizeCategoryName } from '../services/moblinkCategoriesService';
 import { cleanUndefinedProperties } from '../utils/cleanObject';
 import { API_ENDPOINTS } from '../services/api';
-import { syncProductMediaToSupabase, fetchProductMediaFromSupabase, fetchSupabaseStoragePhotosMap, autoLinkSupabasePhotosToFirestore } from '../services/supabaseStorageService';
+import { 
+  syncProductMediaToSupabase, 
+  fetchProductMediaFromSupabase, 
+  fetchSupabaseStoragePhotosMap, 
+  autoLinkSupabasePhotosToFirestore,
+  backupAllProductPhotosToSupabase,
+  restoreAllProductPhotosFromSupabase,
+  fetchSupabasePhotosBackup
+} from '../services/supabaseStorageService';
 import { NO_PHOTO_SVG, isPlaceholderUrl, isValidWebPhotoUrl } from '../utils/placeholder';
 import { getCachedCatalog, setCachedCatalog, safeSetLocalStorage, mergeStockIntoCachedProducts } from '../services/catalogCacheService';
 import { fetchLiveStockMapFromMoblink, fetchDirectProductStockAndGrade } from '../services/moblinkStockDirectService';
@@ -121,6 +129,9 @@ interface AppContextProps {
   saveSeller: (seller: Seller) => Promise<Seller>;
   deleteSeller: (sellerId: string) => Promise<void>;
   toggleSellerStatus: (sellerId: string) => Promise<void>;
+  // Backup de Fotos e Mídias no Supabase
+  backupPhotosToSupabase: () => Promise<{ backedUpCount: number; timestamp: string; publicUrl?: string; error?: string }>;
+  restorePhotosFromSupabase: () => Promise<{ updatedCount: number; matchedMap: Map<string, string[]> }>;
 }
 
 const AppContext = createContext<AppContextProps | undefined>(undefined);
@@ -2679,6 +2690,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const backupPhotosToSupabase = async () => {
+    const list = products.length > 0 ? products : getLocalProducts();
+    const result = await backupAllProductPhotosToSupabase(list);
+    return result;
+  };
+
+  const restorePhotosFromSupabase = async () => {
+    const list = products.length > 0 ? products : getLocalProducts();
+    const result = await restoreAllProductPhotosFromSupabase(list);
+    if (result.updatedCount > 0) {
+      const refreshed = getLocalProducts();
+      setProducts(refreshed);
+      setCachedCatalog(refreshed);
+    }
+    return result;
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -2775,6 +2803,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         saveSeller,
         deleteSeller,
         toggleSellerStatus,
+        backupPhotosToSupabase,
+        restorePhotosFromSupabase,
       }}
     >
       {children}
