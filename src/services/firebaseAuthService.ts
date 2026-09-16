@@ -154,6 +154,15 @@ export const firebaseAuthService = {
         existingProfile.isAuthorizedCollaborator ||
         existingProfile.role === "admin" ||
         existingProfile.role === "seller";
+
+      // Se for cliente comum e NÃO possuir CPF cadastrado (conta órfã/incompleta via Google)
+      if (!isTeamAuthorized && !existingProfile.cpf) {
+        await firebaseSignOut(auth);
+        throw new Error(
+          "Nenhum cadastro com CPF vinculado foi encontrado para esta conta Google. Por favor, acesse informando seu CPF e senha."
+        );
+      }
+
       const inheritedRole: UserRole = isTeamAuthorized
         ? "admin"
         : existingProfile.role || "customer";
@@ -180,26 +189,34 @@ export const firebaseAuthService = {
 
       return mergedProfile;
     } else {
-      const initialRole: UserRole = isMasterAdminEmail ? "admin" : "customer";
+      // Se for conta de administrador mestre, inicializa o perfil admin
+      if (isMasterAdminEmail) {
+        const initialProfile: UserProfile = {
+          uid,
+          name,
+          email,
+          role: "admin",
+          photoURL,
+          createdAt: new Date().toISOString(),
+        };
 
-      const initialProfile: UserProfile = {
-        uid,
-        name,
-        email,
-        role: initialRole,
-        photoURL,
-        createdAt: new Date().toISOString(),
-      };
+        try {
+          await setDoc(userRef, cleanUndefinedProperties(initialProfile), {
+            merge: true,
+          });
+        } catch (err) {
+          console.warn("📌 Erro ao criar perfil admin no Firestore:", err);
+        }
 
-      try {
-        await setDoc(userRef, cleanUndefinedProperties(initialProfile), {
-          merge: true,
-        });
-      } catch (err) {
-        console.warn("📌 Erro ao criar perfil no Firestore:", err);
+        return initialProfile;
       }
 
-      return initialProfile;
+      // Usuário comum sem cadastro prévio por CPF tentando entrar direto com conta externa:
+      // Rejeita a criação automática e encerra a sessão no Firebase Auth imediatamente
+      await firebaseSignOut(auth);
+      throw new Error(
+        "Nenhuma conta cadastrada foi encontrada com este Google. Por favor, faça seu cadastro ou primeiro acesso informando seu CPF e senha."
+      );
     }
   },
 
@@ -426,23 +443,40 @@ export const firebaseAuthService = {
         email === "admin@evidencia.com" ||
         email === "vendedor@evidencia.com";
 
-      // Verifica se o usuário já possui cadastro prévio no Firestore
       const userRef = doc(db, "users", result.user.uid);
       const snap = await getDoc(userRef);
+      const snapData = snap.exists() ? (snap.data() as UserProfile) : null;
+      let isAllowed = Boolean(
+        isMasterAdminEmail ||
+        snapData?.isAuthorizedCollaborator ||
+        snapData?.role === "admin" ||
+        snapData?.role === "seller" ||
+        snapData?.cpf
+      );
 
       // Também verifica se há documento vinculado pelo e-mail
-      let hasEmailDoc = false;
-      if (email) {
+      if (!isAllowed && email) {
         const q = query(collection(db, "users"), where("email", "==", email));
         const querySnap = await getDocs(q);
-        hasEmailDoc = !querySnap.empty;
+        if (!querySnap.empty) {
+          const matched = querySnap.docs.find((d) => {
+            const data = d.data() as UserProfile;
+            return Boolean(
+              data.cpf ||
+              data.role === "admin" ||
+              data.role === "seller" ||
+              data.isAuthorizedCollaborator
+            );
+          });
+          if (matched) isAllowed = true;
+        }
       }
 
-      // Se não for admin e não tiver registro prévio no Firestore, desloga e impede criação direta
-      if (!snap.exists() && !hasEmailDoc && !isMasterAdminEmail) {
+      // Se não for admin e não tiver registro com CPF no Firestore, desloga e impede login
+      if (!isAllowed) {
         await firebaseSignOut(auth);
         throw new Error(
-          "Nenhuma conta cadastrada foi encontrada com este Google. Por favor, faça seu primeiro acesso utilizando seu CPF e senha."
+          "Nenhuma conta cadastrada foi encontrada com este Google. Por favor, acesse utilizando seu CPF e senha."
         );
       }
 

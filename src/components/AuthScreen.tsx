@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { User, Shield, Lock, Phone, UserCheck, Eye, EyeOff, ChevronRight, ShoppingBag, LogOut, Sparkles } from 'lucide-react';
+import { User, Shield, Lock, Phone, UserCheck, Eye, EyeOff, ChevronRight, ShoppingBag, LogOut, Mail, ArrowLeft } from 'lucide-react';
 import { BrandLogo } from './BrandLogo';
 import { UserProfile } from '../types';
 import { FirstAccessModal } from './FirstAccessModal';
@@ -15,6 +15,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
     currentAdminUser, 
     loginWithCpf, 
     registerWithCpf, 
+    loginAdmin,
     loginWithGoogle, 
     logout, 
     setCurrentView, 
@@ -31,8 +32,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
 
   const [authorizedUser, setAuthorizedUser] = useState<UserProfile | null>(activeUser);
   const [showChoiceScreen, setShowChoiceScreen] = useState<boolean>(isUserCollaborator(activeUser));
+  const [currentMode, setCurrentMode] = useState<'customer' | 'admin'>(mode);
 
-  // --- CPF PROGRESSIVE AUTH STATES ---
+  // --- CPF PROGRESSIVE AUTH STATES (CLIENTES) ---
   const [step, setStep] = useState<'cpf' | 'password' | 'register'>('cpf');
   const [cpf, setCpf] = useState('');
   const [senha, setSenha] = useState('');
@@ -41,6 +43,11 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
   const [showPassword, setShowPassword] = useState(false);
   const [isFirstAccessOpen, setIsFirstAccessOpen] = useState(false);
   const [identifiedUserName, setIdentifiedUserName] = useState('');
+
+  // --- ADMIN AUTH STATES ---
+  const [adminEmail, setAdminEmail] = useState('');
+  const [adminPassword, setAdminPassword] = useState('');
+  const [showAdminPassword, setShowAdminPassword] = useState(false);
 
   const [errorMessage, setErrorMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -157,7 +164,29 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
     }
   };
 
-  const handleGoogleSignIn = async () => {
+  // 4. Login da Equipe Administrativa
+  const handleAdminEmailSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMessage('');
+
+    if (!adminEmail || !adminPassword) {
+      setErrorMessage('Preencha seu e-mail e senha corporativos.');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      const admin = await loginAdmin(adminEmail, adminPassword);
+      processPostAuth(admin);
+    } catch (error: any) {
+      console.error("Erro no login administrativo:", error);
+      setErrorMessage(error.message || 'Credenciais inválidas ou e-mail não autorizado para acesso à equipe.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleAdminGoogleSignIn = async () => {
     setIsLoading(true);
     setErrorMessage('');
     try {
@@ -166,9 +195,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
         processPostAuth(user);
       }
     } catch (error: any) {
-      console.error("Google login error", error);
+      console.error("Admin Google login error", error);
       setErrorMessage(
-        error.message || 'Não foi possível conectar com o Google. Use seu CPF e senha.'
+        error.message || 'Esta conta Google não possui autorização de colaborador na equipe.'
       );
     } finally {
       setIsLoading(false);
@@ -302,7 +331,153 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
     );
   }
 
-// --- INTERFACE UNIFICADA DE LOGIN DO SISTEMA (CPF E SENHA + CONTA GOOGLE) ---
+  // --- TELA DE ACESSO ADMINISTRATIVO E COLABORADORES ---
+  if (currentMode === 'admin') {
+    return (
+      <div id="admin-auth-page" className="max-w-md mx-auto px-4 py-8 sm:py-12">
+        <div className={`rounded-3xl border backdrop-blur-2xl shadow-2xl p-6 sm:p-8 space-y-6 ${
+          isDark ? 'bg-slate-900/90 border-slate-800 text-white shadow-black/60' : 'bg-white border-slate-200/90 text-slate-800 shadow-xl'
+        }`}>
+          <div className="space-y-3 text-center">
+            <div className="flex justify-center pb-1">
+              <BrandLogo size="md" />
+            </div>
+
+            <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-amber-400/10 text-amber-500 dark:text-amber-300 border border-amber-400/30">
+              <Shield className="h-3.5 w-3.5 text-amber-400" />
+              <span>Acesso da Equipe & Gestão</span>
+            </div>
+
+            <div className="space-y-1">
+              <h2 className={`text-xl sm:text-2xl font-black tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                Painel Administrativo
+              </h2>
+              <p className={`text-xs max-w-xs mx-auto leading-relaxed font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                Entre com sua credencial de colaborador ou e-mail institucional autorizado.
+              </p>
+            </div>
+          </div>
+
+          {/* Mensagem de Erro */}
+          {errorMessage && (
+            <div className="p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-semibold text-center animate-fade-in">
+              {errorMessage}
+            </div>
+          )}
+
+          <form onSubmit={handleAdminEmailSubmit} className="space-y-4">
+            <div className="space-y-1.5">
+              <label className={`block text-xs font-bold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                E-mail Corporativo <span className="text-amber-500">*</span>
+              </label>
+              <div className="relative">
+                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <input
+                  type="email"
+                  required
+                  autoFocus
+                  placeholder="admin@evidencia.com"
+                  value={adminEmail}
+                  onChange={(e) => setAdminEmail(e.target.value)}
+                  className={`w-full pl-10 pr-4 py-3 rounded-2xl border text-xs font-semibold transition-all outline-none ${
+                    isDark 
+                      ? 'bg-slate-950/80 border-slate-700 text-white focus:border-amber-400' 
+                      : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-slate-400'
+                  }`}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className={`block text-xs font-bold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                Senha Administrativa <span className="text-amber-500">*</span>
+              </label>
+              <div className="relative">
+                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <input
+                  type={showAdminPassword ? 'text' : 'password'}
+                  required
+                  placeholder="Sua senha"
+                  value={adminPassword}
+                  onChange={(e) => setAdminPassword(e.target.value)}
+                  className={`w-full pl-10 pr-10 py-3 rounded-2xl border text-xs font-semibold transition-all outline-none ${
+                    isDark 
+                      ? 'bg-slate-950/80 border-slate-700 text-white focus:border-amber-400' 
+                      : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-slate-400'
+                  }`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowAdminPassword(!showAdminPassword)}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 cursor-pointer"
+                >
+                  {showAdminPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={isLoading}
+              className={`w-full py-3.5 px-6 rounded-2xl font-black text-xs uppercase tracking-wider transition-all shadow-md cursor-pointer disabled:opacity-50 active:scale-[0.98] ${
+                isDark
+                  ? 'bg-amber-400 text-slate-950 hover:bg-amber-300 shadow-amber-400/10'
+                  : 'bg-slate-900 text-white hover:bg-slate-800 shadow-slate-900/20'
+              }`}
+            >
+              {isLoading ? 'Autenticando...' : 'Acessar Painel da Equipe'}
+            </button>
+          </form>
+
+          <div className="relative flex items-center justify-center my-2">
+            <div className="border-t border-slate-200 dark:border-slate-800 w-full" />
+            <span className={`absolute px-3 text-[10px] font-black uppercase tracking-widest ${
+              isDark ? 'bg-slate-900 text-slate-500' : 'bg-white text-slate-400'
+            }`}>
+              ou
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleAdminGoogleSignIn}
+            disabled={isLoading}
+            className={`w-full flex items-center justify-center space-x-3 py-3 px-4 border rounded-2xl transition-all text-xs font-bold cursor-pointer disabled:opacity-50 active:scale-[0.98] ${
+              isDark
+                ? 'bg-slate-950/80 border-slate-800 text-slate-200 hover:bg-slate-800 hover:border-slate-700'
+                : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+            }`}
+          >
+            <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24">
+              <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"/>
+              <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.11-6.72-4.96H1.29v3.15C3.26 21.3 7.31 24 12 24z"/>
+              <path fill="#FBBC05" d="M5.28 14.24c-.25-.72-.38-1.49-.38-2.24s.13-1.52.38-2.24V6.61H1.29C.47 8.24 0 10.06 0 12s.47 3.76 1.29 5.39l3.99-3.15z"/>
+              <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.29 6.61l3.99 3.15c.95-2.85 3.6-4.96 6.72-4.96z"/>
+            </svg>
+            <span>Conectar com Google (Colaboradores)</span>
+          </button>
+
+          <div className="pt-3 border-t border-slate-800/40 text-center">
+            <button
+              type="button"
+              onClick={() => {
+                setCurrentMode('customer');
+                setErrorMessage('');
+              }}
+              className={`text-xs font-bold transition-colors cursor-pointer flex items-center justify-center space-x-1.5 mx-auto ${
+                isDark ? 'text-amber-400 hover:text-amber-300' : 'text-slate-800 hover:text-slate-600'
+              }`}
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+              <span>Voltar para o Login de Clientes</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // --- INTERFACE PROGRESSIVA DE LOGIN DE CLIENTES (APENAS CPF INICIALMENTE) ---
   return (
     <div id="customer-auth-page" className="max-w-md mx-auto px-4 py-8 sm:py-12">
       <div className={`rounded-3xl border backdrop-blur-2xl shadow-2xl p-6 sm:p-8 space-y-6 ${
@@ -544,55 +719,14 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
           </form>
         )}
 
-        {/* Divisor Visual */}
-        <div className="relative flex items-center justify-center my-2">
-          <div className="border-t border-slate-200 dark:border-slate-800 w-full" />
-          <span className={`absolute px-3 text-[10px] font-black uppercase tracking-widest ${
-            isDark ? 'bg-slate-900 text-slate-500' : 'bg-white text-slate-400'
-          }`}>
-            ou
-          </span>
-        </div>
-
-        {/* Botão de Alternativa Rápida via Google */}
-        <button
-          type="button"
-          onClick={handleGoogleSignIn}
-          disabled={isLoading}
-          className={`w-full flex items-center justify-center space-x-3 py-3 px-4 border rounded-2xl transition-all text-xs font-bold cursor-pointer disabled:opacity-50 active:scale-[0.98] ${
-            isDark
-              ? 'bg-slate-950/80 border-slate-800 text-slate-200 hover:bg-slate-800 hover:border-slate-700'
-              : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
-          }`}
-        >
-          <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24">
-            <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"/>
-            <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.11-6.72-4.96H1.29v3.15C3.26 21.3 7.31 24 12 24z"/>
-            <path fill="#FBBC05" d="M5.28 14.24c-.25-.72-.38-1.49-.38-2.24s.13-1.52.38-2.24V6.61H1.29C.47 8.24 0 10.06 0 12s.47 3.76 1.29 5.39l3.99-3.15z"/>
-            <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.29 6.61l3.99 3.15c.95-2.85 3.6-4.96 6.72-4.96z"/>
-          </svg>
-          <span>Conectar rapidamente com o Google</span>
-        </button>
-
-        {/* BOTÃO PRIMEIRO ACESSO DA LOJA FÍSICA (MOBLINK ERP) */}
-        <div className="pt-2">
-          <button
-            type="button"
-            onClick={() => setIsFirstAccessOpen(true)}
-            className="w-full py-3 px-4 bg-[#0071E3]/10 hover:bg-[#0071E3]/20 text-[#0071E3] dark:text-blue-400 font-extrabold rounded-2xl text-xs border border-[#0071E3]/20 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xs active:scale-95"
-          >
-            <Sparkles className="h-4 w-4 text-[#0071E3] shrink-0" />
-            <span>Já compra na loja física? Ativar Primeiro Acesso</span>
-          </button>
-        </div>
-
         {/* Security & Support Info Footer */}
-        <div className="pt-3 border-t border-slate-800/40 space-y-1.5 text-center text-xs">
+        <div className="pt-3 border-t border-slate-800/40 space-y-2 text-center text-xs">
           <p className={isDark ? 'text-slate-400' : 'text-slate-500'}>
             Ao se conectar, você concorda com nossos Termos e Política de Privacidade.
           </p>
           <div>
             <button
+              type="button"
               onClick={() => setCurrentView('support')}
               className={`font-bold hover:underline cursor-pointer transition-colors ${
                 isDark ? 'text-amber-400 hover:text-amber-300' : 'text-slate-900 hover:text-slate-700'
@@ -601,11 +735,25 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
               Precisa de ajuda com seu acesso? Fale com o Suporte
             </button>
           </div>
+
+          <div className="pt-1">
+            <button
+              type="button"
+              onClick={() => {
+                setCurrentMode('admin');
+                setErrorMessage('');
+              }}
+              className="text-[11px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors font-medium hover:underline cursor-pointer inline-flex items-center gap-1"
+            >
+              <Shield className="h-3 w-3 text-slate-400" />
+              <span>Acesso de Colaboradores e Gestão</span>
+            </button>
+          </div>
         </div>
 
       </div>
 
-      {/* MODAL PRIMEIRO ACESSO INTEIGENTE POR CPF */}
+      {/* MODAL PRIMEIRO ACESSO INTELIGENTE POR CPF */}
       <FirstAccessModal
         isOpen={isFirstAccessOpen}
         onClose={() => setIsFirstAccessOpen(false)}

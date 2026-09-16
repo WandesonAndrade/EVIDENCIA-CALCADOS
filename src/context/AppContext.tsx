@@ -868,10 +868,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
         } catch (err) {
           console.warn("📌 Erro na sincronização onAuthStateChanged com Firestore:", err);
+          setCurrentUser(null);
+          localStorage.removeItem('evidencia_user');
+          try {
+            await firebaseAuthService.logout();
+          } catch (e) {}
         } finally {
           setTimeout(() => {
             isRestoringEngagementRef.current = false;
           }, 500);
+        }
+      } else {
+        // Quando a sessão do Firebase Auth for encerrada
+        const savedUserStr = localStorage.getItem('evidencia_user');
+        if (savedUserStr) {
+          try {
+            const parsed = JSON.parse(savedUserStr);
+            if (!parsed?.uid?.startsWith('sim_')) {
+              setCurrentUser(null);
+              localStorage.removeItem('evidencia_user');
+            }
+          } catch (e) {}
         }
       }
     });
