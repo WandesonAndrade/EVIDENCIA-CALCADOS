@@ -54,13 +54,25 @@ export interface SupabaseStorageConfig {
  * Obtém a configuração atual do Supabase a partir das variáveis de ambiente (.env) ou localStorage.
  */
 export function getSupabaseConfig(): SupabaseStorageConfig {
-  const envUrl = (import.meta as any).env?.VITE_SUPABASE_URL || '';
-  const envKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || (import.meta as any).env?.VITE_SUPABASE_KEY || '';
-  const envBucket = (import.meta as any).env?.VITE_SUPABASE_BUCKET || 'products';
+  const getEnv = (key: string): string => {
+    if (typeof process !== 'undefined' && process.env && process.env[key]) {
+      return String(process.env[key] || '');
+    }
+    try {
+      if (typeof import.meta !== 'undefined' && (import.meta as any)?.env?.[key]) {
+        return String((import.meta as any).env[key] || '');
+      }
+    } catch {}
+    return '';
+  };
 
-  const localUrl = localStorage.getItem('supabase_url') || '';
-  const localKey = localStorage.getItem('supabase_anon_key') || '';
-  const localBucket = localStorage.getItem('supabase_bucket') || '';
+  const envUrl = getEnv('VITE_SUPABASE_URL') || getEnv('SUPABASE_URL');
+  const envKey = getEnv('VITE_SUPABASE_ANON_KEY') || getEnv('VITE_SUPABASE_KEY') || getEnv('SUPABASE_ANON_KEY') || getEnv('SUPABASE_KEY');
+  const envBucket = getEnv('VITE_SUPABASE_BUCKET') || getEnv('SUPABASE_BUCKET') || 'products';
+
+  const localUrl = typeof localStorage !== 'undefined' ? (localStorage.getItem('supabase_url') || '') : '';
+  const localKey = typeof localStorage !== 'undefined' ? (localStorage.getItem('supabase_anon_key') || '') : '';
+  const localBucket = typeof localStorage !== 'undefined' ? (localStorage.getItem('supabase_bucket') || '') : '';
 
   return {
     url: (localUrl || envUrl || '').trim(),
