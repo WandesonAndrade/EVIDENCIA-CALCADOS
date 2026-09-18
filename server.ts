@@ -1700,7 +1700,7 @@ async function startServer() {
   });
 }
 
-if (!process.env.VERCEL) {
+if (!process.env.VERCEL && !process.env.FIREBASE_CONFIG && !process.env.FUNCTIONS_EMULATOR && !process.env.K_SERVICE && !process.env.GCLOUD_PROJECT) {
   startServer();
 }
 
