@@ -37,6 +37,7 @@ var import_config = require("dotenv/config");
 var import_express = __toESM(require("express"), 1);
 var import_path = __toESM(require("path"), 1);
 var import_fs = __toESM(require("fs"), 1);
+var import_os = __toESM(require("os"), 1);
 var import_multer = __toESM(require("multer"), 1);
 
 // src/services/shipping/providers/melhorEnvio/melhorEnvioConfig.ts
@@ -1342,7 +1343,7 @@ app2.get("/api/auth-token", async (req, res) => {
     return res.status(500).json({ success: false, message: err.message });
   }
 });
-var PIX_CACHE_FILE = import_path.default.join(os.tmpdir(), "evidencia_pix_cache.json");
+var PIX_CACHE_FILE = import_path.default.join(import_os.default.tmpdir(), "evidencia_pix_cache.json");
 var pixCacheMap = /* @__PURE__ */ new Map();
 function loadPixCache() {
   try {
