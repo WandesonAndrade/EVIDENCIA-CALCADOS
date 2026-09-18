@@ -93,46 +93,12 @@ async function safeFetchJson<T = any>(url: string, options?: RequestInit): Promi
 }
 
 /**
- * Fallback no navegador para busca de fotos caso a rota de backend não esteja disponível
+ * Fallback no navegador para busca de fotos caso a rota de backend não esteja disponível.
+ * Tratado de forma silenciosa para não poluir o console com erros de CORS de APIs externas.
  */
-async function searchCandidateImagesClientFallback(queryStr: string): Promise<CandidateImage[]> {
-  try {
-    // Tenta consulta direta via DuckDuckGo Instant Answer / Images
-    const directUrl = `https://api.duckduckgo.com/?q=${encodeURIComponent(queryStr)}&format=json&pretty=1`;
-    const res = await fetch(directUrl);
-    if (res.ok) {
-      const data = await res.json();
-      const images: CandidateImage[] = [];
-
-      if (data.Image) {
-        images.push({
-          title: data.Heading || queryStr,
-          image: data.Image.startsWith('http') ? data.Image : `https://duckduckgo.com${data.Image}`,
-          thumbnail: data.Image.startsWith('http') ? data.Image : `https://duckduckgo.com${data.Image}`,
-          source: data.AbstractURL || 'duckduckgo.com',
-        });
-      }
-
-      if (Array.isArray(data.RelatedTopics)) {
-        data.RelatedTopics.forEach((topic: any) => {
-          if (topic.Icon && topic.Icon.URL) {
-            const iconUrl = topic.Icon.URL.startsWith('http') ? topic.Icon.URL : `https://duckduckgo.com${topic.Icon.URL}`;
-            images.push({
-              title: topic.Text || queryStr,
-              image: iconUrl,
-              thumbnail: iconUrl,
-              source: topic.FirstURL || 'web',
-            });
-          }
-        });
-      }
-
-      if (images.length > 0) return images;
-    }
-  } catch (err) {
-    console.warn('[productAiAssistService] Fallback de imagem no cliente falhou:', err);
-  }
-
+async function searchCandidateImagesClientFallback(_queryStr: string): Promise<CandidateImage[]> {
+  // APIs diretas de terceiros no browser (como DuckDuckGo/Google) bloqueiam chamadas diretas por CORS.
+  // O modal fornece acesso em 1 clique ao Google Imagens e colagem direta de link/arquivo com conversão WebP.
   return [];
 }
 
@@ -163,8 +129,7 @@ export async function searchCandidateImages(queryStr: string): Promise<Candidate
     // 3. Fallback no cliente
     const fallbackResults = await searchCandidateImagesClientFallback(cleanQuery);
     return fallbackResults;
-  } catch (err: any) {
-    console.warn('[productAiAssistService] Aviso ao buscar imagens:', err);
+  } catch {
     return [];
   }
 }
@@ -267,12 +232,32 @@ export async function uploadPhotoFromUrl(
     const randomHash = Math.random().toString(36).substring(2, 8);
     const customFileName = `web_foto_${timestamp}_${randomHash}`;
 
-    // Baixa como blob no navegador
-    const imgRes = await fetch(imageUrl);
-    if (!imgRes.ok) {
-      throw new Error(`Não foi possível baixar a imagem da fonte: HTTP ${imgRes.status}`);
+    // 2. Contingência direta no navegador via Supabase Storage SDK (com fallback de CORS proxy)
+    let blob: Blob | null = null;
+    try {
+      const imgRes = await fetch(imageUrl);
+      if (imgRes.ok) {
+        blob = await imgRes.blob();
+      }
+    } catch {
+      // Ignora erro de CORS direto e tenta via proxy público de imagens com CORS liberado
     }
-    const blob = await imgRes.blob();
+
+    if (!blob) {
+      try {
+        const corsSafeUrl = `https://images.weserv.nl/?url=${encodeURIComponent(imageUrl)}&output=webp&q=80`;
+        const proxiedRes = await fetch(corsSafeUrl);
+        if (proxiedRes.ok) {
+          blob = await proxiedRes.blob();
+        }
+      } catch (proxyErr) {
+        console.warn('[productAiAssistService] Falha no proxy de imagem:', proxyErr);
+      }
+    }
+
+    if (!blob) {
+      throw new Error('Não foi possível carregar a imagem da URL fornecida. Verifique se o link está acessível.');
+    }
 
     // Faz upload direto para o Supabase Storage com conversão WebP
     const publicUrl = await uploadImageToSupabase(blob, {
