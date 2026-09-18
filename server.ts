@@ -1,11 +1,9 @@
-﻿import "dotenv/config";
+import "dotenv/config";
 
 import express from "express";
 import path from "path";
 import fs from "fs";
-import os from "os";
 import multer from "multer";
-import { createServer as createViteServer } from "vite";
 import { ShippingService } from "./src/services/shipping/shippingService.js";
 import { db } from "./src/lib/firebase.js";
 import { doc, getDoc, setDoc, updateDoc, collection, getDocs, query, where } from "firebase/firestore";
@@ -1677,16 +1675,10 @@ app.post("/api/webhooks/shipping", async (req, res) => {
   }
 });
 
-// --- VITE MIDDLEWARE & STATIC SERVER ---
+// --- STATIC SERVER & PORT LISTEN ---
 async function startServer() {
-  if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), "dist");
+  const distPath = path.join(process.cwd(), "dist");
+  if (fs.existsSync(distPath)) {
     app.use(express.static(distPath));
     app.get("*", (_req, res) => {
       res.sendFile(path.join(distPath, "index.html"));
@@ -1705,4 +1697,4 @@ if (!process.env.VERCEL && !process.env.FIREBASE_CONFIG && !process.env.FUNCTION
 }
 
 // Vercel serverless entry point
-export default (req: any, res: any) => app(req, res);
+export default app;

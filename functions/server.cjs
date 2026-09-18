@@ -37,9 +37,7 @@ var import_config = require("dotenv/config");
 var import_express = __toESM(require("express"), 1);
 var import_path = __toESM(require("path"), 1);
 var import_fs = __toESM(require("fs"), 1);
-var import_os = __toESM(require("os"), 1);
 var import_multer = __toESM(require("multer"), 1);
-var import_vite = require("vite");
 
 // src/services/shipping/providers/melhorEnvio/melhorEnvioConfig.ts
 var import_meta = {};
@@ -1344,7 +1342,7 @@ app2.get("/api/auth-token", async (req, res) => {
     return res.status(500).json({ success: false, message: err.message });
   }
 });
-var PIX_CACHE_FILE = import_path.default.join(import_os.default.tmpdir(), "evidencia_pix_cache.json");
+var PIX_CACHE_FILE = import_path.default.join(os.tmpdir(), "evidencia_pix_cache.json");
 var pixCacheMap = /* @__PURE__ */ new Map();
 function loadPixCache() {
   try {
@@ -2511,14 +2509,8 @@ app2.post("/api/webhooks/shipping", async (req, res) => {
   }
 });
 async function startServer() {
-  if (process.env.NODE_ENV !== "production") {
-    const vite = await (0, import_vite.createServer)({
-      server: { middlewareMode: true },
-      appType: "spa"
-    });
-    app2.use(vite.middlewares);
-  } else {
-    const distPath = import_path.default.join(process.cwd(), "dist");
+  const distPath = import_path.default.join(process.cwd(), "dist");
+  if (import_fs.default.existsSync(distPath)) {
     app2.use(import_express.default.static(distPath));
     app2.get("*", (_req, res) => {
       res.sendFile(import_path.default.join(distPath, "index.html"));
