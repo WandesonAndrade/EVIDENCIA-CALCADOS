@@ -1325,8 +1325,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setCachedCatalog(prodList);
         }
         setIsLoadingProducts(false);
-      }, (error) => {
-        console.warn("Snapshot do Firestore indisponível:", error.message);
+      }, async (error) => {
+        console.warn("⚠️ [Firestore Cota/Offline] Snapshot indisponível:", error.message);
+        // Contingência Ativa Supabase: busca fotos e descrições para manter a vitrine completa
+        try {
+          const supaMedia = await fetchProductMediaFromSupabase();
+          if (supaMedia && supaMedia.length > 0) {
+            console.log(`🛡️ [Supabase Contingência] Carregadas mídias de ${supaMedia.length} produtos do Supabase para manter o catálogo rico.`);
+            const supaMap = new Map<string, any>(supaMedia.map(m => [String(m.id), m]));
+            setProducts(prev => prev.map(p => {
+              const supa = supaMap.get(String(p.id)) || (p.moblinkId ? supaMap.get(String(p.moblinkId)) : undefined);
+              if (supa && Array.isArray(supa.images) && supa.images.length > 0) {
+                return {
+                  ...p,
+                  images: supa.images,
+                  imageUrl: supa.imageUrl || supa.images[0] || p.imageUrl,
+                  foto_uri: supa.foto_uri || supa.images[0] || p.foto_uri,
+                  description: supa.description || p.description,
+                };
+              }
+              return p;
+            }));
+          }
+        } catch (supaErr) {
+          console.warn("Falha ao puxar contingência do Supabase:", supaErr);
+        }
+
         if (!cached || cached.length === 0) {
           const fallback = getLocalProducts();
           setProducts(fallback);
@@ -2349,8 +2373,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const sanitized = sanitizeProductForFirestore(product);
       await setDoc(doc(db, 'products', product.id), sanitized);
-    } catch (error) {
-      console.warn("Firestore failed to add product. Cached locally:", error);
+    } catch (error: any) {
+      console.warn("⚠️ [Firestore Cota/Offline] Falha ao adicionar no Firestore. Persistindo no Supabase:", error?.message);
+      await syncProductMediaToSupabase(product).catch(() => {});
     }
     syncProductMediaToSupabase(product).catch(() => {});
   };
@@ -2378,6 +2403,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setProducts(updated);
     saveLocalProducts(updated);
 
+    // 1. Salva no Supabase (Backup contínuo de fotos e metadados)
     syncProductMediaToSupabase(merged).catch(() => {});
 
     // Se o produto já existe e não sofreu alteração real em seus campos, pula gravação no Firestore
@@ -2385,12 +2411,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
 
-    // Try Firestore
+    // 2. Tenta Firestore com garantia de persistência no Supabase em caso de cota/erro
     try {
       const sanitized = cleanUndefinedFields(updatedFields);
       await setDoc(doc(db, 'products', productId), sanitized, { merge: true });
-    } catch (error) {
-      console.warn("Firestore failed to update product. Updated locally:", error);
+    } catch (error: any) {
+      console.warn("⚠️ [Firestore Cota/Offline] Falha ao atualizar no Firestore. Persistindo garantia no Supabase:", error?.message);
+      try {
+        await syncProductMediaToSupabase(merged);
+        console.log(`✅ [Supabase Contingência] Produto ${productId} garantido no Supabase.`);
+      } catch (supaErr) {
+        console.warn("Erro no fallback Supabase:", supaErr);
+      }
     }
   };
 
