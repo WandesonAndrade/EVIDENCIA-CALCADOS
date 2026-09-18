@@ -1,10 +1,12 @@
 /**
  * Serviço de Assistência Inteligente para Produtos (Evidência Calçados)
- * - Busca de fotos reais na internet (Google/DuckDuckGo)
+ * - Busca de fotos reais na internet (Google/DuckDuckGo) com resiliência para produção/serverless
  * - Download, conversão WebP e upload seguro para Supabase Storage
  * - Busca de inteligência de produto e ficha técnica na Web
- * - Geração de descrições limpas, persuasivas e 100% focadas no cliente
+ * - Geração de descrições limpas, persuasivas e 100% focadas no cliente (tom comercial com zero especulação)
  */
+
+import { uploadImageToSupabase } from './supabaseStorageService';
 
 export interface CandidateImage {
   title: string;
@@ -62,28 +64,108 @@ export interface ProductDescriptionParams {
 }
 
 /**
- * Busca fotos candidatas para o produto na Web através da API backend
+ * Utilitário seguro para efetuar requisições fetch garantindo que respostas HTML (ex: index.html da SPA)
+ * não quebrem o JSON.parse com 'Unexpected token <'
+ */
+async function safeFetchJson<T = any>(url: string, options?: RequestInit): Promise<T | null> {
+  try {
+    const res = await fetch(url, options);
+    if (!res.ok) return null;
+
+    const contentType = res.headers.get('content-type') || '';
+    if (contentType.includes('text/html') || contentType.includes('text/plain')) {
+      const text = await res.text();
+      const trimmed = text.trim();
+      if (trimmed.startsWith('<') || trimmed.startsWith('<!doctype') || trimmed.startsWith('<!DOCTYPE')) {
+        return null; // É o fallback SPA do index.html
+      }
+      try {
+        return JSON.parse(trimmed) as T;
+      } catch {
+        return null;
+      }
+    }
+
+    return (await res.json()) as T;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Fallback no navegador para busca de fotos caso a rota de backend não esteja disponível
+ */
+async function searchCandidateImagesClientFallback(queryStr: string): Promise<CandidateImage[]> {
+  try {
+    // Tenta consulta direta via DuckDuckGo Instant Answer / Images
+    const directUrl = `https://api.duckduckgo.com/?q=${encodeURIComponent(queryStr)}&format=json&pretty=1`;
+    const res = await fetch(directUrl);
+    if (res.ok) {
+      const data = await res.json();
+      const images: CandidateImage[] = [];
+
+      if (data.Image) {
+        images.push({
+          title: data.Heading || queryStr,
+          image: data.Image.startsWith('http') ? data.Image : `https://duckduckgo.com${data.Image}`,
+          thumbnail: data.Image.startsWith('http') ? data.Image : `https://duckduckgo.com${data.Image}`,
+          source: data.AbstractURL || 'duckduckgo.com',
+        });
+      }
+
+      if (Array.isArray(data.RelatedTopics)) {
+        data.RelatedTopics.forEach((topic: any) => {
+          if (topic.Icon && topic.Icon.URL) {
+            const iconUrl = topic.Icon.URL.startsWith('http') ? topic.Icon.URL : `https://duckduckgo.com${topic.Icon.URL}`;
+            images.push({
+              title: topic.Text || queryStr,
+              image: iconUrl,
+              thumbnail: iconUrl,
+              source: topic.FirstURL || 'web',
+            });
+          }
+        });
+      }
+
+      if (images.length > 0) return images;
+    }
+  } catch (err) {
+    console.warn('[productAiAssistService] Fallback de imagem no cliente falhou:', err);
+  }
+
+  return [];
+}
+
+/**
+ * Busca fotos candidatas para o produto na Web através da API backend ou fallback resiliente
  */
 export async function searchCandidateImages(queryStr: string): Promise<CandidateImage[]> {
   const cleanQuery = queryStr.trim();
   if (!cleanQuery) return [];
 
   try {
-    let res = await fetch(`/assistant-api/search-product-images?q=${encodeURIComponent(cleanQuery)}`);
-    if (!res.ok) {
-      res = await fetch(`/api/search-product-images?q=${encodeURIComponent(cleanQuery)}`);
+    // 1. Tenta endpoint prioritário
+    let data = await safeFetchJson<{ success?: boolean; results?: CandidateImage[] }>(
+      `/api/search-product-images?q=${encodeURIComponent(cleanQuery)}`
+    );
+
+    // 2. Tenta rota legada se a anterior não respondeu JSON
+    if (!data || !Array.isArray(data.results)) {
+      data = await safeFetchJson<{ success?: boolean; results?: CandidateImage[] }>(
+        `/assistant-api/search-product-images?q=${encodeURIComponent(cleanQuery)}`
+      );
     }
-    if (!res.ok) {
-      throw new Error(`Falha na busca de imagens: HTTP ${res.status}`);
-    }
-    const data = await res.json();
-    if (data && Array.isArray(data.results)) {
+
+    if (data && Array.isArray(data.results) && data.results.length > 0) {
       return data.results;
     }
-    return [];
+
+    // 3. Fallback no cliente
+    const fallbackResults = await searchCandidateImagesClientFallback(cleanQuery);
+    return fallbackResults;
   } catch (err: any) {
-    console.error('[productAiAssistService] Erro ao buscar imagens:', err);
-    throw err;
+    console.warn('[productAiAssistService] Aviso ao buscar imagens:', err);
+    return [];
   }
 }
 
@@ -95,27 +177,33 @@ export async function searchProductWebIntel(queryStr: string): Promise<ProductWe
   if (!cleanQuery) return { results: [], insights: {} };
 
   try {
-    let res = await fetch(`/assistant-api/search-product-web-intel?q=${encodeURIComponent(cleanQuery)}`);
-    if (!res.ok) {
-      res = await fetch(`/api/search-product-web-intel?q=${encodeURIComponent(cleanQuery)}`);
+    let data = await safeFetchJson<{ success?: boolean; results?: any[]; insights?: FootwearWebInsights }>(
+      `/api/search-product-web-intel?q=${encodeURIComponent(cleanQuery)}`
+    );
+
+    if (!data || !data.success) {
+      data = await safeFetchJson<{ success?: boolean; results?: any[]; insights?: FootwearWebInsights }>(
+        `/assistant-api/search-product-web-intel?q=${encodeURIComponent(cleanQuery)}`
+      );
     }
-    if (!res.ok) {
-      throw new Error(`Falha na busca de inteligência web: HTTP ${res.status}`);
+
+    if (data && data.success) {
+      return {
+        results: Array.isArray(data.results) ? data.results : [],
+        insights: data.insights || {},
+      };
     }
-    const data = await res.json();
-    return {
-      results: Array.isArray(data.results) ? data.results : [],
-      insights: data.insights || {},
-    };
   } catch (err: any) {
     console.warn('[productAiAssistService] Erro ao buscar inteligência na web:', err);
-    return { results: [], insights: {} };
   }
+
+  return { results: [], insights: {} };
 }
 
 /**
  * Faz download de uma imagem da internet pelo backend (sem bloqueio de CORS),
  * otimiza para WebP 80% e faz upload para o Supabase Storage.
+ * Possui contingência nativa no navegador caso o backend esteja indisponível.
  */
 export async function uploadPhotoFromUrl(
   imageUrl: string,
@@ -138,30 +226,69 @@ export async function uploadPhotoFromUrl(
   const payload = JSON.stringify({ imageUrl, productId });
   const headers = { 'Content-Type': 'application/json' };
 
-  let res = await fetch('/assistant-api/upload-photo-from-url', {
-    method: 'POST',
-    headers,
-    body: payload,
-  });
-
-  if (!res.ok) {
-    res = await fetch('/api/upload-photo-from-url', {
+  try {
+    // 1. Tenta endpoint backend principal
+    let data = await safeFetchJson<{
+      success?: boolean;
+      webpUrl?: string;
+      publicUrl?: string;
+      thumbnailUrl?: string;
+      thumbUrl?: string;
+      stats?: any;
+    }>('/api/upload-photo-from-url', {
       method: 'POST',
       headers,
       body: payload,
     });
+
+    if (!data || !data.success) {
+      data = await safeFetchJson('/assistant-api/upload-photo-from-url', {
+        method: 'POST',
+        headers,
+        body: payload,
+      });
+    }
+
+    if (data && data.success) {
+      return {
+        publicUrl: data.webpUrl || data.publicUrl || '',
+        thumbUrl: data.thumbnailUrl || data.thumbUrl,
+        stats: data.stats,
+      };
+    }
+  } catch (err) {
+    console.warn('[productAiAssistService] Upload via backend falhou, usando contingência do cliente:', err);
   }
 
-  const data = await res.json();
-  if (!res.ok || !data.success) {
-    throw new Error(data.error || data.message || `Erro ao salvar foto: HTTP ${res.status}`);
-  }
+  // 2. Contingência direta no navegador via Supabase Storage SDK
+  try {
+    const cleanProdId = String(productId).trim().replace(/[^a-zA-Z0-9_-]/g, '_');
+    const timestamp = Date.now();
+    const randomHash = Math.random().toString(36).substring(2, 8);
+    const customFileName = `web_foto_${timestamp}_${randomHash}`;
 
-  return {
-    publicUrl: data.webpUrl || data.publicUrl,
-    thumbUrl: data.thumbnailUrl || data.thumbUrl,
-    stats: data.stats,
-  };
+    // Baixa como blob no navegador
+    const imgRes = await fetch(imageUrl);
+    if (!imgRes.ok) {
+      throw new Error(`Não foi possível baixar a imagem da fonte: HTTP ${imgRes.status}`);
+    }
+    const blob = await imgRes.blob();
+
+    // Faz upload direto para o Supabase Storage com conversão WebP
+    const publicUrl = await uploadImageToSupabase(blob, {
+      folder: `produtos/${cleanProdId}/`,
+      customFileName,
+      generateThumbnail: true,
+    });
+
+    return {
+      publicUrl,
+      thumbUrl: publicUrl,
+    };
+  } catch (clientErr: any) {
+    console.error('[productAiAssistService] Falha final no upload da imagem:', clientErr);
+    throw new Error(clientErr.message || 'Erro ao processar e salvar a imagem.');
+  }
 }
 
 /**
@@ -174,25 +301,28 @@ export async function generateSuggestedDescription(
     const payload = JSON.stringify(params);
     const headers = { 'Content-Type': 'application/json' };
 
-    let res = await fetch('/assistant-api/suggest-product-description', {
-      method: 'POST',
-      headers,
-      body: payload,
-    });
-
-    if (!res.ok) {
-      res = await fetch('/api/suggest-product-description', {
+    let data = await safeFetchJson<{ success?: boolean; description?: string }>(
+      '/api/suggest-product-description',
+      {
         method: 'POST',
         headers,
         body: payload,
-      });
+      }
+    );
+
+    if (!data || !data.success || !data.description) {
+      data = await safeFetchJson<{ success?: boolean; description?: string }>(
+        '/assistant-api/suggest-product-description',
+        {
+          method: 'POST',
+          headers,
+          body: payload,
+        }
+      );
     }
 
-    if (res.ok) {
-      const data = await res.json();
-      if (data && data.success && data.description) {
-        return data.description;
-      }
+    if (data && data.success && data.description) {
+      return data.description;
     }
   } catch (err) {
     console.warn('[productAiAssistService] Backend description suggestion fallback to local engine:', err);
@@ -207,13 +337,13 @@ export async function generateSuggestedDescription(
 function cleanUserFacingProductName(rawName: string): string {
   return rawName
     .trim()
-    .replace(/\s+([0-9]{4,}|[A-Z]+[0-9]+[A-Z0-9]*|[0-9]+[A-Z]+[A-Z0-9]*)\b/gi, '') // remove apenas referências numéricas ou alfanuméricas
+    .replace(/\s+([0-9]{4,}|[A-Z]+[0-9]+[A-Z0-9]*|[0-9]+[A-Z]+[A-Z0-9]*)\b/gi, '')
     .replace(/\s{2,}/g, ' ')
     .trim();
 }
 
 /**
- * Motor de copywriting limpo, focado 100% no cliente (sem ruídos de ERP ou códigos técnicos)
+ * Motor de copywriting limpo, focado 100% no cliente (sem ruídos de ERP ou códigos técnicos e zero especulação de marca)
  */
 export function generateLocalRichDescription(params: ProductDescriptionParams): string {
   const {

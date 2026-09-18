@@ -1,0 +1,37 @@
+{
+  "version": 2,
+  "rewrites": [
+    {
+      "source": "/api/search-product-images",
+      "destination": "/api/search-product-images.js"
+    },
+    {
+      "source": "/assistant-api/search-product-images",
+      "destination": "/api/search-product-images.js"
+    },
+    {
+      "source": "/api/search-product-web-intel",
+      "destination": "/api/search-product-web-intel.js"
+    },
+    {
+      "source": "/assistant-api/search-product-web-intel",
+      "destination": "/api/search-product-web-intel.js"
+    },
+    {
+      "source": "/api/suggest-product-description",
+      "destination": "/api/suggest-product-description.js"
+    },
+    {
+      "source": "/assistant-api/suggest-product-description",
+      "destination": "/api/suggest-product-description.js"
+    },
+    {
+      "source": "/api/auth-token",
+      "destination": "/api/auth-token.js"
+    },
+    {
+      "source": "/((?!api/|assistant-api/).*)",
+      "destination": "/index.html"
+    }
+  ]
+}
