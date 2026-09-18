@@ -89,3 +89,16 @@ Este arquivo é a memória persistente do projeto (AG Kit), consolidando decisõ
       - *Sem Jargões de Retaguarda*: Prompts e motor de copywriting livres de ruídos internos (sem menções a nomes de ERP, códigos de lote, classificações fiscais ou unidades de depósito).
       - Gera descrições estruturadas com título atrativo, storytelling leve, destaques reais de calce/conforto, ficha técnica limpa e garantia Evidência Calçados (100% original com Troca Fácil em 7 dias). Suporta tons Comercial, Luxo e Técnico, além de integração com Google Gemini 2.5 Flash.
     - **Varredura de Segurança e `.env`**: Criação de `.env.example` completo com `GEMINI_API_KEY`, higienização de `src/lib/firebase.ts` sem chaves hardcoded e proteção via `.gitignore`.
+
+14. **Arquitetura de Produção no Firebase Cloud Functions (Gen 2 / Cloud Run) (Implementado):**
+    - O backend Node.js (`server.ts`) foi compilado e empacotado em `functions/server.cjs` e exposto via `functions/lib/index.js` sob a função `api` (região `us-central1`).
+    - Configurado com `invoker: "public"` para acesso irrestrito (`allUsers`), eliminando erros 403 Forbidden no cálculo de frete e busca web.
+    - Inicialização ultra-rápida (importação seletiva `{ onRequest }` e carregamento lazy do Express), contornando o timeout de 10s da Firebase CLI.
+    - Regras de rewrite no `firebase.json` unificadas para `/api/**`, `/mp-api/**` e `/assistant-api/**`.
+
+15. **Estratégia de Contingência Multi-Cloud com Supabase (Implementado):**
+    - Proteção transparente contra estouro de cota diária do Firestore (`resource-exhausted` no banco AI Studio de 20k writes/dia).
+    - `updateProduct` e `addProduct` no `AppContext.tsx` gravam cópia contínua no Supabase (`products_media` e Storage de imagens).
+    - Em caso de falha de escrita no Firestore, o sistema captura a exceção e garante a integridade dos dados no Supabase.
+    - Em falha de leitura do snapshot do Firestore, o catálogo ativa hidratação imediata via `fetchProductMediaFromSupabase()`, preservando capas, fotos e descrições dos produtos.
+

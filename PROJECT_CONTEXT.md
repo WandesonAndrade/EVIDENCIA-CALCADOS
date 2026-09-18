@@ -592,3 +592,33 @@ O Dashboard Financeiro (`FinancialDashboard.tsx`) no `AdminPanel.tsx` (aba `fina
 - **Segurança de Credenciais e Variáveis de Ambiente**:
   - Criação de `.env.example` consolidando chaves opcionais (`GEMINI_API_KEY`) e obrigatórias.
   - Higienização de `src/lib/firebase.ts` carregando via ambiente sem chaves hardcoded no repositório.
+
+---
+
+## 21. Arquitetura de Produção: Firebase Cloud Functions & Contingência Multi-Cloud Supabase
+
+### A. Migração do Backend Node.js para Firebase Cloud Functions (Gen 2 / Cloud Run)
+- **Estrutura Dedicada `functions/`:** 
+  - Criação do pacote `functions/` isolado e compatível com **Node.js 20**.
+  - O entrypoint `functions/lib/index.js` implementa inicialização ultra-rápida através da importação seletiva `{ onRequest }` de `firebase-functions/v2/https` e carregamento *lazy* sob demanda do servidor Express compilado (`functions/server.cjs`).
+  - Prevenção do estouro de timeout de 10.000ms do analisador da Firebase CLI através da proteção de consultas de inicialização global no `src/lib/firebase.ts` (executadas exclusivamente no navegador via `typeof window !== 'undefined'`).
+- **Permissão Pública e Resolução do Erro 403 (Forbidden):**
+  - Configurada a diretiva `invoker: "public"` na definição da Cloud Function `api`, instruindo o Google Cloud Run a conceder a política IAM `roles/run.invoker` para `allUsers`.
+  - Elimina erros 403 no cálculo de frete (`/api/shipping/calculate`) e na busca de fotos web (`/api/search-product-images`).
+- **Roteamento Transparente no `firebase.json`:**
+  - Redirecionamentos de rota no Hosting:
+    - `/api/**` ➔ Function `api`
+    - `/mp-api/**` ➔ Function `api`
+    - `/assistant-api/**` ➔ Function `api`
+    - `/**` ➔ `/index.html` (SPA)
+- **Desacoplamento de Dependências Locais:**
+  - O código do backend de produção foi purgado de dependências exclusivas de desenvolvimento (remoção do `vite` e `createViteServer`), garantindo que o contêiner do Cloud Run inicialize sem erros de módulos ausentes.
+  - Inclusão explícita de `firebase`, `@supabase/supabase-js`, `sharp`, `multer`, `mercadopago` e `os` no manifesto `functions/package.json`.
+
+### B. Contingência Multi-Cloud & Fallback com Supabase para Proteção do Catálogo
+- **Resiliência contra Estouro de Cota (`resource-exhausted`):**
+  - O banco de dados do Firestore gerado pelo Google AI Studio (`ai-studio-09694ade-3353-47cf-8db0-531b70401d1b`) possui limite diário gratuito de 20.000 gravações (Free Tier Database).
+  - Para blindar o lojista contra interrupções de trabalho, o `AppContext.tsx` (`updateProduct` e `addProduct`) implementa **gravação espelhada contínua no Supabase** (`syncProductMediaToSupabase` para a tabela `products_media` e bucket de storage).
+  - Em caso de recusa ou erro de cota no Firestore, o sistema captura o erro silenciosamente e persiste com sucesso no Supabase, garantindo que nenhuma foto, edição ou descrição seja perdida.
+- **Hidratação Ativa de Vitrine via Supabase:**
+  - Quando o listener de catálogo em tempo real do Firestore (`onSnapshot`) falha ou retorna cota excedida, o sistema dispara a busca de contingência via `fetchProductMediaFromSupabase()`, hidratando imediatamente os produtos em memória com as fotos, capas e descrições do Supabase, mantendo a vitrine da loja rica e funcional para os clientes.

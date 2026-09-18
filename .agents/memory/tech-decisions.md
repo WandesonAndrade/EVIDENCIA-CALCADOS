@@ -88,3 +88,19 @@ updated: 2026-09-18
   - *Foco Exclusivo no Tom Comercial*: Interface simplificada com cabeçalho limpo, card integrado de inteligência ERP/Web e redação calibrada para alta conversão no e-commerce.
   - *Suporte Híbrido*: Integração com Google Gemini 2.5 Flash (`@google/genai`) com fallback autônomo para o Motor Local Especialista em Calçados.
 - **Segurança e Variáveis de Ambiente:** Criação de `.env.example` consolidando chaves opcionais (`GEMINI_API_KEY`) e higienização de `src/lib/firebase.ts` sem credenciais hardcoded.
+
+## 15. Arquitetura de Produção: Firebase Cloud Functions Gen 2 (`functions/`)
+- **Backend Node.js Serverless no Google Cloud:**
+  - Migração de `server.ts` para pacote `functions/` (Node.js 20).
+  - Entrypoint `functions/lib/index.js` com inicialização ultra-rápida (importação seletiva `{ onRequest }` de `firebase-functions/v2/https` e lazy loading de `server.cjs`), prevenindo o timeout de 10s da Firebase CLI.
+  - Eliminação de dependências exclusivas de dev do bundle (`vite`, `createViteServer`) e restauração do módulo nativo `os`.
+  - Configuração de `invoker: "public"` para acesso irrestrito (`allUsers`) via IAM do Cloud Run, eliminando erros 403 Forbidden no frete (`/api/shipping/calculate`) e busca web (`/api/search-product-images`).
+  - Rewrites no `firebase.json` direcionando `/api/**`, `/mp-api/**` e `/assistant-api/**` para a função `api`.
+
+## 16. Contingência Multi-Cloud & Fallback com Supabase (`AppContext.tsx` / `supabaseStorageService.ts`)
+- **Proteção contra Cota Diária do Firestore (`resource-exhausted`):**
+  - O banco nomeado do Google AI Studio (`ai-studio-09694ade-3353-47cf-8db0-531b70401d1b`) possui limite rígido de 20.000 writes/dia no Free Tier Database.
+  - O `AppContext.tsx` (`updateProduct` e `addProduct`) espelha e persiste todas as alterações de mídia e fotos ativamente na tabela `products_media` e no Storage do Supabase.
+  - Se o Firestore falhar por estouro de cota ou instabilidade, a gravação no Supabase garante que o trabalho do lojista nunca seja perdido.
+  - No carregamento inicial (`initCatalog`), caso o snapshot do Firestore falhe ou caia no tratador de erro por cota, o sistema hidrata os produtos em memória a partir de `fetchProductMediaFromSupabase()`, mantendo fotos e descrições na vitrine.
+
