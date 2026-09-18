@@ -1069,7 +1069,9 @@ async function testConnection() {
     }
   }
 }
-testConnection();
+if (typeof window !== "undefined") {
+  testConnection();
+}
 async function seedDatabaseIfNeeded() {
   try {
     const productsCollectionRef = (0, import_firestore.collection)(db, "products");
@@ -1086,7 +1088,9 @@ async function seedDatabaseIfNeeded() {
     console.warn("Firestore collections check:", error);
   }
 }
-seedDatabaseIfNeeded();
+if (typeof window !== "undefined") {
+  seedDatabaseIfNeeded();
+}
 
 // server.ts
 var import_firestore3 = require("firebase/firestore");
@@ -2529,7 +2533,7 @@ async function startServer() {
 if (!process.env.VERCEL && !process.env.FIREBASE_CONFIG && !process.env.FUNCTIONS_EMULATOR && !process.env.K_SERVICE && !process.env.GCLOUD_PROJECT) {
   startServer();
 }
-var server_default = (req, res) => app2(req, res);
+var server_default = app2;
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   app

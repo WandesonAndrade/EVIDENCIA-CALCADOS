@@ -1,16 +1,16 @@
-const functions = require("firebase-functions/v2");
-const admin = require("firebase-admin");
+const { onRequest } = require("firebase-functions/v2/https");
 
-if (!admin.apps.length) {
-  admin.initializeApp();
+let appInstance = null;
+function getApp() {
+  if (!appInstance) {
+    const appModule = require("../server.cjs");
+    appInstance = appModule.default || appModule;
+  }
+  return appInstance;
 }
 
-// Requerendo o servidor Express pré-empacotado (copiado para a mesma pasta)
-const appModule = require("../server.cjs");
-const app = appModule.default || appModule;
-
-// Expondo a API completa
-exports.api = functions.https.onRequest(
+// Expondo a API completa de forma leve e rápida na inicialização
+exports.api = onRequest(
   {
     region: "us-central1",
     memory: "512MiB",
@@ -18,5 +18,7 @@ exports.api = functions.https.onRequest(
     minInstances: 0,
     cors: false,
   },
-  app
+  (req, res) => {
+    return getApp()(req, res);
+  }
 );

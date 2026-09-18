@@ -53,7 +53,9 @@ async function testConnection() {
     }
   }
 }
-testConnection();
+if (typeof window !== 'undefined') {
+  testConnection();
+}
 
 // Catalog comes strictly from Firestore database
 export const SEED_PRODUCTS: Product[] = [];
@@ -144,5 +146,7 @@ export async function cleanFirestoreUnsplashUrls() {
   }
 }
 
-seedDatabaseIfNeeded();
+if (typeof window !== 'undefined') {
+  seedDatabaseIfNeeded();
+}
 // cleanFirestoreUnsplashUrls() foi desativada para não apagar fotos inseridas via link/administrador
