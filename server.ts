@@ -1,4 +1,4 @@
-import "dotenv/config";
+﻿import "dotenv/config";
 
 import express from "express";
 import path from "path";
@@ -779,6 +779,381 @@ app.use("/mp-api", async (req, res) => {
   }
 });
 
+// --- ROTAS DE ASSISTÊNCIA INTELIGENTE (Busca de Fotos, Inteligência Web, Descrição IA) ---
+// Portadas das Vercel serverless functions (api/*.js) para o Express backend real
+
+const DDG_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
+
+// Busca de fotos de produtos na web via DuckDuckGo Image Search
+async function handleSearchProductImages(req: any, res: any) {
+  try {
+    const q = String(req.query?.q || '').trim();
+    if (!q) {
+      return res.json({ success: true, results: [] });
+    }
+
+    const limit = parseInt(String(req.query?.limit || '12'), 10) || 12;
+
+    const vqdRes = await fetch(`https://duckduckgo.com/?q=${encodeURIComponent(q)}`, {
+      headers: { 'User-Agent': DDG_USER_AGENT },
+    });
+    const html = await vqdRes.text();
+    const vqdMatch = html.match(/vqd=["']?([0-9-]+)["']?/) || html.match(/vqd=([0-9-]+)/);
+    const vqd = vqdMatch ? vqdMatch[1] : null;
+
+    if (!vqd) {
+      return res.json({ success: true, results: [] });
+    }
+
+    const imgUrl = `https://duckduckgo.com/i.js?l=wt-wt&o=json&q=${encodeURIComponent(q)}&vqd=${vqd}&f=,,,&p=1`;
+    const imgRes = await fetch(imgUrl, {
+      headers: {
+        'User-Agent': DDG_USER_AGENT,
+        'Referer': 'https://duckduckgo.com/',
+      },
+    });
+
+    const data: any = await imgRes.json();
+    const results = (data.results || [])
+      .filter((r: any) => r.image && !r.image.endsWith('.svg') && !r.image.includes('favicon'))
+      .slice(0, limit)
+      .map((r: any) => ({
+        title: r.title,
+        image: r.image,
+        thumbnail: r.thumbnail || r.image,
+        source: r.url,
+        width: r.width,
+        height: r.height,
+      }));
+
+    return res.json({ success: true, results });
+  } catch (err: any) {
+    console.error('[API search-product-images Error]:', err.message);
+    return res.status(500).json({ success: false, error: err.message || 'Erro na busca de imagens' });
+  }
+}
+
+app.get('/api/search-product-images', handleSearchProductImages);
+app.get('/assistant-api/search-product-images', handleSearchProductImages);
+
+// Busca de inteligência e ficha técnica do calçado na web
+function cleanFootwearRawText(raw: string): string {
+  return String(raw || '')
+    .replace(/([a-z0-9\)])([A-Z][a-z]+:)/g, '$1 \n $2')
+    .replace(/(Fecho|Fechamento|Palmilha|Solado|Altura\s+do\s+salto|Salto|Cabedal|Material|Gênero|Marca|Indicado\s+para|Uso|Ocasião|Garantia|Peso|Origem):/gi, '\n$1: ');
+}
+
+function extractFootwearInsights(results: any[]): Record<string, string | undefined> {
+  const allText = results.map((r: any) => cleanFootwearRawText(`${r.title || ''} ${r.snippet || ''}`)).join('\n');
+  const cleanVal = (val: string) => val ? val.trim().replace(/^[:\-\s]+/, '').replace(/[\s\.\,]+$/, '') : '';
+
+  let alturaSalto = '';
+  const saltoExplicit = allText.match(/(?:altura\s+do\s+salto|salto)\s*:\s*(\d+(?:[.,]\d+)?\s*(?:cm|cent[íi]metros?)|[^,;.\n]+)/i);
+  if (saltoExplicit) {
+    alturaSalto = cleanVal(saltoExplicit[1]);
+  } else {
+    const saltoCm = allText.match(/(\d+(?:[,.]\d+)?\s*(?:cm|cent[íi]metros?))/i);
+    const saltoTipo = allText.match(/(salto\s+(?:bloco|fino|baixo|alto|m[ée]dio|anabela|plataforma|tratorado|raso|geom[ée]trico)[^,.;\n]*)/i);
+    if (saltoTipo && saltoCm) {
+      alturaSalto = `${cleanVal(saltoTipo[1])} (${cleanVal(saltoCm[1])})`;
+    } else if (saltoTipo) {
+      alturaSalto = cleanVal(saltoTipo[1]);
+    } else if (saltoCm) {
+      alturaSalto = cleanVal(saltoCm[1]);
+    }
+  }
+
+  let bico = '';
+  const bicoMatch = allText.match(/(bico\s+(?:redondo|fino|quadrado|folha|aberto))/i);
+  if (bicoMatch) bico = cleanVal(bicoMatch[1]);
+
+  let fecho = '';
+  const fechoExplicit = allText.match(/(?:fecho|fechamento)\s*:\s*([^,.;\n]+)/i);
+  if (fechoExplicit) {
+    fecho = cleanVal(fechoExplicit[1]);
+  } else {
+    const fechoQuick = allText.match(/(tiras?\s+(?:el[áa]sticas?|autocolantes?)|fivela\s+ajust[áa]vel|cadar[çc]o|slip\s+on|calce\s+f[áa]cil)/i);
+    if (fechoQuick) fecho = cleanVal(fechoQuick[1]);
+  }
+
+  let palmilha = '';
+  const palmilhaExplicit = allText.match(/palmilha\s*:\s*([^,.;\n]+)/i);
+  if (palmilhaExplicit) {
+    palmilha = cleanVal(palmilhaExplicit[1]);
+  } else {
+    const palmilhaQuick = allText.match(/(palmilha\s+(?:macia|anat[ôo]mica|confort[^\s,.;]*|em\s+eva|espuma|revestida)[^,.;\n]*)/i);
+    if (palmilhaQuick) palmilha = cleanVal(palmilhaQuick[1]);
+  }
+
+  let solado = '';
+  const soladoExplicit = allText.match(/solado\s*:\s*([^,.;\n]+)/i);
+  if (soladoExplicit) {
+    solado = cleanVal(soladoExplicit[1]);
+  } else {
+    const soladoQuick = allText.match(/(solado\s+(?:emborrachado|antiderrapante|tratorado|sint[ée]tico|em\s+tr|eva)[^,.;\n]*)/i);
+    if (soladoQuick) solado = cleanVal(soladoQuick[1]);
+  }
+
+  let cabedal = '';
+  const cabedalExplicit = allText.match(/(?:cabedal|material\s+externo)\s*:\s*([^,.;\n]+)/i);
+  if (cabedalExplicit) {
+    cabedal = cleanVal(cabedalExplicit[1]);
+  } else {
+    const cabedalQuick = allText.match(/(?:confeccionad[oa]|material)\s+(?:em|de)\s+([^,.;\n]+)/i);
+    if (cabedalQuick) cabedal = cleanVal(cabedalQuick[1]);
+  }
+
+  let ocasiao = '';
+  const ocasiaoMatch = allText.match(/(?:indicado\s+para|uso|ocasi[ãa]o)\s*:\s*([^,.;\n]+)/i);
+  if (ocasiaoMatch) ocasiao = cleanVal(ocasiaoMatch[1]);
+
+  const candidateSentences: string[] = [];
+  results.forEach((r: any) => {
+    if (!r.snippet) return;
+    const sentences = r.snippet.split(/(?<=[.!?])\s+/);
+    for (const s of sentences) {
+      const clean = s.trim();
+      if (clean.length > 35 && clean.length < 240 && !clean.includes('Frete grátis') && !clean.includes('Shopee') && !clean.includes('R$') && !clean.includes('Compre parcelado')) {
+        candidateSentences.push(clean);
+      }
+    }
+  });
+
+  const curatedSummary = candidateSentences.slice(0, 2).join(' ');
+
+  return {
+    alturaSalto: alturaSalto || undefined,
+    bico: bico || undefined,
+    fecho: fecho || undefined,
+    palmilha: palmilha || undefined,
+    solado: solado || undefined,
+    cabedal: cabedal || undefined,
+    ocasiao: ocasiao || undefined,
+    curatedSummary: curatedSummary || undefined,
+  };
+}
+
+async function handleSearchProductWebIntel(req: any, res: any) {
+  try {
+    const q = String(req.query?.q || '').trim();
+    if (!q) {
+      return res.json({ success: true, results: [], insights: {} });
+    }
+
+    const limit = parseInt(String(req.query?.limit || '8'), 10) || 8;
+
+    const duckRes = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(q)}`, {
+      headers: { 'User-Agent': DDG_USER_AGENT },
+    });
+    const html = await duckRes.text();
+    const webResults: any[] = [];
+    const resultBlocks = html.split(/class="result\s/g).slice(1);
+
+    for (const block of resultBlocks) {
+      const snippetMatch = block.match(/<a class="result__snippet"[^>]*>([\s\S]*?)<\/a>/i);
+      const linkMatch = block.match(/href="([^"]+)"/i);
+      const titleMatch = block.match(/<a class="result__a"[^>]*>([\s\S]*?)<\/a>/i);
+
+      if (snippetMatch) {
+        const cleanSnippet = snippetMatch[1].replace(/<[^>]+>/g, '').trim();
+        const cleanTitle = titleMatch ? titleMatch[1].replace(/<[^>]+>/g, '').trim() : '';
+        let source = '';
+        let link = linkMatch ? linkMatch[1] : '';
+
+        if (link) {
+          try {
+            const parsedUrl = new URL(link.startsWith('//') ? `https:${link}` : link);
+            const uddg = parsedUrl.searchParams.get('uddg');
+            if (uddg) {
+              const actualUrl = new URL(uddg);
+              source = actualUrl.hostname.replace(/^www\./, '');
+              link = uddg;
+            } else {
+              source = parsedUrl.hostname.replace(/^www\./, '');
+            }
+          } catch {
+            source = 'web';
+          }
+        }
+
+        webResults.push({ title: cleanTitle, snippet: cleanSnippet, source, link });
+        if (webResults.length >= limit) break;
+      }
+    }
+
+    const insights = extractFootwearInsights(webResults);
+
+    return res.json({ success: true, query: q, results: webResults, insights });
+  } catch (err: any) {
+    console.error('[API search-product-web-intel Error]:', err.message);
+    return res.status(500).json({ success: false, error: err.message || 'Erro na busca de inteligência web' });
+  }
+}
+
+app.get('/api/search-product-web-intel', handleSearchProductWebIntel);
+app.get('/assistant-api/search-product-web-intel', handleSearchProductWebIntel);
+
+// Sugestão de descrição de produto via Gemini AI (com fallback local)
+async function handleSuggestProductDescription(req: any, res: any) {
+  try {
+    const params = req.body || {};
+    const geminiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY;
+
+    if (geminiKey) {
+      try {
+        const { GoogleGenAI } = await import('@google/genai');
+        const ai = new GoogleGenAI({ apiKey: geminiKey });
+        const rawBrand = (params.brand || params.fabricante || '').trim();
+        const prompt = `Você é um redator especialista em e-commerce de calçados para a loja "Evidência Calçados".
+Escreva uma descrição limpa, atraente, persuasiva e 100% focada no CLIENTE (comprador final) em formato HTML estruturado.
+
+REGRAS CRÍTICAS DE FIDELIDADE E ZERO ESPECULAÇÃO:
+1. MARCA DO PRODUTO: "Evidência Calçados" é EXCLUSIVAMENTE o nome da loja/vendedora. NUNCA diga que a marca ou fabricante do calçado é "Evidência Calçados". Se o campo Marca abaixo estiver vazio ou não informado, NÃO invente marca e NÃO mencione marca no texto e nem inclua a linha "Marca:" na Ficha Técnica.
+2. DADOS NÃO CONFIRMADOS: Se qualquer informação (Altura do Salto, Palmilha, Solado, Fechamento, Material) não estiver preenchida abaixo ou não houver certeza, NUNCA invente medidas ou nomes falsos. Simplesmente omita o item da Ficha Técnica.
+3. LIMPEZA: NUNCA mencione termos técnicos internos como "MobLink", "ERP", "Classificação", "Código Fiscal", "Unidade UND", "Embalagem", "ID", códigos de lote internos ou quantidade de estoque numérico.
+4. BENEFÍCIOS REAIS: Foque nos benefícios para quem vai usar (conforto, versatilidade, bem-estar aos pés, facilidade no dia a dia).
+
+Dados Confirmados do Produto:
+- Nome: ${params.name}
+${rawBrand ? `- Marca: ${rawBrand}` : '- Marca: (Não informada - omitir marca)'}
+${params.referenceCode ? `- Referência: ${params.referenceCode}` : ''}
+- Categoria: ${params.category || 'Calçados'}
+${params.material ? `- Material: ${params.material}` : ''}
+${params.webInsights?.cabedal ? `- Material do Cabedal: ${params.webInsights.cabedal}` : ''}
+${params.webInsights?.palmilha ? `- Palmilha: ${params.webInsights.palmilha}` : ''}
+${params.webInsights?.solado ? `- Solado: ${params.webInsights.solado}` : ''}
+${params.webInsights?.alturaSalto ? `- Altura do Salto: ${params.webInsights.alturaSalto}` : ''}
+${params.webInsights?.bico ? `- Tipo de Bico: ${params.webInsights.bico}` : ''}
+${params.webInsights?.fecho ? `- Fechamento: ${params.webInsights.fecho}` : ''}
+${params.webInsights?.ocasiao ? `- Indicação de Uso: ${params.webInsights.ocasiao}` : ''}
+
+Tom Desejado: ${params.tone || 'comercial'} (comercial = envolvente e prático; luxo = refinado e sofisticado; tecnico = foco na ergonomia e conforto do calçado).
+
+Estrutura HTML Obrigatória:
+1. <h3> Título atraente (ex: <h3>Conforto e Estilo: [Nome do Produto]</h3>)
+2. <p> Storytelling leve (1 parágrafo falando sobre a proposta do modelo e versatilidade de uso. Se não houver marca, fale diretamente do modelo)
+3. <h4>✨ Destaques do Produto</h4> (lista <ul> curta com 3-5 tópicos reais sobre conforto, palmilha, solado e calce)
+4. <h4>📋 Ficha Técnica</h4> (lista <ul> limpa contendo APENAS os dados confirmados: ${rawBrand ? 'Marca, ' : ''}Modelo, Categoria, Cabedal/Material se informado, Palmilha se informada, Solado se informado, Salto se informado, Garantia do Fabricante e Origem)
+5. <h4>🛡️ Garantia & Confiança Evidência Calçados</h4> (parágrafo curto destacando produto 100% original, nota fiscal e Troca Fácil em até 7 dias)
+
+Retorne EXCLUSIVAMENTE os blocos HTML, sem markdown (\`\`\`html), sem cabeçalhos desnecessários e sem tags <html>/<body>.`;
+
+        const aiRes = await ai.models.generateContent({
+          model: 'gemini-2.5-flash',
+          contents: prompt,
+        });
+
+        if (aiRes && aiRes.text) {
+          let cleanHtml = aiRes.text.trim();
+          if (cleanHtml.startsWith('```html')) cleanHtml = cleanHtml.replace(/^```html\s*/, '').replace(/\s*```$/, '');
+          else if (cleanHtml.startsWith('```')) cleanHtml = cleanHtml.replace(/^```\s*/, '').replace(/\s*```$/, '');
+
+          return res.json({
+            success: true,
+            description: cleanHtml,
+            tone: params.tone || 'comercial',
+            provider: 'gemini-2.5-flash',
+          });
+        }
+      } catch (geminiErr: any) {
+        console.warn('[API suggest-product-description] Fallback do Gemini:', geminiErr.message);
+      }
+    }
+
+    return res.json({ success: false, message: 'Fallback para gerador local do cliente' });
+  } catch (err: any) {
+    console.error('[API suggest-product-description Error]:', err.message);
+    return res.status(500).json({ success: false, error: err.message || 'Erro ao sugerir descrição' });
+  }
+}
+
+app.post('/api/suggest-product-description', handleSuggestProductDescription);
+app.post('/assistant-api/suggest-product-description', handleSuggestProductDescription);
+
+// Upload de foto por URL (download + conversão WebP + Supabase Storage)
+app.post(['/api/upload-photo-from-url', '/assistant-api/upload-photo-from-url'], async (req, res) => {
+  try {
+    const { imageUrl, productId } = req.body || {};
+    if (!imageUrl || !productId) {
+      return res.status(400).json({ success: false, message: 'imageUrl e productId são obrigatórios' });
+    }
+
+    // Faz download da imagem
+    const imgController = new AbortController();
+    const imgTimeout = setTimeout(() => imgController.abort(), 15_000);
+    const imgRes = await fetch(imageUrl, {
+      headers: { 'User-Agent': DDG_USER_AGENT },
+      signal: imgController.signal,
+    });
+    clearTimeout(imgTimeout);
+
+    if (!imgRes.ok) {
+      return res.status(502).json({ success: false, message: `Falha ao baixar imagem: HTTP ${imgRes.status}` });
+    }
+
+    const buffer = Buffer.from(await imgRes.arrayBuffer());
+    const originalSize = buffer.length;
+
+    // Otimiza para WebP usando sharp
+    const webpResult = await optimizeBufferToWebP(buffer, { quality: DEFAULT_WEBP_QUALITY });
+    const thumbResult = await generateThumbnailBuffer(buffer, { size: 200 });
+
+    // Upload para Supabase Storage
+    const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+
+    if (!supabaseUrl || !supabaseKey) {
+      return res.status(500).json({ success: false, message: 'Configuração do Supabase não encontrada' });
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
+    const cleanProdId = String(productId).trim().replace(/[^a-zA-Z0-9_-]/g, '_');
+    const timestamp = Date.now();
+    const randomHash = Math.random().toString(36).substring(2, 8);
+    const fileName = `produtos/${cleanProdId}/web_foto_${timestamp}_${randomHash}.webp`;
+    const thumbFileName = `produtos/${cleanProdId}/web_foto_${timestamp}_${randomHash}_thumb.webp`;
+
+    const bucket = process.env.SUPABASE_STORAGE_BUCKET || 'product-images';
+
+    const { error: uploadErr } = await supabase.storage.from(bucket).upload(fileName, webpResult.buffer, {
+      contentType: 'image/webp',
+      upsert: true,
+    });
+
+    if (uploadErr) {
+      return res.status(500).json({ success: false, message: `Erro no upload: ${uploadErr.message}` });
+    }
+
+    // Upload da thumbnail
+    await supabase.storage.from(bucket).upload(thumbFileName, thumbResult.buffer, {
+      contentType: 'image/webp',
+      upsert: true,
+    }).catch(() => {});
+
+    const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(fileName);
+    const { data: thumbUrlData } = supabase.storage.from(bucket).getPublicUrl(thumbFileName);
+
+    return res.json({
+      success: true,
+      webpUrl: urlData.publicUrl,
+      publicUrl: urlData.publicUrl,
+      thumbnailUrl: thumbUrlData.publicUrl,
+      thumbUrl: thumbUrlData.publicUrl,
+      stats: {
+        originalSize,
+        optimizedSize: webpResult.optimizedSize,
+        compressionRatio: webpResult.compressionRatio,
+        width: webpResult.width,
+        height: webpResult.height,
+      },
+    });
+  } catch (err: any) {
+    console.error('[API upload-photo-from-url Error]:', err.message);
+    return res.status(500).json({ success: false, error: err.message || 'Erro ao processar upload' });
+  }
+});
+
+
 // --- PROXY BACKEND TRANSPARENTE E SEGURO ---
 
 app.use(["/api/v1", "/v1"], async (req, res, next) => {
@@ -1178,429 +1553,6 @@ app.post("/api/upload-photo", uploadMiddleware.single("file"), async (req, res) 
     return res.status(500).json({
       success: false,
       error: err.message || "Erro interno ao processar e otimizar a imagem."
-    });
-  }
-});
-
-// --- HELPER: BUSCA DE FOTOS DE PRODUTOS NA WEB ---
-async function searchWebImages(queryStr: string, limit: number = 12) {
-  try {
-    const vqdRes = await fetch(`https://duckduckgo.com/?q=${encodeURIComponent(queryStr)}`, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-      },
-    });
-    const html = await vqdRes.text();
-    const vqdMatch = html.match(/vqd=["']?([0-9-]+)["']?/) || html.match(/vqd=([0-9-]+)/);
-    const vqd = vqdMatch ? vqdMatch[1] : null;
-    if (!vqd) return [];
-
-    const imgUrl = `https://duckduckgo.com/i.js?l=wt-wt&o=json&q=${encodeURIComponent(queryStr)}&vqd=${vqd}&f=,,,&p=1`;
-    const imgRes = await fetch(imgUrl, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-        "Referer": "https://duckduckgo.com/",
-      },
-    });
-    const data: any = await imgRes.json();
-    return (data.results || [])
-      .filter((r: any) => r.image && !r.image.endsWith('.svg') && !r.image.includes('favicon'))
-      .slice(0, limit)
-      .map((r: any) => ({
-        title: r.title,
-        image: r.image,
-        thumbnail: r.thumbnail || r.image,
-        source: r.url,
-        width: r.width,
-        height: r.height,
-      }));
-  } catch (err: any) {
-    console.warn("[searchWebImages] Erro na busca:", err.message);
-    return [];
-  }
-}
-
-// --- ROTA DE BUSCA DE FOTOS DE PRODUTO NA WEB ---
-app.get(["/api/search-product-images", "/assistant-api/search-product-images"], async (req, res) => {
-  try {
-    const q = String(req.query.q || "").trim();
-    if (!q) {
-      return res.json({ success: true, results: [] });
-    }
-    const limit = parseInt(String(req.query.limit || "12"), 10) || 12;
-    const results = await searchWebImages(q, limit);
-    return res.json({ success: true, results });
-  } catch (err: any) {
-    console.error("[Search Product Images Error]:", err);
-    return res.status(500).json({ success: false, error: err.message || "Erro na busca de imagens" });
-  }
-});
-
-// --- ROTA DE UPLOAD DE FOTO A PARTIR DE URL DA WEB (WEBP 80% + SUPABASE STORAGE) ---
-app.post(["/api/upload-photo-from-url", "/assistant-api/upload-photo-from-url"], async (req, res) => {
-  try {
-    const { imageUrl, productId } = req.body;
-    if (!imageUrl || !productId) {
-      return res.status(400).json({ success: false, error: "Parâmetros imageUrl e productId são obrigatórios." });
-    }
-
-    const imgFetchRes = await fetch(imageUrl, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-        "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
-      },
-    });
-
-    if (!imgFetchRes.ok) {
-      throw new Error(`Falha ao baixar imagem remota: HTTP ${imgFetchRes.status}`);
-    }
-
-    const arrayBuffer = await imgFetchRes.arrayBuffer();
-    const inputBuffer = Buffer.from(arrayBuffer);
-
-    if (inputBuffer.length > 10 * 1024 * 1024) {
-      return res.status(400).json({ success: false, error: "A imagem selecionada excede o limite de 10MB." });
-    }
-
-    const cleanProdId = String(productId).trim().replace(/[^a-zA-Z0-9_-]/g, "_");
-    const timestamp = Date.now();
-    const randomHash = Math.random().toString(36).substring(2, 8);
-    const baseName = `web_foto_${timestamp}_${randomHash}`;
-
-    const webpResult = await optimizeBufferToWebP(inputBuffer, { quality: DEFAULT_WEBP_QUALITY });
-    const thumbResult = await generateThumbnailBuffer(inputBuffer, { size: 150 });
-
-    const supabaseUrl = process.env.VITE_SUPABASE_URL || "";
-    const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_KEY || "";
-    const supabaseBucket = process.env.VITE_SUPABASE_BUCKET || "products";
-
-    let webpUrl = "";
-    let thumbUrl = "";
-
-    if (supabaseUrl && supabaseKey) {
-      const supabase = createClient(supabaseUrl, supabaseKey);
-      const mainPath = `produtos/${cleanProdId}/${baseName}.webp`;
-      const thumbPath = `produtos/${cleanProdId}/thumbnails/${baseName}_thumb.webp`;
-
-      const { error: upErr } = await supabase.storage
-        .from(supabaseBucket)
-        .upload(mainPath, webpResult.buffer!, {
-          contentType: "image/webp",
-          cacheControl: "31536000",
-          upsert: true,
-        });
-
-      if (upErr) {
-        throw new Error(`Erro ao enviar foto para o Supabase Storage: ${upErr.message}`);
-      }
-
-      await supabase.storage
-        .from(supabaseBucket)
-        .upload(thumbPath, thumbResult.buffer!, {
-          contentType: "image/webp",
-          cacheControl: "31536000",
-          upsert: true,
-        });
-
-      const { data: mainPublic } = supabase.storage.from(supabaseBucket).getPublicUrl(mainPath);
-      const { data: thumbPublic } = supabase.storage.from(supabaseBucket).getPublicUrl(thumbPath);
-      webpUrl = mainPublic.publicUrl;
-      thumbUrl = thumbPublic.publicUrl;
-    } else {
-      webpUrl = `data:image/webp;base64,${webpResult.buffer!.toString("base64")}`;
-      thumbUrl = `data:image/webp;base64,${thumbResult.buffer!.toString("base64")}`;
-    }
-
-    return res.json({
-      success: true,
-      webpUrl,
-      publicUrl: webpUrl,
-      thumbnailUrl: thumbUrl,
-      thumbUrl,
-      stats: {
-        originalSize: webpResult.originalSize,
-        optimizedSize: webpResult.optimizedSize,
-        compressionRatio: webpResult.compressionRatio,
-        width: webpResult.width,
-        height: webpResult.height,
-      },
-    });
-  } catch (err: any) {
-    console.error("[Upload Photo From URL Error]:", err);
-    return res.status(500).json({
-      success: false,
-      error: err.message || "Erro ao baixar e processar foto da web.",
-    });
-  }
-});
-
-// --- HELPER: BUSCA DE INFORMAÇÕES TEXTUAIS DE CALÇADOS NA WEB ---
-function cleanFootwearRawText(raw: string): string {
-  return raw
-    .replace(/([a-z0-9\)])([A-Z][a-z]+:)/g, '$1 \n $2')
-    .replace(/(Fecho|Fechamento|Palmilha|Solado|Altura\s+do\s+salto|Salto|Cabedal|Material|Gênero|Marca|Indicado\s+para|Uso|Ocasião|Garantia|Peso|Origem):/gi, '\n$1: ');
-}
-
-function extractFootwearInsights(results: Array<{ title: string; snippet: string; source?: string }>) {
-  const allText = results.map(r => cleanFootwearRawText(`${r.title || ''} ${r.snippet || ''}`)).join('\n');
-  const cleanVal = (val: string) => val ? val.trim().replace(/^[:\-\s]+/, '').replace(/[\s\.\,]+$/, '') : '';
-
-  // Altura ou Tipo de Salto
-  let alturaSalto = '';
-  const saltoExplicit = allText.match(/(?:altura\s+do\s+salto|salto)\s*:\s*(\d+(?:[.,]\d+)?\s*(?:cm|cent[íi]metros?)|[^,;.\n]+)/i);
-  if (saltoExplicit) {
-    alturaSalto = cleanVal(saltoExplicit[1]);
-  } else {
-    const saltoCm = allText.match(/(\d+(?:[,.]\d+)?\s*(?:cm|cent[íi]metros?))/i);
-    const saltoTipo = allText.match(/(salto\s+(?:bloco|fino|baixo|alto|m[ée]dio|anabela|plataforma|tratorado|raso|geom[ée]trico)[^,.;\n]*)/i);
-    if (saltoTipo && saltoCm) {
-      alturaSalto = `${cleanVal(saltoTipo[1])} (${cleanVal(saltoCm[1])})`;
-    } else if (saltoTipo) {
-      alturaSalto = cleanVal(saltoTipo[1]);
-    } else if (saltoCm) {
-      alturaSalto = cleanVal(saltoCm[1]);
-    }
-  }
-
-  // Bico
-  let bico = '';
-  const bicoMatch = allText.match(/(bico\s+(?:redondo|fino|quadrado|folha|aberto))/i);
-  if (bicoMatch) bico = cleanVal(bicoMatch[1]);
-
-  // Fecho / Fechamento
-  let fecho = '';
-  const fechoExplicit = allText.match(/(?:fecho|fechamento)\s*:\s*([^,.;\n]+)/i);
-  if (fechoExplicit) {
-    fecho = cleanVal(fechoExplicit[1]);
-  } else {
-    const fechoQuick = allText.match(/(tiras?\s+(?:el[áa]sticas?|autocolantes?)|fivela\s+ajust[áa]vel|cadar[çc]o|slip\s+on|calce\s+f[áa]cil)/i);
-    if (fechoQuick) fecho = cleanVal(fechoQuick[1]);
-  }
-
-  // Palmilha
-  let palmilha = '';
-  const palmilhaExplicit = allText.match(/palmilha\s*:\s*([^,.;\n]+)/i);
-  if (palmilhaExplicit) {
-    palmilha = cleanVal(palmilhaExplicit[1]);
-  } else {
-    const palmilhaQuick = allText.match(/(palmilha\s+(?:macia|anat[ôo]mica|confort[^\s,.;]*|em\s+eva|espuma|revestida)[^,.;\n]*)/i);
-    if (palmilhaQuick) palmilha = cleanVal(palmilhaQuick[1]);
-  }
-
-  // Solado
-  let solado = '';
-  const soladoExplicit = allText.match(/solado\s*:\s*([^,.;\n]+)/i);
-  if (soladoExplicit) {
-    solado = cleanVal(soladoExplicit[1]);
-  } else {
-    const soladoQuick = allText.match(/(solado\s+(?:emborrachado|antiderrapante|tratorado|sint[ée]tico|em\s+tr|eva)[^,.;\n]*)/i);
-    if (soladoQuick) solado = cleanVal(soladoQuick[1]);
-  }
-
-  // Material / Cabedal
-  let cabedal = '';
-  const cabedalExplicit = allText.match(/(?:cabedal|material\s+externo)\s*:\s*([^,.;\n]+)/i);
-  if (cabedalExplicit) {
-    cabedal = cleanVal(cabedalExplicit[1]);
-  } else {
-    const cabedalQuick = allText.match(/(?:confeccionad[oa]|material)\s+(?:em|de)\s+([^,.;\n]+)/i);
-    if (cabedalQuick) cabedal = cleanVal(cabedalQuick[1]);
-  }
-
-  // Indicação / Ocasião
-  let ocasiao = '';
-  const ocasiaoMatch = allText.match(/(?:indicado\s+para|uso|ocasi[ãa]o)\s*:\s*([^,.;\n]+)/i);
-  if (ocasiaoMatch) ocasiao = cleanVal(ocasiaoMatch[1]);
-
-  // Melhores frases descritivas (storytelling e moda)
-  const candidateSentences: string[] = [];
-  results.forEach(r => {
-    if (!r.snippet) return;
-    const sentences = r.snippet.split(/(?<=[.!?])\s+/);
-    for (const s of sentences) {
-      const clean = s.trim();
-      if (clean.length > 35 && clean.length < 240 && !clean.includes('Frete grátis') && !clean.includes('Shopee') && !clean.includes('R$') && !clean.includes('Compre parcelado')) {
-        candidateSentences.push(clean);
-      }
-    }
-  });
-
-  const curatedSummary = candidateSentences.slice(0, 2).join(' ');
-
-  return {
-    alturaSalto: alturaSalto || undefined,
-    bico: bico || undefined,
-    fecho: fecho || undefined,
-    palmilha: palmilha || undefined,
-    solado: solado || undefined,
-    cabedal: cabedal || undefined,
-    ocasiao: ocasiao || undefined,
-    curatedSummary: curatedSummary || undefined,
-  };
-}
-
-async function searchWebProductText(queryStr: string, limit: number = 8) {
-  try {
-    const res = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(queryStr)}`, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-      },
-    });
-    const html = await res.text();
-    const results: Array<{ title: string; snippet: string; source: string; link: string }> = [];
-    const resultBlocks = html.split(/class="result\s/g).slice(1);
-
-    for (const block of resultBlocks) {
-      const snippetMatch = block.match(/<a class="result__snippet"[^>]*>([\s\S]*?)<\/a>/i);
-      const linkMatch = block.match(/href="([^"]+)"/i);
-      const titleMatch = block.match(/<a class="result__a"[^>]*>([\s\S]*?)<\/a>/i);
-
-      if (snippetMatch) {
-        const cleanSnippet = snippetMatch[1].replace(/<[^>]+>/g, '').trim();
-        const cleanTitle = titleMatch ? titleMatch[1].replace(/<[^>]+>/g, '').trim() : '';
-        let source = '';
-        let link = linkMatch ? linkMatch[1] : '';
-
-        // Extrai o domínio de origem
-        if (link) {
-          try {
-            const parsedUrl = new URL(link.startsWith('//') ? `https:${link}` : link);
-            const uddg = parsedUrl.searchParams.get('uddg');
-            if (uddg) {
-              const actualUrl = new URL(uddg);
-              source = actualUrl.hostname.replace(/^www\./, '');
-              link = uddg;
-            } else {
-              source = parsedUrl.hostname.replace(/^www\./, '');
-            }
-          } catch {
-            source = 'web';
-          }
-        }
-
-        results.push({
-          title: cleanTitle,
-          snippet: cleanSnippet,
-          source,
-          link,
-        });
-
-        if (results.length >= limit) break;
-      }
-    }
-
-    return results;
-  } catch (err: any) {
-    console.warn("[searchWebProductText] Erro na busca textual:", err.message);
-    return [];
-  }
-}
-
-// --- ROTA DE BUSCA DE INTELIGÊNCIA TEXTUAL DE PRODUTOS NA WEB ---
-app.get(["/api/search-product-web-intel", "/assistant-api/search-product-web-intel"], async (req, res) => {
-  try {
-    const q = String(req.query.q || "").trim();
-    if (!q) {
-      return res.json({ success: true, results: [], insights: {} });
-    }
-    const limit = parseInt(String(req.query.limit || "8"), 10) || 8;
-    const results = await searchWebProductText(q, limit);
-    const insights = extractFootwearInsights(results);
-
-    return res.json({
-      success: true,
-      query: q,
-      results,
-      insights,
-    });
-  } catch (err: any) {
-    console.error("[Search Product Web Intel Error]:", err);
-    return res.status(500).json({ success: false, error: err.message || "Erro na busca de inteligência web" });
-  }
-});
-
-// --- ROTA DE SUGESTÃO DE DESCRIÇÃO RICA COM IA & ENRIQUECIMENTO WEB/ERP ---
-app.post(["/api/suggest-product-description", "/assistant-api/suggest-product-description"], async (req, res) => {
-  try {
-    const params = req.body;
-
-    // Se houver chave do Google Gemini no ambiente, utiliza Gemini 2.5 Flash para síntese multimodal
-    const geminiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY;
-    if (geminiKey) {
-      try {
-        const { GoogleGenAI } = await import("@google/genai");
-        const ai = new GoogleGenAI({ apiKey: geminiKey });
-        const rawBrand = (params.brand || params.fabricante || '').trim();
-        const prompt = `Você é um redator especialista em e-commerce de calçados para a loja "Evidência Calçados".
-Escreva uma descrição limpa, atraente, persuasiva e 100% focada no CLIENTE (comprador final) em formato HTML estruturado.
-
-REGRAS CRÍTICAS DE FIDELIDADE E ZERO ESPECULAÇÃO:
-1. MARCA DO PRODUTO: "Evidência Calçados" é EXCLUSIVAMENTE o nome da loja/vendedora. NUNCA diga que a marca ou fabricante do calçado é "Evidência Calçados". Se o campo Marca abaixo estiver vazio ou não informado, NÃO invente marca e NÃO mencione marca no texto e nem inclua a linha "Marca:" na Ficha Técnica.
-2. DADOS NÃO CONFIRMADOS: Se qualquer informação (Altura do Salto, Palmilha, Solado, Fechamento, Material) não estiver preenchida abaixo ou não houver certeza, NUNCA invente medidas ou nomes falsos. Simplesmente omita o item da Ficha Técnica.
-3. LIMPEZA: NUNCA mencione termos técnicos internos como "MobLink", "ERP", "Classificação", "Código Fiscal", "Unidade UND", "Embalagem", "ID", códigos de lote internos ou quantidade de estoque numérico.
-4. BENEFÍCIOS REAIS: Foque nos benefícios para quem vai usar (conforto, versatilidade, bem-estar aos pés, facilidade no dia a dia).
-
-Dados Confirmados do Produto:
-- Nome: ${params.name}
-${rawBrand ? `- Marca: ${rawBrand}` : '- Marca: (Não informada - omitir marca)'}
-${params.referenceCode ? `- Referência: ${params.referenceCode}` : ''}
-- Categoria: ${params.category || 'Calçados'}
-${params.material ? `- Material: ${params.material}` : ''}
-${params.webInsights?.cabedal ? `- Material do Cabedal: ${params.webInsights.cabedal}` : ''}
-${params.webInsights?.palmilha ? `- Palmilha: ${params.webInsights.palmilha}` : ''}
-${params.webInsights?.solado ? `- Solado: ${params.webInsights.solado}` : ''}
-${params.webInsights?.alturaSalto ? `- Altura do Salto: ${params.webInsights.alturaSalto}` : ''}
-${params.webInsights?.bico ? `- Tipo de Bico: ${params.webInsights.bico}` : ''}
-${params.webInsights?.fecho ? `- Fechamento: ${params.webInsights.fecho}` : ''}
-${params.webInsights?.ocasiao ? `- Indicação de Uso: ${params.webInsights.ocasiao}` : ''}
-
-Tom Desejado: ${params.tone || 'comercial'} (comercial = envolvente e prático; luxo = refinado e sofisticado; tecnico = foco na ergonomia e conforto do calçado).
-
-Estrutura HTML Obrigatória:
-1. <h3> Título atraente (ex: <h3>Conforto e Estilo: [Nome do Produto]</h3>)
-2. <p> Storytelling leve (1 parágrafo falando sobre a proposta do modelo e versatilidade de uso. Se não houver marca, fale diretamente do modelo)
-3. <h4>✨ Destaques do Produto</h4> (lista <ul> curta com 3-5 tópicos reais sobre conforto, palmilha, solado e calce)
-4. <h4>📋 Ficha Técnica</h4> (lista <ul> limpa contendo APENAS os dados confirmados: ${rawBrand ? 'Marca, ' : ''}Modelo, Categoria, Cabedal/Material se informado, Palmilha se informada, Solado se informado, Salto se informado, Garantia do Fabricante e Origem)
-5. <h4>🛡️ Garantia & Confiança Evidência Calçados</h4> (parágrafo curto destacando produto 100% original, nota fiscal e Troca Fácil em até 7 dias)
-
-Retorne EXCLUSIVAMENTE os blocos HTML, sem markdown (\`\`\`html), sem cabeçalhos desnecessários e sem tags <html>/<body>.`;
-
-        const aiRes = await ai.models.generateContent({
-          model: "gemini-2.5-flash",
-          contents: prompt,
-        });
-
-        if (aiRes && aiRes.text) {
-          let cleanHtml = aiRes.text.trim();
-          if (cleanHtml.startsWith("```html")) cleanHtml = cleanHtml.replace(/^```html\s*/, "").replace(/\s*```$/, "");
-          else if (cleanHtml.startsWith("```")) cleanHtml = cleanHtml.replace(/^```\s*/, "").replace(/\s*```$/, "");
-
-          return res.json({
-            success: true,
-            description: cleanHtml,
-            tone: params.tone || "comercial",
-            provider: "gemini-2.5-flash",
-          });
-        }
-      } catch (geminiErr: any) {
-        console.warn("[Gemini API Fallback to Local Engine]:", geminiErr.message);
-      }
-    }
-
-    // Motor Local de Alta Precisão (Especialista em Calçados + ERP + Web Insights)
-    const { generateLocalRichDescription } = await import("./src/services/productAiAssistService.js");
-    const description = generateLocalRichDescription(params);
-    return res.json({
-      success: true,
-      description,
-      tone: params.tone || "comercial",
-      provider: "local-copywriting-engine",
-    });
-  } catch (err: any) {
-    console.error("[Suggest Description Error]:", err);
-    return res.status(500).json({
-      success: false,
-      error: err.message || "Erro ao gerar descrição.",
     });
   }
 });
