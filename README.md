@@ -13,7 +13,10 @@ Sistema Full-Stack completo para a **Evidência Calçados**, combinando uma expe
 - **Múltiplas Formas de Pagamento:** Suporte a **PIX dinâmico** com confirmação e **Crediário Próprio da Loja** (consulta de limite aprovado e contas a receber).
 - **Recursos Interativos:** Carrinho persistente, busca com preenchimento automático de endereço via ViaCEP, lista de favoritos e suporte a modo escuro/claro.
 
-### ⚙️ Painel Administrativo & CMS
+### ⚙️ Painel Administrativo, CMS & Assistentes com IA
+- **Assistente de Fotos na Web:** Pesquisa fotos em alta resolução de calçados diretamente na web, com download no backend, conversão automática para WebP 80%, miniaturas de 150px e salvamento no Supabase Storage e Firestore.
+- **Assistente de Copywriting com IA & Web Intelligence:** Gera descrições persuasivas com ficha técnica limpa e sem especulação de marca, consultando sites de fabricantes e e-commerces em tempo real (altura do salto, palmilhas anatômicas, solado antiderrapante e ocasiões de uso).
+- **Componentização Modular (`src/components/products/admin/ai`):** Componentes atômicos e hooks reutilizáveis para acionar busca de fotos e descrições em qualquer tabela ou modal com 1 linha de código.
 - **Menu Sanduíche Responsivo:** Navegação moderna com menu hambúrguer para mobile (drawer deslizante com backdrop) e modo colapsável no desktop para ganho de espaço útil de tela.
 - **Estrutura Operacional em 4 Grupos:** Dashboard & Vendas, Catálogo & Estoque, CMS & Vitrine e Sistema.
 - **Pipeline WebP & Fotos até 8 MB:** Upload com compressão adaptativa no navegador, conversão automática para WebP, geração de miniaturas (150x150) e exclusão limpa em cascata no Supabase Storage.
@@ -104,9 +107,17 @@ npm install
 ```
 
 ### 3. Configuração de Variáveis de Ambiente
-Crie um arquivo `.env` na raiz do projeto com base nas seguintes variáveis:
+Copie o modelo `.env.example` para `.env` na raiz do projeto e preencha suas chaves:
 
+```bash
+cp .env.example .env
+```
+
+Principais variáveis:
 ```env
+# IA Generativa (Opcional - Google Gemini 2.5 Flash para copywriting)
+GEMINI_API_KEY="sua_chave_gemini_aqui"
+
 # URL da API do ERP MobLink
 VITE_API_URL="https://api.evidenciacalcados.com.br/api/v1"
 
@@ -114,10 +125,8 @@ VITE_API_URL="https://api.evidenciacalcados.com.br/api/v1"
 EVIDENCIA_API_USER="seu_usuario"
 EVIDENCIA_API_PASSWORD="sua_senha"
 EVIDENCIA_API_LOJA="sua_loja"
-# Opcional: Token JWT estático de fallback
-EVIDENCIA_API_TOKEN=""
 
-# Configuração do Firebase
+# Configuração do Firebase (Auth & Firestore)
 VITE_FIREBASE_PROJECT_ID="seu-projeto-firebase"
 VITE_FIREBASE_APP_ID="seu-app-id"
 VITE_FIREBASE_API_KEY="sua-api-key"
@@ -130,6 +139,7 @@ VITE_SUPABASE_URL="https://seu-projeto.supabase.co"
 VITE_SUPABASE_ANON_KEY="sua-anon-key"
 VITE_SUPABASE_BUCKET="products"
 ```
+
 
 ### 4. Executando em Modo de Desenvolvimento
 Inicia o backend proxy Express integrado ao Vite com Hot Module Replacement (HMR):
