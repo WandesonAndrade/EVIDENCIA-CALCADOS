@@ -75,3 +75,8 @@ updated: 2026-09-16
 - **CPF como Identificador Primário Inegociável:** Todas as contas, histórico de compras, pedidos e limites de crediário são vinculados unicamente ao CPF do cliente no Firestore (`users/{cpf}`).
 - **Acesso por E-mail como Facilitador:** Login via Google Auth ou Link Mágico busca primeiro o perfil cujo campo `email` coincida com o e-mail autenticado. Se o e-mail não estiver vinculado a nenhum CPF, a interface solicita o CPF para completar a vinculação.
 - **Vínculo Seguro em "Meus Dados":** Usuários logados por CPF podem associar ou alterar seu e-mail a qualquer momento na tela "Meus Dados", habilitando login futuro em um clique.
+
+## 14. Busca de Fotos na Web e Geração de Descrições Ricas com IA (`ProductWebImageSearchModal.tsx`, `ProductDescriptionAiModal.tsx`, `productAiAssistService.ts`)
+- **Busca e Otimização WebP de Imagens:** Proxy `/assistant-api/search-product-images` e pipeline `/assistant-api/upload-photo-from-url` com download seguro no servidor, compressão WebP 80% e miniaturas 150px (`sharp`), salvando no Supabase Storage e Firestore.
+- **Web Intelligence & Ficha Técnica Automática de Calçados:** Endpoint `/assistant-api/search-product-web-intel` extrai dados reais de fabricantes e lojas (altura/tipo de salto, tipo de bico, palmilha confort, solado antiderrapante, fechamento, material e ocasiões de uso).
+- **Copywriting Focado no Cliente:** Prompts e motor local livres de ruídos e jargões internos de ERP, gerando descrições com storytelling, benefícios de calce, ficha técnica limpa e garantia de troca em 7 dias nos tons Comercial, Luxo e Técnico.

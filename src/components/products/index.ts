@@ -8,5 +8,8 @@ export * from './storefront/SubcategoryCarousel';
 
 export * from './admin/AdminProductRow';
 export * from './admin/AdminProductsTable';
+export * from './admin/ProductWebImageSearchModal';
+export * from './admin/ProductDescriptionAiModal';
+export * from './admin/ai';
 
 export * from './utils/productFilterUtils';

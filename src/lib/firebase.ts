@@ -8,28 +8,33 @@ const getEnvVar = (key: string): string => {
   let val = '';
   if (typeof process !== 'undefined' && process.env && process.env[key]) {
     val = process.env[key]!;
-  } else if (typeof import.meta !== 'undefined' && (import.meta as any).env && (import.meta as any).env[key]) {
-    val = (import.meta as any).env[key];
+  } else {
+    try {
+      // @ts-ignore
+      val = import.meta.env ? import.meta.env[key] : '';
+    } catch {
+      val = '';
+    }
   }
   return String(val || '').replace(/['"]/g, '').trim();
 };
 
 const firebaseConfig = {
-  projectId: getEnvVar('VITE_FIREBASE_PROJECT_ID') || "gen-lang-client-0731653575",
-  appId: getEnvVar('VITE_FIREBASE_APP_ID') || "1:142037658142:web:906b5f64e997b22c34dc0f",
-  apiKey: getEnvVar('VITE_FIREBASE_API_KEY') || "AIzaSyCPiOyB4wU2td7nd_qs-jxcPQITtvugjnc",
-  authDomain: getEnvVar('VITE_FIREBASE_AUTH_DOMAIN') || "gen-lang-client-0731653575.firebaseapp.com",
-  storageBucket: getEnvVar('VITE_FIREBASE_STORAGE_BUCKET') || "gen-lang-client-0731653575.firebasestorage.app",
-  messagingSenderId: getEnvVar('VITE_FIREBASE_MESSAGING_SENDER_ID') || "142037658142"
+  projectId: getEnvVar('VITE_FIREBASE_PROJECT_ID'),
+  appId: getEnvVar('VITE_FIREBASE_APP_ID'),
+  apiKey: getEnvVar('VITE_FIREBASE_API_KEY'),
+  authDomain: getEnvVar('VITE_FIREBASE_AUTH_DOMAIN'),
+  storageBucket: getEnvVar('VITE_FIREBASE_STORAGE_BUCKET'),
+  messagingSenderId: getEnvVar('VITE_FIREBASE_MESSAGING_SENDER_ID')
 };
-
 
 // Initialize Firebase
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 
-// Initialize Firestore with named database instance
-export const db = getFirestore(app, "ai-studio-09694ade-3353-47cf-8db0-531b70401d1b");
+// Initialize Firestore with named database instance from env or default
+const firestoreDbId = getEnvVar('VITE_FIRESTORE_DATABASE_ID') || "ai-studio-09694ade-3353-47cf-8db0-531b70401d1b";
+export const db = getFirestore(app, firestoreDbId);
 
 // Initialize Storage
 export const storage = getStorage(app);

@@ -22,6 +22,20 @@ export default defineConfig(() => {
         "/api": {
           target: "https://api.evidenciacalcados.com.br/api/v1/",
           changeOrigin: true,
+          bypass: (req) => {
+            const url = req.url || '';
+            if (
+              url.includes('/search-product-images') ||
+              url.includes('/search-product-web-intel') ||
+              url.includes('/product-web-intel') ||
+              url.includes('/upload-photo') ||
+              url.includes('/suggest-product-description') ||
+              url.includes('/shipping') ||
+              url.includes('/auth-token')
+            ) {
+              return req.url;
+            }
+          },
         },
         "/v1": {
           target: "https://api.evidenciacalcados.com.br/api/v1/",

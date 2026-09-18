@@ -358,3 +358,237 @@ O Dashboard Financeiro (`FinancialDashboard.tsx`) no `AdminPanel.tsx` (aba `fina
   - O e-mail é validado e registrado no Firestore (`/users/{uid}`) no campo `emailReal`.
   - Na tela de login, o "Acesso Rápido por E-mail" busca previamente no Firestore se o e-mail informado já está vinculado. Se não estiver, o envio do link é bloqueado com mensagem amigável, prevenindo criação acidental de contas órfãs.
 
+---
+
+## 20. Busca de Fotos na Web e Geração de Descrições Ricas com IA & Web Intelligence
+
+### A. Busca e Otimização de Fotos na Web (`ProductWebImageSearchModal.tsx` & `server.ts`)
+- **Busca Desacoplada e Segura:** Ao editar qualquer produto no painel gestor (`MoblinkProductsManager.tsx`), o lojista pode pesquisar imagens de alta resolução na web através do endpoint de proxy `/assistant-api/search-product-images`.
+- **Inspeção Visual:** O modal apresenta grade responsiva com título da fonte, dimensões e preview ampliado com zoom.
+- **Pipeline de Otimização no Backend (`/assistant-api/upload-photo-from-url`):**
+  - Faz download da imagem remota no Node.js sem bloqueio de CORS.
+  - Converte e comprime para **WebP 80%** com dimensões balanceadas (`sharp`).
+  - Gera automaticamente miniatura (thumbnail) de **150px** para carregamento instantâneo em tabelas e listagens.
+  - Envia os arquivos ao **Supabase Storage** sob caminhos organizados (`produtos/{id}/web_foto_*.webp`) e salva a nova URL diretamente no documento do produto no Firestore.
+
+### B. Inteligência Web e Ficha Técnica Automática de Calçados (`/assistant-api/search-product-web-intel`)
+- Realiza buscas em tempo real em sites de fabricantes oficiais (Dakota, Moleca, Grendene, Beira Rio, Vizzano) e grandes e-commerces.
+- Extrai automaticamente atributos técnicos de calçados:
+  - 👠 **Altura e Tipo de Salto** (ex: *Salto bloco de 1,5 cm*, *Salto fino*, *Anabela*);
+  - ☁️ **Palmilha Anatômica / Confort** (ex: *Espuma macia revestida em PU*);
+---
+
+## 9. Navegação Dinâmica de Categorias & Subcategorias (`categoryNavigationUtils.ts`)
+
+### A. Lógica Centralizada de Público-Alvo e Subcategorias
+- Implementada em `src/components/products/utils/categoryNavigationUtils.ts`:
+  - **`isProductInAudience(product, audience)`:** Qualificação estrita por público (**Feminino**, **Masculino**, **Infantil**) através dos códigos oficiais de classificação do MobLink ERP:
+    - *Feminino*: códigos iniciados por `001.001`, `002.001`, ou termos normalizados na categoria/descrição.
+    - *Masculino*: códigos iniciados por `001.002`, `002.002`, etc.
+    - *Infantil*: códigos iniciados por `001.003`, `002.003`, "infantil", "kids", "bebê".
+  - **`extractAudienceSubcategories(products, audience)`:** Varredura dinâmica que extrai apenas subcategorias cadastradas com produtos ativos (`visible !== false`), estoque disponível (`stock > 0`) e foto real cadastrada (`hasProductValidPhoto`). Ordena por contagem decrescente de itens.
+  - **`buildCategoryUrl` & `matchSubcategorySlug`:** Geração e resolução de URLs canônicas (`?categoria=feminino&subcategoria=sandalias`).
+
+### B. Navegação Centralizada no Menu Superior
+- Para evitar duplicidade de componentes visuais na vitrine, toda a navegação por Feminino, Masculino e Infantil vive no **Header e Mega-menu** (`Header.tsx`) e na página especializada de listagem (`CategoryPage.tsx`).
+- Suporte a sincronização bidirecional de parâmetros de URL e histórico de navegação (`popstate`).
+
+---
+
+## 10. Busca Inteligente da Vitrine & Filtros Unificados (`StorefrontSearchBar.tsx`)
+
+- Implementada em `src/components/products/storefront/StorefrontSearchBar.tsx` com o utilitário centralizado `productFilterUtils.ts`:
+  - **Algoritmo de Correspondência Inteligente (`matchProductSearch`):** Busca tolerante a acentos e caracteres especiais, cobrindo:
+    - Nome do produto e descrição.
+    - Código de referência interna e ID MobLink.
+    - Código de barras (EAN/GTIN).
+    - Marca / Fabricante.
+    - Categoria e Subcategoria ERP.
+    - Público-alvo (Feminino, Masculino, Infantil).
+  - **Placeholders Dinâmicos Rotativos:** Textos contextuais que alternam suavemente convidando o cliente a buscar por marcas, tamanhos ou modelos.
+  - **Histórico Recente & Termos Sugeridos:** Armazenamento local das últimas pesquisas e badges de termos rápidos para busca instantânea com 1 clique.
+
+---
+
+## 11. Arquitetura dos Hero Banners da Home (`src/components/Hero.tsx`)
+
+- Componente de carrossel de alto impacto com design Apple-like, fundo azul gradiente padrão da marca (`bg-gradient-to-br from-[#003B73] via-[#006EDB] to-[#008CFF]` no tema claro) e tipografia de alto contraste:
+  - **Orientado a Objetos e Totalmente Dinâmico:** Utiliza tipagem `HeroSlide[]` e botões customizáveis `HeroSlideCTA[]`.
+  - **Banners Padrão Focados em Vendas & Moda:**
+    - **Slide 1 (Campanha de Ofertas):** Badge *"CAMPANHA DE OFERTAS"*, título *"Super Descontos de até 50% OFF"*, CTAs *"Aproveitar Ofertas"* e *"Ver Catálogo Completo"*.
+    - **Slide 2 (Coleção Feminina):** Badge *"COLEÇÃO FEMININA"*, título *"Charme, sofisticação e conforto extremo"*, CTAs *"Ver Moda Feminina"* e *"Ver Catálogo Completo"*.
+    - **Slide 3 (Coleção Masculina):** Badge *"COLEÇÃO MASCULINA"*, título *"Estilo moderno e robustez incomparável"*, CTAs *"Explorar Linha Masculina"* e *"Ver Catálogo Completo"*.
+  - **Sincronização com CMS / Firestore:** Compatível com os banners gerenciados no painel administrativo (`AdminPanel.tsx`) através de `AppContext.tsx` (`DEFAULT_HERO_BANNERS`).
+  - **Autoplay Inteligente:** Pausa automaticamente ao passar o cursor (`onMouseEnter` / `onMouseLeave`) e botões discretos com glassmorphism.
+
+---
+
+## 12. Workflow de Desenvolvimento, Git & Testes Automatizados
+
+- **Branch de Desenvolvimento:** Todo o código ativo é versionado e testado na branch **`dev`** (e sincronizado com `origin/dev`).
+- **Suíte de Testes Automatizados (`tests/`):**
+  - `tests/test-category-navigation.ts`: Testes unitários para qualificação de público-alvo, extração de subcategorias ativas e roteamento por slug.
+  - `tests/test-smart-search.ts`: Testes automatizados cobrindo a lógica de busca inteligente e filtros do catálogo.
+- **Portões de Qualidade Obrigatórios Antes de Qualquer Commit:**
+  1. `npx tsc --noEmit` — 0 erros de tipagem TypeScript.
+  2. `npx tsx tests/<test-file>.ts` — 100% dos testes passando.
+  3. `npm run build` — compilação bem-sucedida do bundle Vite e do servidor proxy Node.js (`server.ts`).
+- **Idioma Padrão:** Toda a interface, feedbacks visuais, mensagens de erro e respostas ao usuário devem ser exclusivamente em **Português do Brasil (pt-BR)**. Código-fonte, variáveis e comentários técnicos permanecem em inglês.
+
+---
+
+## 13. Pipeline de Otimização de Fotos, Conversão WebP e Preservação (`imageOptimizationService.ts` & `supabaseStorageService.ts`)
+
+- **Formato Mandatório WebP:** Todas as imagens enviadas para o catálogo de produtos são convertidas para o formato de alta performance **WebP** com qualidade 80% e geração automática de miniaturas (*thumbnails*) quadradas de **150x150 px**.
+- **Limite de 8 MB com Compressão Adaptativa:**
+  - Suporte nativo a fotos de celulares modernos em alta resolução de até **8 MB**.
+  - Algoritmo de compressão adaptativa em duas fases: fotos que excedam 500KB na primeira passagem sofrem compressão secundária automática garantindo arquivos finais extremamente leves (**entre 150KB e 300KB**, redução de até 98% do tamanho original).
+  - Redimensionamento proporcional limitando a largura/altura máxima a **1600px**, preservando nitidez de tecidos e texturas.
+  - Processamento no navegador 100% compatível com Canvas 2D (zero dependências C++ nativas no cliente), mantendo o build do Vite leve e seguro.
+- **Preservação Absoluta de Fotos Existentes e Links Externos (`preserveExistingImages`):**
+  - Fotos já cadastradas no Firestore e URLs de fornecedores/CDNs externas **nunca são apagadas ou sobrescritas acidentalmente** durante novos uploads ou edições.
+- **Exclusão Limpa em Cascata (`deleteImageFromSupabase`):**
+  - Ao excluir uma foto do Supabase Storage, a miniatura correspondente (`_thumb.webp` ou subpasta `thumbnails/`) é detectada e excluída em lote no bucket.
+  - Links externos que não pertencem ao Supabase são desvinculados com segurança sem disparar requisições ao bucket.
+  - Desvinculação automática de variações de cor (`colorImages`, `colorImageMap`) e redefinição da imagem de capa (`imageUrl` e `foto_uri`).
+  - Prevenção do bug de ressurreição de fotos deletadas ao salvar o formulário (`handleSaveProductEnrichment`).
+- **Tratamento de Produtos sem Desmembramento de Grade:**
+  - Para produtos de estoque único global ou que não possuem variações de grade cadastradas no ERP (ex: cosméticos, cremes, carteiras, itens tamanho único), a seleção suspensa `-- Cor da foto --` debaixo das miniaturas é **completamente ocultada**, mantendo a galeria limpa e focada na foto e nos botões de capa e lixeira.
+
+---
+
+## 14. Menu Lateral & Painel Gestor Reorganizado com Menu Sanduíche (`AdminPanel.tsx`)
+
+- **Remoção de Itens Obsoletos:**
+  - *Adicionar Produto*: Removido do menu lateral, uma vez que todo o catálogo é importado e sincronizado de forma centralizada pelo **Integrador MobLink ERP**.
+  - *Ordem das Seções*: Removido do menu lateral, pois a arquitetura e a sequência de seções da Home vitrine são limpas e fixadas no código.
+- **Menu Sanduíche Responsivo (Mobile & Desktop):**
+  - **No Mobile (`md:hidden`):** Barra de topo fixa elegante com botão sanduíche (☰ / ✕), logo do Evidência CMS e atalho direto para visualizar a loja virtual (👁️). Ao tocar no botão, abre-se uma gaveta lateral (*drawer*) suave com *backdrop blur* escurecido. Ao selecionar qualquer aba, o menu se fecha automaticamente.
+  - **No Desktop:** Botão sanduíche integrado na barra lateral permitindo **recolher o menu lateral** para liberar 100% do espaço de tela (*Full View*), ideal para tabelas com muitos dados (Estoque, Vendas e Financeiro).
+  - **Barra Superior Integrada (Sem Sobreposição):** Quando o menu está recolhido no desktop, uma barra de navegação no fluxo normal do documento exibe o botão `[ ☰ Abrir Menu ]` acompanhado do logo e do botão de "Ver Loja", garantindo que títulos, métricas e cards de dados nunca fiquem cobertos.
+- **Reorganização dos Grupos de Navegação por Prioridade Operacional:**
+  1. **📊 DASHBOARD & VENDAS:** Visão Geral & Métricas -> Vendas & Pedidos -> Dashboard Financeiro -> Crediário Próprio -> Base de Clientes & CRM -> Vendedores (Cadastros).
+  2. **📦 CATÁLOGO & ESTOQUE:** Integrador MobLink ERP (destaque no topo do grupo) -> Gestão de Estoque -> Categorias da Loja -> Caixas & Frete (Melhor Envio).
+  3. **✨ CMS & VITRINE:** Banners Principais (Hero) -> Ofertas & Promoções -> Saldão de Calçados -> Editor "Sobre Nós" -> Suporte & Contatos.
+  4. **⚙️ SISTEMA:** Gestão de Equipe & Colaboradores -> Configurações Gerais.
+
+---
+
+## 15. Dashboard Financeiro — Clientes em Atraso & Auditoria Pix (`FinancialDashboard.tsx`)
+
+### A. Objetivo e Funcionamento
+O Dashboard Financeiro (`FinancialDashboard.tsx`) no `AdminPanel.tsx` (aba `financeiro` no grupo *📊 DASHBOARD & VENDAS*) é dividido em duas seções operacionais sincronizadas:
+1. **Seção 1: Pagamentos Pix Recebidos:** Exibe as transações Pix geradas e aprovadas pelo Mercado Pago no site com auditoria de conferência e persistência local e no Firestore (`pix_transacoes`).
+2. **Seção 2: Clientes com Mensalidades em Atraso (Cobrança Ativa):** Consulta clientes em tempo real direto da API do MobLink ERP, verifica faturas vencidas e possibilita a cobrança instantânea via WhatsApp.
+
+### B. Integração Dinâmica com MobLink ERP & Firestore Pix
+- **Busca em Tempo Real de Inadimplentes:** Conecta-se à API MobLink (`moblinkClientesService.fetchMoblinkClientesDirect()`), filtrando clientes com `valor_vencido > 0`.
+- **Detalhamento das Contas a Receber:** Para cada inadimplente, consulta suas parcelas no ERP via `moblinkClientesService.fetchClienteContasReceber(moblinkId)`.
+- **Cruzamento Anti-Cobrança Indevida:** Valida cada parcela com a coleção `pix_transacoes` do Firestore (`pixFirestoreService.checkIfParcelIsPaidInFirestore`). Se o cliente já pagou no site, a parcela é excluída da cobrança.
+- **Cálculo Preciso de Dias em Atraso:** Calcula `daysOverdue = Math.floor((today - dueDate) / 86400000)` dinamicamente com base na data atual e preserva os encargos e juros do ERP (`getInstallmentAmount`).
+- **Cobrança Personalizada via WhatsApp:** Geração automática de links `wa.me` com mensagens personalizadas contendo o nome do cliente, descrição da parcela, data de vencimento original, dias em atraso e valor atualizado com opção de cobrança individual ou de todas as parcelas agrupadas.
+- **Sincronização Ativa:** Botão "Sincronizar Dados" recarrega clientes e faturas em tempo real com spinner e feedback visual animado.
+
+---
+
+## 16. Autenticação Unificada por CPF e Proteção Google Sign-In (`AuthScreen.tsx` & `firebaseAuthService.ts`)
+
+### A. Fim da Dúvida no Login/Cadastro (Experiência Fluida e Direta)
+- A tela de autenticação do cliente (`AuthScreen.tsx`) foi totalmente simplificada para apresentar apenas os campos de **CPF** e **Senha**.
+- O cliente não precisa escolher ou alternar entre abas de *"Entrar"* e *"Criar Conta"*.
+- **Fluxo Inteligente Automático:**
+  1. O cliente preenche o CPF e a senha e clica em **"Acessar ou Criar Conta"**.
+  2. O sistema tenta autenticar diretamente com as credenciais fornecidas.
+  3. Se a conta existir: o login é efetuado instantaneamente.
+  4. Se o usuário não existir no Firebase Auth:
+     - O sistema consulta o CPF no MobLink ERP (`firstAccessAuthService.checkMoblinkCpfStatus`).
+     - Se for cliente da loja física: abre o modal de **Primeiro Acesso** (`FirstAccessModal`) com o CPF já preenchido para validar a data de nascimento e ativar a senha de acesso.
+     - Se for um novo cliente no site: solicita apenas o **Nome Completo** na mesma tela e cria a conta de forma imediata com a senha informada.
+
+### B. Bloqueio de Criação Direta via Google Sign-In
+- A conta Google não pode ser utilizada para provisionar clientes anônimos do zero no sistema.
+- Se o usuário tentar logar pelo Google e o seu e-mail não estiver previamente associado a um CPF no Firestore ou configurado como colaborador/administrador, o sistema bloqueia a criação e orienta a fazer o primeiro acesso via CPF e Senha.
+- Dentro do perfil do cliente (`MeusDados.tsx` / `CompleteProfileModal.tsx`), o usuário pode adicionar ou alterar seu e-mail de contato (`emailReal`) para habilitar o acesso rápido (inclusive via Google ou Magic Link) em sessões futuras.
+- **Exclusão Imediata de Usuários Órfãos:** Se um usuário tentar logar com Google e for rejeitado por não estar vinculado, o sistema executa `deleteUser(userCredential.user)` no Firebase Auth antes de deslogar, impedindo a criação de registros órfãos no Authentication.
+
+---
+
+## 17. Blindagem Anti-Sobrescrita de Fotos e Links do Catálogo MobLink ERP
+
+- **Validação Estrita de URLs Web (`isValidWebPhotoUrl` em `placeholder.ts`):**
+  - O sistema valida rigorosamente se uma string de foto é uma URL web acessível (`http://`, `https://`, `data:image/`, `blob:`).
+  - Caminhos de disco locais de servidores Windows (ex: `C:\...`, compartilhamentos de rede `\\...` ou nomes brutos de arquivos) retornados pela API do MobLink ERP são **automaticamente descartados**, impedindo que substituam URLs web válidas.
+- **Proteção no Merge ERP vs Firestore (`mergeErpSyncWithExistingDbProduct` em `moblinkProductsService.ts`):**
+  - As fotos, capas e galerias cadastradas pelo lojista no banco de dados possuem **prioridade máxima absoluta**.
+  - O merge destrutura e isola os dados do ERP, garantindo que `images`, `imageUrl`, `foto_uri`, `colorImages`, `colorImageMap` e `managedPhotos` não sejam sobrescritos por valores vazios do ERP.
+- **Proteção Anti-Exclusão no Firestore (`sanitizeProductForFirestore` em `moblinkProductsService.ts`):**
+  - Em rotinas automáticas de sincronização em segundo plano (como ao abrir a página do produto em `ProductDetail.tsx` ou delta sync de preços/estoque em `AppContext.tsx`), se o payload não contiver novas fotos, os campos de mídia **NÃO são enviados** para o Firestore.
+  - O `setDoc(..., { merge: true })` do Firebase atualiza estritamente preço, estoque e metadados, mantendo 100% dos links de fotos existentes intactos.
+  - A exclusão de fotos só ocorre quando o lojista intencionalmente limpa a galeria no painel e salva o formulário (`options?.allowEmptyPhotos === true`).
+
+---
+
+## 18. Sistema de Backup Redundante e Restauração de Fotos no Supabase
+
+- **Camada Dupla de Backup na Nuvem (`supabaseStorageService.ts`):**
+  - **Arquivo JSON Consolidado no Storage Bucket:** Salva um snapshot completo de todos os produtos que possuem fotos e galerias em `backups/photos_backup_latest.json` (e cópias com carimbo de data/hora para histórico de versões).
+  - **Tabela Relacional no Supabase DB (`products_media`):** Persiste em lote registros com `id`, `name`, `images`, `imageUrl`, `foto_uri`, `colorImages`, `colorImageMap` e `updated_at`.
+  - **Contingência no Navegador:** Salva cópia local em `localStorage` sob a chave `evidencia_supabase_photos_backup`.
+- **Varredura e Mapeamento Unificado (`fetchSupabaseStoragePhotosMap`):**
+  - Cruza arquivos de fotos físicas do Storage (`produto_{id}_...`), backups JSON e registros da tabela do banco de dados, mapeando por `id`, `MOB-{id}`, `sku` e `referencia`.
+- **Botões de Ação Rápida no Painel Gestor (`MoblinkProductsManager.tsx`):**
+  - **🛡️ Fazer Backup Fotos (Supabase):** Dispara a varredura e cria um snapshot atualizado de todas as fotos e links no Supabase.
+  - **📥 Restaurar Fotos (Supabase):** Restaura e revincula todas as fotos salvas aos produtos correspondentes no Firestore e no catálogo local em 1 clique.
+
+---
+
+## 19. Acesso Rápido por Link Mágico (E-mail Sem Senha) & Regras de Vínculo de Contas
+
+- **Identificador Único Primário: CPF:**
+  - Todas as contas de clientes são baseadas no CPF (`gerarEmailDoCpf(cpf)` gera `cpf@evidencia.com`).
+  - O acesso por e-mail real ou Google Sign-In funciona como um atalho rápido de conveniência e **nunca substitui o CPF**.
+- **Vínculo Seguro de E-mail Real (`emailLinkAuthService.ts` & `MeusDados.tsx`):**
+  - O cliente pode vincular seu e-mail real na área logada ("Meus Dados" / Perfil).
+  - O e-mail é validado e registrado no Firestore (`/users/{uid}`) no campo `emailReal`.
+  - Na tela de login, o "Acesso Rápido por E-mail" busca previamente no Firestore se o e-mail informado já está vinculado. Se não estiver, o envio do link é bloqueado com mensagem amigável, prevenindo criação acidental de contas órfãs.
+
+---
+
+## 20. Busca de Fotos na Web e Geração de Descrições Ricas com IA & Web Intelligence
+
+### A. Busca e Otimização de Fotos na Web (`ProductWebImageSearchModal.tsx` & `server.ts`)
+- **Busca Desacoplada e Segura:** Ao editar qualquer produto no painel gestor (`MoblinkProductsManager.tsx`), o lojista pode pesquisar imagens de alta resolução na web através do endpoint de proxy `/assistant-api/search-product-images`.
+- **Inspeção Visual:** O modal apresenta grade responsiva com título da fonte, dimensões e preview ampliado com zoom.
+- **Pipeline de Otimização no Backend (`/assistant-api/upload-photo-from-url`):**
+  - Faz download da imagem remota no Node.js sem bloqueio de CORS.
+  - Converte e comprime para **WebP 80%** com dimensões balanceadas (`sharp`).
+  - Gera automaticamente miniatura (thumbnail) de **150px** para carregamento instantâneo em tabelas e listagens.
+  - Envia os arquivos ao **Supabase Storage** sob caminhos organizados (`produtos/{id}/web_foto_*.webp`) e salva a nova URL diretamente no documento do produto no Firestore.
+
+### B. Inteligência Web e Ficha Técnica Automática de Calçados (`/assistant-api/search-product-web-intel`)
+- Realiza buscas em tempo real em sites de fabricantes oficiais (Dakota, Moleca, Grendene, Beira Rio, Vizzano) e grandes e-commerces.
+- Extrai automaticamente atributos técnicos de calçados:
+  - 👠 **Altura e Tipo de Salto** (ex: *Salto bloco de 1,5 cm*, *Salto fino*, *Anabela*);
+  - ☁️ **Palmilha Anatômica / Confort** (ex: *Espuma macia revestida em PU*);
+  - 🛡️ **Solado Antiderrapante** (ex: *Sintético flexível TR*);
+  - 🔒 **Tipo de Fechamento** (ex: *Tiras elásticas*, *Fivela*, *Slip on / calce fácil*);
+  - 🧵 **Material do Cabedal / Forro**;
+  - 🎯 **Indicação e Ocasiões de Uso** (*Dia a dia, trabalho, passeios, eventos*).
+
+#### C. Componentização Modular e Copywriting com Fidelidade Estrita (`src/components/products/admin/ai`)
+- **Arquitetura Desacoplada e Reutilizável**:
+  - `useProductAiAssistant.ts`: Hook centralizado gerenciando o estado de busca de imagens e redação.
+  - `ProductAiAssistantToolbar.tsx`: Componentes individuais `ProductAiSearchPhotoButton`, `ProductAiDescriptionButton` e `ProductAiAssistantModals`.
+  - Re-exportado através de `src/components/products/admin/ai/index.ts` e `src/components/products/index.ts`.
+- **Fidelidade Estrita e Zero Especulação de Marca**:
+  - Produtos sem marca definida no ERP/Web nunca são atribuídos à marca "Evidência Calçados" (a loja é apenas a vendedora/garantia).
+  - Quando a marca não existe, ela é estritamente omitida do storytelling e da Ficha Técnica. O mesmo critério aplica-se a atributos não confirmados (altura do salto, palmilhas, etc.).
+- **Redação Otimizada no Tom Comercial**:
+  - Interface simplificada e focada 100% no tom comercial para alta conversão no e-commerce.
+  - Painel unificado de metadados do ERP e inteligência web com busca expansível.
+  - Modos **Visual (Preview)** e **Código HTML** para edição rápida antes de aplicar.
+  - Opção de **Substituir** ou **Anexar** à descrição atual do produto.
+  - Suporte híbrido a **Google Gemini 2.5 Flash** (via `@google/genai`) e **Motor Local Autônomo** de alta performance.
+- **Segurança de Credenciais e Variáveis de Ambiente**:
+  - Criação de `.env.example` consolidando chaves opcionais (`GEMINI_API_KEY`) e obrigatórias.
+  - Higienização de `src/lib/firebase.ts` carregando via ambiente sem chaves hardcoded no repositório.

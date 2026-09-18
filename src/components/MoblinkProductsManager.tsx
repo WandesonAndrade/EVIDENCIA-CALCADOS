@@ -22,7 +22,12 @@ import {
 } from '../services/moblinkProductsService';
 import { moblinkCategoriesService, normalizeCategoryName, normalizeSubcategoryName, isProductInCategory } from '../services/moblinkCategoriesService';
 import { getProdutoGradesFromApi } from '../services/moblinkGradesService';
-import { AdminProductsTable } from './products';
+import { 
+  AdminProductsTable, 
+  ProductAiSearchPhotoButton, 
+  ProductAiDescriptionButton, 
+  ProductAiAssistantModals 
+} from './products';
 import { db } from '../lib/firebase';
 import { doc, setDoc } from 'firebase/firestore';
 import { 
@@ -78,7 +83,8 @@ import {
   Check,
   Tags,
   Folder,
-  ExternalLink
+  ExternalLink,
+  Globe
 } from 'lucide-react';
 
 const resolveProductSubcategory = (item: any, existingDb?: Product | null): string => {
@@ -293,6 +299,8 @@ export const MoblinkProductsManager: React.FC = () => {
   const [images, setImages] = useState<string[]>([]);
   const [newImageUrl, setNewImageUrl] = useState('');
   const [richDescription, setRichDescription] = useState('');
+  const [showWebSearchModal, setShowWebSearchModal] = useState(false);
+  const [showAiDescriptionModal, setShowAiDescriptionModal] = useState(false);
 
   // Editable Product Fields State
   const [editName, setEditName] = useState('');
@@ -1319,6 +1327,8 @@ export const MoblinkProductsManager: React.FC = () => {
     setEditSizes('');
     setEditColor('');
     setEditStockBySize({});
+    setShowWebSearchModal(false);
+    setShowAiDescriptionModal(false);
     setFeedback(null);
   };
 
@@ -3520,8 +3530,8 @@ export const MoblinkProductsManager: React.FC = () => {
                   </h4>
                   <span className="text-[11px] text-slate-400">{images.length} foto(s) anexada(s)</span>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div className="sm:col-span-2 flex gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
+                  <div className="sm:col-span-6 flex gap-2">
                     <input
                       type="url"
                       placeholder="Cole a URL da imagem (ex: https://...)"
@@ -3538,11 +3548,18 @@ export const MoblinkProductsManager: React.FC = () => {
                     </button>
                   </div>
 
-                  <label className="flex items-center justify-center gap-2 px-3 py-2.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 font-bold border border-amber-500/30 rounded-xl text-xs cursor-pointer transition-all">
-                    <Upload className="h-4 w-4 text-amber-500" />
-                    <span>{isUploading ? 'Enviando...' : 'Carregar Imagem'}</span>
-                    <input type="file" accept="image/*" onChange={handleFileUpload} className="hidden" />
-                  </label>
+                  <div className="sm:col-span-6 flex gap-2">
+                    <ProductAiSearchPhotoButton
+                      onClick={() => setShowWebSearchModal(true)}
+                      className="flex-1"
+                    />
+
+                    <label className="flex items-center justify-center gap-1.5 px-3 py-2.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 font-bold border border-amber-500/30 rounded-xl text-xs cursor-pointer transition-all shrink-0">
+                      <Upload className="h-4 w-4 text-amber-500" />
+                      <span>{isUploading ? 'Enviando...' : 'Carregar Imagem'}</span>
+                      <input type="file" accept="image/*" onChange={handleFileUpload} className="hidden" />
+                    </label>
+                  </div>
                 </div>
 
                 {/* IMAGES THUMBNAILS GRID WITH COLOR ASSIGNMENT */}
@@ -3653,11 +3670,15 @@ export const MoblinkProductsManager: React.FC = () => {
                 <div className="flex flex-wrap items-center justify-between border-b pb-2 dark:border-slate-800 gap-2">
                   <h4 className="font-bold text-xs uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-2">
                     <FileText className="h-4 w-4 text-amber-500" />
-                    2. Descrição Rica e Detalhes de Apresentação
+                    3. Descrição Rica e Detalhes de Apresentação
                   </h4>
 
-                  {/* QUICK TEMPLATES */}
-                  <div className="flex flex-wrap gap-1.5">
+                  {/* QUICK TEMPLATES & AI SUGGESTION */}
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <ProductAiDescriptionButton
+                      onClick={() => setShowAiDescriptionModal(true)}
+                    />
+
                     <button
                       type="button"
                       onClick={() => handleInsertTemplate('couro')}
@@ -3725,6 +3746,35 @@ export const MoblinkProductsManager: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* MODAIS COMPONENTIZADOS DE IA (BUSCA DE FOTOS E SUGESTÃO DE DESCRIÇÃO) */}
+      <ProductAiAssistantModals
+        product={selectedProduct}
+        productId={String(selectedProduct?.id || selectedProduct?.moblinkId || '')}
+        editName={editName}
+        currentDescription={richDescription}
+        showWebSearchModal={showWebSearchModal}
+        showAiDescriptionModal={showAiDescriptionModal}
+        onCloseWebSearch={() => setShowWebSearchModal(false)}
+        onCloseAiDescription={() => setShowAiDescriptionModal(false)}
+        onSelectWebImage={async (publicUrl) => {
+          const nextList = preserveExistingImages(images, [publicUrl]);
+          await syncImageUpdateToFirestore(nextList);
+          setFeedback({
+            success: true,
+            message: 'Foto encontrada na web aprovada e salva no Supabase Storage com sucesso!',
+          });
+          setTimeout(() => setFeedback(null), 4000);
+        }}
+        onApplyDescription={(newDesc) => {
+          setRichDescription(newDesc);
+          setFeedback({
+            success: true,
+            message: 'Nova descrição aplicada com sucesso ao formulário do produto!',
+          });
+          setTimeout(() => setFeedback(null), 3000);
+        }}
+      />
 
       {/* BARRA FLUTUANTE DE AÇÕES EM LOTE (ESTILO APPLE FLOATING DOCK) */}
       {selectedIdsList.length > 0 && (
