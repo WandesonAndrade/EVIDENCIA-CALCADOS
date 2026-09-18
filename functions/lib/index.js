@@ -5,8 +5,8 @@ if (!admin.apps.length) {
   admin.initializeApp();
 }
 
-// Requerendo o servidor Express pré-empacotado da aplicação raiz (Vite)
-const appModule = require("../../dist/server.cjs");
+// Requerendo o servidor Express pré-empacotado (copiado para a mesma pasta)
+const appModule = require("../server.cjs");
 const app = appModule.default || appModule;
 
 // Expondo a API completa
