@@ -102,3 +102,9 @@ Este arquivo é a memória persistente do projeto (AG Kit), consolidando decisõ
     - Em caso de falha de escrita no Firestore, o sistema captura a exceção e garante a integridade dos dados no Supabase.
     - Em falha de leitura do snapshot do Firestore, o catálogo ativa hidratação imediata via `fetchProductMediaFromSupabase()`, preservando capas, fotos e descrições dos produtos.
 
+16. **Classificação Dinâmica ERP MobLink & Componentização de Categoria (Implementado):**
+    - **Fim dos Mapeamentos Fictícios**: Remoção de suposições arbitrárias em `moblinkCategoriesService.ts` (como `001.001 = Masculino`). A taxonomia é alimentada dinamicamente a partir da árvore oficial de categorias da loja (`categories` / Firestore / ERP).
+    - **Regra de Classificação Inválida**: Códigos de classificação que não constam na lista de categorias da loja são identificados e sinalizados como "Classificação Inválida" (`isInvalid: true`), com alerta visual dedicado para que o lojista possa cadastrar a respectiva categoria/subcategoria no painel.
+    - **Componentização (`ProductCategoryClassification.tsx`)**: Exibição padronizada de Categoria, Subcategoria e Código ERP com variantes `card` (para modal de detalhes), `inline` (para tabelas) e `badge-only`, com suporte a temas dark/light e tratamento de status inválido.
+
+

@@ -346,7 +346,11 @@ const saveLocalUser = (uid: string, profile: UserProfile) => {
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [products, setProducts] = useState<Product[]>(() => getLocalProducts());
   const [isLoadingProducts, setIsLoadingProducts] = useState(true);
-  const [categories, setCategories] = useState<Category[]>(() => getLocalCategories());
+  const [categories, setCategories] = useState<Category[]>(() => {
+    const initial = getLocalCategories();
+    moblinkCategoriesService.updateIndexFromStoreCategories(initial);
+    return initial;
+  });
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [favorites, setFavorites] = useState<string[]>([]);
@@ -1382,9 +1386,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (catList.length > 0) {
         setCategories(catList);
         saveLocalCategories(catList);
+        moblinkCategoriesService.updateIndexFromStoreCategories(catList);
       } else {
         setCategories(DEFAULT_CATEGORIES);
         saveLocalCategories(DEFAULT_CATEGORIES);
+        moblinkCategoriesService.updateIndexFromStoreCategories(DEFAULT_CATEGORIES);
       }
       setIsLoadingCategories(false);
     }, (error) => {

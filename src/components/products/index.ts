@@ -1,6 +1,7 @@
 export * from './atomic/ProductImage';
 export * from './atomic/ProductPriceDisplay';
 export * from './atomic/ProductBadges';
+export * from './atomic/ProductCategoryClassification';
 
 export * from './storefront/StorefrontProductCard';
 export * from './storefront/StorefrontProductGrid';

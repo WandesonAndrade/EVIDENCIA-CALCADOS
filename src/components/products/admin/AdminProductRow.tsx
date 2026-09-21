@@ -1,13 +1,12 @@
 import React from 'react';
 import { Product } from '../../../types';
 import { ProductImage } from '../atomic/ProductImage';
+import { ProductCategoryClassification } from '../atomic/ProductCategoryClassification';
 import { 
-  extractClassificacaoCategoria, 
   extractPrecoVistaMoblink, 
   extractSaldoLojaMoblink,
   hasProductValidGrade
 } from '../../../services/moblinkProductsService';
-import { normalizeCategoryName } from '../../../services/moblinkCategoriesService';
 import { 
   ShieldCheck, 
   Zap, 
@@ -47,11 +46,6 @@ export const AdminProductRow: React.FC<AdminProductRowProps> = ({
   const precoVista = extractPrecoVistaMoblink(item) || Number(item.preco_venda_fracao ?? item.preco_venda ?? item.preco ?? item.price ?? 0);
   const estoqueAtual = extractSaldoLojaMoblink(item);
 
-  const catInfo = extractClassificacaoCategoria(item);
-  const classCode = catInfo.classificacao || String(item.classificacao || item.id_grupo || item.cod_classificacao || item.classificacao_erp || '').trim() || (existingDb as any)?.classificacao || '002.001';
-  const subcategory = resolveSubcategory ? resolveSubcategory(item, existingDb) : (item.subcategoria || item.subcategory || existingDb?.subcategory || 'Geral');
-  const rawCat = item.categoria || item.category || item.nome_grupo || existingDb?.category || 'Calçados';
-  const normCat = normalizeCategoryName(rawCat) || 'Calçados';
 
   const itemSizesStr = Array.isArray(item.tamanhos) && item.tamanhos.length > 0
     ? item.tamanhos.join(', ')
@@ -103,19 +97,11 @@ export const AdminProductRow: React.FC<AdminProductRowProps> = ({
             <div className="flex items-center gap-2 mt-1 flex-wrap">
               <span className="text-[10px] text-slate-400 font-mono">SKU: {item.sku || mobId}</span>
 
-              <span
-                className="font-mono text-[9px] font-black px-2 py-0.5 bg-[#0071E3]/10 text-[#0071E3] dark:bg-blue-900/40 dark:text-blue-300 rounded-md border border-[#0071E3]/20 inline-flex items-center gap-1"
-                title="Código de Classificação no MobLink ERP (ex: 002.001)"
-              >
-                <Layers className="h-2.5 w-2.5 text-[#0071E3] shrink-0" />
-                <span>Classif ERP: {classCode}</span>
-              </span>
-
-              <span className="text-[9px] px-2.5 py-0.5 bg-slate-100 dark:bg-slate-800/90 text-[#003B73] dark:text-slate-200 rounded-md font-extrabold border border-slate-200/60 dark:border-slate-700/60 inline-flex items-center gap-1">
-                <Tag className="h-2.5 w-2.5 text-[#0071E3] shrink-0" />
-                <span>{normCat}</span>
-                <span className="text-[#0071E3] dark:text-blue-400 font-black"> › {subcategory}</span>
-              </span>
+              <ProductCategoryClassification
+                product={item}
+                variant="inline"
+                showErpCode={true}
+              />
 
               {isExplicitSingle ? (
                 <span className="text-[9px] font-bold px-2 py-0.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-md border border-emerald-500/20 inline-flex items-center gap-1">

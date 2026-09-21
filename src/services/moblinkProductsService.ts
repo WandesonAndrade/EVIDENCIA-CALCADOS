@@ -1,4 +1,4 @@
-import { MoblinkProduto, Product } from '../types';
+import { MoblinkProduto, Product, Category } from '../types';
 import {
   moblinkCategoriesService,
   normalizeCategoryName,
@@ -437,12 +437,14 @@ export function inferCategoryFromProductName(name: string): { category: string; 
  */
 export const extractClassificacaoCategoria = (
   item: any,
+  storeCategories?: Category[],
 ): {
   category: string;
   subcategory: string;
   nome_grupo: string;
   nome_subgrupo: string;
   classificacao: string;
+  isInvalid?: boolean;
 } => {
   if (!item || typeof item !== "object") {
     return {
@@ -451,6 +453,7 @@ export const extractClassificacaoCategoria = (
       nome_grupo: "Calçados",
       nome_subgrupo: "",
       classificacao: "",
+      isInvalid: false,
     };
   }
 
@@ -467,20 +470,24 @@ export const extractClassificacaoCategoria = (
     const sub = item.id_subgrupo ? String(item.id_subgrupo).trim() : "";
     rawClassificacao = sub ? `${parent}.${sub}` : parent;
   }
+  if (!rawClassificacao && (item.codigo_classificacao || item.cod_classificacao)) {
+    rawClassificacao = String(item.codigo_classificacao || item.cod_classificacao).trim();
+  }
 
-  // 2. Extrair subclassificacao bruta
+  // 2. Extração de subgrupo/subcategoria bruta do item vindo do ERP
   let rawSubclassificacao = "";
-  if (typeof item.subclassificacao === "string") {
-    rawSubclassificacao = item.subclassificacao.trim();
-  } else if (typeof item.subclassificacao === "object" && item.subclassificacao?.nome) {
-    rawSubclassificacao = String(item.subclassificacao.nome).trim();
+  if (item.subgrupo && typeof item.subgrupo === "object") {
+    rawSubclassificacao = String(
+      item.subgrupo.nome || item.subgrupo.descricao || "",
+    ).trim();
   } else {
-    rawSubclassificacao =
+    rawSubclassificacao = String(
       item.nome_subgrupo ||
-      item.subgrupo ||
-      item.subcategoria ||
-      item.subcategory ||
-      "";
+        item.subgrupo ||
+        item.subcategoria ||
+        item.subcategory ||
+        "",
+    ).trim();
   }
 
   // 3. Tradução oficial dinâmica via tabela central de categorias
@@ -489,60 +496,75 @@ export const extractClassificacaoCategoria = (
   let subcategory = normalizeSubcategoryName(rawSubclassificacao);
   let resolvedGrupo = rawClassificacao;
   let resolvedSubgrupo = rawSubclassificacao;
+  let isInvalid = false;
 
   if (isNumericCode) {
-    const resolved = moblinkCategoriesService.resolveClassificacao(rawClassificacao);
-    if (resolved && resolved.category && resolved.category.toUpperCase() !== "GERAL") {
-      category = resolved.category;
-      subcategory = resolved.subcategory || subcategory;
-      resolvedGrupo = resolved.nome_grupo || resolvedGrupo;
-      resolvedSubgrupo = resolved.nome_subgrupo || resolvedSubgrupo;
+    const resolved = moblinkCategoriesService.resolveClassificacao(rawClassificacao, storeCategories);
+    if (resolved) {
+      if (resolved.isInvalid) {
+        isInvalid = true;
+        category = resolved.category;
+        subcategory = resolved.subcategory;
+        resolvedGrupo = resolved.nome_grupo;
+        resolvedSubgrupo = resolved.nome_subgrupo;
+      } else {
+        if (resolved.category && resolved.category.toUpperCase() !== "GERAL") {
+          category = resolved.category;
+          // Se o produto já possui subgrupo real vindo do ERP MobLink, ele prevalece
+          subcategory = subcategory || resolved.subcategory;
+          resolvedGrupo = resolved.nome_grupo || resolvedGrupo;
+          resolvedSubgrupo = rawSubclassificacao || resolved.nome_subgrupo || resolvedSubgrupo;
+        }
+      }
     }
   } else if (rawClassificacao && rawClassificacao.toUpperCase() !== "GERAL") {
     category = normalizeCategoryName(rawClassificacao);
   }
 
-  // 4. Verificação de grupo/categoria brutos do produto
-  const rawGroup = String(
-    item.nome_grupo ||
-      item.grupo ||
-      item.categoria ||
-      item.category ||
-      "",
-  ).trim();
+  // 4. Se não for classificação inválida, verificação de grupo/categoria brutos do produto
+  if (!isInvalid) {
+    const rawGroup = String(
+      item.nome_grupo ||
+        item.grupo ||
+        item.categoria ||
+        item.category ||
+        "",
+    ).trim();
 
-  if (rawGroup && rawGroup.toUpperCase() !== "GERAL") {
-    const normGroup = normalizeCategoryName(rawGroup);
-    if (normGroup && normGroup.toUpperCase() !== "GERAL") {
-      category = normGroup;
-      if (!resolvedGrupo || isNumericCode) resolvedGrupo = normGroup;
-    }
-  }
-
-  // 5. Inferência inteligente pelo Nome do Produto se a categoria for genérica
-  const prodName = String(item.descricao || item.nome || item.name || "").trim();
-  if (prodName) {
-    const inferred = inferCategoryFromProductName(prodName);
-    if (inferred.category) {
-      if (category === "Calçados" || category.toUpperCase() === "GERAL") {
-        category = inferred.category;
-      }
-      if (!subcategory && inferred.subcategory) {
-        subcategory = inferred.subcategory;
+    if (rawGroup && rawGroup.toUpperCase() !== "GERAL") {
+      const normGroup = normalizeCategoryName(rawGroup);
+      if (normGroup && normGroup.toUpperCase() !== "GERAL") {
+        category = normGroup;
+        if (!resolvedGrupo || isNumericCode) resolvedGrupo = normGroup;
       }
     }
-  }
 
-  if (!category || category.toUpperCase() === "GERAL") {
-    category = "Calçados";
+    // 5. Inferência inteligente pelo Nome do Produto se a subcategoria ainda estiver vazia
+    const prodName = String(item.descricao || item.nome || item.name || "").trim();
+    if (prodName) {
+      const inferred = inferCategoryFromProductName(prodName);
+      if (inferred.category) {
+        if (category === "Calçados" || category.toUpperCase() === "GERAL") {
+          category = inferred.category;
+        }
+        if (!subcategory && inferred.subcategory) {
+          subcategory = inferred.subcategory;
+        }
+      }
+    }
+
+    if (!category || category.toUpperCase() === "GERAL") {
+      category = "Calçados";
+    }
   }
 
   return {
-    category: normalizeCategoryName(category),
-    subcategory: subcategory ? normalizeSubcategoryName(subcategory) : "",
+    category: isInvalid ? "Classificação Inválida" : normalizeCategoryName(category),
+    subcategory: isInvalid ? "Classificação Inválida" : (subcategory ? normalizeSubcategoryName(subcategory) : ""),
     nome_grupo: resolvedGrupo || category,
     nome_subgrupo: resolvedSubgrupo || subcategory,
     classificacao: rawClassificacao,
+    isInvalid,
   };
 };
 

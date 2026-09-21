@@ -200,58 +200,102 @@ export function isProductInCategory(prod: Product, targetCategory: string): bool
   );
 }
 
-export const classificacaoIndex = new Map<
-  string,
-  {
-    category: string;
-    subcategory: string;
-    nome_grupo: string;
-    nome_subgrupo: string;
-  }
->();
+export interface ResolvedClassificacao {
+  category: string;
+  subcategory: string;
+  nome_grupo: string;
+  nome_subgrupo: string;
+  isInvalid?: boolean;
+}
 
-// Mapeamento pré-populado para códigos numéricos de classificação do ERP MobLink
-const defaultClassificacaoEntries: [string, { category: string; subcategory: string; nome_grupo: string; nome_subgrupo: string }][] = [
+export const classificacaoIndex = new Map<string, ResolvedClassificacao>();
+
+// Mapeamento pré-populado básico para códigos numéricos de grupos macro do ERP MobLink
+// (Apenas grupos pai conhecidos. Subcategorias NUNCA são hardcoded, devendo vir da árvore oficial da loja ou do MobLink).
+const defaultClassificacaoEntries: [string, ResolvedClassificacao][] = [
   ["001", { category: "Calçados", subcategory: "", nome_grupo: "Calçados", nome_subgrupo: "" }],
-  ["001.001", { category: "Calçados", subcategory: "Masculino", nome_grupo: "Calçados", nome_subgrupo: "Masculino" }],
-  ["001.002", { category: "Calçados", subcategory: "Feminino", nome_grupo: "Calçados", nome_subgrupo: "Feminino" }],
-  ["001.003", { category: "Calçados", subcategory: "Infantil", nome_grupo: "Calçados", nome_subgrupo: "Infantil" }],
   ["002", { category: "Calçados", subcategory: "", nome_grupo: "Calçados", nome_subgrupo: "" }],
-  ["002.001", { category: "Calçados", subcategory: "Masculino", nome_grupo: "Calçados", nome_subgrupo: "Masculino" }],
-  ["002.002", { category: "Calçados", subcategory: "Feminino", nome_grupo: "Calçados", nome_subgrupo: "Feminino" }],
-  ["002.003", { category: "Calçados", subcategory: "Infantil", nome_grupo: "Calçados", nome_subgrupo: "Infantil" }],
-  ["002.004", { category: "Calçados", subcategory: "Bebê", nome_grupo: "Calçados", nome_subgrupo: "Bebê" }],
   ["003", { category: "Confecções", subcategory: "", nome_grupo: "Confecções", nome_subgrupo: "" }],
-  ["003.001", { category: "Confecções", subcategory: "Masculino", nome_grupo: "Confecções", nome_subgrupo: "Masculino" }],
-  ["003.002", { category: "Confecções", subcategory: "Feminino", nome_grupo: "Confecções", nome_subgrupo: "Feminino" }],
-  ["003.003", { category: "Confecções", subcategory: "Infantil", nome_grupo: "Confecções", nome_subgrupo: "Infantil" }],
-  ["004", { category: "Acessórios", subcategory: "Bolsas & Acessórios", nome_grupo: "Acessórios", nome_subgrupo: "Bolsas & Acessórios" }],
-  ["004.001", { category: "Acessórios", subcategory: "Bolsas", nome_grupo: "Acessórios", nome_subgrupo: "Bolsas" }],
-  ["004.002", { category: "Acessórios", subcategory: "Cintos", nome_grupo: "Acessórios", nome_subgrupo: "Cintos" }],
-  ["004.003", { category: "Acessórios", subcategory: "Carteiras", nome_grupo: "Acessórios", nome_subgrupo: "Carteiras" }],
-  // Mapeamentos equivalentes sem padding de zeros
+  ["004", { category: "Acessórios", subcategory: "", nome_grupo: "Acessórios", nome_subgrupo: "" }],
+  ["005", { category: "Cosméticos", subcategory: "", nome_grupo: "Cosméticos", nome_subgrupo: "" }],
+  ["006", { category: "Perfumes", subcategory: "", nome_grupo: "Perfumes", nome_subgrupo: "" }],
+  ["007", { category: "Escolar", subcategory: "", nome_grupo: "Escolar", nome_subgrupo: "" }],
+  ["008", { category: "Itens de Viagem", subcategory: "", nome_grupo: "Itens de Viagem", nome_subgrupo: "" }],
+  // Equivalentes sem zeros à esquerda
   ["1", { category: "Calçados", subcategory: "", nome_grupo: "Calçados", nome_subgrupo: "" }],
-  ["1.1", { category: "Calçados", subcategory: "Masculino", nome_grupo: "Calçados", nome_subgrupo: "Masculino" }],
-  ["1.2", { category: "Calçados", subcategory: "Feminino", nome_grupo: "Calçados", nome_subgrupo: "Feminino" }],
-  ["1.3", { category: "Calçados", subcategory: "Infantil", nome_grupo: "Calçados", nome_subgrupo: "Infantil" }],
   ["2", { category: "Calçados", subcategory: "", nome_grupo: "Calçados", nome_subgrupo: "" }],
-  ["2.1", { category: "Calçados", subcategory: "Masculino", nome_grupo: "Calçados", nome_subgrupo: "Masculino" }],
-  ["2.2", { category: "Calçados", subcategory: "Feminino", nome_grupo: "Calçados", nome_subgrupo: "Feminino" }],
-  ["2.3", { category: "Calçados", subcategory: "Infantil", nome_grupo: "Calçados", nome_subgrupo: "Infantil" }],
-  ["2.4", { category: "Calçados", subcategory: "Bebê", nome_grupo: "Calçados", nome_subgrupo: "Bebê" }],
   ["3", { category: "Confecções", subcategory: "", nome_grupo: "Confecções", nome_subgrupo: "" }],
-  ["3.1", { category: "Confecções", subcategory: "Masculino", nome_grupo: "Confecções", nome_subgrupo: "Masculino" }],
-  ["3.2", { category: "Confecções", subcategory: "Feminino", nome_grupo: "Confecções", nome_subgrupo: "Feminino" }],
-  ["3.3", { category: "Confecções", subcategory: "Infantil", nome_grupo: "Confecções", nome_subgrupo: "Infantil" }],
-  ["4", { category: "Acessórios", subcategory: "Bolsas & Acessórios", nome_grupo: "Acessórios", nome_subgrupo: "Bolsas & Acessórios" }],
-  ["4.1", { category: "Acessórios", subcategory: "Bolsas", nome_grupo: "Acessórios", nome_subgrupo: "Bolsas" }],
-  ["4.2", { category: "Acessórios", subcategory: "Cintos", nome_grupo: "Acessórios", nome_subgrupo: "Cintos" }],
-  ["4.3", { category: "Acessórios", subcategory: "Carteiras", nome_grupo: "Acessórios", nome_subgrupo: "Carteiras" }],
+  ["4", { category: "Acessórios", subcategory: "", nome_grupo: "Acessórios", nome_subgrupo: "" }],
+  ["5", { category: "Cosméticos", subcategory: "", nome_grupo: "Cosméticos", nome_subgrupo: "" }],
+  ["6", { category: "Perfumes", subcategory: "", nome_grupo: "Perfumes", nome_subgrupo: "" }],
+  ["7", { category: "Escolar", subcategory: "", nome_grupo: "Escolar", nome_subgrupo: "" }],
+  ["8", { category: "Itens de Viagem", subcategory: "", nome_grupo: "Itens de Viagem", nome_subgrupo: "" }],
 ];
 
 defaultClassificacaoEntries.forEach(([k, v]) => classificacaoIndex.set(k, v));
 
 export const moblinkCategoriesService = {
+  /**
+   * Alimenta e atualiza o índice de classificação com base na árvore oficial de categorias da loja.
+   */
+  updateIndexFromStoreCategories(categories: Category[]) {
+    if (!Array.isArray(categories) || categories.length === 0) return;
+
+    categories.forEach((cat) => {
+      if (!cat || !cat.name) return;
+      const catName = normalizeCategoryName(cat.name);
+      const catCode = String(cat.code || cat.id || "").trim();
+
+      if (catCode) {
+        const groupEntry: ResolvedClassificacao = {
+          category: catName,
+          subcategory: "",
+          nome_grupo: catName,
+          nome_subgrupo: "",
+          isInvalid: false,
+        };
+        classificacaoIndex.set(catCode, groupEntry);
+        const unpaddedCode = catCode.replace(/^0+/, "");
+        if (unpaddedCode && unpaddedCode !== catCode) {
+          classificacaoIndex.set(unpaddedCode, groupEntry);
+        }
+      }
+
+      if (Array.isArray(cat.subcategories)) {
+        cat.subcategories.forEach((sub) => {
+          if (!sub || !sub.name) return;
+          const subName = normalizeSubcategoryName(sub.name);
+          const subId = String(sub.id || "").trim();
+          const subCode = String(sub.subCode || "").trim();
+
+          const subEntry: ResolvedClassificacao = {
+            category: catName,
+            subcategory: subName,
+            nome_grupo: catName,
+            nome_subgrupo: subName,
+            isInvalid: false,
+          };
+
+          if (subId) {
+            classificacaoIndex.set(subId, subEntry);
+            const parts = subId.split(".");
+            if (parts.length === 2) {
+              const unpaddedSubId = `${parts[0].replace(/^0+/, "")}.${parts[1].replace(/^0+/, "")}`;
+              classificacaoIndex.set(unpaddedSubId, subEntry);
+            }
+          }
+
+          if (catCode && subCode) {
+            const combinedCode = `${catCode}.${subCode}`;
+            classificacaoIndex.set(combinedCode, subEntry);
+            const unpaddedCombined = `${catCode.replace(/^0+/, "")}.${subCode.replace(/^0+/, "")}`;
+            classificacaoIndex.set(unpaddedCombined, subEntry);
+          }
+        });
+      }
+    });
+  },
+
   /**
    * Consulta a API de grupos/categorias do MobLink ERP.
    * Tenta múltiplos endpoints conhecidos da API para garantir resiliência máxima.
@@ -289,22 +333,36 @@ export const moblinkCategoriesService = {
   },
 
   /**
-   * Resolve e traduz o código numérico de classificação do ERP MobLink para nomes limpos e padronizados.
+   * Verifica se um código de classificação é reconhecido na loja.
    */
-  resolveClassificacao(code: string | number | undefined): {
-    category: string;
-    subcategory: string;
-    nome_grupo: string;
-    nome_subgrupo: string;
-  } {
+  isClassificacaoValid(code: string | number | undefined, storeCategories?: Category[]): boolean {
+    if (!code) return true;
+    const resolved = this.resolveClassificacao(code, storeCategories);
+    return !resolved.isInvalid;
+  },
+
+  /**
+   * Resolve e traduz o código numérico de classificação do ERP MobLink para nomes limpos e padronizados.
+   * Quando o código não existe na árvore de categorias da loja, sinaliza como 'Classificação Inválida'.
+   */
+  resolveClassificacao(
+    code: string | number | undefined,
+    storeCategories?: Category[],
+  ): ResolvedClassificacao {
+    if (storeCategories && storeCategories.length > 0) {
+      this.updateIndexFromStoreCategories(storeCategories);
+    }
+
     if (!code) {
       return {
         category: "Calçados",
         subcategory: "",
         nome_grupo: "Calçados",
         nome_subgrupo: "",
+        isInvalid: false,
       };
     }
+
     const key = String(code).trim();
     if (!key) {
       return {
@@ -312,28 +370,57 @@ export const moblinkCategoriesService = {
         subcategory: "",
         nome_grupo: "Calçados",
         nome_subgrupo: "",
+        isInvalid: false,
       };
     }
 
-    // 1. Tenta correspondência exata
-    if (classificacaoIndex.has(key)) return classificacaoIndex.get(key)!;
+    // 1. Tenta correspondência exata no índice dinâmico
+    if (classificacaoIndex.has(key)) {
+      return { ...classificacaoIndex.get(key)!, isInvalid: false };
+    }
 
     // 2. Tenta com padding de 3 dígitos (ex: "1.1" -> "001.001", "1" -> "001")
     const parts = key.split(".");
     const paddedCode = parts.map((p) => p.padStart(3, "0")).join(".");
-    if (classificacaoIndex.has(paddedCode)) return classificacaoIndex.get(paddedCode)!;
+    if (classificacaoIndex.has(paddedCode)) {
+      return { ...classificacaoIndex.get(paddedCode)!, isInvalid: false };
+    }
 
-    // 3. Tenta pelo código do grupo pai (ex: "001.001" -> "001" ou "1.1" -> "1")
+    // 3. Tenta sem padding (ex: "001.001" -> "1.1")
+    const unpaddedCode = parts.map((p) => p.replace(/^0+/, "") || "0").join(".");
+    if (classificacaoIndex.has(unpaddedCode)) {
+      return { ...classificacaoIndex.get(unpaddedCode)!, isInvalid: false };
+    }
+
+    // 4. Tenta pelo código do grupo pai
     const parentCode = parts[0];
-    if (classificacaoIndex.has(parentCode)) return classificacaoIndex.get(parentCode)!;
-    const paddedParent = parentCode.padStart(3, "0");
-    if (classificacaoIndex.has(paddedParent)) return classificacaoIndex.get(paddedParent)!;
+    const parentEntry =
+      classificacaoIndex.get(parentCode) ||
+      classificacaoIndex.get(parentCode.padStart(3, "0")) ||
+      classificacaoIndex.get(parentCode.replace(/^0+/, ""));
 
+    if (parentEntry) {
+      // O grupo pai é válido, mas se o código tinha subcódigo (ex: "001.999") e não foi achado na loja,
+      // a subcategoria é inválida / não mapeada na árvore da loja!
+      if (parts.length > 1 && parts[1]) {
+        return {
+          category: parentEntry.category,
+          subcategory: "Classificação Inválida",
+          nome_grupo: parentEntry.nome_grupo,
+          nome_subgrupo: "Classificação Inválida",
+          isInvalid: true,
+        };
+      }
+      return { ...parentEntry, isInvalid: false };
+    }
+
+    // 5. Código completamente desconhecido na loja
     return {
-      category: "Calçados",
-      subcategory: "",
-      nome_grupo: key,
-      nome_subgrupo: "",
+      category: "Classificação Inválida",
+      subcategory: "Classificação Inválida",
+      nome_grupo: "Classificação Inválida",
+      nome_subgrupo: "Classificação Inválida",
+      isInvalid: true,
     };
   },
 

@@ -20,12 +20,12 @@ const getEnvVar = (key: string): string => {
 };
 
 const firebaseConfig = {
-  projectId: getEnvVar('VITE_FIREBASE_PROJECT_ID'),
-  appId: getEnvVar('VITE_FIREBASE_APP_ID'),
-  apiKey: getEnvVar('VITE_FIREBASE_API_KEY'),
-  authDomain: getEnvVar('VITE_FIREBASE_AUTH_DOMAIN'),
-  storageBucket: getEnvVar('VITE_FIREBASE_STORAGE_BUCKET'),
-  messagingSenderId: getEnvVar('VITE_FIREBASE_MESSAGING_SENDER_ID')
+  projectId: getEnvVar('VITE_FIREBASE_PROJECT_ID') || 'evidenciacalcados-test',
+  appId: getEnvVar('VITE_FIREBASE_APP_ID') || '1:123456789:web:123456',
+  apiKey: getEnvVar('VITE_FIREBASE_API_KEY') || 'AIzaSyDummyKeyForBuildAndTesting000000',
+  authDomain: getEnvVar('VITE_FIREBASE_AUTH_DOMAIN') || 'evidenciacalcados-test.firebaseapp.com',
+  storageBucket: getEnvVar('VITE_FIREBASE_STORAGE_BUCKET') || 'evidenciacalcados-test.firebasestorage.app',
+  messagingSenderId: getEnvVar('VITE_FIREBASE_MESSAGING_SENDER_ID') || '123456789'
 };
 
 // Initialize Firebase
