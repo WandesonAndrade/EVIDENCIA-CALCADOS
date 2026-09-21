@@ -638,8 +638,10 @@ O Dashboard Financeiro (`FinancialDashboard.tsx`) no `AdminPanel.tsx` (aba `fina
   - **Grupo 013 (Acessórios):** Relógios, Bolsas, Meias, Cintos, Bonés, Carteiras.
   - **Grupo 014 (Esportivo):** Acessórios Esportivos, Roupas de Treino, Garrafas.
 
-### B. Correção do Código Legado `001.001` (Feminino)
-- Produtos cadastrados historicamente sob a classificação `001.001` correspondem a calçados femininos (ex: *SANDALIA VIA GATA*, *SANDALIA AKAZZO*).
-- Anteriormente, um mapeamento estático desatualizado vinculava erroneamente o código `001.001` ao público "Masculino".
-- O código foi corrigido em `moblinkCategoriesService.ts` e desacoplado dos filtros masculinos em `categoryNavigationUtils.ts`, garantindo que produtos femininos apareçam exclusivamente nos menus e páginas de Calçados Femininos.
+### B. Tratamento de Classificações Inexistentes: 'Sem Classificação Definida'
+- Códigos que não constam na tabela oficial de grupos e categorias do ERP da loja (como o legado `001.001` presente em alguns cadastros antigos, ou qualquer código inexistente/vazio) são classificados automaticamente como **"Sem Classificação Definida"**.
+- Eliminação definitiva de categorias fantasmas e fallbacks forçados (remoção total de `001` da tabela de categorias).
+- O código bruto vindo do ERP (ex: `001.001`) é preservado no produto e exibido no painel administrativo em um badge dedicado de auditoria, permitindo ao lojista identificar com facilidade quais produtos precisam ser reclassificados diretamente no ERP para `002.002` (Feminino), `002.001` (Masculino), etc.
+- No catálogo e tabelas, produtos sem classificação definida recebem destaque visual próprio e não são atribuídos arbitrariamente a menus de público da vitrine.
+
 

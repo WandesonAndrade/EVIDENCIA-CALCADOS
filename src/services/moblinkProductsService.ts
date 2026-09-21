@@ -443,14 +443,16 @@ export const extractClassificacaoCategoria = (
   nome_grupo: string;
   nome_subgrupo: string;
   classificacao: string;
+  isDefined?: boolean;
 } => {
   if (!item || typeof item !== "object") {
     return {
-      category: "Calçados",
+      category: "Sem Classificação Definida",
       subcategory: "",
-      nome_grupo: "Calçados",
+      nome_grupo: "Sem Classificação Definida",
       nome_subgrupo: "",
       classificacao: "",
+      isDefined: false,
     };
   }
 
@@ -466,6 +468,9 @@ export const extractClassificacaoCategoria = (
     const parent = String(item.id_grupo).trim();
     const sub = item.id_subgrupo ? String(item.id_subgrupo).trim() : "";
     rawClassificacao = sub ? `${parent}.${sub}` : parent;
+  }
+  if (!rawClassificacao && (item.codigo_classificacao || item.cod_classificacao)) {
+    rawClassificacao = String(item.codigo_classificacao || item.cod_classificacao).trim();
   }
 
   // 2. Extrair subclassificacao bruta
@@ -483,26 +488,45 @@ export const extractClassificacaoCategoria = (
       "";
   }
 
-  // 3. Tradução oficial dinâmica via tabela central de categorias
+  // 3. Resolução da Classificação via tabela oficial de categorias/grupos
   const isNumericCode = /^\d+(\.\d+)?$/.test(rawClassificacao);
-  let category = "Calçados";
-  let subcategory = normalizeSubcategoryName(rawSubclassificacao);
-  let resolvedGrupo = rawClassificacao;
-  let resolvedSubgrupo = rawSubclassificacao;
 
-  if (isNumericCode) {
-    const resolved = moblinkCategoriesService.resolveClassificacao(rawClassificacao);
-    if (resolved && resolved.category && resolved.category.toUpperCase() !== "GERAL") {
-      category = resolved.category;
-      subcategory = resolved.subcategory || subcategory;
-      resolvedGrupo = resolved.nome_grupo || resolvedGrupo;
-      resolvedSubgrupo = resolved.nome_subgrupo || resolvedSubgrupo;
+  if (rawClassificacao) {
+    if (isNumericCode) {
+      const resolved = moblinkCategoriesService.resolveClassificacao(rawClassificacao);
+      if (!resolved.isDefined) {
+        // Classificação numérica inexistente nas categorias/grupos da loja (ex: 001.001)
+        return {
+          category: "Sem Classificação Definida",
+          subcategory: "",
+          nome_grupo: "Sem Classificação Definida",
+          nome_subgrupo: "",
+          classificacao: rawClassificacao,
+          isDefined: false,
+        };
+      }
+      return {
+        category: normalizeCategoryName(resolved.category),
+        subcategory: resolved.subcategory ? normalizeSubcategoryName(resolved.subcategory) : (rawSubclassificacao ? normalizeSubcategoryName(rawSubclassificacao) : ""),
+        nome_grupo: resolved.nome_grupo || resolved.category,
+        nome_subgrupo: resolved.nome_subgrupo || rawSubclassificacao,
+        classificacao: rawClassificacao,
+        isDefined: true,
+      };
+    } else if (rawClassificacao.toUpperCase() !== "GERAL") {
+      const normCat = normalizeCategoryName(rawClassificacao);
+      return {
+        category: normCat,
+        subcategory: rawSubclassificacao ? normalizeSubcategoryName(rawSubclassificacao) : "",
+        nome_grupo: normCat,
+        nome_subgrupo: rawSubclassificacao,
+        classificacao: rawClassificacao,
+        isDefined: true,
+      };
     }
-  } else if (rawClassificacao && rawClassificacao.toUpperCase() !== "GERAL") {
-    category = normalizeCategoryName(rawClassificacao);
   }
 
-  // 4. Verificação de grupo/categoria brutos do produto
+  // 4. Se não tem código de classificação, verifica grupo/categoria brutos do produto
   const rawGroup = String(
     item.nome_grupo ||
       item.grupo ||
@@ -514,35 +538,25 @@ export const extractClassificacaoCategoria = (
   if (rawGroup && rawGroup.toUpperCase() !== "GERAL") {
     const normGroup = normalizeCategoryName(rawGroup);
     if (normGroup && normGroup.toUpperCase() !== "GERAL") {
-      category = normGroup;
-      if (!resolvedGrupo || isNumericCode) resolvedGrupo = normGroup;
+      return {
+        category: normGroup,
+        subcategory: rawSubclassificacao ? normalizeSubcategoryName(rawSubclassificacao) : "",
+        nome_grupo: normGroup,
+        nome_subgrupo: rawSubclassificacao,
+        classificacao: "",
+        isDefined: true,
+      };
     }
   }
 
-  // 5. Inferência inteligente pelo Nome do Produto se a categoria for genérica
-  const prodName = String(item.descricao || item.nome || item.name || "").trim();
-  if (prodName) {
-    const inferred = inferCategoryFromProductName(prodName);
-    if (inferred.category) {
-      if (category === "Calçados" || category.toUpperCase() === "GERAL") {
-        category = inferred.category;
-      }
-      if (!subcategory && inferred.subcategory) {
-        subcategory = inferred.subcategory;
-      }
-    }
-  }
-
-  if (!category || category.toUpperCase() === "GERAL") {
-    category = "Calçados";
-  }
-
+  // 5. Sem classificação no ERP e sem categoria informada
   return {
-    category: normalizeCategoryName(category),
-    subcategory: subcategory ? normalizeSubcategoryName(subcategory) : "",
-    nome_grupo: resolvedGrupo || category,
-    nome_subgrupo: resolvedSubgrupo || subcategory,
-    classificacao: rawClassificacao,
+    category: "Sem Classificação Definida",
+    subcategory: "",
+    nome_grupo: "Sem Classificação Definida",
+    nome_subgrupo: "",
+    classificacao: "",
+    isDefined: false,
   };
 };
 

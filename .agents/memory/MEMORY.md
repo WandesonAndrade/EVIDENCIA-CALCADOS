@@ -102,9 +102,11 @@ Este arquivo é a memória persistente do projeto (AG Kit), consolidando decisõ
     - Em caso de falha de escrita no Firestore, o sistema captura a exceção e garante a integridade dos dados no Supabase.
     - Em falha de leitura do snapshot do Firestore, o catálogo ativa hidratação imediata via `fetchProductMediaFromSupabase()`, preservando capas, fotos e descrições dos produtos.
 
-16. **Taxonomia Oficial MobLink ERP & Resolução de Classificação (Implementado):**
-    - Mapeamento extraído diretamente da API do ERP MobLink da Evidência Calçados (`/produtos/grupos`) contendo os 42 grupos e subgrupos oficiais.
-    - O código legado `001.001` (utilizado nos primeiros cadastros de sandálias femininas como Via Gata e Akazzo) foi corrigido para `Calçados > Feminino`, eliminando a anomalia em que produtos femininos eram indevidamente exibidos como masculinos.
-    - A árvore oficial do MobLink ERP adota o Grupo `002` para Calçados (`002.001` Masculino, `002.002` Feminino, `002.003` Infantil Masculino, `002.004` Infantil Feminino, `002.005` Papete), Grupo `007` para Confecções, `009` para Cosméticos, `010` para Perfumaria, `011` para Viagens, `012` para Escolar, `013` para Acessórios e `014` para Esportivo.
+16. **Taxonomia Oficial MobLink ERP & Produtos Sem Classificação Definida (Implementado):**
+    - Mapeamento estritamente alinhado com a API oficial do ERP MobLink (`/produtos/grupos`) com os 42 grupos e subgrupos oficiais (Calçados a partir do grupo `002`).
+    - **Regra de Classificação Inexistente**: Qualquer produto que possua um código de classificação que não conste na tabela oficial de grupos/categorias (como os códigos legados `001.001`, `999.xxx` ou produtos sem código) é classificado como **"Sem Classificação Definida"**.
+    - O código bruto do ERP é preservado para fins de auditoria no painel administrativo, permitindo ao lojista identificar e atualizar o cadastro diretamente no ERP para o código oficial (ex: `002.002` para Feminino).
+    - Não são criadas categorias fantasmas ou forçados fallbacks arbitrários.
+
 
 

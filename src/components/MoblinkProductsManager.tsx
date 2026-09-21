@@ -2351,18 +2351,23 @@ export const MoblinkProductsManager: React.FC = () => {
     const groupedMoblinkMap = filteredMoblinkList.reduce((acc, item) => {
       const mobId = String(item.id || item.moblinkId || 'MOB-000');
       const catInfo = extractClassificacaoCategoria(item);
-      const rawClass = catInfo.classificacao || String(item.classificacao || (item as any).id_grupo || (item as any).cod_classificacao || (item as any).classificacao_erp || '').trim() || '001.001';
-      const parts = rawClass.split('.');
-      const rawGrupoNum = (parts[0] !== undefined && parts[0] !== '') ? parts[0].trim() : '001';
-      const grupoCode = rawGrupoNum.padStart(3, '0');
+      const rawClass = catInfo.classificacao || String(item.classificacao || (item as any).id_grupo || (item as any).cod_classificacao || (item as any).classificacao_erp || '').trim();
+      const parts = rawClass ? rawClass.split('.') : [];
+      const rawGrupoNum = (parts.length > 0 && parts[0] !== undefined && parts[0] !== '') ? parts[0].trim() : '';
+      const grupoCode = rawGrupoNum ? rawGrupoNum.padStart(3, '0') : '';
       
-      const rawCatName = item.categoria || item.category || item.nome_grupo || catInfo.category || 'Geral';
-      const groupKey = `Grupo ${grupoCode} (${rawCatName.toUpperCase()})`;
+      const isUnclassified = catInfo.category === 'Sem Classificação Definida';
+      const rawCatName = isUnclassified
+        ? 'Sem Classificação Definida'
+        : (catInfo.category || item.categoria || item.category || item.nome_grupo || 'Sem Classificação Definida');
+      const groupKey = isUnclassified
+        ? 'Sem Classificação Definida'
+        : (grupoCode ? `Grupo ${grupoCode} (${rawCatName.toUpperCase()})` : 'Sem Classificação Definida');
 
       if (!acc[groupKey]) {
         acc[groupKey] = {
           baseName: groupKey,
-          grupoCode,
+          grupoCode: grupoCode || '---',
           category: rawCatName,
           items: [],
           totalStock: 0,
@@ -3072,18 +3077,28 @@ export const MoblinkProductsManager: React.FC = () => {
                                     </span>
                                     {(() => {
                                       const catInfo = extractClassificacaoCategoria(item);
-                                      const classCode = catInfo.classificacao || String(item.classificacao || (item as any).id_grupo || (item as any).cod_classificacao || (item as any).classificacao_erp || '').trim() || (existingDb as any)?.classificacao || '002.001';
-                                      const subcategory = resolveProductSubcategory(item, existingDb);
+                                      const classCode = catInfo.classificacao || String(item.classificacao || (item as any).id_grupo || (item as any).cod_classificacao || (item as any).classificacao_erp || '').trim() || (existingDb as any)?.classificacao || '';
+                                      const isUnclass = catInfo.category === 'Sem Classificação Definida';
+                                      const subcategory = isUnclass ? '' : resolveProductSubcategory(item, existingDb);
                                       return (
                                         <>
-                                          <span className="font-mono text-[9px] font-black px-2 py-0.5 bg-[#0071E3]/10 text-[#0071E3] dark:bg-blue-900/40 dark:text-blue-300 rounded border border-[#0071E3]/20 inline-flex items-center gap-1" title="Classificação no MobLink ERP">
-                                            <Layers className="h-2.5 w-2.5 text-[#0071E3] shrink-0" />
-                                            <span>Classif: {classCode}</span>
-                                          </span>
-                                          <span className="text-[9px] font-extrabold px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-[#003B73] dark:text-slate-200 rounded border border-slate-200 dark:border-slate-700 inline-flex items-center gap-1">
-                                            <Tag className="h-2.5 w-2.5 text-[#0071E3] shrink-0" />
-                                            <span>Subcat: {subcategory}</span>
-                                          </span>
+                                          {classCode && (
+                                            <span className="font-mono text-[9px] font-black px-2 py-0.5 bg-[#0071E3]/10 text-[#0071E3] dark:bg-blue-900/40 dark:text-blue-300 rounded border border-[#0071E3]/20 inline-flex items-center gap-1" title="Classificação no MobLink ERP">
+                                              <Layers className="h-2.5 w-2.5 text-[#0071E3] shrink-0" />
+                                              <span>Classif: {classCode}</span>
+                                            </span>
+                                          )}
+                                          {isUnclass ? (
+                                            <span className="text-[9px] font-extrabold px-2 py-0.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded border border-amber-500/20 inline-flex items-center gap-1" title="Classificação não definida nas categorias do ERP">
+                                              <Tag className="h-2.5 w-2.5 text-amber-500 shrink-0" />
+                                              <span>Sem Classificação Definida</span>
+                                            </span>
+                                          ) : subcategory ? (
+                                            <span className="text-[9px] font-extrabold px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-[#003B73] dark:text-slate-200 rounded border border-slate-200 dark:border-slate-700 inline-flex items-center gap-1">
+                                              <Tag className="h-2.5 w-2.5 text-[#0071E3] shrink-0" />
+                                              <span>Subcat: {subcategory}</span>
+                                            </span>
+                                          ) : null}
                                         </>
                                       );
                                     })()}
@@ -3341,12 +3356,27 @@ export const MoblinkProductsManager: React.FC = () => {
                     {/* ESQUERDA: Nome amigável traduzido */}
                     <span className="inline-flex items-center gap-1.5 text-xs font-extrabold text-slate-800 dark:text-slate-100">
                       <Tag className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-                      <span>{normalizeCategoryName(selectedProduct.nome_grupo || selectedProduct.categoria || selectedProduct.category || 'Geral')}</span>
-                      {(selectedProduct.nome_subgrupo || selectedProduct.subcategoria || selectedProduct.subcategory) && (
-                        <span className="text-slate-400 font-medium">
-                          {' › '}{normalizeSubcategoryName(selectedProduct.nome_subgrupo || selectedProduct.subcategoria || selectedProduct.subcategory || '')}
-                        </span>
-                      )}
+                      {(() => {
+                        const rawCat = selectedProduct.category || selectedProduct.nome_grupo || selectedProduct.categoria || '';
+                        const isUnclass = rawCat === 'Sem Classificação Definida' || (!rawCat && !selectedProduct.classificacao);
+                        if (isUnclass) {
+                          return (
+                            <span className="text-amber-600 dark:text-amber-400 font-extrabold">
+                              Sem Classificação Definida
+                            </span>
+                          );
+                        }
+                        return (
+                          <>
+                            <span>{normalizeCategoryName(rawCat || 'Geral')}</span>
+                            {(selectedProduct.nome_subgrupo || selectedProduct.subcategoria || selectedProduct.subcategory) && (
+                              <span className="text-slate-400 font-medium">
+                                {' › '}{normalizeSubcategoryName(selectedProduct.nome_subgrupo || selectedProduct.subcategoria || selectedProduct.subcategory || '')}
+                              </span>
+                            )}
+                          </>
+                        );
+                      })()}
                     </span>
                     {/* DIREITA: Código bruto ERP (badge) */}
                     {selectedProduct.classificacao && (

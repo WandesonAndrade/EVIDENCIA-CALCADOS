@@ -220,12 +220,6 @@ const defaultClassificacaoEntries: [string, { category: string; subcategory: str
   ["002.004", { category: "Calçados", subcategory: "Infantil Feminino", nome_grupo: "Calçados", nome_subgrupo: "Infantil Feminino" }],
   ["002.005", { category: "Calçados", subcategory: "Papete", nome_grupo: "Calçados", nome_subgrupo: "Papete" }],
 
-  // --- GRUPO 001: CALÇADOS / LEGADO ERP (001.001 é Calçado Feminino no ERP da Evidência Calçados) ---
-  ["001", { category: "Calçados", subcategory: "", nome_grupo: "Calçados", nome_subgrupo: "" }],
-  ["001.001", { category: "Calçados", subcategory: "Feminino", nome_grupo: "Calçados", nome_subgrupo: "Feminino" }],
-  ["001.002", { category: "Calçados", subcategory: "Feminino", nome_grupo: "Calçados", nome_subgrupo: "Feminino" }],
-  ["001.003", { category: "Calçados", subcategory: "Infantil", nome_grupo: "Calçados", nome_subgrupo: "Infantil" }],
-
   // --- GRUPO 007: CONFECÇÕES (OFICIAL ERP MOBLINK) ---
   ["007", { category: "Confecções", subcategory: "", nome_grupo: "Confecções", nome_subgrupo: "" }],
   ["007.001", { category: "Confecções", subcategory: "Camiseta Gola O", nome_grupo: "Confecções", nome_subgrupo: "Camiseta Gola O" }],
@@ -284,11 +278,7 @@ const defaultClassificacaoEntries: [string, { category: string; subcategory: str
   ["014.003", { category: "Esportivo", subcategory: "Joelheira", nome_grupo: "Esportivo", nome_subgrupo: "Joelheira" }],
   ["014.004", { category: "Esportivo", subcategory: "Tornozeleira", nome_grupo: "Esportivo", nome_subgrupo: "Tornozeleira" }],
 
-  // --- MAPEAMENTOS SEM ZERO À ESQUERDA (EX: "2.1", "2.2", "1.1") ---
-  ["1", { category: "Calçados", subcategory: "", nome_grupo: "Calçados", nome_subgrupo: "" }],
-  ["1.1", { category: "Calçados", subcategory: "Feminino", nome_grupo: "Calçados", nome_subgrupo: "Feminino" }],
-  ["1.2", { category: "Calçados", subcategory: "Feminino", nome_grupo: "Calçados", nome_subgrupo: "Feminino" }],
-  ["1.3", { category: "Calçados", subcategory: "Infantil", nome_grupo: "Calçados", nome_subgrupo: "Infantil" }],
+  // --- MAPEAMENTOS SEM ZERO À ESQUERDA (OFICIAL ERP MOBLINK) ---
   ["2", { category: "Calçados", subcategory: "", nome_grupo: "Calçados", nome_subgrupo: "" }],
   ["2.1", { category: "Calçados", subcategory: "Masculino", nome_grupo: "Calçados", nome_subgrupo: "Masculino" }],
   ["2.2", { category: "Calçados", subcategory: "Feminino", nome_grupo: "Calçados", nome_subgrupo: "Feminino" }],
@@ -345,51 +335,81 @@ export const moblinkCategoriesService = {
 
   /**
    * Resolve e traduz o código numérico de classificação do ERP MobLink para nomes limpos e padronizados.
+   * Quando o código não existe nos grupos/categorias da loja, retorna 'Sem Classificação Definida'.
    */
   resolveClassificacao(code: string | number | undefined): {
     category: string;
     subcategory: string;
     nome_grupo: string;
     nome_subgrupo: string;
+    isDefined: boolean;
   } {
     if (!code) {
       return {
-        category: "Calçados",
+        category: "Sem Classificação Definida",
         subcategory: "",
-        nome_grupo: "Calçados",
+        nome_grupo: "Sem Classificação Definida",
         nome_subgrupo: "",
+        isDefined: false,
       };
     }
     const key = String(code).trim();
     if (!key) {
       return {
-        category: "Calçados",
+        category: "Sem Classificação Definida",
         subcategory: "",
-        nome_grupo: "Calçados",
+        nome_grupo: "Sem Classificação Definida",
         nome_subgrupo: "",
+        isDefined: false,
       };
     }
 
     // 1. Tenta correspondência exata
-    if (classificacaoIndex.has(key)) return classificacaoIndex.get(key)!;
+    if (classificacaoIndex.has(key)) {
+      return { ...classificacaoIndex.get(key)!, isDefined: true };
+    }
 
-    // 2. Tenta com padding de 3 dígitos (ex: "1.1" -> "001.001", "1" -> "001")
+    // 2. Tenta com padding de 3 dígitos (ex: "2.1" -> "002.001", "2" -> "002")
     const parts = key.split(".");
     const paddedCode = parts.map((p) => p.padStart(3, "0")).join(".");
-    if (classificacaoIndex.has(paddedCode)) return classificacaoIndex.get(paddedCode)!;
+    if (classificacaoIndex.has(paddedCode)) {
+      return { ...classificacaoIndex.get(paddedCode)!, isDefined: true };
+    }
 
-    // 3. Tenta pelo código do grupo pai (ex: "001.001" -> "001" ou "1.1" -> "1")
-    const parentCode = parts[0];
-    if (classificacaoIndex.has(parentCode)) return classificacaoIndex.get(parentCode)!;
-    const paddedParent = parentCode.padStart(3, "0");
-    if (classificacaoIndex.has(paddedParent)) return classificacaoIndex.get(paddedParent)!;
+    // 3. Tenta sem padding (ex: "002.001" -> "2.1")
+    const unpaddedCode = parts.map((p) => p.replace(/^0+/, "") || "0").join(".");
+    if (classificacaoIndex.has(unpaddedCode)) {
+      return { ...classificacaoIndex.get(unpaddedCode)!, isDefined: true };
+    }
 
+    // 4. Se for código de grupo pai único (ex: "002" ou "2"), resolve o grupo
+    if (parts.length === 1) {
+      const parentCode = parts[0];
+      if (classificacaoIndex.has(parentCode)) {
+        return { ...classificacaoIndex.get(parentCode)!, isDefined: true };
+      }
+      const paddedParent = parentCode.padStart(3, "0");
+      if (classificacaoIndex.has(paddedParent)) {
+        return { ...classificacaoIndex.get(paddedParent)!, isDefined: true };
+      }
+    }
+
+    // 5. Código inexistente na árvore oficial de categorias do ERP
     return {
-      category: "Calçados",
+      category: "Sem Classificação Definida",
       subcategory: "",
-      nome_grupo: key,
+      nome_grupo: "Sem Classificação Definida",
       nome_subgrupo: "",
+      isDefined: false,
     };
+  },
+
+  /**
+   * Verifica se um código numérico de classificação existe na tabela de grupos/categorias da loja.
+   */
+  isClassificacaoDefined(code: string | number | undefined): boolean {
+    if (!code) return false;
+    return this.resolveClassificacao(code).isDefined;
   },
 
   buildCategoryTree(

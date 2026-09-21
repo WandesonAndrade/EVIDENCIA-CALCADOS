@@ -14,7 +14,7 @@ function runTests() {
     {
       id: '1',
       name: 'SANDÁLIA FEMININA VIZZANO SALTO ALTO',
-      classificacao: '001.002',
+      classificacao: '002.002',
       visible: true,
       stock: 5,
       images: ['https://example.com/sandalia.jpg'],
@@ -24,7 +24,7 @@ function runTests() {
     {
       id: '2',
       name: 'RASTEIRA FEMININA MOLECA DOURADA',
-      classificacao: '001.002',
+      classificacao: '002.002',
       visible: true,
       stock: 8,
       images: ['https://example.com/rasteira.jpg'],
@@ -34,7 +34,7 @@ function runTests() {
     {
       id: '3',
       name: 'SAPATÊNIS MASCULINO PEGADA COURO',
-      classificacao: '001.001',
+      classificacao: '002.001',
       visible: true,
       stock: 4,
       images: ['https://example.com/sapatenis.jpg'],
@@ -44,7 +44,7 @@ function runTests() {
     {
       id: '4',
       name: 'TÊNIS OLYMPIKUS MASCULINO CORRIDA',
-      classificacao: '001.001',
+      classificacao: '002.001',
       visible: true,
       stock: 12,
       images: ['https://example.com/tenis-masc.jpg'],
@@ -54,7 +54,7 @@ function runTests() {
     {
       id: '5',
       name: 'TÊNIS INFANTIL SOUND KIDS LED',
-      classificacao: '001.003',
+      classificacao: '002.003',
       visible: true,
       stock: 3,
       images: ['https://example.com/sound-kids.jpg'],
@@ -64,7 +64,7 @@ function runTests() {
     {
       id: '6',
       name: 'SANDÁLIA BABY INFANTIL PAMPILI',
-      classificacao: '001.004',
+      classificacao: '002.004',
       visible: true,
       stock: 2,
       images: ['https://example.com/baby.jpg'],

@@ -92,12 +92,14 @@ export function isProductInAudience(prod: Product | any, audience: AudienceKey):
   if (audience === 'feminino') {
     // 1. Classificação oficial ERP MobLink
     if (
-      pClass.startsWith('001.002') ||
       pClass.startsWith('002.002') ||
-      pClass.startsWith('003.002') ||
-      pClass.startsWith('1.2') ||
-      pClass.startsWith('2.2') ||
-      pClass.startsWith('3.2')
+      pClass.startsWith('007.003') ||
+      pClass.startsWith('007.006') ||
+      pClass.startsWith('007.007') ||
+      pClass.startsWith('007.008') ||
+      pClass.startsWith('007.009') ||
+      pClass.startsWith('010.002') ||
+      pClass.startsWith('2.2')
     ) {
       return true;
     }
@@ -129,8 +131,8 @@ export function isProductInAudience(prod: Product | any, audience: AudienceKey):
         pName.includes('INFANTIL') ||
         pName.includes('KIDS') ||
         pName.includes('BEBÊ') ||
-        pClass.startsWith('001.003') ||
-        pClass.startsWith('001.004');
+        pClass.startsWith('002.003') ||
+        pClass.startsWith('002.004');
       return !isExplicitInf;
     }
 
@@ -155,11 +157,14 @@ export function isProductInAudience(prod: Product | any, audience: AudienceKey):
       pName.includes('KIDS') ||
       pName.includes('BABY') ||
       pClass.startsWith('002.003') ||
-      pClass.startsWith('002.004') ||
-      pClass.startsWith('001.003') ||
-      pClass.startsWith('001.004');
+      pClass.startsWith('002.004');
 
     if (isExplicitMasc || isExplicitInf) {
+      return false;
+    }
+
+    // Produtos sem classificação definida não devem ser atribuídos compulsoriamente a feminino
+    if (pCat.includes('SEM CLASSIFICA') || pGrupo.includes('SEM CLASSIFICA')) {
       return false;
     }
 
@@ -196,8 +201,8 @@ export function isProductInAudience(prod: Product | any, audience: AudienceKey):
 
     if (isExplicitMasc) {
       // Exclui se for explícito feminino ou infantil
-      const isFem = pSub.includes('FEMININ') || pCat.includes('FEMININ') || pClass.startsWith('001.002');
-      const isInf = pSub.includes('INFANTIL') || pName.includes('KIDS') || pClass.startsWith('001.003');
+      const isFem = pSub.includes('FEMININ') || pCat.includes('FEMININ');
+      const isInf = pSub.includes('INFANTIL') || pName.includes('KIDS') || pClass.startsWith('002.003') || pClass.startsWith('002.004');
       return !isFem && !isInf;
     }
 
@@ -206,12 +211,10 @@ export function isProductInAudience(prod: Product | any, audience: AudienceKey):
 
   if (audience === 'infantil') {
     if (
-      pClass.startsWith('001.003') ||
-      pClass.startsWith('001.004') ||
       pClass.startsWith('002.003') ||
       pClass.startsWith('002.004') ||
-      pClass.startsWith('003.003') ||
-      pClass.startsWith('1.3') ||
+      pClass.startsWith('010.003') ||
+      pClass.startsWith('012.') ||
       pClass.startsWith('2.3') ||
       pClass.startsWith('2.4')
     ) {
