@@ -142,7 +142,8 @@ export function isProductInAudience(prod: Product | any, audience: AudienceKey):
       pName.includes('MASCULIN') ||
       pName.includes('MASCULINO') ||
       pName.includes('SAPATÊNIS') ||
-      pName.includes('SAPATENIS');
+      pName.includes('SAPATENIS') ||
+      pClass.startsWith('002.001');
 
     const isExplicitInf =
       pSub.includes('INFANTIL') ||
@@ -152,7 +153,11 @@ export function isProductInAudience(prod: Product | any, audience: AudienceKey):
       pName.includes('INFANTIL') ||
       pSub.includes('BEBÊ') ||
       pName.includes('KIDS') ||
-      pName.includes('BABY');
+      pName.includes('BABY') ||
+      pClass.startsWith('002.003') ||
+      pClass.startsWith('002.004') ||
+      pClass.startsWith('001.003') ||
+      pClass.startsWith('001.004');
 
     if (isExplicitMasc || isExplicitInf) {
       return false;
@@ -163,6 +168,15 @@ export function isProductInAudience(prod: Product | any, audience: AudienceKey):
   }
 
   if (audience === 'masculino') {
+    if (
+      pClass.startsWith('002.001') ||
+      pClass.startsWith('010.001') ||
+      pClass.startsWith('2.1') ||
+      pClass.startsWith('10.1')
+    ) {
+      return true;
+    }
+
     if (pGender === 'MALE' || pGender === 'MASCULINO') {
       return true;
     }
@@ -182,8 +196,8 @@ export function isProductInAudience(prod: Product | any, audience: AudienceKey):
 
     if (isExplicitMasc) {
       // Exclui se for explícito feminino ou infantil
-      const isFem = pSub.includes('FEMININ') || pCat.includes('FEMININ');
-      const isInf = pSub.includes('INFANTIL') || pName.includes('KIDS') || pName.includes('BABY');
+      const isFem = pSub.includes('FEMININ') || pCat.includes('FEMININ') || pClass.startsWith('001.002');
+      const isInf = pSub.includes('INFANTIL') || pName.includes('KIDS') || pClass.startsWith('001.003');
       return !isFem && !isInf;
     }
 

@@ -102,9 +102,9 @@ Este arquivo é a memória persistente do projeto (AG Kit), consolidando decisõ
     - Em caso de falha de escrita no Firestore, o sistema captura a exceção e garante a integridade dos dados no Supabase.
     - Em falha de leitura do snapshot do Firestore, o catálogo ativa hidratação imediata via `fetchProductMediaFromSupabase()`, preservando capas, fotos e descrições dos produtos.
 
-16. **Classificação Dinâmica ERP MobLink & Componentização de Categoria (Implementado):**
-    - **Fim dos Mapeamentos Fictícios**: Remoção de suposições arbitrárias em `moblinkCategoriesService.ts` (como `001.001 = Masculino`). A taxonomia é alimentada dinamicamente a partir da árvore oficial de categorias da loja (`categories` / Firestore / ERP).
-    - **Regra de Classificação Inválida**: Códigos de classificação que não constam na lista de categorias da loja são identificados e sinalizados como "Classificação Inválida" (`isInvalid: true`), com alerta visual dedicado para que o lojista possa cadastrar a respectiva categoria/subcategoria no painel.
-    - **Componentização (`ProductCategoryClassification.tsx`)**: Exibição padronizada de Categoria, Subcategoria e Código ERP com variantes `card` (para modal de detalhes), `inline` (para tabelas) e `badge-only`, com suporte a temas dark/light e tratamento de status inválido.
+16. **Taxonomia Oficial MobLink ERP & Resolução de Classificação (Implementado):**
+    - Mapeamento extraído diretamente da API do ERP MobLink da Evidência Calçados (`/produtos/grupos`) contendo os 42 grupos e subgrupos oficiais.
+    - O código legado `001.001` (utilizado nos primeiros cadastros de sandálias femininas como Via Gata e Akazzo) foi corrigido para `Calçados > Feminino`, eliminando a anomalia em que produtos femininos eram indevidamente exibidos como masculinos.
+    - A árvore oficial do MobLink ERP adota o Grupo `002` para Calçados (`002.001` Masculino, `002.002` Feminino, `002.003` Infantil Masculino, `002.004` Infantil Feminino, `002.005` Papete), Grupo `007` para Confecções, `009` para Cosméticos, `010` para Perfumaria, `011` para Viagens, `012` para Escolar, `013` para Acessórios e `014` para Esportivo.
 
 

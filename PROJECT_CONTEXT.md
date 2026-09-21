@@ -622,3 +622,24 @@ O Dashboard Financeiro (`FinancialDashboard.tsx`) no `AdminPanel.tsx` (aba `fina
   - Em caso de recusa ou erro de cota no Firestore, o sistema captura o erro silenciosamente e persiste com sucesso no Supabase, garantindo que nenhuma foto, edição ou descrição seja perdida.
 - **Hidratação Ativa de Vitrine via Supabase:**
   - Quando o listener de catálogo em tempo real do Firestore (`onSnapshot`) falha ou retorna cota excedida, o sistema dispara a busca de contingência via `fetchProductMediaFromSupabase()`, hidratando imediatamente os produtos em memória com as fotos, capas e descrições do Supabase, mantendo a vitrine da loja rica e funcional para os clientes.
+
+---
+
+## 22. Taxonomia Oficial MobLink ERP & Resolução de Classificação
+
+### A. Mapeamento Real Extraído da API do ERP
+- A árvore de grupos e subgrupos foi alinhada diretamente com a API do MobLink ERP da Evidência Calçados (`GET /produtos/grupos`), contemplando 42 grupos e subgrupos oficiais:
+  - **Grupo 002 (Calçados):** `002.001` Masculino, `002.002` Feminino, `002.003` Infantil Masculino, `002.004` Infantil Feminino, `002.005` Papete.
+  - **Grupo 007 (Confecções):** Camiseta Gola O, Camisa Polo, Short Feminino, Calça Jeans, Bermuda, Blusa, Macaquinho, etc.
+  - **Grupo 009 (Cosméticos):** Hidratante, Máscara, Shampoo, Capilar, Skincare.
+  - **Grupo 010 (Perfumaria):** Colônia, Eau de Parfum, Perfume.
+  - **Grupo 011 (Viagens):** Malas, Frasqueiras, Sacolas.
+  - **Grupo 012 (Escolar):** Mochilas, Lancheiras, Estojos.
+  - **Grupo 013 (Acessórios):** Relógios, Bolsas, Meias, Cintos, Bonés, Carteiras.
+  - **Grupo 014 (Esportivo):** Acessórios Esportivos, Roupas de Treino, Garrafas.
+
+### B. Correção do Código Legado `001.001` (Feminino)
+- Produtos cadastrados historicamente sob a classificação `001.001` correspondem a calçados femininos (ex: *SANDALIA VIA GATA*, *SANDALIA AKAZZO*).
+- Anteriormente, um mapeamento estático desatualizado vinculava erroneamente o código `001.001` ao público "Masculino".
+- O código foi corrigido em `moblinkCategoriesService.ts` e desacoplado dos filtros masculinos em `categoryNavigationUtils.ts`, garantindo que produtos femininos apareçam exclusivamente nos menus e páginas de Calçados Femininos.
+
