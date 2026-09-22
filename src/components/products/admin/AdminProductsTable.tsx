@@ -12,6 +12,7 @@ export interface AdminProductsTableProps {
   onDeleteProduct: (mobId: string) => void;
   getExistingDbProduct: (mobId: string) => Product | null | undefined;
   resolveSubcategory?: (item: any, existingDb?: Product | null) => string;
+  onToggleVisibility?: (mobId: string, currentVisible: boolean) => void;
 }
 
 export const AdminProductsTable: React.FC<AdminProductsTableProps> = ({
@@ -23,6 +24,7 @@ export const AdminProductsTable: React.FC<AdminProductsTableProps> = ({
   onDeleteProduct,
   getExistingDbProduct,
   resolveSubcategory,
+  onToggleVisibility,
 }) => {
   const allSelected =
     products.length > 0 &&
@@ -67,6 +69,7 @@ export const AdminProductsTable: React.FC<AdminProductsTableProps> = ({
             <th className="p-4 text-left">Preço à Vista</th>
             <th className="p-4 text-left">Estoque Actual</th>
             <th className="p-4 text-left">Status de Mídia</th>
+            <th className="p-4 text-left">Status no Site</th>
             <th className="p-4 text-right">Ação</th>
           </tr>
         </thead>
@@ -86,6 +89,7 @@ export const AdminProductsTable: React.FC<AdminProductsTableProps> = ({
                 onEdit={onEditProduct}
                 onDelete={onDeleteProduct}
                 resolveSubcategory={resolveSubcategory}
+                onToggleVisibility={onToggleVisibility}
               />
             );
           })}

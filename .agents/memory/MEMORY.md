@@ -106,7 +106,14 @@ Este arquivo é a memória persistente do projeto (AG Kit), consolidando decisõ
     - Mapeamento estritamente alinhado com a API oficial do ERP MobLink (`/produtos/grupos`) com os 42 grupos e subgrupos oficiais (Calçados a partir do grupo `002`).
     - **Regra de Classificação Inexistente**: Qualquer produto que possua um código de classificação que não conste na tabela oficial de grupos/categorias (como os códigos legados `001.001`, `999.xxx` ou produtos sem código) é classificado como **"Sem Classificação Definida"**.
     - O código bruto do ERP é preservado para fins de auditoria no painel administrativo, permitindo ao lojista identificar e atualizar o cadastro diretamente no ERP para o código oficial (ex: `002.002` para Feminino).
-    - Não são criadas categorias fantasmas ou forçados fallbacks arbitrários.
+    - **Visibilidade Oculta Obrigatória**: Todo produto com "Sem Classificação Definida" é forçado estritamente como **Oculto** (`visible = false`) no painel, nas rotinas de sincronização (`moblinkProductsService.ts`) e no filtro da vitrine (`productFilterUtils.ts`). O lojista é alertado se tentar publicá-lo antes de corrigir a classificação no ERP.
 
+17. **Indicador Visual de Visibilidade e Controle Rápido na Tabela (`Status no Site`) (Implementado):**
+    - Adicionada a coluna **`Status no Site`** na tabela do `MoblinkProductsManager.tsx` (`AdminProductsTable.tsx` e `AdminProductRow.tsx`).
+    - Exibe badges em tempo real: 🟢 **`Visível no Site`** (produtos ativos na vitrine) vs 🔴 **`Oculto (Motivo)`** (ex: *Sem classificação definida*, *Desativado no cadastro*, *Sem estoque* ou *Sem foto*).
+    - Botão de alternância rápida (ícone de olho) para publicar ou ocultar o produto com 1 clique direto da listagem sem precisar abrir o modal de edição.
 
-
+18. **Geração de Relatórios em Excel Baseados nos Filtros Ativos (Implementado):**
+    - Criado o serviço utilitário `excelReportService.ts` com a função `generateProductsExcelReport`.
+    - Dispara o download de planilha `.csv` codificada em **UTF-8 com BOM (`\uFEFF`)** e delimitador `;` (padrão brasileiro do Excel), contendo exatamente os produtos resultantes dos filtros ativos em tempo real (busca, categoria, subcategoria, classificação ERP, status no site, mídias e estoque).
+    - Inclui botões no cabeçalho e na barra de filtro do `MoblinkProductsManager.tsx` com contador dinâmico de itens a exportar.

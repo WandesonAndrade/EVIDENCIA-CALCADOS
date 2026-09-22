@@ -643,5 +643,32 @@ O Dashboard Financeiro (`FinancialDashboard.tsx`) no `AdminPanel.tsx` (aba `fina
 - Eliminação definitiva de categorias fantasmas e fallbacks forçados (remoção total de `001` da tabela de categorias).
 - O código bruto vindo do ERP (ex: `001.001`) é preservado no produto e exibido no painel administrativo em um badge dedicado de auditoria, permitindo ao lojista identificar com facilidade quais produtos precisam ser reclassificados diretamente no ERP para `002.002` (Feminino), `002.001` (Masculino), etc.
 - No catálogo e tabelas, produtos sem classificação definida recebem destaque visual próprio e não são atribuídos arbitrariamente a menus de público da vitrine.
+- **Blindagem de Visibilidade:** Todo produto com "Sem Classificação Definida" é forçado estritamente como **Oculto** (`visible = false`) no painel gestor, nas rotinas de sincronização (`moblinkProductsService.ts`) e na busca da vitrine (`productFilterUtils.ts`), bloqueando a publicação acidental de itens desqualificados na loja virtual.
+
+---
+
+## 23. Indicador Visual de Visibilidade e Controle Rápido (`Status no Site`)
+
+### A. Exibição Transparente sem Acessar o Produto
+- Adicionada a coluna **`Status no Site`** na tabela do `MoblinkProductsManager.tsx` (`AdminProductsTable.tsx` e `AdminProductRow.tsx`).
+- Exibe badges em tempo real:
+  - 🟢 **`Visível no Site`** (produtos ativos na vitrine).
+  - 🔴 **`Oculto (Motivo)`** (ex: *Sem classificação definida*, *Desativado no cadastro*, *Sem estoque*, *Sem foto*).
+
+### B. Ativação / Desativação com 1 Clique
+- Botão de alternância rápida de visibilidade (ícone de olho) diretamente na linha da tabela, permitindo ao lojista publicar ou ocultar um produto instantaneamente sem abrir o modal de edição.
+- Alerta educativo bloqueia a publicação de produtos que possuam "Sem Classificação Definida" até que a taxonomia seja ajustada no ERP.
+
+---
+
+## 24. Relatórios em Excel (.csv UTF-8 com BOM) Baseados nos Filtros Ativos
+
+### A. Serviço Dedicado (`src/services/excelReportService.ts`)
+- Função `generateProductsExcelReport`: Compila os dados dos produtos filtrados no momento e gera um arquivo `.csv` codificado com **BOM UTF-8 (`\uFEFF`)** e separador de colunas `;`.
+- **Compatibilidade Nativa:** Abre diretamente no Microsoft Excel (Windows/Mac), Google Sheets e LibreOffice com suporte nativo a acentuação e numerações em moeda brasileira (`R$`).
+
+### B. Integração com Filtros do Painel (`MoblinkProductsManager.tsx`)
+- Botões **`📊 Exportar Excel (X)`** integrados no cabeçalho superior e na barra do console de busca/filtros.
+- Exibe o contador exato de itens que serão exportados com base na combinação de filtros selecionados em tempo real (busca livre por texto, categoria, subcategoria, classificação ERP, status no site, estoque e mídias).
 
 

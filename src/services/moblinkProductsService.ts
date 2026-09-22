@@ -779,8 +779,11 @@ export const mergeErpSyncWithExistingDbProduct = (
   const liveHasGrade = hasProductValidGrade(updatedErpProd) || liveSizes.length > 0;
   const liveIdGrade = updatedErpProd.id_grade ?? updatedErpProd.gradeId ?? existingDbProd.id_grade ?? existingDbProd.gradeId ?? null;
 
-  // Visibilidade: se o produto tem estoque > 0 e tem foto real => visível na loja virtual
-  const isVisibleInStore = (liveStock > 0 && liveHasPhoto)
+  const catInfoMerge = extractClassificacaoCategoria(updatedErpProd || existingDbProd);
+  const isUnclassifiedMerge = catInfoMerge.category === "Sem Classificação Definida" || !catInfoMerge.isDefined;
+
+  // Visibilidade: se o produto tem estoque > 0, tem foto real e classificação definida => visível na loja virtual
+  const isVisibleInStore = (!isUnclassifiedMerge && liveStock > 0 && liveHasPhoto)
     ? (existingDbProd.visible !== undefined ? Boolean(existingDbProd.visible) : true)
     : false;
 
@@ -936,18 +939,19 @@ export const sanitizeProductForFirestore = (
   const hasGrade = product.hasGrade !== undefined ? Boolean(product.hasGrade) : hasProductValidGrade(product);
 
   const hasPhoto = hasProductValidPhoto(product);
+  const catInfo = extractClassificacaoCategoria(product);
+  const isUnclassified = catInfo.category === "Sem Classificação Definida" || !catInfo.isDefined;
 
-  // Visibilidade estrita: Apenas visível para venda se tiver foto válida e estoque > 0
-  const visible =
-    product.visible !== undefined
+  // Visibilidade estrita: Apenas visível para venda se tiver foto válida, estoque > 0 e classificação definida
+  const visible = isUnclassified
+    ? false
+    : product.visible !== undefined
       ? (stock <= 0 || !hasPhoto)
         ? false
         : Boolean(product.visible)
       : (stock > 0 && hasPhoto);
 
   const updatedAt = product.updatedAt || new Date().toISOString();
-
-  const catInfo = extractClassificacaoCategoria(product);
 
   const finalImagesList = (Array.isArray(product.images) && product.images.length > 0)
     ? product.images.filter(img => img && typeof img === 'string' && !isInvalidPhotoUrl(img))

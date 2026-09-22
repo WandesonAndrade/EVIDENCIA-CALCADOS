@@ -17,7 +17,9 @@ import {
   AlertCircle, 
   Sparkles, 
   Layers, 
-  Tag 
+  Tag,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 
 export interface AdminProductRowProps {
@@ -28,6 +30,7 @@ export interface AdminProductRowProps {
   onEdit: (item: any) => void;
   onDelete: (mobId: string) => void;
   resolveSubcategory?: (item: any, existingDb?: Product | null) => string;
+  onToggleVisibility?: (mobId: string, currentVisible: boolean) => void;
 }
 
 export const AdminProductRow: React.FC<AdminProductRowProps> = ({
@@ -38,6 +41,7 @@ export const AdminProductRow: React.FC<AdminProductRowProps> = ({
   onEdit,
   onDelete,
   resolveSubcategory,
+  onToggleVisibility,
 }) => {
   const mobId = String(item.id || item.moblinkId || 'MOB-000');
   const isErpSynced = !item.isManual && (item.moblinkId || String(item.id).startsWith('MOB-') || true);
@@ -47,9 +51,27 @@ export const AdminProductRow: React.FC<AdminProductRowProps> = ({
   const precoVista = extractPrecoVistaMoblink(item) || Number(item.preco_venda_fracao ?? item.preco_venda ?? item.preco ?? item.price ?? 0);
   const estoqueAtual = extractSaldoLojaMoblink(item);
 
-  const catInfo = extractClassificacaoCategoria(item);
+  const catInfo = extractClassificacaoCategoria(existingDb || item);
   const classCode = catInfo.classificacao || String(item.classificacao || item.id_grupo || item.cod_classificacao || item.classificacao_erp || '').trim() || (existingDb as any)?.classificacao || '';
-  const isUnclassified = catInfo.category === 'Sem Classificação Definida';
+  const isUnclassified = catInfo.category === 'Sem Classificação Definida' || !catInfo.isDefined;
+
+  const isManuallyActive = existingDb ? existingDb.visible !== false : (item.visible !== false);
+  const hasStock = estoqueAtual > 0;
+  const isVisibleOnSite = !isUnclassified && isManuallyActive && hasStock && hasMedia;
+
+  let visibilityReason = '';
+  if (isUnclassified) {
+    visibilityReason = 'Sem classificação definida';
+  } else if (!isManuallyActive) {
+    visibilityReason = 'Desativado no cadastro';
+  } else if (!hasStock) {
+    visibilityReason = 'Sem estoque';
+  } else if (!hasMedia) {
+    visibilityReason = 'Sem foto cadastrada';
+  } else {
+    visibilityReason = 'Ativo na vitrine';
+  }
+
   const normCat = isUnclassified ? 'Sem Classificação Definida' : (catInfo.category || normalizeCategoryName(item.categoria || item.category || item.nome_grupo || existingDb?.category || 'Calçados'));
   const subcategory = isUnclassified ? '' : (resolveSubcategory ? resolveSubcategory(item, existingDb) : (item.subcategoria || item.subcategory || existingDb?.subcategory || ''));
 
@@ -105,7 +127,7 @@ export const AdminProductRow: React.FC<AdminProductRowProps> = ({
 
               {classCode && (
                 <span
-                  className="font-mono text-[9px] font-black px-2 py-0.5 bg-[#0071E3]/10 text-[#0071E3] dark:bg-blue-900/40 dark:text-blue-300 rounded-md border border-[#0071E3]/20 inline-flex items-center gap-1"
+                  className="font-mono text-[9px] font-black px-2 py-0.5 bg-[#0071E3]/10 text-[#0071E3] dark:bg-blue-950/40 dark:text-blue-300 rounded-md border border-[#0071E3]/20 inline-flex items-center gap-1"
                   title="Código de Classificação no MobLink ERP"
                 >
                   <Layers className="h-2.5 w-2.5 text-[#0071E3] shrink-0" />
@@ -222,6 +244,51 @@ export const AdminProductRow: React.FC<AdminProductRowProps> = ({
             <span>Pendente</span>
           </span>
         )}
+      </td>
+
+      {/* STATUS NO SITE (VISIBILIDADE DA VITRINE) */}
+      <td className="p-4">
+        <div className="flex items-center gap-2">
+          {isVisibleOnSite ? (
+            <span
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-extrabold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/70 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/40"
+              title="Produto visível e disponível para compra na loja virtual"
+            >
+              <Eye className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+              <span>Visível no Site</span>
+            </span>
+          ) : (
+            <span
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-extrabold bg-rose-50 text-rose-700 dark:bg-rose-950/70 dark:text-rose-300 border border-rose-200 dark:border-rose-800/40"
+              title={`Oculto da loja virtual: ${visibilityReason}`}
+            >
+              <EyeOff className="h-3.5 w-3.5 text-rose-500 dark:text-rose-400" />
+              <span>Oculto ({visibilityReason})</span>
+            </span>
+          )}
+
+          {onToggleVisibility && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleVisibility(mobId, isManuallyActive);
+              }}
+              className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+                isManuallyActive 
+                  ? 'text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-transparent hover:border-rose-200' 
+                  : 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 border border-transparent hover:border-emerald-200'
+              }`}
+              title={isManuallyActive ? 'Clique para ocultar/desativar manualmente no site' : 'Clique para publicar/ativar no site'}
+            >
+              {isManuallyActive ? (
+                <EyeOff className="h-4 w-4" />
+              ) : (
+                <Eye className="h-4 w-4" />
+              )}
+            </button>
+          )}
+        </div>
       </td>
 
       {/* AÇÕES */}

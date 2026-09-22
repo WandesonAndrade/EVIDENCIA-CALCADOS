@@ -22,6 +22,7 @@ import {
 } from '../services/moblinkProductsService';
 import { moblinkCategoriesService, normalizeCategoryName, normalizeSubcategoryName, isProductInCategory } from '../services/moblinkCategoriesService';
 import { getProdutoGradesFromApi } from '../services/moblinkGradesService';
+import { generateProductsExcelReport } from '../services/excelReportService';
 import { 
   AdminProductsTable, 
   ProductAiSearchPhotoButton, 
@@ -49,6 +50,7 @@ import { NO_PHOTO_SVG, isPlaceholderUrl, isValidWebPhotoUrl } from '../utils/pla
 import { 
   Package, 
   Search, 
+  FileSpreadsheet,
   Image as ImageIcon, 
   FileText, 
   CheckCircle2, 
@@ -456,6 +458,8 @@ export const MoblinkProductsManager: React.FC = () => {
     const targets = products.filter(p => {
       const stock = (p.stock !== undefined ? p.stock : (p.saldo_loja ?? 0));
       if (stock <= 0) return false;
+      const catInfo = extractClassificacaoCategoria(p);
+      if (catInfo.category === 'Sem Classificação Definida' || !catInfo.isDefined) return false;
       const hasPhoto = hasProductValidPhoto(p);
       return hasPhoto && p.visible !== true;
     });
@@ -1038,11 +1042,13 @@ export const MoblinkProductsManager: React.FC = () => {
             }
           }
 
-          // APLICAÇÃO DA REGRA DE VISIBILIDADE POR FOTOS:
-          // Se estoque > 0 e TEM FOTO REAL => visible = true (Visível nas vitrines da loja virtual)
+          // APLICAÇÃO DA REGRA DE VISIBILIDADE POR FOTOS & CLASSIFICAÇÃO:
+          // Se estoque > 0, TEM FOTO REAL e CLASSIFICAÇÃO DEFINIDA => visible = true
           // Caso contrário => visible = false (Desmarcado/Oculto nas vitrines da loja virtual)
+          const catInfoSync = extractClassificacaoCategoria(existingDb || item);
+          const isUnclassifiedSync = catInfoSync.category === 'Sem Classificação Definida' || !catInfoSync.isDefined;
           const itemHasPhoto = hasProductValidPhoto(item) || (existingDb ? hasProductValidPhoto(existingDb) : false);
-          const isVisibleInStore = estoqueAtual > 0 && itemHasPhoto;
+          const isVisibleInStore = !isUnclassifiedSync && estoqueAtual > 0 && itemHasPhoto;
 
           if (isVisibleInStore) {
             withGradeCount++;
@@ -1127,6 +1133,33 @@ export const MoblinkProductsManager: React.FC = () => {
     const clean = String(moblinkId).trim();
     return dbProductsMap.get(clean) || dbProductsMap.get(clean.toLowerCase());
   }, [dbProductsMap]);
+
+  // Toggle product visibility directly from the table list
+  const handleToggleVisibility = useCallback(async (mobId: string, currentVisibleState: boolean) => {
+    const cleanId = String(mobId).trim();
+    const existingDb = getExistingDbProduct(cleanId);
+    const targetItem = moblinkList.find(p => String(p.id || p.moblinkId || 'MOB-000').trim() === cleanId);
+    const catInfo = extractClassificacaoCategoria(existingDb || targetItem);
+    const isUnclassified = catInfo.category === 'Sem Classificação Definida' || !catInfo.isDefined;
+
+    if (isUnclassified && !currentVisibleState) {
+      alert('Atenção: Este produto possui "Sem Classificação Definida" no ERP. Produtos sem classificação válida não podem ser publicados no site. Atualize a classificação no ERP ou no cadastro.');
+      return;
+    }
+
+    const nextVisible = isUnclassified ? false : !currentVisibleState;
+
+    try {
+      if (existingDb) {
+        await updateProduct(cleanId, { ...existingDb, visible: nextVisible });
+      } else if (targetItem) {
+        const sanitized = sanitizeProductForFirestore({ ...targetItem, visible: nextVisible } as any);
+        await updateProduct(cleanId, sanitized as Product);
+      }
+    } catch (err) {
+      console.error('Erro ao alternar visibilidade do produto:', err);
+    }
+  }, [getExistingDbProduct, moblinkList, updateProduct]);
 
   // Open Full Edit Modal for a product
   const handleOpenEnrichmentForm = async (item: MoblinkRawProduct) => {
@@ -2463,6 +2496,34 @@ export const MoblinkProductsManager: React.FC = () => {
     return (moblinkList || []).reduce((acc, item) => acc + (extractSaldoLojaMoblink(item) || 0), 0);
   }, [moblinkList]);
 
+  // Exportar Relatório em Excel com base nos produtos filtrados
+  const handleExportExcelReport = useCallback(() => {
+    if (!filteredMoblinkList || filteredMoblinkList.length === 0) {
+      setFeedback({
+        success: false,
+        message: 'Nenhum produto encontrado com os filtros atuais para exportar.',
+      });
+      setTimeout(() => setFeedback(null), 4000);
+      return;
+    }
+
+    try {
+      generateProductsExcelReport(filteredMoblinkList, dbProductsMap, resolveProductSubcategory);
+      setFeedback({
+        success: true,
+        message: `Relatório em Excel gerado com sucesso para ${filteredMoblinkList.length} produtos filtrados!`,
+      });
+      setTimeout(() => setFeedback(null), 4000);
+    } catch (err: any) {
+      console.error('Erro ao gerar relatório Excel:', err);
+      setFeedback({
+        success: false,
+        message: 'Falha ao exportar relatório em Excel.',
+      });
+      setTimeout(() => setFeedback(null), 4000);
+    }
+  }, [filteredMoblinkList, dbProductsMap]);
+
   return (
     <div className="space-y-6 text-left animate-fade-in font-sans">
       {/* APPLE STUDIO HEADER CONSOLE & STAT CARDS */}
@@ -2548,6 +2609,16 @@ export const MoblinkProductsManager: React.FC = () => {
               >
                 <CheckCircle2 className={`h-4.5 w-4.5 text-amber-100 ${isAutoActivatingVisible ? 'animate-spin' : ''}`} />
                 <span>{isAutoActivatingVisible ? 'Salvando Visíveis no Banco...' : '⚡ Salvar Visível (Todos com Foto)'}</span>
+              </button>
+
+              <button
+                onClick={handleExportExcelReport}
+                disabled={isLoading || filteredMoblinkList.length === 0}
+                className="px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-2xl text-xs transition-all flex items-center gap-2.5 cursor-pointer shadow-md active:scale-95 disabled:opacity-50 shadow-emerald-500/20 shrink-0"
+                title="Gera um relatório em Excel (.csv UTF-8) com todos os produtos resultantes dos filtros ativos em tempo real"
+              >
+                <FileSpreadsheet className="h-4.5 w-4.5 text-emerald-100" />
+                <span>📊 Exportar Excel ({filteredMoblinkList.length})</span>
               </button>
             </div>
           </div>
@@ -2735,6 +2806,17 @@ export const MoblinkProductsManager: React.FC = () => {
                 <span>Limpar Filtros</span>
               </button>
             )}
+
+            <button
+              type="button"
+              onClick={handleExportExcelReport}
+              disabled={isLoading || filteredMoblinkList.length === 0}
+              className="px-3.5 py-2.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-extrabold rounded-2xl text-xs border border-emerald-500/30 transition-all cursor-pointer flex items-center gap-1.5 shrink-0 shadow-xs active:scale-95 disabled:opacity-40"
+              title="Baixar planilha Excel (.csv UTF-8) contendo os produtos filtrados no momento"
+            >
+              <FileSpreadsheet className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+              <span>Exportar Excel ({filteredMoblinkList.length})</span>
+            </button>
           </div>
         </div>
 
@@ -3218,6 +3300,7 @@ export const MoblinkProductsManager: React.FC = () => {
               }}
               getExistingDbProduct={getExistingDbProduct}
               resolveSubcategory={resolveProductSubcategory}
+              onToggleVisibility={handleToggleVisibility}
             />
 
             {/* CONTROLES DE PAGINAÇÃO DA TABELA */}
