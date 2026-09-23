@@ -1225,7 +1225,13 @@ export const MoblinkProductsManager: React.FC = () => {
         : extractClassificacaoCategoria(currentItem).category || 'Calçados');
     
     const itemHasPhoto = hasProductValidPhoto(currentItem) || hasProductValidPhoto(existing) || Boolean(existing?.imageUrl) || Boolean(currentItem.foto_uri) || (Array.isArray(existing?.images) && existing.images.length > 0);
-    const initialVisible = (initialStock > 0 && itemHasPhoto) ? (existing?.visible ?? true) : false;
+    const modalCatInfo = extractClassificacaoCategoria(existing || currentItem);
+    const isModalUnclassified = modalCatInfo.category === 'Sem Classificação Definida' || !modalCatInfo.isDefined;
+    const initialVisible = isModalUnclassified
+      ? false
+      : (existing && typeof existing.visible === 'boolean')
+        ? existing.visible
+        : (initialStock > 0 && itemHasPhoto);
     
     const initialSizes = liveGradeRes && liveGradeRes.tamanhos && liveGradeRes.tamanhos.length > 0
       ? liveGradeRes.tamanhos.join(', ')
@@ -1320,10 +1326,12 @@ export const MoblinkProductsManager: React.FC = () => {
       }
     }
 
-    // REGRA MANDATÓRIA: Todo produto com foto real deve ter a opção "Exibir visível nas vitrines" marcada por padrão
-    const hasAnyRealPhoto = itemHasPhoto || existingDbImages.length > 0;
-    if (hasAnyRealPhoto && initialStock > 0) {
-      setEditVisible(true);
+    // Se o produto não possui preferência de visibilidade salva no Firestore, ativa por padrão caso tenha foto e estoque
+    if (!existing || typeof existing.visible !== 'boolean') {
+      const hasAnyRealPhoto = itemHasPhoto || existingDbImages.length > 0;
+      if (hasAnyRealPhoto && initialStock > 0 && !isModalUnclassified) {
+        setEditVisible(true);
+      }
     }
 
     if (existingDbImages.length > 0) {
@@ -1490,18 +1498,13 @@ export const MoblinkProductsManager: React.FC = () => {
 
     setImages(finalImagesList);
 
-    const hasValidPhoto = finalImagesList.some(img => img && !isPlaceholderUrl(img));
-    if (hasValidPhoto) {
-      setEditVisible(true);
-    }
-
     const targetId = String(selectedProduct.id || selectedProduct.moblinkId);
     const updatedProd: Partial<Product> = {
       images: finalImagesList,
       managedPhotos: finalImagesList.length > 0,
       imageUrl: finalImagesList[0] || '',
       foto_uri: finalImagesList[0] || '',
-      visible: hasValidPhoto ? true : editVisible,
+      visible: editVisible,
       updatedAt: new Date().toISOString(),
     };
 
