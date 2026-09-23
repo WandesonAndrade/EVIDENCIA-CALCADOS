@@ -288,6 +288,7 @@ export const MoblinkProductsManager: React.FC = () => {
   const [hideOutOfStock, setHideOutOfStock] = useState(false);
   const [hideNoGrade, setHideNoGrade] = useState(false);
   const [gradeFilter, setGradeFilter] = useState<'todos' | 'com_grade' | 'sem_grade'>('todos');
+  const [visibilityFilter, setVisibilityFilter] = useState<'todos' | 'visivel' | 'oculto'>('todos');
   const [photoFilter, setPhotoFilter] = useState<'todos' | 'com_foto' | 'sem_foto'>('todos');
   const [sortBy, setSortBy] = useState<'nameSku' | 'refMoblink' | 'stockAsc' | 'stockDesc'>('nameSku');
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -2270,7 +2271,20 @@ export const MoblinkProductsManager: React.FC = () => {
         matchesPhoto = !hasRealPhoto;
       }
 
-      return matchesSearch && matchesCategory && matchesSubcategory && matchesBaseName && matchesSync && matchesClassificacao && matchesPhoto;
+      // Filtro Seletivo de Status no Site (Visível vs Oculto)
+      let matchesVisibility = true;
+      const catInfoVis = extractClassificacaoCategoria(existingDb || item);
+      const isUnclassifiedVis = catInfoVis.category === 'Sem Classificação Definida' || !catInfoVis.isDefined;
+      const isManuallyActiveVis = existingDb ? existingDb.visible !== false : ((item as any).visible !== false);
+      const isVisibleOnSite = !isUnclassifiedVis && isManuallyActiveVis && estoque > 0 && hasRealPhoto;
+
+      if (visibilityFilter === 'visivel') {
+        matchesVisibility = isVisibleOnSite;
+      } else if (visibilityFilter === 'oculto') {
+        matchesVisibility = !isVisibleOnSite;
+      }
+
+      return matchesSearch && matchesCategory && matchesSubcategory && matchesBaseName && matchesSync && matchesClassificacao && matchesPhoto && matchesVisibility;
     });
 
     // Ordenação dinâmica da lista individual
@@ -2299,7 +2313,7 @@ export const MoblinkProductsManager: React.FC = () => {
     });
 
     return filtered;
-  }, [combinedCatalog, searchQuery, categoryFilter, subcategoryFilter, classificacaoGrupoFilter, classificacaoSubgrupoFilter, baseNameFilter, syncFilter, photoFilter, hideOutOfStock, hideNoGrade, gradeFilter, sortBy, dbProductsMap]);
+  }, [combinedCatalog, searchQuery, categoryFilter, subcategoryFilter, classificacaoGrupoFilter, classificacaoSubgrupoFilter, baseNameFilter, syncFilter, photoFilter, visibilityFilter, hideOutOfStock, hideNoGrade, gradeFilter, sortBy, dbProductsMap]);
 
   // Taxonomia oficial lida diretamente da coleção 'categories' do Firebase Firestore
   const storeCategoryTree = useMemo(() => {
@@ -2787,7 +2801,7 @@ export const MoblinkProductsManager: React.FC = () => {
               )}
             </div>
 
-            {(categoryFilter !== 'Todos' || subcategoryFilter !== 'Todas' || photoFilter !== 'todos' || gradeFilter !== 'todos' || hideOutOfStock || hideNoGrade || classificacaoGrupoFilter || classificacaoSubgrupoFilter || searchQuery) && (
+            {(categoryFilter !== 'Todos' || subcategoryFilter !== 'Todas' || photoFilter !== 'todos' || gradeFilter !== 'todos' || visibilityFilter !== 'todos' || hideOutOfStock || hideNoGrade || classificacaoGrupoFilter || classificacaoSubgrupoFilter || searchQuery) && (
               <button
                 type="button"
                 onClick={() => {
@@ -2795,6 +2809,7 @@ export const MoblinkProductsManager: React.FC = () => {
                   setSubcategoryFilter('Todas');
                   setPhotoFilter('todos');
                   setGradeFilter('todos');
+                  setVisibilityFilter('todos');
                   setHideOutOfStock(false);
                   setHideNoGrade(false);
                   setClassificacaoGrupoFilter('');
@@ -2938,6 +2953,21 @@ export const MoblinkProductsManager: React.FC = () => {
               <option value="todos">Todas (Com &amp; Sem Grade)</option>
               <option value="com_grade">✓ Com Grade</option>
               <option value="sem_grade">⚠️ Sem Grade</option>
+            </select>
+          </div>
+
+          {/* FILTRO SELETIVO DE VISIBILIDADE / STATUS NO SITE */}
+          <div className="flex items-center space-x-1.5">
+            <Eye className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider shrink-0">Status:</span>
+            <select
+              value={visibilityFilter}
+              onChange={(e) => setVisibilityFilter(e.target.value as any)}
+              className="px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50/80 dark:bg-slate-800/90 text-slate-800 dark:text-emerald-400 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all cursor-pointer"
+            >
+              <option value="todos">Todos (Visíveis &amp; Ocultos)</option>
+              <option value="visivel">🟢 Apenas Visíveis no Site</option>
+              <option value="oculto">🔴 Apenas Ocultos no Site</option>
             </select>
           </div>
 
