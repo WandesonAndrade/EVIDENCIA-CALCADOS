@@ -2124,6 +2124,39 @@ export const MoblinkProductsManager: React.FC = () => {
     }
   };
 
+  // Exclusão de Produtos em Lote
+  const handleBatchDeleteProducts = async () => {
+    if (selectedIdsList.length === 0) return;
+
+    const count = selectedIdsList.length;
+    if (!window.confirm(`Tem certeza que deseja excluir os ${count} produto(s) selecionado(s)? Esta ação removerá os cadastros do banco de dados.`)) {
+      return;
+    }
+
+    try {
+      setFeedback(null);
+      selectedIdsList.forEach(mobId => {
+        deleteProduct(mobId);
+      });
+
+      const selectedSet = new Set(selectedIdsList);
+      setMoblinkList(prev => prev.filter(p => !selectedSet.has(String(p.id || p.moblinkId || ''))));
+      clearSelection();
+
+      setFeedback({
+        success: true,
+        message: `🗑️ Sucesso! ${count} produto(s) excluído(s) da aplicação.`
+      });
+      setTimeout(() => setFeedback(null), 4000);
+    } catch (err: any) {
+      console.error('[MoblinkProductsManager] Erro ao excluir produtos em lote:', err);
+      setFeedback({
+        success: false,
+        message: `Falha ao excluir produtos em lote: ${err.message || 'Erro inesperado'}`
+      });
+    }
+  };
+
   // Combine Moblink List with manual database products
   const combinedCatalog: MoblinkRawProduct[] = useMemo(() => {
     const catalog: MoblinkRawProduct[] = [...(moblinkList || [])];
@@ -3947,6 +3980,16 @@ export const MoblinkProductsManager: React.FC = () => {
           >
             <Eye className="h-4 w-4" />
             <span>Visibilidade Vitrine (Lote)</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleBatchDeleteProducts}
+            className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-extrabold rounded-full text-xs flex items-center gap-2 transition-all shadow-md cursor-pointer active:scale-95"
+            title="Excluir todos os produtos selecionados"
+          >
+            <Trash2 className="h-4 w-4" />
+            <span>Excluir Selecionados ({selectedIdsList.length})</span>
           </button>
 
           <button
