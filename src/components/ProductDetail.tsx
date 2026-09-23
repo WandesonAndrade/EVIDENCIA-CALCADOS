@@ -14,6 +14,7 @@ import { CompleteProfileModal } from './CompleteProfileModal';
 import { ProductCard } from './ProductList';
 import { ShippingCalculator } from './common/ShippingCalculator';
 import { isProfileIncomplete } from '../App';
+import { NO_PHOTO_SVG } from '../utils/placeholder';
 
 export const ProductDetail: React.FC = () => {
   const { 
@@ -648,8 +649,11 @@ export const ProductDetail: React.FC = () => {
                 initial={{ opacity: 0, scale: 0.98 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-                src={productImages[activeImageIndex]}
+                src={productImages[activeImageIndex] || NO_PHOTO_SVG}
                 alt={p.name}
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = NO_PHOTO_SVG;
+                }}
                 className="max-h-full max-w-full object-contain"
               />
 
@@ -713,7 +717,14 @@ export const ProductDetail: React.FC = () => {
                         : isDark ? 'border-slate-800 opacity-60 hover:opacity-100' : 'border-blue-900/10 opacity-70 hover:opacity-100'
                     }`}
                   >
-                    <img src={imgUrl} alt={`${p.name} thumb ${idx}`} className="w-full h-full object-contain" />
+                    <img 
+                      src={imgUrl || NO_PHOTO_SVG} 
+                      alt={`${p.name} thumb ${idx}`} 
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = NO_PHOTO_SVG;
+                      }}
+                      className="w-full h-full object-contain" 
+                    />
                   </button>
                 ))}
               </div>
