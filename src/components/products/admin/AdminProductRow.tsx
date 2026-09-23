@@ -247,48 +247,48 @@ export const AdminProductRow: React.FC<AdminProductRowProps> = ({
       </td>
 
       {/* STATUS NO SITE (VISIBILIDADE DA VITRINE) */}
-      <td className="p-4">
-        <div className="flex items-center gap-2">
+      <td className="p-4" onClick={(e) => e.stopPropagation()}>
+        <label
+          className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all border select-none cursor-pointer ${
+            isUnclassified
+              ? 'opacity-70 cursor-not-allowed bg-rose-50/60 border-rose-200/80 dark:bg-rose-950/40 dark:border-rose-900/50'
+              : isVisibleOnSite
+              ? 'bg-emerald-50/80 hover:bg-emerald-100/90 border-emerald-200 dark:bg-emerald-950/70 dark:border-emerald-800/50'
+              : 'bg-rose-50/80 hover:bg-rose-100/90 border-rose-200 dark:bg-rose-950/70 dark:border-rose-800/50'
+          }`}
+          title={
+            isUnclassified
+              ? 'Oculto: Produto sem classificação definida no ERP. Atualize no ERP para publicar.'
+              : isManuallyActive
+              ? 'Exibir produto visível nas vitrines da loja virtual (Clique para desativar)'
+              : 'Desativado: Clique para exibir produto visível nas vitrines da loja virtual'
+          }
+        >
+          <input
+            type="checkbox"
+            checked={isManuallyActive && !isUnclassified}
+            onChange={(e) => {
+              e.stopPropagation();
+              if (onToggleVisibility) {
+                onToggleVisibility(mobId, isManuallyActive);
+              }
+            }}
+            disabled={isUnclassified}
+            className="w-4 h-4 rounded text-[#0071E3] border-slate-300 focus:ring-[#0071E3] cursor-pointer disabled:cursor-not-allowed shrink-0"
+          />
+
           {isVisibleOnSite ? (
-            <span
-              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-extrabold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/70 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/40"
-              title="Produto visível e disponível para compra na loja virtual"
-            >
+            <span className="text-[10px] font-extrabold text-emerald-700 dark:text-emerald-300 inline-flex items-center gap-1">
               <Eye className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
               <span>Visível no Site</span>
             </span>
           ) : (
-            <span
-              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-extrabold bg-rose-50 text-rose-700 dark:bg-rose-950/70 dark:text-rose-300 border border-rose-200 dark:border-rose-800/40"
-              title={`Oculto da loja virtual: ${visibilityReason}`}
-            >
+            <span className="text-[10px] font-extrabold text-rose-700 dark:text-rose-300 inline-flex items-center gap-1">
               <EyeOff className="h-3.5 w-3.5 text-rose-500 dark:text-rose-400" />
               <span>Oculto ({visibilityReason})</span>
             </span>
           )}
-
-          {onToggleVisibility && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onToggleVisibility(mobId, isManuallyActive);
-              }}
-              className={`p-1.5 rounded-lg transition-all cursor-pointer ${
-                isManuallyActive 
-                  ? 'text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-transparent hover:border-rose-200' 
-                  : 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 border border-transparent hover:border-emerald-200'
-              }`}
-              title={isManuallyActive ? 'Clique para ocultar/desativar manualmente no site' : 'Clique para publicar/ativar no site'}
-            >
-              {isManuallyActive ? (
-                <EyeOff className="h-4 w-4" />
-              ) : (
-                <Eye className="h-4 w-4" />
-              )}
-            </button>
-          )}
-        </div>
+        </label>
       </td>
 
       {/* AÇÕES */}
