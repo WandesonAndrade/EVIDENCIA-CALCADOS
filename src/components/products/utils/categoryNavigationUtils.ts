@@ -1,6 +1,7 @@
 import { Product } from '../../../types';
 import { normalizeSubcategoryName } from '../../../services/moblinkCategoriesService';
 import { hasProductValidPhoto } from '../../../utils/photoUtils';
+import { extractClassificacaoCategoria } from '../../../services/moblinkProductsService';
 
 export type AudienceKey = 'feminino' | 'masculino' | 'infantil';
 
@@ -308,12 +309,16 @@ export function extractAudienceSubcategories(
     // 4. Pertencimento ao público-alvo
     if (!isProductInAudience(prod, audience)) return;
 
-    // 5. Nome de subcategoria
+    // 5. Blindagem: Produtos sem classificação não entram na navegação da loja
+    const catInfo = extractClassificacaoCategoria(prod);
+    if (catInfo.category === 'Sem Classificação Definida' || !catInfo.isDefined) return;
+
+    // 6. Nome de subcategoria
     const normName = resolveProductSubcategoryName(prod);
-    if (!normName) return;
+    if (!normName || normName.toUpperCase().includes('SEM CLASSIFICA')) return;
 
     const key = normName.toUpperCase();
-    if (key === 'FEMININO' || key === 'MASCULINO' || key === 'INFANTIL' || key === 'GERAL') return;
+    if (key === 'FEMININO' || key === 'MASCULINO' || key === 'INFANTIL' || key === 'GERAL' || key.includes('SEM CLASSIFICA')) return;
 
     const catName = prod.category || prod.nome_grupo || 'Calçados';
     const existing = subMap.get(key);

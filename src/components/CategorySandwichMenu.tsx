@@ -22,6 +22,7 @@ import {
   PackageCheck
 } from 'lucide-react';
 import { normalizeCategoryName, normalizeSubcategoryName } from '../services/moblinkCategoriesService';
+import { extractClassificacaoCategoria } from '../services/moblinkProductsService';
 import { scrollToSectionWithOffset } from '../lib/scrollUtils';
 
 interface CategorySandwichMenuProps {
@@ -123,8 +124,13 @@ export const CategorySandwichMenu: React.FC<CategorySandwichMenuProps> = ({ isOp
 
     // 3. Extrai subcategorias dos produtos visíveis no Firestore
     activeProducts.forEach(p => {
+      const catInfo = extractClassificacaoCategoria(p);
+      if (catInfo.category === 'Sem Classificação Definida' || !catInfo.isDefined) return;
+
       if (!p.category) return;
       const rawCatName = normalizeCategoryName(p.category);
+      if (!rawCatName || rawCatName.toUpperCase().includes('SEM CLASSIFICA')) return;
+
       const catKey = rawCatName.trim().toUpperCase();
 
       if (!categoryMap.has(catKey)) {
@@ -133,7 +139,7 @@ export const CategorySandwichMenu: React.FC<CategorySandwichMenuProps> = ({ isOp
 
       if (p.subcategory) {
         const subName = normalizeSubcategoryName(p.subcategory);
-        if (subName && subName.toUpperCase() !== 'TODAS') {
+        if (subName && subName.toUpperCase() !== 'TODAS' && !subName.toUpperCase().includes('SEM CLASSIFICA')) {
           categoryMap.get(catKey)?.subs.add(subName);
         }
       }

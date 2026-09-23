@@ -58,13 +58,16 @@ export const ProductList: React.FC = () => {
 
     (products || []).forEach((p) => {
       const isAvailable = (p.stock !== undefined ? p.stock > 0 : (p.saldo_loja ?? 0) > 0);
-      if (!p.visible || !isAvailable || !hasProductValidPhoto(p)) return;
+      const catInfo = extractClassificacaoCategoria(p);
+      const isUnclassified = catInfo.category === 'Sem Classificação Definida' || !catInfo.isDefined;
+
+      if (!p.visible || !isAvailable || !hasProductValidPhoto(p) || isUnclassified) return;
 
       const rawSub = (p.nome_subgrupo || p.subcategory || p.category || "").trim();
-      if (!rawSub || /^\d+(\.\d+)?$/.test(rawSub)) return;
+      if (!rawSub || /^\d+(\.\d+)?$/.test(rawSub) || rawSub.toUpperCase().includes('SEM CLASSIFICA')) return;
 
       const normSub = normalizeSubcategoryName(rawSub);
-      if (!normSub || /^\d+(\.\d+)?$/.test(normSub)) return;
+      if (!normSub || /^\d+(\.\d+)?$/.test(normSub) || normSub.toUpperCase().includes('SEM CLASSIFICA')) return;
 
       const key = normSub.toUpperCase();
       const existing = subMap.get(key);
@@ -222,9 +225,10 @@ export const ProductList: React.FC = () => {
   const calcadosProducts = useMemo(() => {
     return products.filter((prod) => {
       const isAvailable = (prod.stock !== undefined ? prod.stock > 0 : (prod.saldo_loja ?? 0) > 0);
-      if (!prod.visible || !isAvailable || !hasProductValidPhoto(prod)) return false;
-
       const catInfo = extractClassificacaoCategoria(prod);
+      const isUnclassified = catInfo.category === 'Sem Classificação Definida' || !catInfo.isDefined;
+      if (!prod.visible || !isAvailable || !hasProductValidPhoto(prod) || isUnclassified) return false;
+
       const catUpper = (catInfo.category || prod.category || prod.nome_grupo || (prod as any).categoria || '').toUpperCase();
       const subUpper = (catInfo.subcategory || prod.subcategory || prod.nome_subgrupo || (prod as any).subcategoria || '').toUpperCase();
       const nameUpper = (prod.name || '').toUpperCase();
@@ -250,9 +254,10 @@ export const ProductList: React.FC = () => {
   const confeccoesProducts = useMemo(() => {
     return products.filter((prod) => {
       const isAvailable = (prod.stock !== undefined ? prod.stock > 0 : (prod.saldo_loja ?? 0) > 0);
-      if (!prod.visible || !isAvailable || !hasProductValidPhoto(prod)) return false;
-
       const catInfo = extractClassificacaoCategoria(prod);
+      const isUnclassified = catInfo.category === 'Sem Classificação Definida' || !catInfo.isDefined;
+      if (!prod.visible || !isAvailable || !hasProductValidPhoto(prod) || isUnclassified) return false;
+
       const catUpper = (catInfo.category || prod.category || prod.nome_grupo || (prod as any).categoria || '').toUpperCase();
       const subUpper = (catInfo.subcategory || prod.subcategory || prod.nome_subgrupo || (prod as any).subcategoria || '').toUpperCase();
       const nameUpper = (prod.name || '').toUpperCase();
@@ -265,9 +270,10 @@ export const ProductList: React.FC = () => {
   const acessoriosProducts = useMemo(() => {
     return products.filter((prod) => {
       const isAvailable = (prod.stock !== undefined ? prod.stock > 0 : (prod.saldo_loja ?? 0) > 0);
-      if (!prod.visible || !isAvailable || !hasProductValidPhoto(prod)) return false;
-
       const catInfo = extractClassificacaoCategoria(prod);
+      const isUnclassified = catInfo.category === 'Sem Classificação Definida' || !catInfo.isDefined;
+      if (!prod.visible || !isAvailable || !hasProductValidPhoto(prod) || isUnclassified) return false;
+
       const catUpper = (catInfo.category || prod.category || prod.nome_grupo || (prod as any).categoria || '').toUpperCase();
       const subUpper = (catInfo.subcategory || prod.subcategory || prod.nome_subgrupo || (prod as any).subcategoria || '').toUpperCase();
       const nameUpper = (prod.name || '').toUpperCase();

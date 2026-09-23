@@ -26,7 +26,7 @@ import { scrollToSectionWithOffset } from '../lib/scrollUtils';
 import { normalizeCategoryName, normalizeSubcategoryName, isProductInCategory } from '../services/moblinkCategoriesService';
 import { isSaldaoProduct } from '../services/saldaoService';
 import { getApplicablePromotion, isCampaignActive } from '../services/promotionsService';
-import { hasProductValidPhoto } from '../services/moblinkProductsService';
+import { hasProductValidPhoto, extractClassificacaoCategoria } from '../services/moblinkProductsService';
 import { matchProductSearch } from './products/utils/productFilterUtils';
 import { isProductInAudience, resolveProductSubcategoryName, matchSubcategorySlug } from './products/utils/categoryNavigationUtils';
 
@@ -416,9 +416,11 @@ export const CategoryPage: React.FC = () => {
   const baseCategoryItems = useMemo(() => {
     return products.filter((prod) => {
       const matchesSearch = matchProductSearch(prod, searchQuery);
-      
       const isAvailable = (prod.stock !== undefined ? prod.stock > 0 : (prod.saldo_loja ?? 0) > 0);
-      return prod.visible && isAvailable && hasProductValidPhoto(prod) && matchesSearch && config.filter(prod);
+      const catInfo = extractClassificacaoCategoria(prod);
+      const isUnclassified = catInfo.category === 'Sem Classificação Definida' || !catInfo.isDefined;
+
+      return prod.visible && isAvailable && hasProductValidPhoto(prod) && !isUnclassified && matchesSearch && config.filter(prod);
     });
   }, [products, searchQuery, config]);
 
@@ -477,12 +479,14 @@ export const CategoryPage: React.FC = () => {
     products.filter(prod => {
       const matchesSearch = matchProductSearch(prod, searchQuery);
       const isAvailable = (prod.stock !== undefined ? prod.stock > 0 : (prod.saldo_loja ?? 0) > 0);
-      return prod.visible && isAvailable && hasProductValidPhoto(prod) && matchesSearch && config.filter(prod);
+      const catInfo = extractClassificacaoCategoria(prod);
+      const isUnclassified = catInfo.category === 'Sem Classificação Definida' || !catInfo.isDefined;
+      return prod.visible && isAvailable && hasProductValidPhoto(prod) && !isUnclassified && matchesSearch && config.filter(prod);
     }).forEach(prod => {
       const rawSub = (prod.nome_subgrupo || prod.subcategory || '').trim();
-      if (rawSub && rawSub.toUpperCase() !== 'GERAL') {
+      if (rawSub && rawSub.toUpperCase() !== 'GERAL' && !rawSub.toUpperCase().includes('SEM CLASSIFICA')) {
         const normSub = normalizeSubcategoryName(rawSub);
-        if (normSub) {
+        if (normSub && !normSub.toUpperCase().includes('SEM CLASSIFICA')) {
           subMap.set(normSub, (subMap.get(normSub) || 0) + 1);
         }
       }

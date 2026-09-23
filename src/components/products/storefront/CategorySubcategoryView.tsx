@@ -10,6 +10,7 @@ import {
   buildCategoryUrl,
   isProductInAudience,
 } from '../utils/categoryNavigationUtils';
+import { extractClassificacaoCategoria } from '../../../services/moblinkProductsService';
 
 export interface CategorySubcategoryViewProps {
   initialAudience?: AudienceKey;
@@ -53,7 +54,10 @@ export const CategorySubcategoryView: React.FC<CategorySubcategoryViewProps> = (
 
     products.forEach((p) => {
       const isAvailable = p.stock !== undefined ? p.stock > 0 : (p.saldo_loja ?? 0) > 0;
-      if (p.visible === false || !isAvailable) return;
+      const catInfo = extractClassificacaoCategoria(p);
+      const isUnclassified = catInfo.category === 'Sem Classificação Definida' || !catInfo.isDefined;
+
+      if (p.visible === false || !isAvailable || isUnclassified) return;
 
       if (isProductInAudience(p, 'feminino')) totals.feminino += 1;
       if (isProductInAudience(p, 'masculino')) totals.masculino += 1;
