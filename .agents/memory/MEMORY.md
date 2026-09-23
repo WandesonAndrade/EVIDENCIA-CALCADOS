@@ -122,3 +122,16 @@ Este arquivo é a memória persistente do projeto (AG Kit), consolidando decisõ
     - Adicionado o dropdown de filtro **`STATUS:`** na barra de ferramentas do `MoblinkProductsManager.tsx`, estilizado exatamente no mesmo padrão visual e funcional do filtro de `GRADE:`.
     - Opções disponíveis: **`Todos (Visíveis & Ocultos)`**, 🟢 **`Apenas Visíveis no Site`** e 🔴 **`Apenas Ocultos no Site`**.
     - Integrado à exportação de relatórios em Excel, contadores dinâmicos, busca cruzada e botão "Limpar Filtros".
+
+20. **Exclusão de Produtos em Lote no Gerenciador (Implementado):**
+    - Adicionada a função `handleBatchDeleteProducts` no `MoblinkProductsManager.tsx`.
+    - Integrado o botão vermelho **`🗑️ Excluir Selecionados (N)`** com ícone de lixeira no menu flutuante (dock bar) exibido quando 1 ou mais produtos são selecionados via checkbox.
+    - Exclui os produtos selecionados do Firestore e do estado da aplicação em lote com confirmação prévia e feedback de sucesso.
+
+21. **Blindagem de Mídias Quebradas e Ocultação de Produtos Sem Classificação (Implementado):**
+    - Tratamento com fallback automático `onError` nos componentes de detalhes de produto (`ProductDetail.tsx`) e vitrine, substituindo links de imagem quebrados pelo SVG padrão de sem foto (`NO_PHOTO_SVG`).
+    - Exclusão estrita de produtos sem classificação definida (`isUnclassified`) da navegação de categorias, menus sanduíche e listagens da frente de loja.
+
+22. **Sincronização de Estado de Visibilidade Entre Tabela e Modal de Edição (Implementado):**
+    - Sincronização em tempo real do atributo `visible` entre a coluna `Status no Site` (badge/toggle rápido) da tabela e o modal de edição de produto.
+

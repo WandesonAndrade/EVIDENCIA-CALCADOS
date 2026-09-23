@@ -104,3 +104,14 @@ updated: 2026-09-18
   - Se o Firestore falhar por estouro de cota ou instabilidade, a gravação no Supabase garante que o trabalho do lojista nunca seja perdido.
   - No carregamento inicial (`initCatalog`), caso o snapshot do Firestore falhe ou caia no tratador de erro por cota, o sistema hidrata os produtos em memória a partir de `fetchProductMediaFromSupabase()`, mantendo fotos e descrições na vitrine.
 
+## 17. Exclusão em Lote e Filtros de Visibilidade / Proteção de Vitrine (`MoblinkProductsManager.tsx` / `ProductDetail.tsx`)
+- **Exclusão de Produtos em Lote (`handleBatchDeleteProducts`):**
+  - Integração no menu flutuante (dock bar) `selectedIdsList.length > 0`.
+  - Percorre o array `selectedIdsList`, removendo do Firestore via `deleteProduct(mobId)` e filtrando `moblinkList` no estado local.
+  - Limpa a seleção e exibe notificação de feedback temporária.
+- **Filtro Seletivo por Visibilidade (`visibilityFilter`):**
+  - Dropdown com estados `'todos' | 'visivel' | 'oculto'` integrado ao predicado de filtro `filteredMoblinkList`.
+- **Proteção Anti-Erro de Imagem (`onError` Fallback):**
+  - Inclusão do manipulador `onError` com `NO_PHOTO_SVG` em imagens e miniaturas no `ProductDetail.tsx`.
+
+
