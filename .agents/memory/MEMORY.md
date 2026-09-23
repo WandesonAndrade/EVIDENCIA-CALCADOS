@@ -117,3 +117,8 @@ Este arquivo é a memória persistente do projeto (AG Kit), consolidando decisõ
     - Criado o serviço utilitário `excelReportService.ts` com a função `generateProductsExcelReport`.
     - Dispara o download de planilha `.csv` codificada em **UTF-8 com BOM (`\uFEFF`)** e delimitador `;` (padrão brasileiro do Excel), contendo exatamente os produtos resultantes dos filtros ativos em tempo real (busca, categoria, subcategoria, classificação ERP, status no site, mídias e estoque).
     - Inclui botões no cabeçalho e na barra de filtro do `MoblinkProductsManager.tsx` com contador dinâmico de itens a exportar.
+
+19. **Filtro Seletivo de Status no Site (Visibilidade) no Gerenciador (Implementado):**
+    - Adicionado o dropdown de filtro **`STATUS:`** na barra de ferramentas do `MoblinkProductsManager.tsx`, estilizado exatamente no mesmo padrão visual e funcional do filtro de `GRADE:`.
+    - Opções disponíveis: **`Todos (Visíveis & Ocultos)`**, 🟢 **`Apenas Visíveis no Site`** e 🔴 **`Apenas Ocultos no Site`**.
+    - Integrado à exportação de relatórios em Excel, contadores dinâmicos, busca cruzada e botão "Limpar Filtros".
