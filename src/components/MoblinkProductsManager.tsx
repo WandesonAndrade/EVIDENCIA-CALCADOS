@@ -535,16 +535,6 @@ export const MoblinkProductsManager: React.FC = () => {
     }
   }, [products]);
 
-  /**
-   * Sincronização Unificada do ERP MobLink:
-   * Atualiza estoque + valida variações de grades de tamanho em 1 clique
-   */
-  const handleUnifiedErpSync = async () => {
-    await fetchMoblinkProducts();
-    await handleAuditAndApplyGradesToStockProducts();
-    await handleAutoSetVisibleForProductsWithPhotos(true);
-  };
-
   // Sincronização de UM ÚNICO produto por ID (Solicitado pelo Administrador)
   const [singleSyncId, setSingleSyncId] = useState('');
   const [showSingleSyncModal, setShowSingleSyncModal] = useState(false);
@@ -2603,22 +2593,12 @@ export const MoblinkProductsManager: React.FC = () => {
             {/* ACTION BUTTONS ROW (UNIFIED ACTION CONSOLE) */}
             <div className="flex items-center gap-3 flex-wrap">
               <button
-                onClick={handleUnifiedErpSync}
-                disabled={isLoading}
-                className="px-5 py-3 bg-[#0071E3] hover:bg-[#00509E] text-white font-extrabold rounded-2xl text-xs transition-all flex items-center gap-2.5 cursor-pointer shadow-md active:scale-95 disabled:opacity-50 shrink-0"
-                title="Sincroniza saldos de estoque e valida disponibilidade de variações/tamanhos do MobLink ERP"
-              >
-                <RefreshCw className={`h-4.5 w-4.5 ${isLoading ? 'animate-spin text-white' : ''}`} />
-                <span>{isLoading ? 'Sincronizando ERP & Grades...' : '⚡ Sincronizar ERP & Grades (Todos)'}</span>
-              </button>
-
-              <button
                 onClick={() => setShowSingleSyncModal(true)}
                 disabled={isLoading || isSyncingSingle}
-                className="px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-2xl text-xs transition-all flex items-center gap-2.5 cursor-pointer shadow-md active:scale-95 disabled:opacity-50 shadow-emerald-500/20 shrink-0"
+                className="px-5 py-3 bg-[#0071E3] hover:bg-[#00509E] text-white font-extrabold rounded-2xl text-xs transition-all flex items-center gap-2.5 cursor-pointer shadow-md active:scale-95 disabled:opacity-50 shrink-0"
                 title="Sincroniza apenas 1 produto específico digitando o ID cadastrado no MobLink ERP"
               >
-                <Zap className={`h-4.5 w-4.5 text-emerald-200 ${isSyncingSingle ? 'animate-spin' : ''}`} />
+                <Zap className={`h-4.5 w-4.5 text-white ${isSyncingSingle ? 'animate-spin' : ''}`} />
                 <span>{isSyncingSingle ? 'Sincronizando Produto...' : '🎯 Sincronizar 1 Produto (por ID)'}</span>
               </button>
 
