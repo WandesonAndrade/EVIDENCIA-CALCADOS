@@ -824,9 +824,27 @@ export const ProductDetail: React.FC = () => {
             <h4 className="text-[11px] font-extrabold uppercase tracking-wider text-[#006EDB]">
               Detalhes & Especificações do Modelo
             </h4>
-            <div className={`text-xs leading-relaxed whitespace-pre-line font-medium ${isDark ? 'text-slate-300' : 'text-[#52708F]'}`}>
-              {p.description || p.descricao || p.descricao_completa}
-            </div>
+            {(() => {
+              const rawDesc = p.description || p.descricao || p.descricao_completa || '';
+              const hasHtml = /<[a-z][\s\S]*>/i.test(rawDesc);
+              if (hasHtml) {
+                return (
+                  <div
+                    className={`text-xs leading-relaxed font-medium space-y-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:space-y-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_h3]:font-bold [&_h3]:text-sm [&_h3]:mt-3 [&_h3]:mb-1 [&_h4]:font-bold [&_h4]:text-xs [&_h4]:mt-2 [&_h4]:mb-1 [&_p]:mb-1.5 ${
+                      isDark 
+                        ? 'text-slate-300 [&_strong]:text-white [&_h3]:text-white [&_h4]:text-white' 
+                        : 'text-[#52708F] [&_strong]:text-[#003B73] [&_h3]:text-[#003B73] [&_h4]:text-[#003B73]'
+                    }`}
+                    dangerouslySetInnerHTML={{ __html: rawDesc }}
+                  />
+                );
+              }
+              return (
+                <div className={`text-xs leading-relaxed whitespace-pre-line font-medium ${isDark ? 'text-slate-300' : 'text-[#52708F]'}`}>
+                  {rawDesc}
+                </div>
+              );
+            })()}
           </div>
         </div>
 

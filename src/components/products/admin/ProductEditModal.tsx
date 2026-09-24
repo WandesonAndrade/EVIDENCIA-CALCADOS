@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Edit3,
   Save,
@@ -13,6 +13,8 @@ import {
   CheckCircle2,
   AlertCircle,
   Layers,
+  Code,
+  Eye,
 } from 'lucide-react';
 import { ProdutoGradesResult } from '../../../types';
 import { MoblinkRawProduct } from '../../MoblinkProductsManager';
@@ -107,6 +109,8 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   syncImageUpdateToFirestore,
 }) => {
   if (!selectedProduct) return null;
+
+  const [descTab, setDescTab] = useState<'edit' | 'preview'>('edit');
 
   // Indica se o produto possui desmembramento de grade de variações (cores e tamanhos) ativo no ERP
   const hasDesmembramentoGrade = useMemo(() => {
@@ -576,11 +580,42 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
           {/* SECTION 3: RICH DESCRIPTION */}
           <div className="space-y-3 pt-2">
             <div className="flex flex-wrap items-center justify-between border-b pb-2 dark:border-slate-800 gap-2">
-              <h4 className="font-bold text-xs uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-2">
-                <FileText className="h-4 w-4 text-amber-500" />
-                3. Descrição Rica e Detalhes de Apresentação
-              </h4>
+              <div className="flex items-center gap-3">
+                <h4 className="font-bold text-xs uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-amber-500" />
+                  3. Descrição Rica e Detalhes de Apresentação
+                </h4>
 
+                {/* ABA DE ALTERNÂNCIA: EDITAR VS PRÉVIA */}
+                <div className="flex items-center p-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[10px]">
+                  <button
+                    type="button"
+                    onClick={() => setDescTab('edit')}
+                    className={`px-2.5 py-1 rounded-md font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                      descTab === 'edit'
+                        ? 'bg-amber-500 text-slate-950 shadow-xs'
+                        : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    <Code className="h-3 w-3" />
+                    <span>Editar</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDescTab('preview')}
+                    className={`px-2.5 py-1 rounded-md font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                      descTab === 'preview'
+                        ? 'bg-amber-500 text-slate-950 shadow-xs'
+                        : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    <Eye className="h-3 w-3" />
+                    <span>Prévia</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* QUICK TEMPLATES & AI SUGGESTION */}
               <div className="flex flex-wrap items-center gap-1.5">
                 <ProductAiDescriptionButton
                   onClick={() => setShowAiDescriptionModal(true)}
@@ -610,13 +645,23 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
               </div>
             </div>
 
-            <textarea
-              rows={8}
-              value={richDescription}
-              onChange={(e) => setRichDescription(e.target.value)}
-              placeholder="Escreva ou edite a descrição rica do produto..."
-              className="w-full p-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-xs font-mono leading-relaxed focus:outline-none focus:border-amber-500"
-            />
+            {descTab === 'edit' ? (
+              <textarea
+                rows={8}
+                value={richDescription}
+                onChange={(e) => setRichDescription(e.target.value)}
+                placeholder="Escreva ou edite a descrição rica do produto..."
+                className="w-full p-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-xs font-mono leading-relaxed focus:outline-none focus:border-amber-500"
+              />
+            ) : (
+              <div className="w-full min-h-[160px] p-4 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 text-xs leading-relaxed space-y-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:space-y-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_h3]:font-bold [&_h3]:text-sm [&_h3]:mt-3 [&_h3]:mb-1 [&_h4]:font-bold [&_h4]:text-xs [&_h4]:mt-2 [&_h4]:mb-1 [&_p]:mb-1.5 [&_strong]:font-black">
+                {richDescription ? (
+                  <div dangerouslySetInnerHTML={{ __html: richDescription }} />
+                ) : (
+                  <p className="text-slate-400 italic">Nenhuma descrição digitada ainda.</p>
+                )}
+              </div>
+            )}
           </div>
 
           {feedback && (
