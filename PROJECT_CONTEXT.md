@@ -671,4 +671,20 @@ O Dashboard Financeiro (`FinancialDashboard.tsx`) no `AdminPanel.tsx` (aba `fina
 - Botões **`📊 Exportar Excel (X)`** integrados no cabeçalho superior e na barra do console de busca/filtros.
 - Exibe o contador exato de itens que serão exportados com base na combinação de filtros selecionados em tempo real (busca livre por texto, categoria, subcategoria, classificação ERP, status no site, estoque e mídias).
 
+---
+
+## 25. Refatoração do Modal de Edição, Renderização HTML & Sincronização por Produto Único
+
+### A. Desacoplamento do Modal de Edição (`ProductEditModal.tsx`)
+- O modal de edição de produto (`~500` linhas de JSX e formulários) foi isolado no componente `src/components/products/admin/ProductEditModal.tsx` e reexportado em `src/components/products/index.ts`.
+- Reduziu a complexidade do `MoblinkProductsManager.tsx` e garantiu manutenção focada e isolada do formulário de produto, incluindo suporte a abas de edição ("Editar" vs "Prévia da Descrição").
+
+### B. Renderização de Descrições Ricas em HTML (`ProductDetail.tsx`)
+- A descrição detalhada do produto na loja virtual interpreta elementos HTML (`dangerouslySetInnerHTML`) gerados pelos assistentes de IA ou inseridos manualmente.
+- Inclui estilização rica para listas (`ul` / `li` com marcadores azuis), parágrafos espaçados, negritos e títulos formatados, eliminando a exibição de tags bruts (ex: `<p>`, `<ul>`, `<li>`) para o consumidor final.
+
+### C. Simplificação da Sincronização ERP: Produto Único por ID
+- Removido o botão de sincronização em lote de todos os produtos do ERP (`Sincronizar ERP & Grades (Todos)`).
+- O fluxo de sincronização manual do ERP MobLink opera exclusivamente por produto individual (**`🎯 Sincronizar 1 Produto (por ID)`**), evitando leituras/escritas desnecessárias em massa no Firebase Firestore.
+
 

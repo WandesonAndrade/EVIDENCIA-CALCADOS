@@ -135,3 +135,7 @@ Este arquivo é a memória persistente do projeto (AG Kit), consolidando decisõ
 22. **Sincronização de Estado de Visibilidade Entre Tabela e Modal de Edição (Implementado):**
     - Sincronização em tempo real do atributo `visible` entre a coluna `Status no Site` (badge/toggle rápido) da tabela e o modal de edição de produto.
 
+23. **Modal de Edição Isolado, Suporte a HTML nas Descrições & Sincronização ERP por Produto Único (Implementado):**
+    - Modal de edição de produto refatorado e isolado em `src/components/products/admin/ProductEditModal.tsx`.
+    - Descrições ricas com HTML interpretadas nativamente no `ProductDetail.tsx` com estilos CSS para listas/títulos e aba de "Prévia" no modal de edição.
+    - Sincronização em lote com ERP removida; mantida exclusivamente a sincronização manual por ID individual (`🎯 Sincronizar 1 Produto (por ID)`).
