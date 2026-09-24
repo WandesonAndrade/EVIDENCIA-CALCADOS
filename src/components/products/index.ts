@@ -10,6 +10,7 @@ export * from './admin/AdminProductRow';
 export * from './admin/AdminProductsTable';
 export * from './admin/ProductWebImageSearchModal';
 export * from './admin/ProductDescriptionAiModal';
+export * from './admin/ProductEditModal';
 export * from './admin/ai';
 
 export * from './utils/productFilterUtils';
