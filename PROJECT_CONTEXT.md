@@ -687,4 +687,70 @@ O Dashboard Financeiro (`FinancialDashboard.tsx`) no `AdminPanel.tsx` (aba `fina
 - Removido o botão de sincronização em lote de todos os produtos do ERP (`Sincronizar ERP & Grades (Todos)`).
 - O fluxo de sincronização manual do ERP MobLink opera exclusivamente por produto individual (**`🎯 Sincronizar 1 Produto (por ID)`**), evitando leituras/escritas desnecessárias em massa no Firebase Firestore.
 
+---
+
+## 26. Adição Manual Controlada & Sincronização Automática Estrita de Estoque/Preço
+
+### A. Fim da Adição Automática de Produtos do ERP
+- Novos produtos cadastrados no ERP MobLink da loja física **NUNCA são adicionados automaticamente ao e-commerce**.
+- O fluxo de inclusão no e-commerce é 100% deliberado e controlado pelo administrador:
+  - Adição pontual via botão **`🎯 Sincronizar 1 Produto (por ID)`** no painel gestor.
+  - Ao digitar o ID do MobLink, o produto é consultado no ERP, enriquecido com suas informações e gravado no Firestore.
+
+### B. Atualização Automática Contínua de Estoque e Preço (Apenas Existentes)
+- A rotina de sincronização em segundo plano (`syncProductsFromMoblinkApi` no `AppContext.tsx` e `filterProductsRequiringSync` no `moblinkProductsService.ts`) opera com **filtro estrito de existência**:
+  - Verifica apenas produtos que **já existem** na coleção `products` do e-commerce.
+  - Atualiza em tempo real:
+    - Preço de Tabela (`price`, `preco_venda`)
+    - Preço à Vista (`precoVista`, `preco_vista`)
+    - Preço de Cartão (`precoCartao`, `preco_cartao`)
+    - Preço Promocional (`preco_promocao`, `promoPrice`)
+    - Saldo de Estoque (`stock`, `saldo_loja`)
+    - Variações de Estoque por Tamanho/Grade (`tamanhos`, `sizes`)
+  - **Preservação de Enriquecimento:** Nomes comerciais customizados, descrições ricas, categorias personalizadas e galerias de fotos/capas salvas pelo lojista permanecem invioláveis e nunca são sobrescritas pelo ERP.
+
+### C. Painel Gestor Focado no Catálogo do E-Commerce (Plano B)
+- A tabela do `MoblinkProductsManager.tsx` reflete exclusivamente os produtos cadastrados e aprovados no e-commerce (`products`), eliminando poluição visual com itens da loja física que não se destinam à venda online.
+
+---
+
+## 27. Filtro de Classificação ERP Robusto & Resolução Reversa
+
+### A. Diagnóstico da Lista Vazia
+- Produtos cadastrados no banco antes da introdução da chave `classificacao` ou com dados mínimos de categoria tinham a chave de classificação vazia (`classificacao = ""`), fazendo com que o filtro numérico (`002`, `001`) retornasse uma lista vazia.
+- Adicionalmente, quando o lojista digitava ou colava o código completo com ponto (ex: `002.001`) no primeiro campo, ocorria incompatibilidade de correspondência.
+
+### B. Solução Implementada
+1. **Extração Unificada (`extractProductClassification`)**:
+   - Varre prioritariamente: `classificacao`, `codigo_classificacao`, `cod_classificacao`, `classificacao_erp`, `id_grupo`/`id_subgrupo`.
+   - Se ainda vazio, executa **Resolução Reversa (`moblinkCategoriesService.findClassificacaoByCategory`)** com base na categoria e subcategoria do produto (ex: *Calçados > Feminino* -> `002.002`, *Calçados > Masculino* -> `002.001`, *Confecções* -> `007`).
+2. **Auto-split no Campo de Entrada**:
+   - Ao colar ou digitar `002.001` no primeiro input, o sistema divide automaticamente o grupo (`002`) e o subgrupo (`001`) nos campos correspondentes.
+3. **Busca Flexível e Híbrida**:
+   - Suporta busca numérica exata (`parseInt`), textual, com ou sem zeros à esquerda (`2` = `002`), além de correspondência pelos nomes dos grupos e subgrupos.
+
+---
+
+## 28. Persistência de Cores da Grade ERP e Associação de Fotos por Variação
+
+### A. Diagnóstico do Problema de Salvamento de Cores
+- No modal de edição (`ProductEditModal.tsx`), o lojista não conseguia persistir cores atribuídas às fotos ou alterações de cor do produto ao clicar em "Salvar Alterações".
+- **Causas Raiz Identificadas:**
+  1. O delta check (`hasProductChanged` no `moblinkProductsService.ts` e `AppContext.tsx`) não comparava `colorImageMap` nem `colorImages`, e a comparação de cores exigia que ambos os valores existissem (`freshColor && existingColor`), ignorando adições ou alterações em produtos sem cor prévia.
+  2. Em `MoblinkProductsManager.tsx`, a gravação de `colorImages` e `colorImageMap` estava condicionada a `hasDesmembramentoGrade`, descartando mapeamentos de fotos por cor quando a grade do ERP não possuía variações desmembradas.
+
+### B. Solução Implementada e Regras de Negócio
+1. **Delta Check Abrangente (`hasProductChanged`)**:
+   - Compara igualdade de `color` / `cor` (incluindo adição inicial ou remoção).
+   - Compara todas as chaves e valores de `colorImageMap` (capa da variação).
+   - Compara todas as listas de URLs de `colorImages` (galeria por cor).
+2. **Cores Estritamente da Grade do ERP**:
+   - Conforme regra de negócio aprovada pelo lojista, as opções de cor são **restritas estritamente às cores presentes na grade do produto no MobLink ERP** (`selectedProductGrade.cores` e `selectedProductGrade.variacoes`), eliminando inconsistências com cores digitadas arbitrariamente.
+3. **Mapeamento Exclusivo nas Fotos e Interface Limpa**:
+   - O campo avulso "Cor do Produto" foi removido da Seção 1 do formulário para evitar redundância, permitindo que o "Nome Comercial do Produto" ocupe a largura completa.
+   - O vínculo de cores opera onde realmente importa: diretamente no seletor `-- Cor da foto (Grade) --` de cada miniatura na Galeria de Fotos (Seção 2).
+   - Ao selecionar a cor correspondente, a miniatura recebe o badge indicativo (ex: `NOCCIOLA`, `PRETO`) e o sistema gerencia a capa da variação automaticamente (`finalColorImageMap` e `finalColorImages`).
+
+
+
 

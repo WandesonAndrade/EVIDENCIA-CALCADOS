@@ -139,3 +139,23 @@ Este arquivo é a memória persistente do projeto (AG Kit), consolidando decisõ
     - Modal de edição de produto refatorado e isolado em `src/components/products/admin/ProductEditModal.tsx`.
     - Descrições ricas com HTML interpretadas nativamente no `ProductDetail.tsx` com estilos CSS para listas/títulos e aba de "Prévia" no modal de edição.
     - Sincronização em lote com ERP removida; mantida exclusivamente a sincronização manual por ID individual (`🎯 Sincronizar 1 Produto (por ID)`).
+
+24. **Adição Manual Controlada & Sincronização Automática Estrita de Estoque/Preço (Implementado):**
+    - **Fim da Adição Automática**: Produtos novos cadastrados no ERP MobLink da loja física NÃO entram automaticamente no e-commerce. A inclusão é 100% deliberada pelo administrador via botão `🎯 Sincronizar 1 Produto (por ID)`.
+    - **Atualização Automática Contínua**: A sincronização automática em segundo plano (`filterProductsRequiringSync` e `mergeMoblinkWithLocalDb`) monitora e atualiza exclusivamente produtos que já existem na coleção do e-commerce, mantendo estoque e preços (à vista, cartão, parcelado e promoções) sincronizados em tempo real com o ERP.
+    - **Preservação de Enriquecimento**: Nomes comerciais, descrições ricas, categorias manuais e fotos personalizadas pelo lojista permanecem intactos.
+    - **Painel Gestor (Plano B)**: A listagem do `MoblinkProductsManager.tsx` reflete exclusivamente os produtos cadastrados e aprovados no e-commerce.
+
+25. **Filtro de Classificação ERP Robusto & Resolução Reversa (Implementado):**
+    - **Extração Unificada (`extractProductClassification`)**: Garante que o código de classificação seja detectado independentemente de onde estiver armazenado (`classificacao`, `id_grupo`/`id_subgrupo`, `cod_classificacao`, `classificacao_erp`).
+    - **Resolução Reversa (`findClassificacaoByCategory`)**: Produtos legados ou cadastrados sem o código bruto têm sua classificação inferida automaticamente via taxonomia oficial (ex: *Calçados Feminino* -> `002.002`), eliminando o problema de lista vazia ao filtrar.
+    - **Auto-split e Busca Flexível**: Digitar ou colar o código com ponto (ex: `002.001`) no primeiro campo divide automaticamente entre grupo e subgrupo, além de aceitar busca por correspondência numérica (com/sem zeros à esquerda) ou textual.
+
+26. **Persistência Confiável e Restrição Estrita às Cores da Grade do ERP (Implementado):**
+    - **Cores Estritas da Grade nas Fotos**: O dropdown de associação de fotos (`-- Cor da foto (Grade) --`) na Seção 2 é preenchido **exclusivamente com as cores vindas da grade do MobLink ERP** (`selectedProductGrade.cores` e `selectedProductGrade.variacoes`), sem permitir cores digitadas arbitrariamente nem opções de nova cor avulsa.
+    - **Remoção de Campo Redundante**: O campo avulso "Cor do Produto" foi removido da Seção 1 (Apresentação & Vitrine), permitindo que o "Nome Comercial do Produto" ocupe a largura completa e mantendo a interface limpa, com todas as variações de cor atreladas diretamente às fotos da grade.
+    - **Detecção de Mudança (`hasProductChanged`)**: Atualizado para detectar alterações na cor principal (`color` / `cor`), no mapa de fotos por cor (`colorImageMap`) e nas listas de fotos por cor (`colorImages`), garantindo que o Firestore sempre persista a gravação mesmo quando apenas a foto de uma cor é modificada.
+    - **Sincronização de Capas por Cor**: Ao vincular fotos às cores da grade, a foto de capa de cada cor é mantida e gravada de forma consistente no Firestore (`colorImages` e `colorImageMap`).
+
+
+

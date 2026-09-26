@@ -192,6 +192,11 @@ async function runAuthAndProfileTests() {
   const requiredSync = filterProductsRequiringSync([existingProd], freshList);
   assert(requiredSync.length === 2, 'filterProductsRequiringSync deve filtrar apenas os 2 produtos alterados');
 
+  // Validação estrita: produto NOVO do ERP que NÃO existe no banco NUNCA deve ser incluído na sincronização automática
+  const brandNewProd = { id: 'MOB-999', descricao: 'Tênis Novo da Loja Física', preco_venda: 199.90, saldo_loja: 20 } as any;
+  const syncWithBrandNew = filterProductsRequiringSync([existingProd], [brandNewProd]);
+  assert(syncWithBrandNew.length === 0, 'filterProductsRequiringSync deve ignorar produtos novos que não estão cadastrados no e-commerce');
+
 
   // Relatório Final
 

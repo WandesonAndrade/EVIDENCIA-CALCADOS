@@ -37,6 +37,8 @@ export interface ProductEditModalProps {
   isSingleRefreshing: boolean;
   editName: string;
   setEditName: (val: string) => void;
+  editColor?: string;
+  setEditColor?: (val: string) => void;
   editVisible: boolean;
   setEditVisible: (val: boolean) => void;
   editNewArrival: boolean;
@@ -77,6 +79,8 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   isSingleRefreshing,
   editName,
   setEditName,
+  editColor: _editColor,
+  setEditColor: _setEditColor,
   editVisible,
   setEditVisible,
   editNewArrival,
@@ -116,13 +120,14 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   const hasDesmembramentoGrade = useMemo(() => {
     return Boolean(
       selectedProductGrade &&
-      selectedProductGrade.hasGrade &&
-      Array.isArray(selectedProductGrade.variacoes) &&
-      selectedProductGrade.variacoes.length > 0
+      (
+        (Array.isArray(selectedProductGrade.cores) && selectedProductGrade.cores.length > 0) ||
+        (Array.isArray(selectedProductGrade.variacoes) && selectedProductGrade.variacoes.some(v => Boolean(v.cor && v.cor.trim())))
+      )
     );
   }, [selectedProductGrade]);
 
-  // Lista de Cores disponíveis extraídas ESTRITAMENTE da Grade / Estoque do Produto no ERP
+  // Lista de Cores disponíveis extraídas ESTRITAMENTE da Grade do Produto no ERP
   const availableColorsForEditModal = useMemo(() => {
     if (!hasDesmembramentoGrade) {
       return [];
@@ -130,20 +135,54 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
 
     const set = new Set<string>();
 
+    // 1. Extrai cores da Grade do ERP (cores ou variações)
     if (selectedProductGrade?.cores && selectedProductGrade.cores.length > 0) {
       selectedProductGrade.cores.forEach(c => {
-        if (c && c.trim()) set.add(c.trim());
+        const clean = c && c.trim();
+        if (clean) set.add(clean);
       });
     }
 
     if (selectedProductGrade?.variacoes && selectedProductGrade.variacoes.length > 0) {
       selectedProductGrade.variacoes.forEach(v => {
-        if (v.cor && v.cor.trim()) set.add(v.cor.trim());
+        const clean = v.cor && v.cor.trim();
+        if (clean) set.add(clean);
       });
     }
 
     return Array.from(set).sort();
   }, [hasDesmembramentoGrade, selectedProductGrade]);
+
+  // Manipulador seguro e consistente de alteração de cor para cada foto (estrito à grade)
+  const handlePhotoColorChange = (imgUrl: string, selColor: string) => {
+    setEditColorImages(prev => {
+      const copy: Record<string, string[]> = {};
+      Object.entries(prev).forEach(([cKey, urls]) => {
+        const filtered = (urls || []).filter(u => u !== imgUrl);
+        if (filtered.length > 0) copy[cKey] = filtered;
+      });
+      if (selColor && availableColorsForEditModal.includes(selColor)) {
+        if (!copy[selColor]) copy[selColor] = [];
+        if (!copy[selColor].includes(imgUrl)) {
+          copy[selColor].push(imgUrl);
+        }
+      }
+
+      // Sincroniza editColorImageMap para manter capa consistente
+      setEditColorImageMap(prevMap => {
+        const copyMap: Record<string, string> = {};
+        Object.entries(copy).forEach(([cKey, urls]) => {
+          if (urls && urls.length > 0) {
+            const currentCover = prevMap[cKey];
+            copyMap[cKey] = (currentCover && urls.includes(currentCover)) ? currentCover : urls[0];
+          }
+        });
+        return copyMap;
+      });
+
+      return copy;
+    });
+  };
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
@@ -482,13 +521,13 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
             {images.length > 0 ? (
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
                 {images.map((imgUrl, idx) => {
-                  const assignedColor = hasDesmembramentoGrade ? (
+                  const assignedColor = (
                     Object.keys(editColorImages).find(cKey => 
                       Array.isArray(editColorImages[cKey]) && editColorImages[cKey].includes(imgUrl)
                     ) || Object.keys(editColorImageMap).find(cKey => editColorImageMap[cKey] === imgUrl)
-                  ) : undefined;
+                  );
 
-                  const matchedDropdownValue = (hasDesmembramentoGrade && assignedColor)
+                  const matchedDropdownValue = assignedColor
                     ? availableColorsForEditModal.find(c => c.trim().toLowerCase() === assignedColor.trim().toLowerCase()) || assignedColor
                     : '';
 
@@ -501,7 +540,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                             Capa
                           </span>
                         )}
-                        {assignedColor && hasDesmembramentoGrade && (
+                        {assignedColor && (
                           <span className="absolute bottom-1 left-1 bg-sky-500 text-white font-extrabold text-[9px] px-1.5 py-0.5 rounded shadow-xs z-10 truncate max-w-[85%]" title={`Cor: ${assignedColor}`}>
                             {assignedColor}
                           </span>
@@ -528,37 +567,13 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                         </div>
                       </div>
 
-                      {hasDesmembramentoGrade && availableColorsForEditModal.length > 0 && (
+                      {availableColorsForEditModal.length > 0 && (
                         <select
                           value={matchedDropdownValue}
-                          onChange={(e) => {
-                            const selColor = e.target.value;
-                            
-                            setEditColorImages(prev => {
-                              const copy: Record<string, string[]> = {};
-                              Object.entries(prev).forEach(([cKey, urls]) => {
-                                copy[cKey] = (urls || []).filter(u => u !== imgUrl);
-                              });
-                              if (selColor) {
-                                if (!copy[selColor]) copy[selColor] = [];
-                                if (!copy[selColor].includes(imgUrl)) {
-                                  copy[selColor].push(imgUrl);
-                                }
-                              }
-                              return copy;
-                            });
-
-                            setEditColorImageMap(prev => {
-                              const copy = { ...prev };
-                              if (selColor && !copy[selColor]) {
-                                copy[selColor] = imgUrl;
-                              }
-                              return copy;
-                            });
-                          }}
+                          onChange={(e) => handlePhotoColorChange(imgUrl, e.target.value)}
                           className="w-full p-1 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-[10px] font-bold focus:outline-none focus:border-amber-500"
                         >
-                          <option value="">-- Cor da foto --</option>
+                          <option value="">-- Cor da foto (Grade) --</option>
                           {availableColorsForEditModal.map(c => (
                             <option key={c} value={c}>{c}</option>
                           ))}

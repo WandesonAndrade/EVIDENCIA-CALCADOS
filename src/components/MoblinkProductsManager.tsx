@@ -175,12 +175,68 @@ export interface MoblinkRawProduct {
   imagem?: string;
   image?: string;
   isManual?: boolean;
+  id_grupo?: string | number;
+  id_subgrupo?: string | number;
+  cod_classificacao?: string;
+  codigo_classificacao?: string;
+  classificacao_erp?: string;
   modelCode?: string;
   referencia?: string;
   referenceCode?: string;
   newArrival?: boolean;
   color?: string;
 }
+
+const extractProductClassification = (item: any, existingDb?: any): { grupo: string; subgrupo: string; raw: string } => {
+  let raw = String(
+    item?.classificacao ||
+    existingDb?.classificacao ||
+    item?.codigo_classificacao ||
+    existingDb?.codigo_classificacao ||
+    item?.cod_classificacao ||
+    existingDb?.cod_classificacao ||
+    item?.classificacao_erp ||
+    existingDb?.classificacao_erp ||
+    ''
+  ).trim();
+
+  const gId = item?.id_grupo ?? existingDb?.id_grupo;
+  const sId = item?.id_subgrupo ?? existingDb?.id_subgrupo;
+  if (!raw && gId !== undefined && gId !== null && String(gId).trim() !== '') {
+    raw = (sId !== undefined && sId !== null && String(sId).trim() !== '') 
+      ? `${String(gId).trim()}.${String(sId).trim()}` 
+      : String(gId).trim();
+  }
+
+  if (!raw) {
+    const catInfo = extractClassificacaoCategoria(existingDb || item);
+    if (catInfo.classificacao) {
+      raw = catInfo.classificacao.trim();
+    }
+  }
+
+  if (!raw) {
+    const cat = item?.category || item?.categoria || existingDb?.category || existingDb?.categoria || '';
+    const sub = item?.subcategory || item?.subcategoria || item?.nome_subgrupo || existingDb?.subcategory || existingDb?.subcategoria || existingDb?.nome_subgrupo || '';
+    const reverseCode = moblinkCategoriesService.findClassificacaoByCategory(cat, sub);
+    if (reverseCode) {
+      raw = reverseCode;
+    }
+  }
+
+  let grupo = '';
+  let subgrupo = '';
+  if (raw) {
+    const parts = raw.split('.');
+    grupo = (parts[0] || '').trim();
+    subgrupo = (parts[1] || '').trim();
+  } else {
+    grupo = gId !== undefined && gId !== null ? String(gId).trim() : '';
+    subgrupo = sId !== undefined && sId !== null ? String(sId).trim() : '';
+  }
+
+  return { grupo, subgrupo, raw };
+};
 
 const extractBestRealPhoto = (prod: any): string => {
   if (!prod) return '';
@@ -230,13 +286,8 @@ export const MoblinkProductsManager: React.FC = () => {
   const [syncProgress, setSyncProgress] = useState<{ current: number; total: number; phase: string } | null>(null);
 
   const [moblinkList, setMoblinkList] = useState<MoblinkRawProduct[]>(() => {
-    // 1. Tentar carregar do cache local primeiro
-    const cachedItems = loadMoblinkCache();
-    if (cachedItems && cachedItems.length > 0) {
-      return cachedItems as MoblinkRawProduct[];
-    }
-
-    // 2. Fallback para os produtos locais do Firebase
+    // PLANO B: A tabela do gerenciador reflete estritamente os produtos cadastrados e aprovados no e-commerce.
+    // Novos produtos do ERP entram de forma 100% controlada via botão [🎯 Sincronizar 1 Produto (por ID)].
     return (products || []).map(dbProd => {
       const dbId = String(dbProd?.id || `PROD-${Math.random()}`);
       return {
@@ -256,6 +307,11 @@ export const MoblinkProductsManager: React.FC = () => {
         estoque: typeof dbProd?.stock === 'number' ? Math.max(0, dbProd.stock) : 0,
         /** Classificação ERP — preservada do Firebase */
         classificacao: (dbProd as any)?.classificacao,
+        id_grupo: (dbProd as any)?.id_grupo,
+        id_subgrupo: (dbProd as any)?.id_subgrupo,
+        cod_classificacao: (dbProd as any)?.cod_classificacao || (dbProd as any)?.codigo_classificacao,
+        codigo_classificacao: (dbProd as any)?.codigo_classificacao || (dbProd as any)?.cod_classificacao,
+        classificacao_erp: (dbProd as any)?.classificacao_erp,
         categoria: dbProd?.category || 'Geral',
         subcategoria: (dbProd as any)?.subcategory || dbProd?.nome_subgrupo,
         nome_grupo: (dbProd as any)?.nome_grupo || dbProd?.category || 'Geral',
@@ -761,10 +817,10 @@ export const MoblinkProductsManager: React.FC = () => {
   const [cloudName] = useState(() => (import.meta as any).env?.VITE_CLOUDINARY_CLOUD_NAME || localStorage.getItem('cloudinary_cloud_name') || '');
   const [uploadPreset] = useState(() => (import.meta as any).env?.VITE_CLOUDINARY_UPLOAD_PRESET || localStorage.getItem('cloudinary_upload_preset') || '');
 
-  // Sincroniza estado inicial caso a lista do Moblink esteja vazia
+  // PLANO B: Sincroniza o estado da tabela sempre que o catálogo de produtos (products) for atualizado
   useEffect(() => {
-    if ((moblinkList || []).length === 0 && (products || []).length > 0) {
-      setMoblinkList((products || []).map(dbProd => {
+    if (products) {
+      setMoblinkList(products.map(dbProd => {
         const dbId = String(dbProd?.id || `PROD-${Math.random()}`);
         return {
           id: dbId,
@@ -782,6 +838,11 @@ export const MoblinkProductsManager: React.FC = () => {
           saldo_loja: typeof dbProd?.stock === 'number' ? Math.max(0, dbProd.stock) : 0,
           estoque: typeof dbProd?.stock === 'number' ? Math.max(0, dbProd.stock) : 0,
           classificacao: (dbProd as any)?.classificacao,
+          id_grupo: (dbProd as any)?.id_grupo,
+          id_subgrupo: (dbProd as any)?.id_subgrupo,
+          cod_classificacao: (dbProd as any)?.cod_classificacao || (dbProd as any)?.codigo_classificacao,
+          codigo_classificacao: (dbProd as any)?.codigo_classificacao || (dbProd as any)?.cod_classificacao,
+          classificacao_erp: (dbProd as any)?.classificacao_erp,
           categoria: dbProd?.category || 'Geral',
           subcategoria: (dbProd as any)?.subcategory || dbProd?.nome_subgrupo,
           nome_grupo: (dbProd as any)?.nome_grupo || dbProd?.category || 'Geral',
@@ -822,10 +883,10 @@ export const MoblinkProductsManager: React.FC = () => {
     }
   }, [products]);
 
-  // Resetar página ao mudar filtros de busca/categoria/origem/modelo/viewMode/grade
+  // Resetar página ao mudar filtros de busca/categoria/origem/modelo/viewMode/grade/classificação
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, categoryFilter, subcategoryFilter, syncFilter, baseNameFilter, viewMode, hideOutOfStock, hideNoGrade, gradeFilter, sortBy]);
+  }, [searchQuery, categoryFilter, subcategoryFilter, classificacaoGrupoFilter, classificacaoSubgrupoFilter, syncFilter, baseNameFilter, viewMode, hideOutOfStock, hideNoGrade, gradeFilter, sortBy]);
 
   // Sincronização manual por acionamento direto do botão [Atualizar Estoque ERP]
   const fetchMoblinkProducts = async () => {
@@ -1694,21 +1755,48 @@ export const MoblinkProductsManager: React.FC = () => {
     const refCode = selectedProduct.referencia || selectedProduct.referenceCode || selectedProduct.modelCode || undefined;
     const activeSizes = selectedProductGrade?.tamanhos || (selectedProduct.tamanhos as any) || [];
 
-    // Constrói mapeamento de múltiplas fotos por cor + capa da cor (apenas se o produto possuir grade com cores ativas)
+    // Constrói mapeamento de múltiplas fotos por cor + capa da cor (estritamente das cores da grade do ERP)
     const finalColorImages: Record<string, string[]> = {};
     const finalColorImageMap: Record<string, string> = {};
 
-    if (hasDesmembramentoGrade && availableColorsForEditModal.length > 0) {
-      Object.entries(editColorImages).forEach(([color, urls]) => {
-        const validUrls = (urls || []).filter(u => u && typeof u === 'string' && u.trim() && !isPlaceholderUrl(u));
-        if (validUrls.length > 0) {
-          finalColorImages[color] = validUrls;
-          finalColorImageMap[color] = validUrls[0];
+    Object.entries(editColorImages).forEach(([color, urls]) => {
+      const cleanColor = String(color || '').trim();
+      if (!cleanColor) return;
+      if (availableColorsForEditModal.length > 0 && !availableColorsForEditModal.includes(cleanColor)) {
+        return;
+      }
+      const validUrls = (urls || []).filter(u => u && typeof u === 'string' && u.trim() && !isPlaceholderUrl(u));
+      if (validUrls.length > 0) {
+        finalColorImages[cleanColor] = validUrls;
+        finalColorImageMap[cleanColor] = (editColorImageMap[cleanColor] && validUrls.includes(editColorImageMap[cleanColor]))
+          ? editColorImageMap[cleanColor]
+          : validUrls[0];
+      }
+    });
+
+    Object.entries(editColorImageMap).forEach(([color, url]) => {
+      const cleanColor = String(color || '').trim();
+      const cleanUrl = String(url || '').trim();
+      if (cleanColor && cleanUrl && !isPlaceholderUrl(cleanUrl)) {
+        if (availableColorsForEditModal.length > 0 && !availableColorsForEditModal.includes(cleanColor)) {
+          return;
         }
-      });
-    }
+        if (!finalColorImageMap[cleanColor]) {
+          finalColorImageMap[cleanColor] = cleanUrl;
+        }
+        if (!finalColorImages[cleanColor]) {
+          finalColorImages[cleanColor] = [cleanUrl];
+        } else if (!finalColorImages[cleanColor].includes(cleanUrl)) {
+          finalColorImages[cleanColor].push(cleanUrl);
+        }
+      }
+    });
 
     const primaryCoverUrl = finalImages[0] || '';
+    const cleanEditColor = editColor.trim();
+    const savedColor = (availableColorsForEditModal.length > 0 && availableColorsForEditModal.includes(cleanEditColor))
+      ? cleanEditColor
+      : (availableColorsForEditModal.length > 0 ? (availableColorsForEditModal.find(c => c.toLowerCase() === (selectedProduct.cor || selectedProduct.color || '').toLowerCase()) || availableColorsForEditModal[0]) : (selectedProduct.cor || selectedProduct.color || undefined));
 
     const updatedProductPayload: Product = {
       id: mobId,
@@ -1749,8 +1837,8 @@ export const MoblinkProductsManager: React.FC = () => {
       barcode: selectedProduct.codigoBarras || selectedProduct.barcode || undefined,
       brand: selectedProduct.marca || selectedProduct.brand || undefined,
       material: selectedProduct.material || undefined,
-      color: selectedProduct.cor || selectedProduct.color || undefined,
-      cor: selectedProduct.cor || selectedProduct.color || undefined,
+      color: savedColor,
+      cor: savedColor,
       colorImages: finalColorImages,
       colorImageMap: finalColorImageMap,
       gender: selectedProduct.genero || selectedProduct.gender || undefined,
@@ -1763,7 +1851,7 @@ export const MoblinkProductsManager: React.FC = () => {
 
     try {
       const existingInApp = products.find(p => p.id === mobId);
-      // Grava no Firestore se houver alteração real (incluindo fotos ou managedPhotos)
+      // Grava no Firestore se houver alteração real (incluindo fotos, cores ou managedPhotos)
       if (hasProductChanged(existingInApp, updatedProductPayload)) {
         const sanitizedPayload = sanitizeProductForFirestore(updatedProductPayload, { allowEmptyPhotos: true });
         await setDoc(doc(db, 'products', mobId), sanitizedPayload, { merge: true });
@@ -1777,6 +1865,15 @@ export const MoblinkProductsManager: React.FC = () => {
 
       syncProductMediaToSupabase(updatedProductPayload).catch(() => {});
 
+      setSelectedProduct(prev => prev ? {
+        ...prev,
+        ...updatedProductPayload,
+        color: savedColor,
+        cor: savedColor,
+        colorImages: finalColorImages,
+        colorImageMap: finalColorImageMap,
+      } : null);
+
       // Atualiza também a lista local do MobLink no estado para refletir instantaneamente
       setMoblinkList(prev => prev.map(item => {
         if (String(item.id || item.moblinkId) === mobId) {
@@ -1785,8 +1882,10 @@ export const MoblinkProductsManager: React.FC = () => {
             nome: productName,
             name: productName,
             sku: productSku,
-            color: selectedProduct.cor || selectedProduct.color || undefined,
-            cor: selectedProduct.cor || selectedProduct.color || undefined,
+            color: savedColor,
+            cor: savedColor,
+            colorImages: finalColorImages,
+            colorImageMap: finalColorImageMap,
             referencia: refCode,
             modelCode: refCode,
             referenceCode: refCode,
@@ -2173,6 +2272,12 @@ export const MoblinkProductsManager: React.FC = () => {
           price: typeof dbProd.price === 'number' ? dbProd.price : 0,
           saldo_loja: typeof dbProd.stock === 'number' ? Math.max(0, dbProd.stock) : 0,
           estoque: typeof dbProd.stock === 'number' ? Math.max(0, dbProd.stock) : 0,
+          classificacao: (dbProd as any)?.classificacao,
+          id_grupo: (dbProd as any)?.id_grupo,
+          id_subgrupo: (dbProd as any)?.id_subgrupo,
+          cod_classificacao: (dbProd as any)?.cod_classificacao || (dbProd as any)?.codigo_classificacao,
+          codigo_classificacao: (dbProd as any)?.codigo_classificacao || (dbProd as any)?.cod_classificacao,
+          classificacao_erp: (dbProd as any)?.classificacao_erp,
           categoria: dbProd.category || 'Geral',
           category: dbProd.category || 'Geral',
           tamanhos: Array.isArray(dbProd.sizes) ? dbProd.sizes : [],
@@ -2223,11 +2328,15 @@ export const MoblinkProductsManager: React.FC = () => {
       const sku = String(item.sku || '').toLowerCase();
       const id = mobId.toLowerCase();
 
+      const { raw: rawClassSearchVal } = extractProductClassification(item, existingDb);
+      const rawClassSearch = rawClassSearchVal.toLowerCase();
+
       const matchesSearch = !query || 
                             rawName.toLowerCase().includes(query) || 
                             sku.includes(query) || 
                             id.includes(query) || 
-                            itemBaseName.toLowerCase().includes(query);
+                            itemBaseName.toLowerCase().includes(query) ||
+                            rawClassSearch.includes(query);
 
       const rawCat = item.categoria || item.category || item.nome_grupo || 'Geral';
       const normCat = normalizeCategoryName(rawCat);
@@ -2253,35 +2362,54 @@ export const MoblinkProductsManager: React.FC = () => {
       const sQuery = classificacaoSubgrupoFilter.trim();
 
       if (gQuery || sQuery) {
-        const catInfo = extractClassificacaoCategoria(item);
-        const rawClass = catInfo.classificacao || String(item.classificacao || (item as any).id_grupo || '').trim();
-        const parts = rawClass.split('.');
-        const itemGrupo = (parts[0] !== undefined && parts[0] !== '') ? parts[0].trim() : String((item as any).id_grupo || '').trim();
-        const itemSubgrupo = (parts[1] !== undefined && parts[1] !== '') ? parts[1].trim() : String((item as any).id_subgrupo || '').trim();
+        const { grupo, subgrupo, raw } = extractProductClassification(item, existingDb);
+        const catInfo = extractClassificacaoCategoria(existingDb || item);
 
-        let matchesGrupo = true;
-        if (gQuery) {
-          const itemGNum = parseInt(itemGrupo, 10);
-          const qGNum = parseInt(gQuery, 10);
-          if (!isNaN(itemGNum) && !isNaN(qGNum)) {
-            matchesGrupo = itemGNum === qGNum;
-          } else {
-            matchesGrupo = itemGrupo.toLowerCase().includes(gQuery.toLowerCase());
+        // Se o usuário digitou ou colou o código completo com ponto (ex: "002.001" ou "2.1")
+        if (gQuery.includes('.')) {
+          const [qG, qS] = gQuery.split('.');
+          const qGNum = parseInt(qG, 10);
+          const qSNum = parseInt(qS, 10);
+          const itemGNum = parseInt(grupo, 10);
+          const itemSNum = parseInt(subgrupo, 10);
+
+          const matchesG = !isNaN(qGNum) && !isNaN(itemGNum) 
+            ? qGNum === itemGNum 
+            : grupo.toLowerCase().includes(qG.toLowerCase());
+          const matchesS = !qS 
+            ? true 
+            : (!isNaN(qSNum) && !isNaN(itemSNum) ? qSNum === itemSNum : subgrupo.toLowerCase().includes(qS.toLowerCase()));
+
+          matchesClassificacao = (raw === gQuery || raw.includes(gQuery)) || (matchesG && matchesS);
+        } else {
+          let matchesGrupo = true;
+          if (gQuery) {
+            const itemGNum = parseInt(grupo, 10);
+            const qGNum = parseInt(gQuery, 10);
+            if (!isNaN(itemGNum) && !isNaN(qGNum)) {
+              matchesGrupo = itemGNum === qGNum;
+            } else {
+              matchesGrupo = grupo.toLowerCase().includes(gQuery.toLowerCase()) ||
+                             (catInfo.nome_grupo && catInfo.nome_grupo.toLowerCase().includes(gQuery.toLowerCase())) ||
+                             (catInfo.category && catInfo.category.toLowerCase().includes(gQuery.toLowerCase()));
+            }
           }
-        }
 
-        let matchesSubgrupo = true;
-        if (sQuery) {
-          const itemSNum = parseInt(itemSubgrupo, 10);
-          const qSNum = parseInt(sQuery, 10);
-          if (!isNaN(itemSNum) && !isNaN(qSNum)) {
-            matchesSubgrupo = itemSNum === qSNum;
-          } else {
-            matchesSubgrupo = itemSubgrupo.toLowerCase().includes(sQuery.toLowerCase());
+          let matchesSubgrupo = true;
+          if (sQuery) {
+            const itemSNum = parseInt(subgrupo, 10);
+            const qSNum = parseInt(sQuery, 10);
+            if (!isNaN(itemSNum) && !isNaN(qSNum)) {
+              matchesSubgrupo = itemSNum === qSNum;
+            } else {
+              matchesSubgrupo = subgrupo.toLowerCase().includes(sQuery.toLowerCase()) ||
+                                (catInfo.nome_subgrupo && catInfo.nome_subgrupo.toLowerCase().includes(sQuery.toLowerCase())) ||
+                                (catInfo.subcategory && catInfo.subcategory.toLowerCase().includes(sQuery.toLowerCase()));
+            }
           }
-        }
 
-        matchesClassificacao = matchesGrupo && matchesSubgrupo;
+          matchesClassificacao = matchesGrupo && matchesSubgrupo;
+        }
       }
 
       // Filtro Seletivo de Fotos (Com Foto vs Sem Foto)
@@ -2389,9 +2517,10 @@ export const MoblinkProductsManager: React.FC = () => {
   const hasDesmembramentoGrade = useMemo(() => {
     return Boolean(
       selectedProductGrade &&
-      selectedProductGrade.hasGrade &&
-      Array.isArray(selectedProductGrade.variacoes) &&
-      selectedProductGrade.variacoes.length > 0
+      (
+        (Array.isArray(selectedProductGrade.cores) && selectedProductGrade.cores.length > 0) ||
+        (Array.isArray(selectedProductGrade.variacoes) && selectedProductGrade.variacoes.some(v => Boolean(v.cor && v.cor.trim())))
+      )
     );
   }, [selectedProductGrade]);
 
@@ -2424,13 +2553,12 @@ export const MoblinkProductsManager: React.FC = () => {
   const groupedList = useMemo(() => {
     const groupedMoblinkMap = filteredMoblinkList.reduce((acc, item) => {
       const mobId = String(item.id || item.moblinkId || 'MOB-000');
-      const catInfo = extractClassificacaoCategoria(item);
-      const rawClass = catInfo.classificacao || String(item.classificacao || (item as any).id_grupo || (item as any).cod_classificacao || (item as any).classificacao_erp || '').trim();
-      const parts = rawClass ? rawClass.split('.') : [];
-      const rawGrupoNum = (parts.length > 0 && parts[0] !== undefined && parts[0] !== '') ? parts[0].trim() : '';
+      const existingDb = dbProductsMap.get(mobId);
+      const { raw: rawClass, grupo: rawGrupoNum } = extractProductClassification(item, existingDb);
       const grupoCode = rawGrupoNum ? rawGrupoNum.padStart(3, '0') : '';
+      const catInfo = extractClassificacaoCategoria(existingDb || item);
       
-      const isUnclassified = catInfo.category === 'Sem Classificação Definida';
+      const isUnclassified = catInfo.category === 'Sem Classificação Definida' || (!catInfo.isDefined && !rawClass);
       const rawCatName = isUnclassified
         ? 'Sem Classificação Definida'
         : (catInfo.category || item.categoria || item.category || item.nome_grupo || 'Sem Classificação Definida');
@@ -2448,7 +2576,6 @@ export const MoblinkProductsManager: React.FC = () => {
         };
       }
 
-      const existingDb = dbProductsMap.get(mobId);
       const precoVista = extractPrecoVistaMoblink(item) || Number(item.preco_venda_fracao ?? item.preco_venda ?? item.preco ?? item.price ?? 0);
       const estoqueAtual = extractSaldoLojaMoblink(item);
       const hasEnrichedMedia = Boolean(existingDb && existingDb.images && existingDb.images.length > 0);
@@ -2895,7 +3022,16 @@ export const MoblinkProductsManager: React.FC = () => {
                 type="text"
                 placeholder="002"
                 value={classificacaoGrupoFilter}
-                onChange={(e) => setClassificacaoGrupoFilter(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value.trim();
+                  if (val.includes('.')) {
+                    const [g, s] = val.split('.');
+                    setClassificacaoGrupoFilter(g);
+                    setClassificacaoSubgrupoFilter(s || '');
+                  } else {
+                    setClassificacaoGrupoFilter(val);
+                  }
+                }}
                 className="w-12 px-1 py-0.5 text-xs font-mono font-bold bg-transparent border-0 outline-none text-slate-800 dark:text-blue-400 placeholder:text-slate-400 placeholder:font-normal text-center"
                 title="Código do Grupo (número antes do ponto '.')"
               />
@@ -2904,7 +3040,7 @@ export const MoblinkProductsManager: React.FC = () => {
                 type="text"
                 placeholder="001"
                 value={classificacaoSubgrupoFilter}
-                onChange={(e) => setClassificacaoSubgrupoFilter(e.target.value)}
+                onChange={(e) => setClassificacaoSubgrupoFilter(e.target.value.trim())}
                 className="w-12 px-1 py-0.5 text-xs font-mono font-bold bg-transparent border-0 outline-none text-slate-800 dark:text-blue-400 placeholder:text-slate-400 placeholder:font-normal text-center"
                 title="Código do Subgrupo (número depois do ponto '.')"
               />
@@ -3205,9 +3341,9 @@ export const MoblinkProductsManager: React.FC = () => {
                                       {mobId}
                                     </span>
                                     {(() => {
-                                      const catInfo = extractClassificacaoCategoria(item);
-                                      const classCode = catInfo.classificacao || String(item.classificacao || (item as any).id_grupo || (item as any).cod_classificacao || (item as any).classificacao_erp || '').trim() || (existingDb as any)?.classificacao || '';
-                                      const isUnclass = catInfo.category === 'Sem Classificação Definida';
+                                      const { raw: classCode } = extractProductClassification(item, existingDb);
+                                      const catInfo = extractClassificacaoCategoria(existingDb || item);
+                                      const isUnclass = catInfo.category === 'Sem Classificação Definida' || (!catInfo.isDefined && !classCode);
                                       const subcategory = isUnclass ? '' : resolveProductSubcategory(item, existingDb);
                                       return (
                                         <>
@@ -3388,6 +3524,8 @@ export const MoblinkProductsManager: React.FC = () => {
         isSingleRefreshing={isSingleRefreshing}
         editName={editName}
         setEditName={setEditName}
+        editColor={editColor}
+        setEditColor={setEditColor}
         editVisible={editVisible}
         setEditVisible={setEditVisible}
         editNewArrival={editNewArrival}

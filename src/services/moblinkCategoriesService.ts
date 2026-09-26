@@ -412,6 +412,39 @@ export const moblinkCategoriesService = {
     return this.resolveClassificacao(code).isDefined;
   },
 
+  /**
+   * Busca reversa: encontra o código de classificação oficial a partir de categoria/subcategoria ou grupo/subgrupo.
+   */
+  findClassificacaoByCategory(catRaw?: string, subRaw?: string): string {
+    if (!catRaw && !subRaw) return "";
+    const normCat = catRaw ? normalizeCategoryName(catRaw).toUpperCase() : "";
+    const normSub = subRaw ? normalizeSubcategoryName(subRaw).toUpperCase() : "";
+
+    for (const [code, entry] of defaultClassificacaoEntries) {
+      if (!code.includes(".")) continue; // Pula grupos pais sem subgrupo
+      const entryCat = normalizeCategoryName(entry.category).toUpperCase();
+      const entrySub = normalizeSubcategoryName(entry.subcategory).toUpperCase();
+
+      if (normSub && entrySub === normSub) {
+        if (!normCat || entryCat === normCat || entryCat === "CALÇADOS") {
+          return code;
+        }
+      }
+    }
+
+    // Se só informou categoria (grupo pai)
+    if (normCat) {
+      for (const [code, entry] of defaultClassificacaoEntries) {
+        if (code.includes(".")) continue;
+        if (normalizeCategoryName(entry.category).toUpperCase() === normCat) {
+          return code;
+        }
+      }
+    }
+
+    return "";
+  },
+
   buildCategoryTree(
     productsList?: (Product | MoblinkProduto)[],
     gruposApiList?: MoblinkGrupoRaw[],

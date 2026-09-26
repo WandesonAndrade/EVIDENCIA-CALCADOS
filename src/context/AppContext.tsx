@@ -1034,23 +1034,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const processedMobIds = new Set<string>();
 
-    const mergedFromMoblink = moblinkRawList.map((item) => {
+    // REGRA DE OURO: Atualiza estritamente os produtos que JÁ EXISTEM no banco do e-commerce.
+    // Produtos desconhecidos da API do ERP NÃO entram automaticamente na loja.
+    const updatedExistingProducts: Product[] = [];
+
+    moblinkRawList.forEach((item) => {
       const mobId = String(item.id || item.moblinkId || 'MOB-101').trim();
       const cleanNumeric = mobId.replace(/^MOB-/, '');
       const prefixed = mobId.startsWith('MOB-') ? mobId : `MOB-${mobId}`;
-      processedMobIds.add(mobId);
-      processedMobIds.add(cleanNumeric);
-      processedMobIds.add(prefixed);
-
       const itemSku = String(item.codigo || item.sku || '').trim();
+
       const dbRecord = dbMap.get(mobId) ||
                        dbMap.get(cleanNumeric) ||
                        dbMap.get(prefixed) ||
                        (itemSku ? dbMap.get(itemSku) : undefined);
 
+      // Se o produto NÃO existe previamente no banco do e-commerce, IGNORA
+      if (!dbRecord) {
+        return;
+      }
+
+      processedMobIds.add(mobId);
+      processedMobIds.add(cleanNumeric);
+      processedMobIds.add(prefixed);
+      if (dbRecord.id) processedMobIds.add(String(dbRecord.id).trim());
+      if (dbRecord.moblinkId) processedMobIds.add(String(dbRecord.moblinkId).trim());
+
       const rawFotoUri = item.foto_uri || item.foto_url || item.fotoUri || item.fotoUrl || item.imagem || item.image || item.foto;
 
-      // 1. LIVE DATA FROM MOBLINK API (Preço à Vista e Estoque Real >= 0)
+      // 1. LIVE DATA FROM MOBLINK API (Preço e Estoque Real)
       // PRESERVAÇÃO ESTRITA: Se o lojista definiu um Nome Comercial no banco, ele NÃO PODE ser sobreescrito pelo ERP
       const liveName = (dbRecord?.name && dbRecord.name.trim() !== '')
         ? dbRecord.name
@@ -1064,32 +1076,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const livePrecoCartao = extractPrecoCartaoMoblink(item) || parseValor(dbRecord?.precoCartao || dbRecord?.preco_cartao) || (livePrice > 0 ? Math.round(livePrice * 0.9 * 100) / 100 : 0);
       const liveOriginalPrice = typeof item.precoOriginal === 'number' ? item.precoOriginal : item.precoOriginal ? Number(item.precoOriginal) : dbRecord?.originalPrice;
 
-      // Estoque (trata valores negativos como 0)
+      // Estoque em tempo real do ERP (>= 0)
       const liveStock = extractSaldoLojaMoblink(item);
 
       const liveSku = item.codigo || item.sku || dbRecord?.sku || mobId;
       const catInfo = extractClassificacaoCategoria(item);
-      const liveCategory = (catInfo.category && catInfo.category !== 'Geral') 
+      const liveCategory = (dbRecord?.category && dbRecord.category !== 'Geral')
+        ? normalizeCategoryName(dbRecord.category)
+        : (catInfo.category && catInfo.category !== 'Geral') 
         ? catInfo.category 
         : (item.categoria && item.categoria !== 'Geral')
         ? normalizeCategoryName(item.categoria)
-        : (dbRecord?.category && dbRecord.category !== 'Geral')
-        ? normalizeCategoryName(dbRecord.category)
         : 'Calçados';
-      const liveSubcategory = catInfo.subcategory || item.subcategoria || item.subcategory || dbRecord?.subcategory;
+      const liveSubcategory = dbRecord?.subcategory || catInfo.subcategory || item.subcategoria || item.subcategory;
       const liveBarcode = item.codigoBarras || item.barcode || item.codigo || dbRecord?.barcode;
-      const liveBrand = item.marca || dbRecord?.brand || (item as any)?.brand || (item as any)?.marca || 'Evidência';
-      const liveMaterial = item.material || dbRecord?.material;
-      const liveColor = item.cor || dbRecord?.color;
-      const liveGender = item.genero || dbRecord?.gender;
+      const liveBrand = dbRecord?.brand || item.marca || (item as any)?.brand || (item as any)?.marca || 'Evidência';
+      const liveMaterial = dbRecord?.material || item.material;
+      const liveColor = dbRecord?.color || item.cor;
+      const liveGender = dbRecord?.gender || item.genero;
       const liveSizes = dbRecord?.sizes && dbRecord.sizes.length > 0 ? dbRecord.sizes : (item.tamanhos || []);
       const liveIdGrade = item.id_grade ?? item.gradeId ?? dbRecord?.id_grade ?? dbRecord?.gradeId;
 
-      // Extract Complementary Description (compl_descr)
+      // Descrição complementar
       const liveComplDescr = item.compl_descr || item.descr_compl || item.descricao_complementar || item.compl_descricao || dbRecord?.compl_descr || '';
 
-      // 2. PRESERVE ENRICHED MEDIA & DESCRIPTION FROM LOCAL DATABASE (FIREBASE) / LOJISTA
-      // REGRA ABSOLUTA: Fotos dos produtos vêm de URLs salvas no Firestore ou mapeadas no Supabase
+      // 2. PRESERVAÇÃO INTEGRAL DE FOTOS E MÍDIAS DO LOJISTA
       let combinedImages: string[] = [];
 
       const addValidPhoto = (url: any) => {
@@ -1119,7 +1130,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         Object.values(colorImageMap).forEach(addValidPhoto);
       }
 
-      // Adiciona fotos do Supabase Storage mapeadas por ID no nome do arquivo (ex: produto_1998_...)
+      // Fotos do Supabase Storage mapeadas por ID
       if (supabasePhotoMap && supabasePhotoMap.size > 0) {
         const cleanMobId = mobId.replace(/^MOB-/i, '');
         const supabasePhotos = supabasePhotoMap.get(cleanMobId) || supabasePhotoMap.get(mobId) || supabasePhotoMap.get(`MOB-${cleanMobId}`);
@@ -1130,7 +1141,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       const primaryCoverUrl = combinedImages[0] || (dbRecord?.imageUrl && isValidWebPhotoUrl(dbRecord.imageUrl) ? dbRecord.imageUrl : '') || (dbRecord?.foto_uri && isValidWebPhotoUrl(dbRecord.foto_uri) ? dbRecord.foto_uri : '');
 
-      // Adaptation for Complete Description (Preserva cadastro manual do lojista se existir)
+      // Preserva a descrição do lojista
       let adaptedFullDescription = '';
       if (dbRecord?.description && dbRecord.description.trim() !== '') {
         adaptedFullDescription = dbRecord.description;
@@ -1147,14 +1158,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
 
       const crossedProduct: Product = {
-        id: mobId,
-        moblinkId: mobId,
+        ...dbRecord,
+        id: dbRecord.id || mobId,
+        moblinkId: dbRecord.moblinkId || mobId,
         sku: liveSku,
-        name: liveName, // Preserved from lojista or raw ERP fallback
+        name: liveName,
         descricao: liveName,
         compl_descr: liveComplDescr,
         descricao_completa: adaptedFullDescription,
-        price: livePrice, // Preço Tabela de Venda
+        price: livePrice,
         preco_venda: livePrice,
         preco_venda_fracao: livePrice,
         precoVista: livePrecoVista,
@@ -1162,24 +1174,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         precoCartao: livePrecoCartao,
         preco_cartao: livePrecoCartao,
         originalPrice: liveOriginalPrice,
-        stock: liveStock, // Direct from Moblink API (>= 0)
+        stock: liveStock,
         saldo_loja: liveStock,
-        saldos_lojas: item.saldos_lojas,
-        // ---- Classificação ERP: todos os campos mapeados ----
+        saldos_lojas: item.saldos_lojas || dbRecord.saldos_lojas,
         category: liveCategory,
         subcategory: liveSubcategory || catInfo.subcategory || '',
         nome_grupo: catInfo.nome_grupo || liveCategory,
         nome_subgrupo: catInfo.nome_subgrupo || liveSubcategory || '',
-        classificacao: catInfo.classificacao || item.classificacao || '',
-        // --------------------------------------------------------
+        classificacao: catInfo.classificacao || item.classificacao || dbRecord.classificacao || '',
         onSale: Boolean((liveOriginalPrice && liveOriginalPrice > livePrice) || dbRecord?.onSale),
-        images: combinedImages, // Preserved from lojista
+        images: combinedImages,
         managedPhotos: dbRecord?.managedPhotos ?? (combinedImages.length > 0 ? true : false),
         imageUrl: primaryCoverUrl,
         foto_uri: primaryCoverUrl,
         colorImageMap,
         colorImages,
-        description: adaptedFullDescription, // Preserved from lojista
+        description: adaptedFullDescription,
         sizes: liveSizes,
         id_grade: liveIdGrade,
         gradeId: liveIdGrade,
@@ -1196,18 +1206,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         moblinkSyncStatus: 'synced'
       };
 
-      return crossedProduct;
+      updatedExistingProducts.push(crossedProduct);
     });
 
     // Preserva integralmente os produtos do Firestore que não vieram na resposta da chamada Moblink
-    const remainingDbProducts = dbProducts.filter(p => {
+    const remainingDbProducts = effectiveDbProducts.filter(p => {
       if (!p) return false;
       const pId = String(p.id || '').trim();
       const mobId = p.moblinkId ? String(p.moblinkId).trim() : '';
       return !processedMobIds.has(pId) && (mobId === '' || !processedMobIds.has(mobId));
     });
 
-    return [...mergedFromMoblink, ...remainingDbProducts];
+    return [...updatedExistingProducts, ...remainingDbProducts];
   };
 
   // Sync MobLink products directly from API and cross with DB records (Incremental Delta Sync)

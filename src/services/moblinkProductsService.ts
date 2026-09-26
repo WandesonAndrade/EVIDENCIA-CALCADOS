@@ -1584,7 +1584,7 @@ export const hasProductChanged = (
   // 8. Cor / Marca / Modelo / Referência
   const freshColor = String((fresh as any).color ?? (fresh as any).cor ?? "").trim();
   const existingColor = String(existing.color ?? existing.cor ?? "").trim();
-  if (freshColor && existingColor && freshColor !== existingColor) return true;
+  if (freshColor !== existingColor) return true;
 
   const freshModel = String((fresh as any).modelCode ?? (fresh as any).referenceCode ?? "").trim();
   const existingModel = String(existing.modelCode ?? existing.referenceCode ?? "").trim();
@@ -1606,12 +1606,42 @@ export const hasProductChanged = (
     }
   }
 
+  // 11. Mapeamento de Fotos por Cor (colorImageMap e colorImages)
+  const freshColorMap = (fresh as any).colorImageMap;
+  const existingColorMap = existing.colorImageMap;
+  if (freshColorMap !== undefined || existingColorMap !== undefined) {
+    const freshMapKeys = freshColorMap && typeof freshColorMap === 'object' ? Object.keys(freshColorMap) : [];
+    const existingMapKeys = existingColorMap && typeof existingColorMap === 'object' ? Object.keys(existingColorMap) : [];
+    if (freshMapKeys.length !== existingMapKeys.length) return true;
+    for (const key of freshMapKeys) {
+      if (freshColorMap[key] !== existingColorMap?.[key]) return true;
+    }
+  }
+
+  const freshColorImages = (fresh as any).colorImages;
+  const existingColorImages = existing.colorImages;
+  if (freshColorImages !== undefined || existingColorImages !== undefined) {
+    const freshKeys = freshColorImages && typeof freshColorImages === 'object' ? Object.keys(freshColorImages) : [];
+    const existingKeys = existingColorImages && typeof existingColorImages === 'object' ? Object.keys(existingColorImages) : [];
+    if (freshKeys.length !== existingKeys.length) return true;
+    for (const key of freshKeys) {
+      const freshArr = Array.isArray(freshColorImages[key]) ? freshColorImages[key] : [];
+      const existingArr = Array.isArray(existingColorImages?.[key]) ? existingColorImages[key] : [];
+      if (freshArr.length !== existingArr.length) return true;
+      for (let i = 0; i < freshArr.length; i++) {
+        if (freshArr[i] !== existingArr[i]) return true;
+      }
+    }
+  }
+
   return false;
 };
 
 /**
  * Processa a sincronização incremental (Delta Sync).
- * Retorna apenas os produtos que sofreram alterações reais de preço ou estoque.
+ * REGRA ESTRITA: Retorna apenas produtos que JÁ EXISTEM no catálogo do e-commerce
+ * e que sofreram alterações reais de preço ou estoque. Novos produtos do ERP
+ * NUNCA são adicionados automaticamente.
  */
 export const filterProductsRequiringSync = (
   existingProducts: Product[],
@@ -1641,14 +1671,18 @@ export const filterProductsRequiringSync = (
     const cleanNumeric = freshId.replace(/^MOB-/, '');
     const prefixed = freshId.startsWith('MOB-') ? freshId : `MOB-${freshId}`;
     const freshSku = String((freshItem as any).codigo || freshItem.sku || '').trim();
-    const stock = extractSaldoLojaMoblink(freshItem);
 
-    // Ignora produtos sem saldo em estoque
-    if (stock <= 0) return false;
+    // REGRA DE OURO: Se o produto NÃO existe no catálogo da loja, ignora sumariamente.
+    // Apenas o administrador pode incluir novos produtos manualmente via ID.
     const existing = existingMap.get(freshId) ||
                      existingMap.get(cleanNumeric) ||
                      existingMap.get(prefixed) ||
                      (freshSku ? existingMap.get(freshSku) : undefined);
+
+    if (!existing) {
+      return false;
+    }
+
     return hasProductChanged(existing, freshItem);
   });
 };
