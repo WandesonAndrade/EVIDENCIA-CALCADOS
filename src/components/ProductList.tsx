@@ -465,43 +465,47 @@ export const ProductList: React.FC = () => {
         {/* Banner Esquerdo Grande (Lançamentos / Novidades) */}
         <div 
           onClick={() => handleSelectCategory('NOVIDADES')}
-          className={`lg:col-span-6 rounded-3xl p-8 sm:p-10 flex items-center justify-between relative overflow-hidden transition-all min-h-[340px] border cursor-pointer group shadow-xl ${
-            isDark ? 'bg-[#101828] border-white/10 text-white hover:border-white/20' : 'bg-gradient-to-br from-[#ffffff] via-[#f4f8fe] to-[#e8f1fc] border-blue-900/10 text-[#003B73] hover:shadow-2xl'
+          className={`lg:col-span-6 rounded-3xl p-8 sm:p-10 flex items-center justify-between relative overflow-hidden transition-all duration-500 min-h-[340px] border cursor-pointer group shadow-xl ${
+            isDark 
+              ? 'bg-gradient-to-br from-[#111A2E] via-[#0E1627] to-[#0A101D] border-white/10 text-white hover:border-blue-400/40 hover:shadow-2xl hover:shadow-blue-500/10' 
+              : 'bg-gradient-to-br from-[#FFFFFF] via-[#F8FBFF] to-[#EAF2FC] border-blue-900/10 text-[#003B73] hover:border-[#006EDB]/40 hover:shadow-2xl hover:shadow-blue-900/10'
           }`}
         >
-          <div className="space-y-3 z-20 w-full sm:w-[58%] pr-2">
-            <span className={`inline-block text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full border ${
-              isDark ? 'text-blue-200 bg-blue-900/40 border-blue-800' : 'text-[#003B73] bg-[#DDF1FF] border-[#006EDB]/20'
+          <div className="space-y-3.5 z-20 w-full sm:w-[58%] pr-2">
+            <span className={`inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider px-3.5 py-1 rounded-full border shadow-xs transition-all ${
+              isDark ? 'text-blue-300 bg-blue-950/60 border-blue-500/30' : 'text-[#003B73] bg-[#EAF4FE] border-[#006EDB]/25'
             }`}>
-              Coleção 2025
+              <span className="w-1.5 h-1.5 rounded-full bg-[#006EDB] animate-pulse" />
+              COLEÇÃO 2026
             </span>
-            <h3 className={`text-2xl sm:text-3xl font-black tracking-tight leading-tight ${
+            <h3 className={`text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight leading-tight ${
               isDark ? 'text-white' : 'text-[#003B73]'
             }`}>
               Novos modelos todas as semanas
             </h3>
-            <p className={`text-xs sm:text-sm font-medium leading-relaxed ${isDark ? 'text-slate-300' : 'text-[#52708F]'}`}>
-              As maiores tendências e lançamentos em calçados, sempre em primeira mão.
+            <p className={`text-xs sm:text-sm font-medium leading-relaxed max-w-[95%] ${isDark ? 'text-slate-300' : 'text-[#4A6B8C]'}`}>
+              As maiores tendências e lançamentos em calçados femininos, masculinos e infantis, sempre em primeira mão.
             </p>
             <div className="pt-2">
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); handleSelectCategory('NOVIDADES'); }}
-                className="bg-[#006EDB] hover:bg-[#00509E] text-white text-xs font-extrabold tracking-wider px-6 py-3 rounded-full uppercase transition-all cursor-pointer shadow-md flex items-center space-x-2"
+                className="group/btn bg-gradient-to-r from-[#006EDB] to-[#00509E] hover:from-[#005AB5] hover:to-[#003B73] text-white text-xs font-black tracking-wider px-6 py-3.5 rounded-full uppercase transition-all duration-300 cursor-pointer shadow-lg shadow-blue-600/20 hover:shadow-xl hover:shadow-blue-600/30 flex items-center space-x-2.5 active:scale-95"
               >
                 <span>VER NOVIDADES</span>
-                <ArrowRight className="w-3.5 h-3.5 stroke-[2.5]" />
+                <ArrowRight className="w-4 h-4 stroke-[2.5] group-hover/btn:translate-x-1.5 transition-transform duration-300" />
               </button>
             </div>
           </div>
-          <div className="absolute right-0 top-0 bottom-0 w-[45%] overflow-hidden">
+          <div className="absolute right-0 top-0 bottom-0 w-[46%] sm:w-[48%] overflow-hidden pointer-events-none">
             <div className={`absolute inset-0 z-10 bg-gradient-to-r ${
-              isDark ? 'from-[#101828] via-[#101828]/60 to-transparent' : 'from-[#ffffff] via-[#ffffff]/60 to-transparent'
+              isDark ? 'from-[#0F172A] via-[#0F172A]/70 to-transparent' : 'from-[#FFFFFF] via-[#FFFFFF]/60 to-transparent'
             }`} />
+            <div className="absolute right-[-20%] top-[10%] w-[120%] h-[120%] bg-blue-400/10 rounded-full blur-2xl pointer-events-none" />
             <img 
-              src="https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?q=80&w=800&auto=format&fit=crop" 
-              alt="Novos Modelos" 
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+              src="https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?q=80&w=900&auto=format&fit=crop" 
+              alt="Novos Modelos de Calçados" 
+              className="w-full h-full object-cover object-center group-hover:scale-108 group-hover:-rotate-1 transition-all duration-700 ease-out"
             />
           </div>
         </div>
@@ -511,43 +515,47 @@ export const ProductList: React.FC = () => {
           {/* Top Card (Linha Sapatos / Calçados) */}
           <div 
             onClick={() => handleSelectCategory('CALÇADOS')}
-            className={`rounded-3xl p-7 sm:p-8 flex items-center justify-between relative overflow-hidden transition-all min-h-[160px] border cursor-pointer group shadow-xl ${
-              isDark ? 'bg-[#101828] border-white/10 text-white hover:border-white/20' : 'bg-gradient-to-br from-[#ffffff] via-[#f4f8fe] to-[#e8f1fc] border-blue-900/10 text-[#003B73] hover:shadow-2xl'
+            className={`rounded-3xl p-7 sm:p-8 flex items-center justify-between relative overflow-hidden transition-all duration-500 min-h-[165px] border cursor-pointer group shadow-xl ${
+              isDark 
+                ? 'bg-gradient-to-br from-[#111A2E] via-[#0E1627] to-[#0A101D] border-white/10 text-white hover:border-blue-400/40 hover:shadow-2xl hover:shadow-blue-500/10' 
+                : 'bg-gradient-to-br from-[#FFFFFF] via-[#F8FBFF] to-[#EAF2FC] border-blue-900/10 text-[#003B73] hover:border-[#006EDB]/40 hover:shadow-2xl hover:shadow-blue-900/10'
             }`}
           >
             <div className="space-y-2 z-20 w-full sm:w-[58%] pr-2">
-              <span className={`inline-block text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full border ${
-                isDark ? 'text-blue-200 bg-blue-900/40 border-blue-800' : 'text-[#003B73] bg-[#DDF1FF] border-[#006EDB]/20'
+              <span className={`inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full border shadow-xs transition-all ${
+                isDark ? 'text-blue-300 bg-blue-950/60 border-blue-500/30' : 'text-[#003B73] bg-[#EAF4FE] border-[#006EDB]/25'
               }`}>
-                Linha Sapatos
+                <Sparkles className="w-3 h-3 text-[#006EDB]" />
+                LINHA CALÇADOS
               </span>
               <h3 className={`text-lg sm:text-xl font-black tracking-tight ${
                 isDark ? 'text-white' : 'text-[#003B73]'
               }`}>
                 Para todos os seus momentos
               </h3>
-              <p className={`text-xs font-medium ${isDark ? 'text-slate-300' : 'text-[#52708F]'}`}>
-                Desempenho, amortecimento e estilo para ir mais longe.
+              <p className={`text-xs font-medium ${isDark ? 'text-slate-300' : 'text-[#4A6B8C]'}`}>
+                Desempenho, amortecimento e elegância do casual ao sofisticado.
               </p>
               <div className="pt-1">
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); handleSelectCategory('CALÇADOS'); }}
-                  className="bg-[#006EDB] hover:bg-[#00509E] text-white text-[11px] font-extrabold tracking-wider px-5 py-2.5 rounded-full uppercase transition-all cursor-pointer shadow-md flex items-center space-x-1.5"
+                  className="group/btn bg-[#006EDB] hover:bg-[#00509E] text-white text-[11px] font-black tracking-wider px-5 py-2.5 rounded-full uppercase transition-all duration-300 cursor-pointer shadow-md shadow-blue-600/15 hover:shadow-lg hover:shadow-blue-600/25 flex items-center space-x-2 active:scale-95"
                 >
-                  <span>VER SAPATOS</span>
-                  <ArrowRight className="w-3.5 h-3.5 stroke-[2.5]" />
+                  <span>VER CALÇADOS</span>
+                  <ArrowRight className="w-3.5 h-3.5 stroke-[2.5] group-hover/btn:translate-x-1 transition-transform duration-300" />
                 </button>
               </div>
             </div>
-            <div className="absolute right-0 top-0 bottom-0 w-[42%] overflow-hidden">
+            <div className="absolute right-0 top-0 bottom-0 w-[44%] overflow-hidden pointer-events-none">
               <div className={`absolute inset-0 z-10 bg-gradient-to-r ${
-                isDark ? 'from-[#101828] via-[#101828]/70 to-transparent' : 'from-[#ffffff] via-[#ffffff]/70 to-transparent'
+                isDark ? 'from-[#0F172A] via-[#0F172A]/70 to-transparent' : 'from-[#FFFFFF] via-[#FFFFFF]/60 to-transparent'
               }`} />
+              <div className="absolute right-[-10%] top-[-10%] w-[100%] h-[100%] bg-blue-500/10 rounded-full blur-xl pointer-events-none" />
               <img 
-                src={NO_PHOTO_SVG} 
-                alt="Sapatos" 
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                src="https://images.unsplash.com/photo-1549298916-b41d501d3772?q=80&w=800&auto=format&fit=crop" 
+                alt="Linha Calçados" 
+                className="w-full h-full object-cover object-center group-hover:scale-108 transition-all duration-700 ease-out"
               />
             </div>
           </div>
@@ -555,43 +563,47 @@ export const ProductList: React.FC = () => {
           {/* Bottom Card (Bolsas & Acessórios) */}
           <div 
             onClick={() => handleSelectCategory('ACESSÓRIOS')}
-            className={`rounded-3xl p-7 sm:p-8 flex items-center justify-between relative overflow-hidden transition-all min-h-[160px] border cursor-pointer group shadow-xl ${
-              isDark ? 'bg-[#101828] border-white/10 text-white hover:border-white/20' : 'bg-gradient-to-br from-[#ffffff] via-[#f4f8fe] to-[#e8f1fc] border-blue-900/10 text-[#003B73] hover:shadow-2xl'
+            className={`rounded-3xl p-7 sm:p-8 flex items-center justify-between relative overflow-hidden transition-all duration-500 min-h-[165px] border cursor-pointer group shadow-xl ${
+              isDark 
+                ? 'bg-gradient-to-br from-[#111A2E] via-[#0E1627] to-[#0A101D] border-white/10 text-white hover:border-blue-400/40 hover:shadow-2xl hover:shadow-blue-500/10' 
+                : 'bg-gradient-to-br from-[#FFFFFF] via-[#F8FBFF] to-[#EAF2FC] border-blue-900/10 text-[#003B73] hover:border-[#006EDB]/40 hover:shadow-2xl hover:shadow-blue-900/10'
             }`}
           >
             <div className="space-y-2 z-20 w-full sm:w-[58%] pr-2">
-              <span className={`inline-block text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full border ${
-                isDark ? 'text-blue-200 bg-blue-900/40 border-blue-800' : 'text-[#003B73] bg-[#DDF1FF] border-[#006EDB]/20'
+              <span className={`inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full border shadow-xs transition-all ${
+                isDark ? 'text-blue-300 bg-blue-950/60 border-blue-500/30' : 'text-[#003B73] bg-[#EAF4FE] border-[#006EDB]/25'
               }`}>
-                Acessórios & Bolsas
+                <ShoppingBag className="w-3 h-3 text-[#006EDB]" />
+                BOLSAS & ACESSÓRIOS
               </span>
               <h3 className={`text-lg sm:text-xl font-black tracking-tight ${
                 isDark ? 'text-white' : 'text-[#003B73]'
               }`}>
                 Bolsas que completam você
               </h3>
-              <p className={`text-xs font-medium ${isDark ? 'text-slate-300' : 'text-[#52708F]'}`}>
-                Design contemporâneo e praticidade para todos os momentos.
+              <p className={`text-xs font-medium ${isDark ? 'text-slate-300' : 'text-[#4A6B8C]'}`}>
+                Design contemporâneo, acabamento refinado e versatilidade em cada detalhe.
               </p>
               <div className="pt-1">
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); handleSelectCategory('ACESSÓRIOS'); }}
-                  className="bg-[#006EDB] hover:bg-[#00509E] text-white text-[11px] font-extrabold tracking-wider px-5 py-2.5 rounded-full uppercase transition-all cursor-pointer shadow-md flex items-center space-x-1.5"
+                  className="group/btn bg-[#006EDB] hover:bg-[#00509E] text-white text-[11px] font-black tracking-wider px-5 py-2.5 rounded-full uppercase transition-all duration-300 cursor-pointer shadow-md shadow-blue-600/15 hover:shadow-lg hover:shadow-blue-600/25 flex items-center space-x-2 active:scale-95"
                 >
                   <span>VER ACESSÓRIOS</span>
-                  <ArrowRight className="w-3.5 h-3.5 stroke-[2.5]" />
+                  <ArrowRight className="w-3.5 h-3.5 stroke-[2.5] group-hover/btn:translate-x-1 transition-transform duration-300" />
                 </button>
               </div>
             </div>
-            <div className="absolute right-0 top-0 bottom-0 w-[42%] overflow-hidden">
+            <div className="absolute right-0 top-0 bottom-0 w-[44%] overflow-hidden pointer-events-none">
               <div className={`absolute inset-0 z-10 bg-gradient-to-r ${
-                isDark ? 'from-[#101828] via-[#101828]/70 to-transparent' : 'from-[#ffffff] via-[#ffffff]/70 to-transparent'
+                isDark ? 'from-[#0F172A] via-[#0F172A]/70 to-transparent' : 'from-[#FFFFFF] via-[#FFFFFF]/60 to-transparent'
               }`} />
+              <div className="absolute right-[-10%] top-[-10%] w-[100%] h-[100%] bg-blue-500/10 rounded-full blur-xl pointer-events-none" />
               <img 
-                src="https://images.unsplash.com/photo-1584917865442-de89df76afd3?q=80&w=600&auto=format&fit=crop" 
+                src="https://images.unsplash.com/photo-1584917865442-de89df76afd3?q=80&w=800&auto=format&fit=crop" 
                 alt="Acessórios e Bolsas" 
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                className="w-full h-full object-cover object-center group-hover:scale-108 transition-all duration-700 ease-out"
               />
             </div>
           </div>
