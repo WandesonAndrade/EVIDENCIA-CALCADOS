@@ -21,7 +21,10 @@ export const ProductDetail: React.FC = () => {
     products = [],
     selectedProduct, 
     setSelectedProduct,
-    setCurrentView, 
+    setCurrentView,
+    previousView,
+    goBack,
+    selectedCategory,
     addToCart, 
     currentUser, 
     createOrder,
@@ -543,10 +546,14 @@ export const ProductDetail: React.FC = () => {
           <AlertCircle className="h-12 w-12 mx-auto text-[#0071e3]" />
           <p className="text-sm font-medium">Nenhum produto selecionado.</p>
           <button 
-            onClick={() => setCurrentView('home')} 
+            onClick={goBack || (() => setCurrentView('home'))} 
             className="px-6 py-2.5 rounded-full text-xs font-semibold bg-[#0071e3] text-white hover:bg-[#0077ed] transition-all cursor-pointer shadow-xs"
           >
-            Voltar para a Vitrine
+            {previousView === 'category-page' && selectedCategory
+              ? `Voltar para ${selectedCategory}`
+              : previousView === 'favorites'
+                ? 'Voltar para Favoritos'
+                : 'Voltar para a Vitrine'}
           </button>
         </motion.div>
       </div>
@@ -564,13 +571,22 @@ export const ProductDetail: React.FC = () => {
       <div className="flex items-center justify-between text-xs py-1">
         <motion.button
           whileHover={{ x: -3 }}
-          onClick={() => setCurrentView('home')}
+          onClick={goBack || (() => setCurrentView('home'))}
           className={`inline-flex items-center space-x-1.5 font-semibold cursor-pointer transition-colors ${
             isDark ? 'text-[#86868b] hover:text-white' : 'text-[#515154] hover:text-black'
           }`}
+          title="Voltar para a página anterior"
         >
           <ArrowLeft className="h-3.5 w-3.5" />
-          <span>Voltar para a Vitrine</span>
+          <span>
+            {previousView === 'category-page' && selectedCategory
+              ? `Voltar para ${selectedCategory}`
+              : previousView === 'favorites'
+                ? 'Voltar para Favoritos'
+                : previousView === 'cart'
+                  ? 'Voltar para o Carrinho'
+                  : 'Voltar para a Vitrine'}
+          </span>
         </motion.button>
 
         {(() => {

@@ -91,6 +91,8 @@ interface AppContextProps {
   toggleFavorite: (productId: string) => void;
   currentView: ViewMode;
   setCurrentView: (view: ViewMode) => void;
+  previousView: ViewMode;
+  goBack: () => void;
   addToast?: (title: string, message?: string, type?: 'info' | 'success' | 'error' | 'warning') => void;
   selectedProduct: Product | null;
   setSelectedProduct: (product: Product | null) => void;
@@ -573,13 +575,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return 'home';
   });
 
+  const [previousView, setPreviousView] = useState<ViewMode>('home');
+  const viewHistoryRef = useRef<ViewMode[]>(['home']);
+  const scrollPositionsRef = useRef<Record<string, number>>({});
+
   const setCurrentView = useCallback((view: ViewMode) => {
-    setCurrentViewState(view);
+    if (typeof window !== 'undefined') {
+      try {
+        scrollPositionsRef.current[currentView] = window.scrollY;
+      } catch (e) {}
+    }
+
+    setCurrentViewState((prev) => {
+      if (prev !== view) {
+        setPreviousView(prev);
+        const last = viewHistoryRef.current[viewHistoryRef.current.length - 1];
+        if (last !== prev) {
+          viewHistoryRef.current.push(prev);
+        }
+      }
+      return view;
+    });
+
     if (typeof window !== 'undefined') {
       try {
         sessionStorage.setItem('evidencia_current_view', view);
         localStorage.setItem('evidencia_current_view', view);
-        if (['admin', 'meu-crediario', 'cart', 'orders', 'favorites', 'about', 'support', 'portfolio-case', 'category-page'].includes(view)) {
+        if (['admin', 'meu-crediario', 'cart', 'orders', 'favorites', 'about', 'support', 'portfolio-case', 'category-page', 'product-detail'].includes(view)) {
           window.history.replaceState(null, '', `#${view}`);
         } else if (view === 'home') {
           window.history.replaceState(null, '', window.location.pathname + window.location.search);
@@ -588,7 +610,46 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         console.warn("Falha ao persistir a visualização atual:", e);
       }
     }
-  }, []);
+  }, [currentView]);
+
+  const goBack = useCallback(() => {
+    let targetView: ViewMode | undefined;
+    while (viewHistoryRef.current.length > 0) {
+      const candidate = viewHistoryRef.current.pop();
+      if (candidate && candidate !== currentView) {
+        targetView = candidate;
+        break;
+      }
+    }
+
+    if (targetView) {
+      setCurrentViewState(targetView);
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('evidencia_current_view', targetView);
+        localStorage.setItem('evidencia_current_view', targetView);
+        if (['admin', 'meu-crediario', 'cart', 'orders', 'favorites', 'about', 'support', 'portfolio-case', 'category-page'].includes(targetView)) {
+          window.history.replaceState(null, '', `#${targetView}`);
+        } else if (targetView === 'home') {
+          window.history.replaceState(null, '', window.location.pathname + window.location.search);
+        }
+
+        const savedScroll = scrollPositionsRef.current[targetView] || 0;
+        setTimeout(() => {
+          window.scrollTo({ top: savedScroll, behavior: 'smooth' });
+        }, 50);
+      }
+      return;
+    }
+
+    if (selectedCategory && selectedCategory !== 'TODOS' && selectedCategory !== 'GERAL') {
+      setCurrentView('category-page');
+    } else {
+      setCurrentView('home');
+    }
+    setTimeout(() => {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, 50);
+  }, [currentView, selectedCategory, setCurrentView]);
 
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
@@ -2915,6 +2976,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setSelectedMenuTab,
         currentView,
         setCurrentView,
+        previousView,
+        goBack,
         selectedProduct,
         setSelectedProduct,
         favorites,
