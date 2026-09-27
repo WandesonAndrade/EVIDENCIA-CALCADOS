@@ -1,5 +1,5 @@
-import React, { useRef } from 'react';
-import { ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import { ChevronLeft, ChevronRight, Sparkles, ShoppingBag, Footprints, Luggage, Watch, Wallet, Heart, Shirt } from 'lucide-react';
 import { normalizeCategoryName, normalizeSubcategoryName } from '../../../services/moblinkCategoriesService';
 
 export interface SubcategoryItem {
@@ -17,15 +17,104 @@ export interface SubcategoryCarouselProps {
   subtitle?: string;
 }
 
+// Paleta de tons pastéis / aquarela orgânicos conforme referência visual
+const PASTEL_PALETTE = [
+  {
+    bg: 'bg-[#E0F2FE]',
+    darkBg: 'dark:bg-sky-950/60 dark:border-sky-800/60',
+    border: 'border-sky-200/70',
+    text: 'text-sky-700 dark:text-sky-300',
+    glow: 'from-sky-300/30 to-sky-100/10',
+  },
+  {
+    bg: 'bg-[#FFE4E6]',
+    darkBg: 'dark:bg-rose-950/60 dark:border-rose-800/60',
+    border: 'border-rose-200/70',
+    text: 'text-rose-700 dark:text-rose-300',
+    glow: 'from-rose-300/30 to-rose-100/10',
+  },
+  {
+    bg: 'bg-[#DCFCE7]',
+    darkBg: 'dark:bg-emerald-950/60 dark:border-emerald-800/60',
+    border: 'border-emerald-200/70',
+    text: 'text-emerald-700 dark:text-emerald-300',
+    glow: 'from-emerald-300/30 to-emerald-100/10',
+  },
+  {
+    bg: 'bg-[#FFEDD5]',
+    darkBg: 'dark:bg-orange-950/60 dark:border-orange-800/60',
+    border: 'border-orange-200/70',
+    text: 'text-orange-700 dark:text-orange-300',
+    glow: 'from-orange-300/30 to-orange-100/10',
+  },
+  {
+    bg: 'bg-[#EDE9FE]',
+    darkBg: 'dark:bg-purple-950/60 dark:border-purple-800/60',
+    border: 'border-purple-200/70',
+    text: 'text-purple-700 dark:text-purple-300',
+    glow: 'from-purple-300/30 to-purple-100/10',
+  },
+  {
+    bg: 'bg-[#FEF3C7]',
+    darkBg: 'dark:bg-amber-950/60 dark:border-amber-800/60',
+    border: 'border-amber-200/70',
+    text: 'text-amber-700 dark:text-amber-300',
+    glow: 'from-amber-300/30 to-amber-100/10',
+  },
+  {
+    bg: 'bg-[#CCFBF1]',
+    darkBg: 'dark:bg-teal-950/60 dark:border-teal-800/60',
+    border: 'border-teal-200/70',
+    text: 'text-teal-700 dark:text-teal-300',
+    glow: 'from-teal-300/30 to-teal-100/10',
+  },
+  {
+    bg: 'bg-[#E0E7FF]',
+    darkBg: 'dark:bg-indigo-950/60 dark:border-indigo-800/60',
+    border: 'border-indigo-200/70',
+    text: 'text-indigo-700 dark:text-indigo-300',
+    glow: 'from-indigo-300/30 to-indigo-100/10',
+  },
+];
+
+const getCategoryIcon = (name: string) => {
+  const upper = (name || '').toUpperCase();
+  if (upper.includes('BOLSA')) return <ShoppingBag className="w-8 h-8 sm:w-10 sm:h-10" />;
+  if (upper.includes('MALA') || upper.includes('VIAGEM')) return <Luggage className="w-8 h-8 sm:w-10 sm:h-10" />;
+  if (upper.includes('RELÓGIO') || upper.includes('RELOGIO')) return <Watch className="w-8 h-8 sm:w-10 sm:h-10" />;
+  if (upper.includes('CARTEIRA')) return <Wallet className="w-8 h-8 sm:w-10 sm:h-10" />;
+  if (
+    upper.includes('SAPATO') ||
+    upper.includes('CALÇADO') ||
+    upper.includes('CALCADO') ||
+    upper.includes('TÊNIS') ||
+    upper.includes('TENIS') ||
+    upper.includes('SANDÁLIA') ||
+    upper.includes('SANDALIA') ||
+    upper.includes('BOTA') ||
+    upper.includes('PAPETE')
+  ) {
+    return <Footprints className="w-8 h-8 sm:w-10 sm:h-10" />;
+  }
+  if (upper.includes('MASCULINO') || upper.includes('CAMISA') || upper.includes('ROUPA')) {
+    return <Shirt className="w-8 h-8 sm:w-10 sm:h-10" />;
+  }
+  if (upper.includes('FEMININO') || upper.includes('BELEZA') || upper.includes('PERFUM')) {
+    return <Heart className="w-8 h-8 sm:w-10 sm:h-10" />;
+  }
+  return <Sparkles className="w-8 h-8 sm:w-10 sm:h-10" />;
+};
+
 export const SubcategoryCarousel: React.FC<SubcategoryCarouselProps> = ({
   subcategories,
   theme = 'light',
   onSelectSubcategory,
   title = 'Compre por Categoria',
-  subtitle = 'Selecione o estilo ou modelo ideal de calçado para o seu dia a dia.',
+  subtitle = 'Acesso rápido aos modelos e estilos mais procurados da loja.',
 }) => {
   const carouselRef = useRef<HTMLDivElement | null>(null);
   const isDark = theme === 'dark';
+  const [imgErrors, setImgErrors] = useState<Record<string, boolean>>({});
 
   const scrollCarousel = (direction: 'left' | 'right') => {
     if (carouselRef.current) {
@@ -84,54 +173,70 @@ export const SubcategoryCarousel: React.FC<SubcategoryCarouselProps> = ({
         </div>
       </div>
 
-      {/* Carrossel Deslizante de Subcategorias */}
+      {/* Carrossel Deslizante de Subcategorias Estilo Circular Pastel Blobs */}
       <div
         ref={carouselRef}
-        className="flex items-center space-x-3.5 sm:space-x-4 overflow-x-auto no-scrollbar scroll-smooth py-2 px-0.5"
+        className="flex items-start space-x-4 sm:space-x-6 lg:space-x-7 overflow-x-auto no-scrollbar scroll-smooth py-3 px-1"
       >
-        {subcategories.map((sub) => (
-          <div
-            key={sub.id}
-            onClick={() => onSelectSubcategory(sub.name)}
-            className={`group flex-shrink-0 min-w-[130px] sm:min-w-[150px] max-w-[170px] flex flex-col items-center p-3.5 rounded-2xl border transition-all duration-300 cursor-pointer text-center select-none ${
-              isDark
-                ? 'bg-[#101828]/90 border-white/10 text-white hover:bg-[#006EDB] hover:border-[#006EDB] hover:shadow-lg backdrop-blur-md'
-                : 'bg-white border-blue-900/10 text-[#003B73] shadow-md hover:bg-[#006EDB] hover:text-white hover:border-[#006EDB] hover:shadow-xl'
-            }`}
-          >
-            <div className="w-16 h-16 sm:w-20 sm:h-20 mb-2 overflow-hidden flex items-center justify-center rounded-xl p-1 bg-[#EEF8FF] group-hover:bg-white/20 transition-colors">
-              {sub.image ? (
-                <img
-                  src={sub.image}
-                  alt={sub.name}
-                  className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-300"
-                  loading="lazy"
+        {subcategories.map((sub, idx) => {
+          const palette = PASTEL_PALETTE[idx % PASTEL_PALETTE.length];
+          const hasValidImage = Boolean(sub.image && !imgErrors[sub.id]);
+          const displayName = normalizeSubcategoryName(sub.name) || normalizeCategoryName(sub.name);
+
+          return (
+            <button
+              key={sub.id}
+              type="button"
+              onClick={() => onSelectSubcategory(sub.name)}
+              className="group flex-shrink-0 flex flex-col items-center cursor-pointer select-none text-center focus:outline-none min-w-[82px] sm:min-w-[100px] max-w-[120px] transition-transform active:scale-95"
+            >
+              {/* Bolha circular orgânica em tom pastel */}
+              <div
+                className={`w-20 h-20 sm:w-24 sm:h-24 rounded-full sm:rounded-[30px] flex items-center justify-center p-3 relative transition-all duration-300 shadow-xs group-hover:shadow-md group-hover:scale-108 border ${palette.border} ${palette.bg} ${palette.darkBg}`}
+              >
+                {/* Efeito sutil de gradiente aquarela interno */}
+                <div
+                  className={`absolute inset-0 bg-gradient-to-br ${palette.glow} rounded-full sm:rounded-[30px] opacity-70 pointer-events-none`}
                 />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-[#006EDB] font-black text-lg">
-                  {sub.name.slice(0, 2).toUpperCase()}
-                </div>
-              )}
-            </div>
 
-            <span
-              className={`text-xs font-bold line-clamp-1 transition-colors ${
-                isDark ? 'text-slate-200 group-hover:text-white' : 'text-[#003B73] group-hover:text-white'
-              }`}
-            >
-              {normalizeSubcategoryName(sub.name) || normalizeCategoryName(sub.name)}
-            </span>
+                {/* Foto real do produto ou ícone ilustrativo */}
+                {hasValidImage ? (
+                  <img
+                    src={sub.image}
+                    alt={displayName}
+                    onError={() => setImgErrors((prev) => ({ ...prev, [sub.id]: true }))}
+                    className="w-full h-full object-contain relative z-10 group-hover:scale-115 transition-transform duration-300 drop-shadow-xs"
+                    loading="lazy"
+                  />
+                ) : (
+                  <div className={`relative z-10 flex items-center justify-center ${palette.text}`}>
+                    {getCategoryIcon(sub.name)}
+                  </div>
+                )}
+              </div>
 
-            <span
-              className={`text-[10px] font-semibold mt-0.5 transition-colors ${
-                isDark ? 'text-slate-400 group-hover:text-blue-100' : 'text-[#52708F] group-hover:text-[#DDF1FF]'
-              }`}
-            >
-              {sub.itemCount} {sub.itemCount === 1 ? 'modelo' : 'modelos'}
-            </span>
-          </div>
-        ))}
+              {/* Rótulo da Subcategoria */}
+              <span
+                className={`text-xs sm:text-sm font-extrabold line-clamp-1 mt-2.5 transition-colors ${
+                  isDark ? 'text-slate-100 group-hover:text-blue-400' : 'text-[#003B73] group-hover:text-[#006EDB]'
+                }`}
+              >
+                {displayName}
+              </span>
+
+              {/* Contagem de Modelos */}
+              <span
+                className={`text-[10px] font-semibold mt-0.5 transition-colors ${
+                  isDark ? 'text-slate-400 group-hover:text-slate-300' : 'text-[#52708F] group-hover:text-[#003B73]'
+                }`}
+              >
+                {sub.itemCount} {sub.itemCount === 1 ? 'modelo' : 'modelos'}
+              </span>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
 };
+
