@@ -79,7 +79,7 @@ export const FloatingAssistant: React.FC = () => {
           <img 
             src="/evidencia-character-cutout.png" 
             alt="Atendente Oficial Evidência Calçados" 
-            className="h-full w-auto object-cover object-top filter drop-shadow-xs transition-transform duration-300 group-hover:scale-110"
+            className="w-full h-full object-cover object-top filter drop-shadow-xs transition-transform duration-300 group-hover:scale-110"
           />
 
           {/* Selo Verde Oficial do WhatsApp no Canto Inferior */}
