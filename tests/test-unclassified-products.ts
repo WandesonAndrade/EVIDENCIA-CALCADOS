@@ -1,6 +1,6 @@
 import assert from 'assert';
 import { moblinkCategoriesService } from '../src/services/moblinkCategoriesService';
-import { extractClassificacaoCategoria } from '../src/services/moblinkProductsService';
+import { extractClassificacaoCategoria, isIgnoredClassification } from '../src/services/moblinkProductsService';
 
 function run() {
   console.log('--- Iniciando Testes de Produtos Sem Classificação Definida ---');
@@ -50,6 +50,15 @@ function run() {
   assert.strictEqual(catInfo002.subcategory, 'Masculino');
   assert.strictEqual(catInfo002.isDefined, true);
   console.log('[PASS] Produto com classificação 002.001 extrai category: "Calçados > Masculino"');
+
+  // 6. Teste da regra mandatória do e-commerce: isIgnoredClassification para 001.001
+  assert.strictEqual(isIgnoredClassification({ classificacao: '001.001' }), true);
+  assert.strictEqual(isIgnoredClassification({ classificacao: '001' }), true);
+  assert.strictEqual(isIgnoredClassification({ id_grupo: '001', id_subgrupo: '001' }), true);
+  assert.strictEqual(isIgnoredClassification({ id_grupo: 1, id_subgrupo: 1 }), true);
+  assert.strictEqual(isIgnoredClassification({ classificacao: '002.001' }), false);
+  assert.strictEqual(isIgnoredClassification({ classificacao: '002.002' }), false);
+  console.log('[PASS] Regra isIgnoredClassification bloqueia estritamente produtos 001.001');
 
   console.log('🎉 Todos os testes de Sem Classificação Definida passaram com 100% de sucesso!');
 }

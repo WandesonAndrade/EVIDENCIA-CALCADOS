@@ -17,6 +17,7 @@ import {
   hasProductValidPhoto,
   isNonFootwearProduct,
   extractClassificacaoCategoria,
+  isIgnoredClassification,
   saveMoblinkCache,
   loadMoblinkCache
 } from '../services/moblinkProductsService';
@@ -281,15 +282,17 @@ const extractBestRealPhoto = (prod: any): string => {
 };
 
 export const MoblinkProductsManager: React.FC = () => {
-  const { products, addProduct, updateProduct, deleteProduct, categories, theme } = useApp();
+  const { products, addProduct, updateProduct, deleteProduct, deleteProductsBatch, categories, theme } = useApp();
 
   const [syncProgress, setSyncProgress] = useState<{ current: number; total: number; phase: string } | null>(null);
 
   const [moblinkList, setMoblinkList] = useState<MoblinkRawProduct[]>(() => {
     // PLANO B: A tabela do gerenciador reflete estritamente os produtos cadastrados e aprovados no e-commerce.
-    // Novos produtos do ERP entram de forma 100% controlada via botão [🎯 Sincronizar 1 Produto (por ID)].
-    return (products || []).map(dbProd => {
-      const dbId = String(dbProd?.id || `PROD-${Math.random()}`);
+    // REGRA MANDATÓRIA: Produtos com classificação 001.001 NUNCA aparecem no catálogo do e-commerce.
+    return (products || [])
+      .filter(dbProd => !isIgnoredClassification(dbProd))
+      .map(dbProd => {
+        const dbId = String(dbProd?.id || `PROD-${Math.random()}`);
       return {
         id: dbId,
         moblinkId: dbProd?.moblinkId,
@@ -772,6 +775,7 @@ export const MoblinkProductsManager: React.FC = () => {
   const [isBatchVisibilityModalOpen, setIsBatchVisibilityModalOpen] = useState(false);
   const [batchVisibilityValue, setBatchVisibilityValue] = useState<boolean>(true);
   const [isSavingBatchVisibility, setIsSavingBatchVisibility] = useState(false);
+  const [isDeletingBatch, setIsDeletingBatch] = useState(false);
 
   const selectedIdsList = Object.keys(selectedMobIds).filter(id => selectedMobIds[id]);
 
@@ -818,10 +822,13 @@ export const MoblinkProductsManager: React.FC = () => {
   const [uploadPreset] = useState(() => (import.meta as any).env?.VITE_CLOUDINARY_UPLOAD_PRESET || localStorage.getItem('cloudinary_upload_preset') || '');
 
   // PLANO B: Sincroniza o estado da tabela sempre que o catálogo de produtos (products) for atualizado
+  // REGRA MANDATÓRIA: Produtos com classificação 001.001 NUNCA aparecem no catálogo do e-commerce
   useEffect(() => {
     if (products) {
-      setMoblinkList(products.map(dbProd => {
-        const dbId = String(dbProd?.id || `PROD-${Math.random()}`);
+      setMoblinkList(products
+        .filter(dbProd => !isIgnoredClassification(dbProd))
+        .map(dbProd => {
+          const dbId = String(dbProd?.id || `PROD-${Math.random()}`);
         return {
           id: dbId,
           moblinkId: dbProd?.moblinkId,
@@ -2216,7 +2223,7 @@ export const MoblinkProductsManager: React.FC = () => {
 
   // Exclusão de Produtos em Lote
   const handleBatchDeleteProducts = async () => {
-    if (selectedIdsList.length === 0) return;
+    if (selectedIdsList.length === 0 || isDeletingBatch) return;
 
     const count = selectedIdsList.length;
     if (!window.confirm(`Tem certeza que deseja excluir os ${count} produto(s) selecionado(s)? Esta ação removerá os cadastros do banco de dados.`)) {
@@ -2224,18 +2231,35 @@ export const MoblinkProductsManager: React.FC = () => {
     }
 
     try {
-      setFeedback(null);
-      selectedIdsList.forEach(mobId => {
-        deleteProduct(mobId);
+      setIsDeletingBatch(true);
+      setFeedback({
+        success: true,
+        message: `⏳ Excluindo ${count} produto(s) em lote... Aguarde.`
       });
 
-      const selectedSet = new Set(selectedIdsList);
-      setMoblinkList(prev => prev.filter(p => !selectedSet.has(String(p.id || p.moblinkId || ''))));
+      // 1. Executa exclusão em lote atômica com writeBatch no Firestore e limpa estado/localstorage de uma só vez
+      await deleteProductsBatch(selectedIdsList);
+
+      // 2. Atualiza a tabela local de forma instantânea
+      const selectedSet = new Set<string>();
+      selectedIdsList.forEach(id => {
+        const s = String(id).trim();
+        selectedSet.add(s);
+        selectedSet.add(s.replace(/^MOB-/, ''));
+        if (!s.startsWith('MOB-')) selectedSet.add(`MOB-${s}`);
+      });
+      setMoblinkList(prev => prev.filter(p => {
+        const pId = String(p.id || '').trim();
+        const mobId = String(p.moblinkId || '').trim();
+        return !selectedSet.has(pId) && (!mobId || !selectedSet.has(mobId));
+      }));
+
+      // 3. Limpa seleção
       clearSelection();
 
       setFeedback({
         success: true,
-        message: `🗑️ Sucesso! ${count} produto(s) excluído(s) da aplicação.`
+        message: `🗑️ Sucesso! ${count} produto(s) excluído(s) da aplicação e do banco de dados.`
       });
       setTimeout(() => setFeedback(null), 4000);
     } catch (err: any) {
@@ -2244,6 +2268,8 @@ export const MoblinkProductsManager: React.FC = () => {
         success: false,
         message: `Falha ao excluir produtos em lote: ${err.message || 'Erro inesperado'}`
       });
+    } finally {
+      setIsDeletingBatch(false);
     }
   };
 
@@ -2255,7 +2281,7 @@ export const MoblinkProductsManager: React.FC = () => {
     );
 
     (products || []).forEach(dbProd => {
-      if (!dbProd) return;
+      if (!dbProd || isIgnoredClassification(dbProd)) return;
       const dbId = String(dbProd.id || '');
       const mobId = dbProd.moblinkId ? String(dbProd.moblinkId) : '';
       const isAlreadyInMoblinkList = mobListIds.has(dbId) || (mobId !== '' && mobListIds.has(mobId));
@@ -2307,9 +2333,10 @@ export const MoblinkProductsManager: React.FC = () => {
     const query = String(searchQuery || '').toLowerCase();
 
     const filtered = (combinedCatalog || []).filter(item => {
-      if (!item) return false;
+      if (!item || isIgnoredClassification(item)) return false;
       const mobId = String(item.id || item.moblinkId || 'MOB-000');
       const existingDb = dbProductsMap.get(mobId);
+      if (isIgnoredClassification(existingDb)) return false;
       const estoque = existingDb?.stock ?? extractSaldoLojaMoblink(item);
 
       // Ignorar produtos com estoque zerado quando a opção estiver ativa
@@ -3589,11 +3616,21 @@ export const MoblinkProductsManager: React.FC = () => {
           <button
             type="button"
             onClick={handleBatchDeleteProducts}
-            className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-extrabold rounded-full text-xs flex items-center gap-2 transition-all shadow-md cursor-pointer active:scale-95"
+            disabled={isDeletingBatch}
+            className="px-4 py-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-extrabold rounded-full text-xs flex items-center gap-2 transition-all shadow-md cursor-pointer active:scale-95"
             title="Excluir todos os produtos selecionados"
           >
-            <Trash2 className="h-4 w-4" />
-            <span>Excluir Selecionados ({selectedIdsList.length})</span>
+            {isDeletingBatch ? (
+              <>
+                <RefreshCw className="h-4 w-4 animate-spin" />
+                <span>Excluindo...</span>
+              </>
+            ) : (
+              <>
+                <Trash2 className="h-4 w-4" />
+                <span>Excluir Selecionados ({selectedIdsList.length})</span>
+              </>
+            )}
           </button>
 
           <button

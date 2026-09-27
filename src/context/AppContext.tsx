@@ -4,13 +4,13 @@ import { loadSaldaoConfig, saveSaldaoConfig, DEFAULT_SALDAO_CONFIG, getSaldaoPro
 import { loadPromotionsFromLocalStorage, savePromotionsToLocalStorage, savePromotionToFirestore, deletePromotionFromFirestore, PROMOTIONS_COLLECTION, getApplicablePromotion } from '../services/promotionsService';
 import { loadSellersFromLocalStorage, saveSellersToLocalStorage, saveSellerToFirestore, deleteSellerFromFirestore, SELLERS_COLLECTION } from '../services/sellersService';
 import { db, auth, seedDatabaseIfNeeded, SEED_PRODUCTS } from '../lib/firebase';
-import { collection, onSnapshot, doc, setDoc, getDoc, query, where, deleteDoc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, setDoc, getDoc, query, where, deleteDoc, writeBatch } from 'firebase/firestore';
 import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { evidenciaAuthService } from '../lib/evidenciaAuth';
 import { firebaseAuthService } from '../services/firebaseAuthService';
 import { userDataService } from '../services/userDataService';
 import { orderService } from '../services/orderService';
-import { getProdutosMoblink, extractPrecoTabelaMoblink, extractPrecoVistaMoblink, extractPrecoCartaoMoblink, parseValor, extractSaldoLojaMoblink, sanitizeProductForFirestore, cleanUndefinedFields, filterProductsRequiringSync, hasProductChanged, extractClassificacaoCategoria } from '../services/moblinkProductsService';
+import { getProdutosMoblink, extractPrecoTabelaMoblink, extractPrecoVistaMoblink, extractPrecoCartaoMoblink, parseValor, extractSaldoLojaMoblink, sanitizeProductForFirestore, cleanUndefinedFields, filterProductsRequiringSync, hasProductChanged, extractClassificacaoCategoria, isIgnoredClassification } from '../services/moblinkProductsService';
 import { moblinkCategoriesService, normalizeCategoryName } from '../services/moblinkCategoriesService';
 import { cleanUndefinedProperties } from '../utils/cleanObject';
 import { API_ENDPOINTS } from '../services/api';
@@ -21,7 +21,8 @@ import {
   autoLinkSupabasePhotosToFirestore,
   backupAllProductPhotosToSupabase,
   restoreAllProductPhotosFromSupabase,
-  fetchSupabasePhotosBackup
+  fetchSupabasePhotosBackup,
+  deleteProductsFromSupabaseMedia
 } from '../services/supabaseStorageService';
 import { NO_PHOTO_SVG, isPlaceholderUrl, isValidWebPhotoUrl } from '../utils/placeholder';
 import { getCachedCatalog, setCachedCatalog, safeSetLocalStorage, mergeStockIntoCachedProducts } from '../services/catalogCacheService';
@@ -76,6 +77,7 @@ interface AppContextProps {
   clearLocalOrders: () => void;
   addProduct: (product: Product) => Promise<void>;
   deleteProduct: (productId: string) => Promise<void>;
+  deleteProductsBatch: (productIds: string[]) => Promise<{ success: boolean; deletedCount: number }>;
   updateProduct: (productId: string, updatedFields: Partial<Product>) => Promise<void>;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
@@ -1054,6 +1056,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return;
       }
 
+      // REGRA MANDATÓRIA DO E-COMMERCE: Produtos com classificação 001.001 NUNCA entram no e-commerce
+      if (isIgnoredClassification(item) || isIgnoredClassification(dbRecord)) {
+        return;
+      }
+
       processedMobIds.add(mobId);
       processedMobIds.add(cleanNumeric);
       processedMobIds.add(prefixed);
@@ -1285,9 +1292,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // 1. Tenta carregar catálogo estático (mídia/fotos/descrições) do Cache do Navegador para abertura instantânea (0ms)
       const cached = getCachedCatalog();
       if (cached && cached.length > 0) {
-        setProducts(cached);
+        const cleanCached = cached.filter(p => !isIgnoredClassification(p));
+        setProducts(cleanCached);
+        if (cleanCached.length !== cached.length) {
+          saveLocalProducts(cleanCached);
+          setCachedCatalog(cleanCached);
+        }
         setIsLoadingProducts(false);
-        console.log(`⚡ [AppContext] Catálogo inicializado instantaneamente a partir do cache local (${cached.length} produtos). Sincronizando fotos e estoque em segundo plano...`);
+        console.log(`⚡ [AppContext] Catálogo inicializado instantaneamente a partir do cache local (${cleanCached.length} produtos). Sincronizando fotos e estoque em segundo plano...`);
 
         // Dispara sincronização em segundo plano (MobLink ERP + Fotos do Supabase Storage) sem travar a interface
         syncProductsFromMoblinkApi().catch(err => {
@@ -1309,9 +1321,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // 2. Registra listener em tempo real do Firestore para receber links anexados e fotos salvas diretamente no banco
       const unsubscribe = onSnapshot(collection(db, 'products'), (snapshot) => {
         const prodList: Product[] = [];
+        const ignoredDocIdsToDelete: string[] = [];
+
         snapshot.forEach((doc) => {
           const data = doc.data() as Product;
           const prod = { id: doc.id, ...data };
+
+          // REGRA MANDATÓRIA: Produtos com classificação 001.001 NUNCA entram no e-commerce
+          if (isIgnoredClassification(prod)) {
+            ignoredDocIdsToDelete.push(doc.id);
+            return;
+          }
 
           const catInfo = extractClassificacaoCategoria(prod);
           if (!prod.category || prod.category.toUpperCase() === 'GERAL') {
@@ -1328,6 +1348,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
           prodList.push(prod);
         });
+
+        // Purga automática de documentos legados com classificação 001.001 do banco
+        if (ignoredDocIdsToDelete.length > 0) {
+          console.log(`🧹 [E-commerce Purge] Removendo ${ignoredDocIdsToDelete.length} produto(s) com classificação 001.001 do banco...`);
+          deleteProductsBatch(ignoredDocIdsToDelete).catch(() => {});
+        }
 
         if (prodList.length > 0) {
           setProducts(prodList);
@@ -2370,6 +2396,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Centralized Product Catalog mutations
   const addProduct = async (product: Product) => {
+    // REGRA MANDATÓRIA: Produtos com classificação 001.001 NUNCA entram no e-commerce
+    if (isIgnoredClassification(product)) {
+      console.warn("Tentativa de adicionar produto com classificação 001.001 bloqueada: não vai para o e-commerce.");
+      return;
+    }
+
     // Update state & local storage
     const updated = [product, ...products];
     setProducts(updated);
@@ -2391,17 +2423,90 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deleteProduct = async (productId: string) => {
+    if (!productId) return;
+    const cleanId = String(productId).trim();
+    const target = products.find(p => p.id === cleanId || p.moblinkId === cleanId);
+
     // Update state & local storage
-    const updated = products.filter(p => p.id !== productId);
+    const updated = products.filter(p => p.id !== cleanId && p.moblinkId !== cleanId);
     setProducts(updated);
+    setCachedCatalog(updated);
     saveLocalProducts(updated);
 
     // Try Firestore
     try {
-      await deleteDoc(doc(db, 'products', productId));
+      const docId = target?.id || cleanId;
+      await deleteDoc(doc(db, 'products', docId));
+      if (target?.moblinkId && target.moblinkId !== target.id) {
+        await deleteDoc(doc(db, 'products', String(target.moblinkId))).catch(() => {});
+      }
     } catch (error) {
       console.warn("Firestore failed to delete product. Deleted locally:", error);
     }
+  };
+
+  const deleteProductsBatch = async (productIds: string[]): Promise<{ success: boolean; deletedCount: number }> => {
+    if (!productIds || productIds.length === 0) return { success: true, deletedCount: 0 };
+
+    // 1. Normaliza identificadores (trata IDs numéricos, com ou sem prefixo MOB-)
+    const idsSet = new Set<string>();
+    productIds.forEach(id => {
+      if (!id) return;
+      const s = String(id).trim();
+      idsSet.add(s);
+      idsSet.add(s.replace(/^MOB-/, ''));
+      if (!s.startsWith('MOB-')) idsSet.add(`MOB-${s}`);
+    });
+
+    // 2. Identifica todos os produtos correspondentes no catálogo em memória
+    const matchedProducts = products.filter(p => {
+      const pId = String(p.id || '').trim();
+      const mobId = String(p.moblinkId || '').trim();
+      return idsSet.has(pId) || (mobId !== '' && idsSet.has(mobId));
+    });
+
+    // 3. Monta conjunto de IDs de documentos para remoção no Firestore
+    const firestoreDocIds = new Set<string>();
+    productIds.forEach(id => {
+      if (id) firestoreDocIds.add(String(id).trim());
+    });
+    matchedProducts.forEach(p => {
+      if (p.id) firestoreDocIds.add(String(p.id).trim());
+      if (p.moblinkId) firestoreDocIds.add(String(p.moblinkId).trim());
+    });
+
+    // 4. Atualiza estado em memória e LocalStorage UMA ÚNICA VEZ (eliminando sobrecarga de CPU)
+    const matchedIdsSet = new Set(matchedProducts.map(p => String(p.id)));
+    const updated = products.filter(p => 
+      !matchedIdsSet.has(String(p.id)) && 
+      !idsSet.has(String(p.id)) && 
+      (!p.moblinkId || !idsSet.has(String(p.moblinkId)))
+    );
+
+    setProducts(updated);
+    setCachedCatalog(updated);
+    saveLocalProducts(updated);
+
+    // 5. Exclui no Firestore usando writeBatch em lotes de 400 (limite de segurança abaixo dos 500 do Firestore)
+    const docIdsList = Array.from(firestoreDocIds);
+    const BATCH_SIZE = 400;
+    try {
+      for (let i = 0; i < docIdsList.length; i += BATCH_SIZE) {
+        const chunk = docIdsList.slice(i, i + BATCH_SIZE);
+        const batch = writeBatch(db);
+        chunk.forEach(docId => {
+          batch.delete(doc(db, 'products', docId));
+        });
+        await batch.commit();
+      }
+    } catch (error) {
+      console.warn("Firestore batch delete partially failed or quota exceeded:", error);
+    }
+
+    // 6. Limpa registros da tabela de contingência no Supabase em segundo plano
+    deleteProductsFromSupabaseMedia(docIdsList).catch(() => {});
+
+    return { success: true, deletedCount: matchedProducts.length || productIds.length };
   };
 
   const updateProduct = async (productId: string, updatedFields: Partial<Product>) => {
@@ -2798,6 +2903,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         clearLocalOrders,
         addProduct,
         deleteProduct,
+        deleteProductsBatch,
         updateProduct,
         searchQuery,
         setSearchQuery,

@@ -1,7 +1,7 @@
 import { Product } from '../../../types';
 import { normalizeSubcategoryName } from '../../../services/moblinkCategoriesService';
 import { hasProductValidPhoto } from '../../../utils/photoUtils';
-import { extractClassificacaoCategoria } from '../../../services/moblinkProductsService';
+import { extractClassificacaoCategoria, isIgnoredClassification } from '../../../services/moblinkProductsService';
 
 export type AudienceKey = 'feminino' | 'masculino' | 'infantil';
 
@@ -81,6 +81,9 @@ export function matchSubcategorySlug(candidate: string = '', slug: string = ''):
  */
 export function isProductInAudience(prod: Product | any, audience: AudienceKey): boolean {
   if (!prod) return false;
+
+  // Regra do E-commerce: Produtos com classificação 001.001 NUNCA entram no e-commerce
+  if (isIgnoredClassification(prod)) return false;
 
   const pClass = String(prod.classificacao || '').trim();
   const pCat = (prod.category || '').toUpperCase();

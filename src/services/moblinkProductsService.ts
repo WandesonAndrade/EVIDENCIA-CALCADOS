@@ -170,6 +170,56 @@ export const hasProductValidPhoto = (item: any): boolean => {
   return hasProductValidPhotos(item);
 };
 
+/**
+ * Verifica se o item possui a classificação 001.001 (ou grupo 001 / insumos da loja física).
+ * REGRA MANDATÓRIA DO E-COMMERCE: Produtos com classificação 001.001 NUNCA vão para o e-commerce.
+ */
+export const isIgnoredClassification = (item: any, existingDb?: any): boolean => {
+  if (!item && !existingDb) return false;
+
+  const check = (obj: any): boolean => {
+    if (!obj) return false;
+    const raw = String(
+      obj.classificacao ||
+      obj.codigo_classificacao ||
+      obj.cod_classificacao ||
+      obj.classificacao_erp ||
+      ''
+    ).trim();
+
+    if (
+      raw === '001.001' ||
+      raw.startsWith('001.001') ||
+      raw === '001' ||
+      raw.startsWith('001.') ||
+      raw === '1.1' ||
+      raw.startsWith('1.1.') ||
+      raw === '1' ||
+      raw === '01.01' ||
+      raw === '1.001'
+    ) {
+      return true;
+    }
+
+    const gId = String(obj.id_grupo ?? '').trim();
+    const sId = String(obj.id_subgrupo ?? '').trim();
+    if (gId === '001' || gId === '1' || gId === '01') {
+      if (sId === '001' || sId === '1' || sId === '01' || sId === '') {
+        return true;
+      }
+    }
+
+    const rawGrupoName = String(obj.nome_grupo || obj.grupo || '').toUpperCase().trim();
+    if (rawGrupoName.includes('001.001') || rawGrupoName === '001') {
+      return true;
+    }
+
+    return false;
+  };
+
+  return check(item) || check(existingDb);
+};
+
 export const isNonFootwearProduct = (item: any): boolean => {
   if (!item || typeof item !== "object") return false;
   const rawCat = (item.categoria || item.category || item.nome_grupo || '').toString().toUpperCase();
@@ -1680,6 +1730,11 @@ export const filterProductsRequiringSync = (
                      (freshSku ? existingMap.get(freshSku) : undefined);
 
     if (!existing) {
+      return false;
+    }
+
+    // REGRA MANDATÓRIA: Produtos com classificação 001.001 NUNCA entram no e-commerce
+    if (isIgnoredClassification(freshItem) || isIgnoredClassification(existing)) {
       return false;
     }
 

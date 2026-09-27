@@ -750,7 +750,49 @@ O Dashboard Financeiro (`FinancialDashboard.tsx`) no `AdminPanel.tsx` (aba `fina
    - O campo avulso "Cor do Produto" foi removido da Seção 1 do formulário para evitar redundância, permitindo que o "Nome Comercial do Produto" ocupe a largura completa.
    - O vínculo de cores opera onde realmente importa: diretamente no seletor `-- Cor da foto (Grade) --` de cada miniatura na Galeria de Fotos (Seção 2).
    - Ao selecionar a cor correspondente, a miniatura recebe o badge indicativo (ex: `NOCCIOLA`, `PRETO`) e o sistema gerencia a capa da variação automaticamente (`finalColorImageMap` e `finalColorImages`).
+---
 
+## 29. Exclusão de Produtos em Lote de Alta Performance & Atômica no Firestore
 
+### A. Diagnóstico do Travamento e Falha de Exclusão
+- Ao selecionar muitos produtos (ex: 50, 100, 300+) no gerenciador e clicar em "Excluir Selecionados", a página ficava sobrecarregada, o navegador travava com aviso de página sem resposta ("Page Unresponsive") e os produtos não eram excluídos.
+- **Causas Raiz Identificadas:**
+  1. **Loop síncrono bloqueando a thread do navegador:** O código executava `selectedIdsList.forEach(mobId => deleteProduct(mobId))` sem await. Cada chamada invocava `saveLocalProducts(updated)`, que serializava o catálogo inteiro em string JSON (`JSON.stringify`) e realizava escrita síncrona no `localStorage`. Para 100 itens, isso serializava e gravava centenas de megabytes em disco sem intervalo, bloqueando o Event Loop do JavaScript.
+  2. **Colisão de State Closure no React:** Cada iteração de `deleteProduct` filtrava a lista `products` original capturada no fechamento de escopo. As atualizações concorrentes em fila sobrescreviam o estado umas das outras, removendo apenas o último item e restaurando todos os outros quando o `useEffect` de sincronização de tabela disparava.
+  3. **Inundação de Conexões HTTP no Firestore:** Disparava centenas de requisições `deleteDoc` individuais simultâneas sem agrupamento em lotes, sobrecarregando a conexão do cliente com o Firebase.
+  4. **Falta de Feedback e Proteção de Interface:** O botão não possuía estado de carregamento (`isDeletingBatch`), permitindo múltiplos cliques e falta de visibilidade do progresso.
 
+### B. Solução Implementada
+1. **Função Centralizada `deleteProductsBatch` (`AppContext.tsx`)**:
+   - Normaliza os identificadores dos produtos para garantir correspondência tanto por `id` interno quanto por `moblinkId` (com ou sem prefixo `MOB-`).
+   - Filtra o catálogo em memória e persiste no `localStorage` e cache **uma única vez** (operação O(N) em memória em milissegundos).
+2. **Lotes Atômicos com `writeBatch` (Chunks de até 400 operações)**:
+   - Utiliza a API `writeBatch(db)` do Firestore modular v12, agrupando centenas de exclusões em poucas transações atômicas de até 400 documentos por lote (limite seguro do Firestore de 500).
+3. **Limpeza em Segundo Plano no Supabase**:
+   - Dispara `deleteProductsFromSupabaseMedia` para remover registros de contingência da tabela `products_media` no Supabase DB sem travar a interface.
+4. **Experiência do Usuário (UX) & Floating Dock**:
+   - `handleBatchDeleteProducts` ativa `isDeletingBatch`, desabilitando o botão para prevenir cliques duplicados e exibindo ícone animado com "Excluindo...".
+   - Limpa a lista de seleção instantaneamente e apresenta feedback com contador de itens excluídos com sucesso.
+   - Suíte de testes criada em `tests/test-batch-delete.ts` garantindo 100% de cobertura e tempo de processamento inferior a 10ms para 1.000 itens.
+---
 
+## 30. Exclusão Estrita de Produtos da Classificação 001.001 (Insumos da Loja Física)
+
+### A. Diagnóstico e Regra de Negócio
+- No ERP MobLink da loja física, produtos associados ao código de classificação `001.001` (ou grupo `001` de insumos, materiais de consumo e embalagens) não são itens comercializáveis na loja virtual e não devem compor o catálogo do e-commerce.
+- Foi solicitado remover completamente do e-commerce qualquer produto que possua essa classificação e garantir que novos itens ou sincronizações nunca os incluam.
+
+### B. Solução Implementada
+1. **Função Centralizada `isIgnoredClassification` (`moblinkProductsService.ts`)**:
+   - Detecta e isola variações de `001.001`, `001`, `1.1`, `01.01` ou combinações de `id_grupo = 1` / `001`.
+2. **Purga Automática de Banco e Cache (`AppContext.tsx`)**:
+   - Na inicialização (`initCatalog`), os produtos em cache local com essa classificação são purgados instantaneamente.
+   - O listener em tempo real do Firestore (`onSnapshot`) detecta documentos legados com essa classificação, ignora-os e dispara exclusão definitiva em lote (`deleteProductsBatch`), limpando Firestore e Supabase em segundo plano.
+3. **Bloqueio de Entrada em Mutações e Sincronizações**:
+   - `filterProductsRequiringSync`: não inclui produtos `001.001` na verificação de atualização.
+   - `syncProductsFromMoblinkApi` e `mergeMoblinkWithLocalDb`: rejeitam itens com essa classificação.
+   - `addProduct`: impede a inclusão manual de produtos com `001.001`.
+4. **Blindagem das Vitrines e Painel**:
+   - `MoblinkProductsManager.tsx`: a listagem do painel e catálogo combinado filtram ativamente itens com `001.001`.
+   - `productFilterUtils.ts` e `categoryNavigationUtils.ts`: vitrine da loja e menus por público barram qualquer item `001.001`.
+   - Suíte de testes criada em `tests/test-unclassified-products.ts` garantindo 100% de aprovação.

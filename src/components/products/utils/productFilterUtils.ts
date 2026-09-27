@@ -1,5 +1,5 @@
 import { Product } from '../../../types';
-import { extractBaseNameAndVariant, extractClassificacaoCategoria } from '../../../services/moblinkProductsService';
+import { extractBaseNameAndVariant, extractClassificacaoCategoria, isIgnoredClassification } from '../../../services/moblinkProductsService';
 import { normalizeCategoryName, normalizeSubcategoryName, isProductInCategory } from '../../../services/moblinkCategoriesService';
 import { hasProductValidPhoto } from '../../../utils/photoUtils';
 
@@ -200,6 +200,11 @@ export function filterStorefrontProducts(
 
   const filtered = products.filter((prod) => {
     if (!prod) return false;
+
+    // Regra rígida do e-commerce: produtos com classificação 001.001 NUNCA vão para o e-commerce
+    if (isIgnoredClassification(prod)) {
+      return false;
+    }
 
     // Regra rígida do e-commerce: apenas produtos visíveis, com estoque real, foto válida e classificação definida
     const isAvailable = prod.stock !== undefined ? prod.stock > 0 : (prod.saldo_loja ?? 0) > 0;

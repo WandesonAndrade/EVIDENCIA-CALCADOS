@@ -157,5 +157,16 @@ Este arquivo é a memória persistente do projeto (AG Kit), consolidando decisõ
     - **Detecção de Mudança (`hasProductChanged`)**: Atualizado para detectar alterações na cor principal (`color` / `cor`), no mapa de fotos por cor (`colorImageMap`) e nas listas de fotos por cor (`colorImages`), garantindo que o Firestore sempre persista a gravação mesmo quando apenas a foto de uma cor é modificada.
     - **Sincronização de Capas por Cor**: Ao vincular fotos às cores da grade, a foto de capa de cada cor é mantida e gravada de forma consistente no Firestore (`colorImages` e `colorImageMap`).
 
+27. **Exclusão em Lote de Alta Performance & Atômica no Firestore (Implementado):**
+    - **Eliminação de Travamento / Freeze**: Substituído o loop síncrono de chamadas individuais de exclusão por `deleteProductsBatch(productIds)` centralizado no `AppContext`.
+    - **Operação O(1) de I/O Local**: Atualiza o catálogo em memória (`products`), o cache e o `localStorage` uma única vez, eliminando centenas de `JSON.stringify` concorrentes que bloqueavam a thread principal do navegador.
+    - **Lotes Atômicos com `writeBatch` (Chunks de 400)**: No Firestore, as exclusões são agrupadas em batches atômicos seguros (máximo 400 por commit), reduzindo centenas de conexões HTTP a 1 ou poucas requisições instantâneas.
+    - **Resolução Unificada de IDs & Limpeza Supabase**: Mapeia tanto `id` quanto `moblinkId` (com ou sem prefixo `MOB-`), remove registros correspondentes da tabela `products_media` do Supabase e bloqueia cliques duplicados com estado de carregamento e spinner (`isDeletingBatch`).
+
+28. **Exclusão Estrita de Produtos da Classificação 001.001 (Insumos da Loja Física) (Implementado):**
+    - **Regra de Negócio Mandatória**: Produtos com código de classificação `001.001` (ou grupo `001` de insumos/uso interno) não vão para o e-commerce sob nenhuma hipótese.
+    - **Purga Automática de Banco e Cache**: Ao iniciar o `AppContext`, qualquer produto legado com `001.001` é imediatamente filtrado do cache local e excluído do Firestore e da tabela do Supabase via `deleteProductsBatch`.
+    - **Bloqueio em Todos os Níveis**: Função centralizada `isIgnoredClassification` bloqueia a entrada em rotinas de sincronização (`filterProductsRequiringSync`, `syncProductsFromMoblinkApi`), mutações manuais (`addProduct`), tabelas do painel (`MoblinkProductsManager`), filtros da vitrine (`filterStorefrontProducts`) e navegação por público (`categoryNavigationUtils`).
+
 
 

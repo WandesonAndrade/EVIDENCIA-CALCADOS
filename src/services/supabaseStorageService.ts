@@ -474,6 +474,23 @@ export async function deleteImageFromSupabase(publicUrl: string): Promise<boolea
   return true;
 }
 
+/**
+ * Remove registros de produtos excluídos da tabela products_media no Supabase DB em lote
+ */
+export async function deleteProductsFromSupabaseMedia(ids: string[]): Promise<void> {
+  const supabase = getSupabaseClient();
+  if (!supabase || !ids || ids.length === 0) return;
+  try {
+    const CHUNK = 100;
+    for (let i = 0; i < ids.length; i += CHUNK) {
+      const chunk = ids.slice(i, i + CHUNK);
+      await supabase.from('products_media').delete().in('id', chunk);
+    }
+  } catch (err: any) {
+    console.warn('[SupabaseStorageService] Erro ao deletar de products_media:', err?.message);
+  }
+}
+
 export interface SupabaseAuditItem {
   name: string;
   publicUrl: string;
