@@ -796,3 +796,91 @@ O Dashboard Financeiro (`FinancialDashboard.tsx`) no `AdminPanel.tsx` (aba `fina
    - `MoblinkProductsManager.tsx`: a listagem do painel e catálogo combinado filtram ativamente itens com `001.001`.
    - `productFilterUtils.ts` e `categoryNavigationUtils.ts`: vitrine da loja e menus por público barram qualquer item `001.001`.
    - Suíte de testes criada em `tests/test-unclassified-products.ts` garantindo 100% de aprovação.
+
+---
+
+## 31. Bento Grid Refatorado e Cards de Destaque da Vitrine
+
+### A. Diagnóstico e Necessidade de Design
+- A vitrine principal apresentava cartões com links de imagem genéricos ou quebrados (`NO_PHOTO_SVG` na Linha Sapatos) e estilos que destoavam do padrão premium do e-commerce.
+
+### B. Solução Implementada
+1. **Identidade Visual e Coleção 2026**:
+   - Atualizado o card principal para "COLEÇÃO 2026" com pulse visual e CTAs atrativos.
+2. **Fotografia e Efeitos Visuais**:
+   - Imagens de alta definição substituíram os placeholders em "Linha Calçados" e "Bolsas & Acessórios".
+   - Iluminação ambiente com radial glows (`blur-xl`), gradientes refinados de borda e efeito de aproximação óptica no hover (`scale-108`).
+
+---
+
+## 32. Carrossel Orgânico Pastel de Subcategorias e Inferência Canônica de Calçados
+
+### A. Diagnóstico e Regra de Negócio
+- O carrossel superior da vitrine exibia termos de gênero do ERP MobLink ("FEMININO", "MASCULINO", "INFANTIL", "GERAL") como se fossem subcategorias de calçados, poluindo a navegação visual do cliente.
+- O layout necessitava de uma linguagem leve, limpa e moderna inspirada em bolhas orgânicas em tons pastéis.
+
+### B. Solução Implementada
+1. **Design System Orgânico Pastel (`SubcategoryCarousel.tsx`)**:
+   - Implementadas 8 paletas de cores pastéis aquarela (sky, rose, emerald, orange, purple, amber, teal, indigo) com cantos arredondados orgânicos, miniaturas centrais de produtos em estoque e ícones semânticos de fallback (`Footprints`, `ShoppingBag`, `Luggage`, `Watch`, `Wallet`, `Shirt`).
+2. **Eliminação de Rótulos de Gênero e Inferência Canônica (`categoryNavigationUtils.ts`)**:
+   - `resolveProductSubcategoryName`: Analisa com precisão palavras-chave do nome e da descrição dos produtos no ERP, mapeando para as subcategorias canônicas da loja:
+     * *Sandálias, Tênis, Rasteiras & Papetes, Botas & Coturnos, Scarpins & Saltos, Chinelos & Slides, Mocassins, Sapatos, Bolsas, Carteiras, Cintos, Mochilas, Malas & Viagem, Relógios, Perfumes, Kits & Presentes, Confecções & Moda*.
+   - Termos genéricos de gênero como "FEMININO", "MASCULINO", "INFANTIL", "BEBÊ", "GERAL" e códigos numéricos são terminantemente excluídos da lista de subcategorias.
+3. **Filtro Estrito por Estoque Ativo**:
+   - Apenas produtos com saldo disponível (`stock > 0` ou `saldo_loja > 0`) e foto real válida são computados na contagem de modelos e exibidos no carrossel.
+
+---
+
+## 33. Redesign Interativo dos Cards de Produto e Grade Disponível no Hover
+
+### A. Diagnóstico e Melhoria de Conversão
+- Os cards de produto na vitrine necessitavam de maior interatividade e clareza imediata sobre quais numerações/tamanhos estão disponíveis em estoque sem obrigar o cliente a abrir a página do produto.
+
+### B. Solução Implementada (`StorefrontProductCard.tsx` e `ProductImage.tsx`)
+1. **Bandeja de Grade Disponível em Glassmorphism**:
+   - Ao passar o mouse sobre o card de produto no desktop, uma bandeja deslizante com efeito vidro translúcido sobe suavemente na base da foto, exibindo as numerações reais em estoque (chips de tamanho: `34`, `35`, `36`, `37`...).
+   - Em dispositivos móveis, um badge discreto no canto da imagem sinaliza a disponibilidade de grade.
+2. **Micro-interações e Iluminação**:
+   - Efeito de elevação tridimensional com `shadow-xl`, zoom suave na foto do produto (`scale-105`), halo de iluminação no card e botão de detalhes com transição animada.
+3. **Avatar da Marca Atualizado**:
+   - Imagens da embaixadora da marca atualizadas em `public/evidencia-character.png`, `public/evidencia-character-cutout.png` e `public/instagram-profile-avatar.png` com enquadramento aprimorado no `FloatingAssistant.tsx`.
+
+---
+
+## 34. Histórico de Navegação e Botão de Voltar Contextual com Restauração de Scroll
+
+### A. Diagnóstico
+- Ao navegar para a página de detalhes de um produto a partir de uma busca, categoria ou favoritos, o botão de voltar enviava o usuário de forma genérica para a home, perdendo a posição de rolagem e o contexto prévio.
+
+### B. Solução Implementada (`AppContext.tsx` e `ProductDetail.tsx`)
+1. **Gerenciador de Histórico de Telas e Scroll**:
+   - Criados `previousView`, `viewHistoryRef`, `scrollPositionsRef` e a função `goBack()` no `AppContext.tsx`.
+   - Ao transicionar entre telas, o sistema salva a posição de rolagem atual (`window.scrollY`) e a restaura automaticamente ao acionar `goBack()`.
+2. **Rótulo Contextual Dinâmico**:
+   - O botão no `ProductDetail.tsx` detecta de onde o usuário veio e exibe rótulos amigáveis:
+     * `← Voltar para Calçados` (quando veio de uma categoria específica).
+     * `← Voltar para Favoritos` (quando veio da lista de desejos).
+     * `← Voltar para o Carrinho` (quando veio da revisão de compra).
+     * `← Voltar para a Vitrine` (fallback padrão).
+
+---
+
+## 35. Filtragem Exata de Subcategorias e Prevenção de Retorno de Catálogo Completo
+
+### A. Diagnóstico do Problema
+- Ao clicar em uma bolha de subcategoria na vitrine (ex: "Bolsa", "Sandálias", "Tênis"), a página de categoria abria, porém exibia **todos os produtos da loja** em vez de filtrar apenas os modelos daquela subcategoria específica.
+- **Causas Raiz Identificadas:**
+  1. **Reset Concorrente de Estado no `AppContext.tsx`**: A função `setSelectedCategory('TODOS')` internamente reiniciava `selectedSubcategoryState('TODAS')` no `sessionStorage` e no estado do React, sobrescrevendo a subcategoria selecionada.
+  2. **Falso-positivo por `string.includes("")` em JavaScript**: Na função de filtro de `CategoryPage.tsx`, havia a cláusula `cleanSub.includes(resolvedSubName)`. Quando um produto do banco não possuía subcategoria resolvida (`resolvedSubName = ""`), a expressão `"BOLSA".includes("")` avaliava como `true` para todos os produtos não classificados, incluindo-os compulsoriamente.
+  3. **Discrepância Singular/Plural e Acentuação**: Nomes como "Bolsa" (singular no carrossel) vs "Bolsas" (plural no catálogo), e "Sandália" vs "Sandálias" falhavam na comparação direta de strings.
+
+### B. Solução Implementada
+1. **Definição Atômica de Categoria e Subcategoria (`AppContext.tsx`)**:
+   - `setSelectedCategory(category, subcategoryToSet)`: Permite passar a subcategoria opcional no mesmo disparo, gravando simultaneamente ambos os valores sem resetar a subcategoria para `'TODAS'`.
+2. **Função Canônica de Correspondência `isSubcategoryMatch` (`categoryNavigationUtils.ts`)**:
+   - Lematização com `toSingularStem`: Normaliza terminações plurais em português (*"bolsas"* -> *"bolsa"*, *"sandalias"* -> *"sandalia"*, *"relogios"* -> *"relogio"*, etc.).
+   - Remoção de acentuação (`cleanStem`) para comparações seguras.
+   - Bloqueio estrito de strings vazias ou nulas (zero falsos-positivos).
+   - Validação por correspondência de palavras no nome do produto para palavras com 3 ou mais caracteres.
+3. **Sincronização de Pílulas e Navegação (`CategoryPage.tsx`)**:
+   - `availableSubcategories`: Calcula as subcategorias ativas a partir dos produtos da categoria pai, permitindo que as pílulas superiores continuem visíveis e navegáveis com a subcategoria ativa destacada com badge preenchido.

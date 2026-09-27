@@ -82,7 +82,7 @@ interface AppContextProps {
   searchQuery: string;
   setSearchQuery: (query: string) => void;
   selectedCategory: string;
-  setSelectedCategory: (category: string) => void;
+  setSelectedCategory: (category: string, subcategoryToSet?: string) => void;
   selectedSubcategory: string;
   setSelectedSubcategory: (subcategory: string) => void;
   selectedMenuTab: string;
@@ -510,16 +510,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return 'TODAS';
   });
 
-  const setSelectedCategory = useCallback((category: string) => {
+  const setSelectedCategory = useCallback((category: string, subcategoryToSet?: string) => {
     const clean = (category || '').trim();
     setSelectedCategoryState(clean);
-    setSelectedSubcategoryState('TODAS');
+    const newSub = subcategoryToSet !== undefined ? subcategoryToSet : 'TODAS';
+    setSelectedSubcategoryState(newSub);
     if (typeof window !== 'undefined') {
       try {
         sessionStorage.setItem('evidencia_selected_category', clean);
         localStorage.setItem('evidencia_selected_category', clean);
-        sessionStorage.setItem('evidencia_selected_subcategory', 'TODAS');
-        localStorage.setItem('evidencia_selected_subcategory', 'TODAS');
+        sessionStorage.setItem('evidencia_selected_subcategory', newSub);
+        localStorage.setItem('evidencia_selected_subcategory', newSub);
       } catch (e) {}
     }
   }, []);

@@ -326,6 +326,8 @@ export function resolveProductSubcategoryName(prod: Product | any): string {
       normName = 'Perfumes';
     } else if (pName.includes('BLUSA') || pName.includes('CAMISA') || pName.includes('CAMISETA') || pName.includes('VESTIDO') || pName.includes('CALÇA') || pName.includes('JEANS') || pName.includes('SHORT') || pName.includes('BERMUDA') || pName.includes('JAQUETA') || pName.includes('CROPPED') || pName.includes('SAIA')) {
       normName = 'Confecções & Moda';
+    } else if (pName.includes('KIT')) {
+      normName = 'Kits & Presentes';
     } else if (pName.includes('MEIA')) {
       normName = 'Meias';
     } else if (pName.includes('BONÉ') || pName.includes('BONE') || pName.includes('CHAPÉU') || pName.includes('CHAPEU') || pName.includes('VISEIRA')) {
@@ -355,6 +357,77 @@ export function resolveProductSubcategoryName(prod: Product | any): string {
   }
 
   return normName;
+}
+
+/**
+ * Normaliza um texto para busca sem acentos e em minúsculas
+ */
+export function cleanStem(text: string = ''): string {
+  return text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+}
+
+/**
+ * Remove terminações comuns de plural em português (ex: "sandalias" -> "sandalia", "relogios" -> "relogio", "chinelos" -> "chinelo", "bolsas" -> "bolsa")
+ */
+export function toSingularStem(text: string = ''): string {
+  const clean = cleanStem(text);
+  if (clean.endsWith('oes')) return clean.slice(0, -3) + 'ao';
+  if (clean.endsWith('res') || clean.endsWith('zes') || clean.endsWith('nes')) return clean.slice(0, -2);
+  if (clean.endsWith('is') && !clean.endsWith('ais') && !clean.endsWith('eis')) return clean.slice(0, -2) + 'l';
+  if (clean.endsWith('s') && !clean.endsWith('ss') && clean.length > 3) return clean.slice(0, -1);
+  return clean;
+}
+
+/**
+ * Verifica com precisão se um produto pertence a uma determinada subcategoria.
+ * Elimina falsos-positivos de strings vazias e trata plural/singular e acentuação.
+ */
+export function isSubcategoryMatch(prod: Product | any, targetSub: string): boolean {
+  if (!prod || !targetSub) return false;
+  const cleanTarget = targetSub.trim();
+  if (!cleanTarget || cleanTarget.toUpperCase() === 'TODAS' || cleanTarget.toUpperCase() === 'TODOS') return true;
+
+  const targetUpper = cleanTarget.toUpperCase();
+  const targetStem = toSingularStem(cleanTarget);
+  const targetSlug = slugifyParam(cleanTarget);
+
+  // 1. Canônica resolvida
+  const resolved = resolveProductSubcategoryName(prod);
+  if (resolved) {
+    const resolvedUpper = resolved.toUpperCase();
+    const resolvedStem = toSingularStem(resolved);
+    const resolvedSlug = slugifyParam(resolved);
+
+    if (resolvedUpper === targetUpper) return true;
+    if (resolvedStem === targetStem) return true;
+    if (resolvedSlug === targetSlug) return true;
+    if (matchSubcategorySlug(resolved, cleanTarget)) return true;
+    if (targetStem.length >= 3 && (resolvedStem.includes(targetStem) || targetStem.includes(resolvedStem))) return true;
+  }
+
+  // 2. Subgrupo bruto do ERP (se não for genérico de gênero)
+  const rawSub = String(prod.nome_subgrupo || prod.subcategory || '').trim();
+  if (rawSub && !['FEMININO', 'MASCULINO', 'INFANTIL', 'BEBÊ', 'BEBE', 'GERAL', 'TODAS', 'TODOS'].includes(rawSub.toUpperCase())) {
+    const rawStem = toSingularStem(rawSub);
+    if (rawStem === targetStem || (targetStem.length >= 3 && rawStem.includes(targetStem))) {
+      return true;
+    }
+  }
+
+  // 3. Nome do produto (para palavras-chave significativas ex: 'bolsa', 'sandalia', 'tenis', 'mochila', 'mala', 'carteira', 'relogio')
+  if (targetStem.length >= 3) {
+    const pNameStem = cleanStem(prod.name || prod.descricao || '');
+    const words = pNameStem.split(/[^a-z0-9]+/);
+    if (words.some(w => toSingularStem(w) === targetStem || (targetStem.length >= 4 && w.startsWith(targetStem)))) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 /**

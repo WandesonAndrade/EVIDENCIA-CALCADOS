@@ -168,5 +168,27 @@ Este arquivo é a memória persistente do projeto (AG Kit), consolidando decisõ
     - **Purga Automática de Banco e Cache**: Ao iniciar o `AppContext`, qualquer produto legado com `001.001` é imediatamente filtrado do cache local e excluído do Firestore e da tabela do Supabase via `deleteProductsBatch`.
     - **Bloqueio em Todos os Níveis**: Função centralizada `isIgnoredClassification` bloqueia a entrada em rotinas de sincronização (`filterProductsRequiringSync`, `syncProductsFromMoblinkApi`), mutações manuais (`addProduct`), tabelas do painel (`MoblinkProductsManager`), filtros da vitrine (`filterStorefrontProducts`) e navegação por público (`categoryNavigationUtils`).
 
+29. **Bento Grid Refatorado e Cards de Destaque da Vitrine (Implementado):**
+    - Banners da vitrine atualizados para "COLEÇÃO 2026", substituindo placeholders por imagens de alta definição de calçados e bolsas com ambient radial glow e escala animada no hover.
+
+30. **Carrossel Orgânico Pastel de Subcategorias e Inferência Canônica (Implementado):**
+    - `SubcategoryCarousel.tsx` redesenhado com 8 tons pastéis em aquarela, cantos orgânicos e ícones semânticos de fallback.
+    - `resolveProductSubcategoryName` mapeia palavras do nome e descrição do ERP para subcategorias reais de calçados (*Sandálias, Tênis, Rasteiras & Papetes, Botas, Scarpins, Chinelos, Mocassins, Sapatos, Bolsas, Mochilas, Carteiras, Cintos, Malas & Viagem, Perfumes, Kits & Presentes*), descartando compulsoriamente termos de gênero do ERP ("FEMININO", "MASCULINO", "INFANTIL", "GERAL").
+    - Apenas itens com estoque ativo (`stock > 0` ou `saldo_loja > 0`) e foto real válida entram na listagem.
+
+31. **Cards de Produto com Grade Disponível no Hover e Avatar da Loja (Implementado):**
+    - `StorefrontProductCard.tsx`: Bandeja deslizante em glassmorphism no hover desktop exibindo as numerações reais disponíveis em estoque (chips de tamanho: `34`, `35`, `36`...), elevação dinâmica tridimensional e badge em mobile.
+    - Imagens da embaixadora da marca atualizadas e enquadramento superior corrigido no `FloatingAssistant.tsx`.
+
+32. **Histórico de Telas e Botão Voltar Contextual com Restauração de Scroll (Implementado):**
+    - `AppContext.tsx`: `previousView`, `viewHistoryRef`, `scrollPositionsRef` e `goBack()` gravam a posição de rolagem e restauram a tela anterior exatamente onde o usuário parou.
+    - `ProductDetail.tsx`: Botão contextual inteligente exibe rótulo da origem (ex: `← Voltar para Calçados`, `← Voltar para Favoritos`, `← Voltar para o Carrinho`).
+
+33. **Filtragem Exata de Subcategorias sem Retorno de Catálogo Completo (Implementado):**
+    - **Definição Atômica de Estado**: `setSelectedCategory(category, subcategoryToSet)` no `AppContext.tsx` grava simultaneamente categoria e subcategoria, eliminando o reset acidental para `'TODAS'`.
+    - **Função Canônica `isSubcategoryMatch` (`categoryNavigationUtils.ts`)**: Lematização com `toSingularStem` para plural/singular (*"bolsa"* e *"bolsas"*, *"sandalia"* e *"sandalias"*), remoção de acentos e bloqueio estrito de strings vazias para evitar o bug de `string.includes("") === true`.
+    - **Navegação em `CategoryPage.tsx`**: Pílulas de subcategoria continuam visíveis e navegáveis com a subcategoria ativa destacada com badge preenchido.
+
+
 
 

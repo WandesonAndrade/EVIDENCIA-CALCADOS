@@ -28,7 +28,7 @@ import { isSaldaoProduct } from '../services/saldaoService';
 import { getApplicablePromotion, isCampaignActive } from '../services/promotionsService';
 import { hasProductValidPhoto, extractClassificacaoCategoria, isIgnoredClassification } from '../services/moblinkProductsService';
 import { matchProductSearch } from './products/utils/productFilterUtils';
-import { isProductInAudience, resolveProductSubcategoryName, matchSubcategorySlug } from './products/utils/categoryNavigationUtils';
+import { isProductInAudience, resolveProductSubcategoryName, matchSubcategorySlug, isSubcategoryMatch } from './products/utils/categoryNavigationUtils';
 
 interface TabConfig {
   title: string;
@@ -205,7 +205,12 @@ export const CategoryPage: React.FC = () => {
   const isDark = theme === 'dark';
   const [cardsPerPage, setCardsPerPage] = useState(4);
   const [activeIndex, setActiveIndex] = useState(0);
-  const [selectedSubcategory, setSelectedSubcategory] = useState<string>('TODAS');
+  const [selectedSubcategory, setSelectedSubcategory] = useState<string>(() => {
+    if (globalSubcategory && globalSubcategory !== 'TODAS' && globalSubcategory !== 'TODOS') {
+      return globalSubcategory;
+    }
+    return 'TODAS';
+  });
   const [timeLeft, setTimeLeft] = useState({ horas: 23, minutos: 59, segundos: 59 });
   const gridSectionRef = useRef<HTMLDivElement | null>(null);
 
@@ -230,6 +235,8 @@ export const CategoryPage: React.FC = () => {
   useEffect(() => {
     if (globalSubcategory && globalSubcategory !== 'TODAS' && globalSubcategory !== 'TODOS') {
       setSelectedSubcategory(globalSubcategory);
+    } else if (globalSubcategory === 'TODAS' || globalSubcategory === 'TODOS') {
+      setSelectedSubcategory('TODAS');
     }
   }, [globalSubcategory]);
 
@@ -241,10 +248,10 @@ export const CategoryPage: React.FC = () => {
     return () => clearTimeout(timer);
   }, [selectedMenuTab, globalSubcategory]);
 
-  const activeSubcategory = (globalSubcategory && globalSubcategory !== 'TODAS' && globalSubcategory !== 'TODOS')
-    ? globalSubcategory
-    : (selectedSubcategory && selectedSubcategory !== 'TODAS' && selectedSubcategory !== 'TODOS')
+  const activeSubcategory = (selectedSubcategory && selectedSubcategory !== 'TODAS' && selectedSubcategory !== 'TODOS')
     ? selectedSubcategory
+    : (globalSubcategory && globalSubcategory !== 'TODAS' && globalSubcategory !== 'TODOS')
+    ? globalSubcategory
     : null;
 
   const getTabConfig = () => {
@@ -306,10 +313,6 @@ export const CategoryPage: React.FC = () => {
 
     // 2. Se houver subcategoria ativa, combina o filtro pai obrigatório com a subcategoria selecionada
     if (activeSubcategory) {
-      const cleanSub = activeSubcategory.trim().toUpperCase();
-      const normSub = normalizeSubcategoryName(cleanSub).toUpperCase();
-      const isGenderOrGenericSub = normSub === 'FEMININO' || normSub === 'MASCULINO' || normSub === 'INFANTIL' || normSub === 'BEBÊ' || normSub === 'UNISSEX';
-
       const displayTitle = (!parentCategoryName || parentCategoryName === 'TODOS OS PRODUTOS' || parentCategoryName === 'COLEÇÃO EVIDÊNCIA' || parentCategoryName.toUpperCase() === activeSubcategory.toUpperCase())
         ? activeSubcategory.toUpperCase()
         : `${parentCategoryName.toUpperCase()} - ${activeSubcategory.toUpperCase()}`;
@@ -323,22 +326,7 @@ export const CategoryPage: React.FC = () => {
           // Garante pertencimento à categoria pai primeiro (ex: Feminino não traz Calçados masculinos)
           if (!parentFilter(prod)) return false;
 
-          const resolvedSubName = resolveProductSubcategoryName(prod).toUpperCase();
-          const subRaw = (prod.nome_subgrupo || prod.subcategory || '').toUpperCase();
-          const normSubRaw = normalizeSubcategoryName(subRaw).toUpperCase();
-          const catRaw = (prod.category || '').toUpperCase();
-          const grupoRaw = (prod.nome_grupo || '').toUpperCase();
-          const nameRaw = (prod.name || '').toUpperCase();
-
-          const subMatch = (
-            resolvedSubName.includes(cleanSub) ||
-            matchSubcategorySlug(resolvedSubName, activeSubcategory) ||
-            subRaw.includes(cleanSub) ||
-            normSubRaw.includes(normSub) ||
-            (!isGenderOrGenericSub && (catRaw.includes(cleanSub) || grupoRaw.includes(cleanSub) || nameRaw.includes(cleanSub)))
-          );
-
-          return subMatch;
+          return isSubcategoryMatch(prod, activeSubcategory);
         }
       };
     }
@@ -481,8 +469,37 @@ export const CategoryPage: React.FC = () => {
   // EXTRATOR DINÂMICO DE SUBCATEGORIAS DISPONÍVEIS NA CATEGORIA ATIVA
   const availableSubcategories = useMemo(() => {
     const subMap = new Map<string, number>();
+    const cleanTabKey = (selectedMenuTab || '').trim().toLowerCase();
+    const cleanCatKey = (selectedCategory || '').trim().toLowerCase();
+    const effectiveKey = (cleanTabKey === 'feminino' || cleanCatKey === 'feminino')
+      ? 'feminino'
+      : (cleanTabKey === 'masculino' || cleanCatKey === 'masculino')
+      ? 'masculino'
+      : (cleanTabKey === 'infantil' || cleanCatKey === 'infantil' || cleanTabKey.includes('infantil') || cleanCatKey.includes('infantil'))
+      ? 'infantil'
+      : cleanTabKey;
 
-    baseCategoryItems.forEach(prod => {
+    let parentCheck: (prod: Product) => boolean = () => true;
+    if (TAB_CONFIGS[effectiveKey]) {
+      parentCheck = TAB_CONFIGS[effectiveKey].filter;
+    } else if (cleanTabKey !== 'todos') {
+      const foundCategory = categories.find(c => c.id === selectedMenuTab || c.name.toLowerCase() === selectedMenuTab.toLowerCase() || normalizeCategoryName(c.name).toLowerCase() === selectedMenuTab.toLowerCase());
+      if (foundCategory) {
+        parentCheck = (prod: Product) => isProductInCategory(prod, foundCategory.name);
+      } else if (selectedMenuTab) {
+        const cleanTabStr = (selectedMenuTab || '').trim();
+        parentCheck = (prod: Product) => isProductInCategory(prod, cleanTabStr);
+      }
+    }
+
+    products.forEach(prod => {
+      if (isIgnoredClassification(prod)) return;
+      const isAvailable = (prod.stock !== undefined ? prod.stock > 0 : (prod.saldo_loja ?? 0) > 0);
+      const catInfo = extractClassificacaoCategoria(prod);
+      const isUnclassified = catInfo.category === 'Sem Classificação Definida' || !catInfo.isDefined;
+      if (!prod.visible || !isAvailable || !hasProductValidPhoto(prod) || isUnclassified) return;
+      if (!parentCheck(prod)) return;
+
       const resolvedSub = resolveProductSubcategoryName(prod);
       if (resolvedSub && !resolvedSub.toUpperCase().includes('SEM CLASSIFICA')) {
         subMap.set(resolvedSub, (subMap.get(resolvedSub) || 0) + 1);
@@ -492,7 +509,7 @@ export const CategoryPage: React.FC = () => {
     return Array.from(subMap.entries())
       .map(([name, count]) => ({ name, count }))
       .sort((a, b) => b.count - a.count);
-  }, [baseCategoryItems]);
+  }, [products, categories, selectedMenuTab, selectedCategory]);
 
   // PRODUTOS FILTRADOS PELOS CRITÉRIOS SELECIONADOS (MARCA, TAMANHO, PREÇO, OFERTA)
   const filteredItems = useMemo(() => {
@@ -975,7 +992,9 @@ export const CategoryPage: React.FC = () => {
             </button>
 
             {availableSubcategories.map(sub => {
-              const isActive = activeSubcategory?.toLowerCase() === sub.name.toLowerCase();
+              const isActive = activeSubcategory
+                ? (activeSubcategory.toLowerCase() === sub.name.toLowerCase() || isSubcategoryMatch({ name: sub.name } as any, activeSubcategory))
+                : false;
               return (
                 <button
                   key={sub.name}

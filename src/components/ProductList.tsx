@@ -205,9 +205,9 @@ export const ProductList: React.FC = () => {
   };
 
   const handleSelectSubcategoryItem = (subName: string) => {
-    if (setSelectedSubcategory) setSelectedSubcategory(subName);
-    if (setSelectedCategory) setSelectedCategory('TODOS');
+    if (setSelectedCategory) setSelectedCategory('TODOS', subName);
     if (setSelectedMenuTab) setSelectedMenuTab('todos');
+    if (setSelectedSubcategory) setSelectedSubcategory(subName);
     if (setCurrentView) setCurrentView('category-page');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };

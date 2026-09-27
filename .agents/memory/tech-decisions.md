@@ -114,4 +114,28 @@ updated: 2026-09-18
 - **Proteção Anti-Erro de Imagem (`onError` Fallback):**
   - Inclusão do manipulador `onError` com `NO_PHOTO_SVG` em imagens e miniaturas no `ProductDetail.tsx`.
 
+## 18. Exclusão Estrita de Produtos da Classificação 001.001 (Insumos Físicos)
+- **Função Centralizada `isIgnoredClassification` (`moblinkProductsService.ts`):** Detecta códigos `001.001`, `001`, `1.1` ou `id_grupo = 1`.
+- **Purga Ativa:** No startup (`initCatalog`), produtos em cache são higienizados e o listener do Firestore aciona `deleteProductsBatch` para exclusão definitiva no Firestore e Supabase.
+- **Bloqueio Total:** Impedida a entrada em sincronizações de estoque (`filterProductsRequiringSync`), adição manual e visualização em vitrines e catálogos.
+
+## 19. Carrossel Orgânico Pastel de Subcategorias e Resolução Canônica
+- **Design Pastel Aquarela (`SubcategoryCarousel.tsx`):** 8 paletas suaves com ambient glow e fallbacks semânticos.
+- **Resolução Canônica (`resolveProductSubcategoryName` em `categoryNavigationUtils.ts`):** Heurística baseada em termos do nome e descrição que resolve tipos reais de calçados (*Sandálias, Tênis, Rasteiras, Botas, Scarpins, Chinelos, Mocassins, Sapatos, Bolsas, Mochilas, Carteiras, Cintos, Malas, Perfumes, Kits*) e elimina compulsoriamente rótulos de gênero do ERP ("FEMININO", "MASCULINO", "INFANTIL", "GERAL").
+- **Estoque Ativo:** Apenas produtos com saldo disponível (`stock > 0` ou `saldo_loja > 0`) e foto válida compõem a listagem.
+
+## 20. Cards de Produto com Grade no Hover e Redesign da Vitrine
+- **Bandeja de Grade em Glassmorphism (`StorefrontProductCard.tsx`):** Exibe numerações reais em estoque no hover desktop e badge em mobile.
+- **Bento Grid Coleção 2026:** Substituição de placeholders por fotografia real de calçados com ambient radial glow.
+
+## 21. Histórico de Navegação e Botão de Voltar Contextual
+- **Pilha de Navegação no `AppContext.tsx`:** `previousView`, `viewHistoryRef`, `scrollPositionsRef` e método `goBack()` gravam a posição de rolagem (`window.scrollY`) e a restauram automaticamente.
+- **Rótulo Contextual no `ProductDetail.tsx`:** Rótulo dinâmico indica o local de origem (`← Voltar para Calçados`, `← Voltar para Favoritos`, `← Voltar para o Carrinho`).
+
+## 22. Filtragem Exata de Subcategorias e Prevenção de Retorno de Catálogo Completo
+- **Definição Atômica de Categoria e Subcategoria (`AppContext.tsx`):** `setSelectedCategory(category, subcategoryToSet)` previne o reset acidental da subcategoria para `'TODAS'`.
+- **Função Canônica `isSubcategoryMatch` (`categoryNavigationUtils.ts`):** Lematização de plural/singular (`toSingularStem`), remoção de acentos e bloqueio estrito de strings vazias para eliminar o bug de `cleanSub.includes("") === true`.
+- **Navegação Contínua em `CategoryPage.tsx`:** Pílulas de subcategorias permanecem ativas na categoria pai com a subcategoria selecionada destacada com badge preenchido.
+
+
 
