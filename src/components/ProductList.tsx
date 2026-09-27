@@ -5,7 +5,7 @@ import { Eye, Heart, ArrowRight, ArrowUpDown, Truck, CreditCard, RefreshCw, Shop
 import { motion, AnimatePresence } from "motion/react";
 import { scrollToSectionWithOffset } from "../lib/scrollUtils";
 import { normalizeCategoryName, normalizeSubcategoryName, isProductInCategory } from "../services/moblinkCategoriesService";
-import { extractClassificacaoCategoria } from "../services/moblinkProductsService";
+import { extractClassificacaoCategoria, isIgnoredClassification } from "../services/moblinkProductsService";
 import { hasProductValidPhotos, hasProductValidPhoto } from "../utils/photoUtils";
 import { isSaldaoProduct, getSaldaoProductPrice } from "../services/saldaoService";
 import { getApplicablePromotion } from "../services/promotionsService";
@@ -15,6 +15,7 @@ import { ProductCard, StorefrontProductCard } from "./products/storefront/Storef
 import { StorefrontProductGrid } from "./products/storefront/StorefrontProductGrid";
 import { SubcategoryCarousel } from "./products/storefront/SubcategoryCarousel";
 import { matchProductSearch } from "./products/utils/productFilterUtils";
+import { resolveProductSubcategoryName } from "./products/utils/categoryNavigationUtils";
 
 export { ProductCard, StorefrontProductCard };
 
@@ -55,21 +56,28 @@ export const ProductList: React.FC = () => {
   // Subcategorias dinâmicas extraídas prioritariamente dos produtos COM ESTOQUE DISPONÍVEL E FOTO VÁLIDA
   const activeSubcategoriesInStock = useMemo(() => {
     const subMap = new Map<string, { id: string; name: string; image?: string; itemCount: number }>();
+    const EXCLUDED_NAMES = new Set([
+      'FEMININO', 'MASCULINO', 'INFANTIL', 'BEBÊ', 'BEBE', 'GERAL', 'TODAS', 'TODOS', 'UNISSEX',
+      'CALÇADOS', 'CALCADOS', 'SEM CLASSIFICAÇÃO DEFINIDA'
+    ]);
 
     (products || []).forEach((p) => {
+      // Regra do E-commerce: Produtos com classificação 001.001 NUNCA entram no e-commerce
+      if (isIgnoredClassification(p)) return;
+
       const isAvailable = (p.stock !== undefined ? p.stock > 0 : (p.saldo_loja ?? 0) > 0);
       const catInfo = extractClassificacaoCategoria(p);
       const isUnclassified = catInfo.category === 'Sem Classificação Definida' || !catInfo.isDefined;
 
       if (!p.visible || !isAvailable || !hasProductValidPhoto(p) || isUnclassified) return;
 
-      const rawSub = (p.nome_subgrupo || p.subcategory || p.category || "").trim();
-      if (!rawSub || /^\d+(\.\d+)?$/.test(rawSub) || rawSub.toUpperCase().includes('SEM CLASSIFICA')) return;
+      const resolvedSub = resolveProductSubcategoryName(p);
+      if (!resolvedSub || /^\d+(\.\d+)?$/.test(resolvedSub)) return;
 
-      const normSub = normalizeSubcategoryName(rawSub);
-      if (!normSub || /^\d+(\.\d+)?$/.test(normSub) || normSub.toUpperCase().includes('SEM CLASSIFICA')) return;
+      const upper = resolvedSub.toUpperCase();
+      if (EXCLUDED_NAMES.has(upper) || upper.includes('SEM CLASSIFICA')) return;
 
-      const key = normSub.toUpperCase();
+      const key = upper;
       const existing = subMap.get(key);
       const img = p.images?.[0] || p.foto_uri;
 
@@ -79,14 +87,14 @@ export const ProductList: React.FC = () => {
       } else {
         subMap.set(key, {
           id: key,
-          name: normSub,
+          name: resolvedSub,
           image: img || "",
           itemCount: 1,
         });
       }
     });
 
-    // Fallbacks elegantes se a base de dados ainda não tiver subcategorias vinculadas
+    // Fallbacks elegantes se a base de dados ainda não tiver subcategorias suficientes vinculadas
     if (subMap.size < 4) {
       ESSENTIAL_CATEGORIES.forEach((cat) => {
         const key = cat.name.toUpperCase();
@@ -198,8 +206,10 @@ export const ProductList: React.FC = () => {
 
   const handleSelectSubcategoryItem = (subName: string) => {
     if (setSelectedSubcategory) setSelectedSubcategory(subName);
-    if (setSelectedMenuTab) setSelectedMenuTab(subName);
+    if (setSelectedCategory) setSelectedCategory('TODOS');
+    if (setSelectedMenuTab) setSelectedMenuTab('todos');
     if (setCurrentView) setCurrentView('category-page');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const { saldaoConfig } = useApp();

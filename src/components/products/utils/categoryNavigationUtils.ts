@@ -246,9 +246,14 @@ export function isProductInAudience(prod: Product | any, audience: AudienceKey):
 }
 
 /**
- * Resolve o nome amigável e canônico de subcategoria para um produto
+ * Resolve o nome amigável e canônico de subcategoria para um produto.
+ * Se o produto contiver termos genéricos de gênero (ex: FEMININO, MASCULINO, INFANTIL)
+ * ou ausência de subcategoria no ERP, infere com precisão a subcategoria real do item
+ * (Sandálias, Tênis, Rasteiras & Papetes, Botas & Coturnos, Bolsas, etc.) através do nome/descrição.
  */
 export function resolveProductSubcategoryName(prod: Product | any): string {
+  if (!prod) return '';
+
   const rawSubName = (prod.nome_subgrupo || prod.subcategory || '').trim();
   let normName = '';
 
@@ -256,32 +261,97 @@ export function resolveProductSubcategoryName(prod: Product | any): string {
     normName = normalizeSubcategoryName(rawSubName);
   }
 
-  const pName = (prod.name || '').toUpperCase();
+  const upperNorm = normName.toUpperCase();
+  const isGenericOrGender = (
+    !normName ||
+    upperNorm === 'GERAL' ||
+    upperNorm === 'TODAS' ||
+    upperNorm === 'TODOS' ||
+    upperNorm === 'FEMININO' ||
+    upperNorm === 'MASCULINO' ||
+    upperNorm === 'INFANTIL' ||
+    upperNorm === 'BEBÊ' ||
+    upperNorm === 'BEBE' ||
+    upperNorm === 'UNISSEX' ||
+    upperNorm === 'CALÇADOS' ||
+    upperNorm === 'CALCADOS' ||
+    upperNorm === 'CALÇADO' ||
+    upperNorm === 'CALCADO' ||
+    upperNorm.includes('CALÇADOS FEMININ') ||
+    upperNorm.includes('CALCADOS FEMININ') ||
+    upperNorm.includes('CALÇADOS MASCULIN') ||
+    upperNorm.includes('CALCADOS MASCULIN') ||
+    upperNorm.includes('CALÇADOS INFANT') ||
+    upperNorm.includes('CALCADOS INFANT') ||
+    upperNorm.includes('SEM CLASSIFICA') ||
+    /^\d+(\.\d+)?$/.test(normName)
+  );
 
+  const pName = (prod.name || prod.descricao || '').toUpperCase();
+
+  if (isGenericOrGender) {
+    if (pName.includes('SANDÁLIA') || pName.includes('SANDALIA') || pName.includes('ANABELA') || pName.includes('BIRKEN')) {
+      normName = 'Sandálias';
+    } else if (pName.includes('RASTEIRA') || pName.includes('RASTEIRINHA') || pName.includes('PAPETE')) {
+      normName = 'Rasteiras & Papetes';
+    } else if (pName.includes('TÊNIS') || pName.includes('TENIS') || pName.includes('SNEAKER') || pName.includes('RUNNING') || pName.includes('JOGGING') || pName.includes('CHUTEIRA') || pName.includes('SOCIETY')) {
+      normName = 'Tênis';
+    } else if (pName.includes('SAPATILHA') || pName.includes('ALPARGATA')) {
+      normName = 'Sapatilhas';
+    } else if (pName.includes('SCARPIN') || pName.includes('SALTO') || pName.includes('PEEP TOE')) {
+      normName = 'Scarpins & Saltos';
+    } else if (pName.includes('BOTA') || pName.includes('COTURNO') || pName.includes('CANO CURTO') || pName.includes('CANO ALTO') || pName.includes('CANO LONGO') || pName.includes('CHELSEA') || pName.includes('OVER THE KNEE')) {
+      normName = 'Botas & Coturnos';
+    } else if (pName.includes('CHINELO') || pName.includes('SLIDE') || pName.includes('BABUCHE') || pName.includes('HAVAIANAS') || pName.includes('IPANEMA') || pName.includes('CARTAGO') || pName.includes('RIDER')) {
+      normName = 'Chinelos & Slides';
+    } else if (pName.includes('MOCASSIM') || pName.includes('MOCASSIN') || pName.includes('DRIVERS') || pName.includes('LOAFER') || pName.includes('MULE')) {
+      normName = 'Mocassins';
+    } else if (pName.includes('TAMANCO')) {
+      normName = 'Tamancos';
+    } else if (pName.includes('SAPATO') || pName.includes('SAPATÊNIS') || pName.includes('SAPATENIS') || pName.includes('SOCIAL') || pName.includes('OXFORD') || pName.includes('DERBY')) {
+      normName = 'Sapatos';
+    } else if (pName.includes('BOLSA')) {
+      normName = 'Bolsas';
+    } else if (pName.includes('CARTEIRA') || pName.includes('PORTA CARTAO') || pName.includes('PORTA CARTÃO')) {
+      normName = 'Carteiras';
+    } else if (pName.includes('CINTO')) {
+      normName = 'Cintos';
+    } else if (pName.includes('MOCHILA') || pName.includes('ESTOJO') || pName.includes('LANCHEIRA')) {
+      normName = 'Mochilas';
+    } else if (pName.includes('MALA') || pName.includes('VIAGEM') || pName.includes('FRASQUEIRA') || pName.includes('SACCO')) {
+      normName = 'Malas & Viagem';
+    } else if (pName.includes('RELÓGIO') || pName.includes('RELOGIO') || pName.includes('SMARTWATCH')) {
+      normName = 'Relógios';
+    } else if (pName.includes('PERFUME') || pName.includes('COLÔNIA') || pName.includes('COLONIA') || pName.includes('BODY SPLASH') || pName.includes('DESODORANTE') || pName.includes('EAU DE')) {
+      normName = 'Perfumes';
+    } else if (pName.includes('BLUSA') || pName.includes('CAMISA') || pName.includes('CAMISETA') || pName.includes('VESTIDO') || pName.includes('CALÇA') || pName.includes('JEANS') || pName.includes('SHORT') || pName.includes('BERMUDA') || pName.includes('JAQUETA') || pName.includes('CROPPED') || pName.includes('SAIA')) {
+      normName = 'Confecções & Moda';
+    } else if (pName.includes('MEIA')) {
+      normName = 'Meias';
+    } else if (pName.includes('BONÉ') || pName.includes('BONE') || pName.includes('CHAPÉU') || pName.includes('CHAPEU') || pName.includes('VISEIRA')) {
+      normName = 'Bonés & Chapéus';
+    } else if (pName.includes('ÓCULOS') || pName.includes('OCULOS')) {
+      normName = 'Óculos';
+    }
+  }
+
+  // Se mesmo após a inferência o resultado for uma classificação genérica de gênero ou código, descarta
+  const finalUpper = normName.toUpperCase();
   if (
     !normName ||
-    normName.toUpperCase() === 'GERAL' ||
-    normName.toUpperCase() === 'FEMININO' ||
-    normName.toUpperCase() === 'MASCULINO' ||
-    normName.toUpperCase() === 'INFANTIL'
+    finalUpper === 'FEMININO' ||
+    finalUpper === 'MASCULINO' ||
+    finalUpper === 'INFANTIL' ||
+    finalUpper === 'BEBÊ' ||
+    finalUpper === 'BEBE' ||
+    finalUpper === 'GERAL' ||
+    finalUpper === 'TODAS' ||
+    finalUpper === 'TODOS' ||
+    finalUpper === 'UNISSEX' ||
+    finalUpper.includes('SEM CLASSIFICA') ||
+    /^\d+(\.\d+)?$/.test(normName)
   ) {
-    if (pName.includes('SANDÁLIA') || pName.includes('SANDALIA')) normName = 'Sandálias';
-    else if (pName.includes('RASTEIRA') || pName.includes('PAPETE')) normName = 'Rasteiras & Papetes';
-    else if (pName.includes('TÊNIS') || pName.includes('TENIS') || pName.includes('SNEAKER')) normName = 'Tênis';
-    else if (pName.includes('SAPATILHA')) normName = 'Sapatilhas';
-    else if (pName.includes('SCARPIN') || pName.includes('SALTO')) normName = 'Scarpins & Saltos';
-    else if (pName.includes('BOTA') || pName.includes('COTURNO')) normName = 'Botas & Coturnos';
-    else if (pName.includes('CHINELO') || pName.includes('SLIDE')) normName = 'Chinelos & Slides';
-    else if (pName.includes('MOCASSIM') || pName.includes('DRIVERS')) normName = 'Mocassins';
-    else if (pName.includes('SAPATO') || pName.includes('SAPATÊNIS') || pName.includes('SAPATENIS')) normName = 'Sapatos';
-    else if (pName.includes('BOLSA')) normName = 'Bolsas';
-    else if (pName.includes('CARTEIRA')) normName = 'Carteiras';
-    else if (pName.includes('CINTO')) normName = 'Cintos';
-    else if (pName.includes('MOCHILA')) normName = 'Mochilas';
-    else if (pName.includes('MALA') || pName.includes('VIAGEM')) normName = 'Malas & Viagem';
-    else if (pName.includes('RELÓGIO') || pName.includes('RELOGIO')) normName = 'Relógios';
-    else if (pName.includes('PERFUME') || pName.includes('COLÔNIA') || pName.includes('COLONIA') || pName.includes('BODY SPLASH')) normName = 'Perfumes';
-    else if (pName.includes('BLUSA') || pName.includes('CAMISA') || pName.includes('VESTIDO') || pName.includes('CALÇA') || pName.includes('JEANS')) normName = 'Confecções & Moda';
+    return '';
   }
 
   return normName;

@@ -26,7 +26,7 @@ import { scrollToSectionWithOffset } from '../lib/scrollUtils';
 import { normalizeCategoryName, normalizeSubcategoryName, isProductInCategory } from '../services/moblinkCategoriesService';
 import { isSaldaoProduct } from '../services/saldaoService';
 import { getApplicablePromotion, isCampaignActive } from '../services/promotionsService';
-import { hasProductValidPhoto, extractClassificacaoCategoria } from '../services/moblinkProductsService';
+import { hasProductValidPhoto, extractClassificacaoCategoria, isIgnoredClassification } from '../services/moblinkProductsService';
 import { matchProductSearch } from './products/utils/productFilterUtils';
 import { isProductInAudience, resolveProductSubcategoryName, matchSubcategorySlug } from './products/utils/categoryNavigationUtils';
 
@@ -310,8 +310,12 @@ export const CategoryPage: React.FC = () => {
       const normSub = normalizeSubcategoryName(cleanSub).toUpperCase();
       const isGenderOrGenericSub = normSub === 'FEMININO' || normSub === 'MASCULINO' || normSub === 'INFANTIL' || normSub === 'BEBÊ' || normSub === 'UNISSEX';
 
+      const displayTitle = (!parentCategoryName || parentCategoryName === 'TODOS OS PRODUTOS' || parentCategoryName === 'COLEÇÃO EVIDÊNCIA' || parentCategoryName.toUpperCase() === activeSubcategory.toUpperCase())
+        ? activeSubcategory.toUpperCase()
+        : `${parentCategoryName.toUpperCase()} - ${activeSubcategory.toUpperCase()}`;
+
       return {
-        title: parentCategoryName ? `${parentCategoryName.toUpperCase()} - ${activeSubcategory.toUpperCase()}` : activeSubcategory.toUpperCase(),
+        title: displayTitle,
         subtitle: `Confira todos os modelos de ${activeSubcategory} disponíveis com pronta entrega na Evidência Calçados.`,
         bannerImage: TAB_CONFIGS[effectiveKey]?.bannerImage || 'https://images.unsplash.com/photo-1549298916-b41d501d3772?q=80&w=1600&auto=format&fit=crop',
         badgeText: `SUBCATEGORIA: ${activeSubcategory.toUpperCase()}`,
@@ -415,6 +419,8 @@ export const CategoryPage: React.FC = () => {
   // PRODUTOS BASE QUE PERTENCEM À CATEGORIA OU SUBCATEGORIA ATIVA
   const baseCategoryItems = useMemo(() => {
     return products.filter((prod) => {
+      // Regra de E-commerce: Produtos com classificação 001.001 NUNCA entram no e-commerce
+      if (isIgnoredClassification(prod)) return false;
       const matchesSearch = matchProductSearch(prod, searchQuery);
       const isAvailable = (prod.stock !== undefined ? prod.stock > 0 : (prod.saldo_loja ?? 0) > 0);
       const catInfo = extractClassificacaoCategoria(prod);
@@ -476,26 +482,17 @@ export const CategoryPage: React.FC = () => {
   const availableSubcategories = useMemo(() => {
     const subMap = new Map<string, number>();
 
-    products.filter(prod => {
-      const matchesSearch = matchProductSearch(prod, searchQuery);
-      const isAvailable = (prod.stock !== undefined ? prod.stock > 0 : (prod.saldo_loja ?? 0) > 0);
-      const catInfo = extractClassificacaoCategoria(prod);
-      const isUnclassified = catInfo.category === 'Sem Classificação Definida' || !catInfo.isDefined;
-      return prod.visible && isAvailable && hasProductValidPhoto(prod) && !isUnclassified && matchesSearch && config.filter(prod);
-    }).forEach(prod => {
-      const rawSub = (prod.nome_subgrupo || prod.subcategory || '').trim();
-      if (rawSub && rawSub.toUpperCase() !== 'GERAL' && !rawSub.toUpperCase().includes('SEM CLASSIFICA')) {
-        const normSub = normalizeSubcategoryName(rawSub);
-        if (normSub && !normSub.toUpperCase().includes('SEM CLASSIFICA')) {
-          subMap.set(normSub, (subMap.get(normSub) || 0) + 1);
-        }
+    baseCategoryItems.forEach(prod => {
+      const resolvedSub = resolveProductSubcategoryName(prod);
+      if (resolvedSub && !resolvedSub.toUpperCase().includes('SEM CLASSIFICA')) {
+        subMap.set(resolvedSub, (subMap.get(resolvedSub) || 0) + 1);
       }
     });
 
     return Array.from(subMap.entries())
       .map(([name, count]) => ({ name, count }))
       .sort((a, b) => b.count - a.count);
-  }, [products, searchQuery, config]);
+  }, [baseCategoryItems]);
 
   // PRODUTOS FILTRADOS PELOS CRITÉRIOS SELECIONADOS (MARCA, TAMANHO, PREÇO, OFERTA)
   const filteredItems = useMemo(() => {
