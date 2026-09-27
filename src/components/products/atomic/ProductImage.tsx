@@ -82,7 +82,7 @@ export const ProductImage: React.FC<ProductImageProps> = ({
         src={photoUrl}
         alt={altText}
         className={`w-full h-full object-contain ${
-          isNoPhoto ? 'opacity-40 grayscale scale-75' : 'drop-shadow-md group-hover:drop-shadow-xl group-hover:scale-106'
+          isNoPhoto ? 'opacity-40 grayscale scale-75' : 'drop-shadow-md group-hover:drop-shadow-2xl group-hover:scale-108 group-hover:-rotate-1'
         } transition-all duration-500 ease-out ${className}`}
         loading={priority ? 'eager' : 'lazy'}
         decoding="async"
