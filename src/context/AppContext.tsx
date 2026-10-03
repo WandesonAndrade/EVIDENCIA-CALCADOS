@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
-import { Product, CartItem, Order, PaymentStatus, OrderStatus, UserProfile, UserRole, CrediarioStatus, Category, MoblinkConfig, MoblinkSyncLog, MoblinkSyncLogItem, EvidenciaAuthSession, HeroBanner, HomeSectionConfig, AboutConfig, ContactConfig, StoreConfig, ViewMode, SaldaoConfig, PromoCampaign, Seller } from '../types';
+import { Product, CartItem, Order, PaymentStatus, OrderStatus, UserProfile, UserRole, CrediarioStatus, Category, MoblinkConfig, MoblinkSyncLog, MoblinkSyncLogItem, EvidenciaAuthSession, HeroBanner, HomeSectionConfig, AboutConfig, ContactConfig, StoreConfig, ViewMode, SaldaoConfig, PromoCampaign, Seller, StoreThemeId } from '../types';
 import { loadSaldaoConfig, saveSaldaoConfig, DEFAULT_SALDAO_CONFIG, getSaldaoProductPrice } from '../services/saldaoService';
+import { loadThemeConfig, saveThemeConfig, DEFAULT_THEME_CONFIG } from '../services/themeService';
 import { loadPromotionsFromLocalStorage, savePromotionsToLocalStorage, savePromotionToFirestore, deletePromotionFromFirestore, PROMOTIONS_COLLECTION, getApplicablePromotion } from '../services/promotionsService';
 import { loadSellersFromLocalStorage, saveSellersToLocalStorage, saveSellerToFirestore, deleteSellerFromFirestore, SELLERS_COLLECTION } from '../services/sellersService';
 import { db, auth, seedDatabaseIfNeeded, SEED_PRODUCTS } from '../lib/firebase';
@@ -121,6 +122,9 @@ interface AppContextProps {
   // Saldão de Calçados
   saldaoConfig: SaldaoConfig;
   updateSaldaoConfig: (config: Partial<SaldaoConfig>) => Promise<void>;
+  // Tema da Vitrine & Campanhas Sazonais
+  storeTheme: StoreThemeId;
+  updateStoreTheme: (themeId: StoreThemeId) => Promise<void>;
   // Ofertas & Promoções
   promotions: PromoCampaign[];
   isLoadingPromotions: boolean;
@@ -142,13 +146,13 @@ const AppContext = createContext<AppContextProps | undefined>(undefined);
 
 export const DEFAULT_HERO_BANNERS: HeroBanner[] = [
   {
-    id: 'banner-1',
-    badge: 'CAMPANHA DE OFERTAS',
-    title: 'Super Descontos de até 50% OFF',
-    description: 'Chegou o momento de adquirir aquele calçado desejado com preços incríveis e condições especiais. Aproveite as melhores promoções da loja!',
-    image: 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?q=80&w=1600&auto=format&fit=crop',
-    buttonText: 'Aproveitar Ofertas',
-    tabKey: 'ofertas',
+    id: 'banner-3',
+    badge: 'COLEÇÃO MASCULINA',
+    title: 'Estilo moderno e robustez incomparável.',
+    description: 'Sapatos sociais premium, botas indestrutíveis e tênis de alta performance para o homem contemporâneo que valoriza design e atitude.',
+    image: 'https://images.unsplash.com/photo-1533867617858-e7b97e060509?q=80&w=1600&auto=format&fit=crop',
+    buttonText: 'Explorar Linha Masculina',
+    tabKey: 'masculino',
     active: true,
     secondaryButtonText: 'Ver Catálogo Completo',
     secondaryTabKey: 'todos'
@@ -166,13 +170,13 @@ export const DEFAULT_HERO_BANNERS: HeroBanner[] = [
     secondaryTabKey: 'todos'
   },
   {
-    id: 'banner-3',
-    badge: 'COLEÇÃO MASCULINA',
-    title: 'Estilo moderno e robustez incomparável.',
-    description: 'Sapatos sociais premium, botas indestrutíveis e tênis de alta performance para o homem contemporâneo que valoriza design e atitude.',
-    image: 'https://images.unsplash.com/photo-1533867617858-e7b97e060509?q=80&w=1600&auto=format&fit=crop',
-    buttonText: 'Explorar Linha Masculina',
-    tabKey: 'masculino',
+    id: 'banner-1',
+    badge: 'CAMPANHA DE OFERTAS',
+    title: 'Super Descontos de até 50% OFF',
+    description: 'Chegou o momento de adquirir aquele calçado desejado com preços incríveis e condições especiais. Aproveite as melhores promoções da loja!',
+    image: 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?q=80&w=1600&auto=format&fit=crop',
+    buttonText: 'Aproveitar Ofertas',
+    tabKey: 'ofertas',
     active: true,
     secondaryButtonText: 'Ver Catálogo Completo',
     secondaryTabKey: 'todos'
@@ -394,6 +398,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   }, []);
 
+  // Tema da Vitrine & Campanhas Sazonais (Padrão vs Outubro Rosa)
+  const [storeTheme, setStoreTheme] = useState<StoreThemeId>(DEFAULT_THEME_CONFIG.activeTheme);
+
+  useEffect(() => {
+    loadThemeConfig().then(cfg => {
+      setStoreTheme(cfg.activeTheme);
+    });
+
+    const unsub = onSnapshot(doc(db, 'settings', 'theme'), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data?.activeTheme) {
+          setStoreTheme(data.activeTheme as StoreThemeId);
+          localStorage.setItem('evidencia_store_theme_config', JSON.stringify(data));
+        }
+      }
+    }, (err) => {
+      console.warn('[AppContext] Falha ao ouvir mudanças em tempo real do tema:', err);
+    });
+
+    return () => unsub();
+  }, []);
+
+  const updateStoreTheme = useCallback(async (newTheme: StoreThemeId) => {
+    setStoreTheme(newTheme);
+    await saveThemeConfig(newTheme);
+  }, []);
+
   // Ofertas & Promoções State & Handlers
   const [promotions, setPromotions] = useState<PromoCampaign[]>(() => loadPromotionsFromLocalStorage());
   const [isLoadingPromotions, setIsLoadingPromotions] = useState(true);
@@ -560,7 +592,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const validViews: ViewMode[] = [
         'home', 'cart', 'admin', 'admin-login', 'login', 'orders', 
         'product-detail', 'portfolio-case', 'category-page', 'about', 
-        'support', 'favorites', 'meu-crediario'
+        'support', 'favorites', 'meu-crediario', 'meus-dados', 'bio-links'
       ];
       // 1. Prioridade ao hash da URL se presente (#admin, #meu-crediario)
       const hashView = window.location.hash.replace('#', '').trim() as ViewMode;
@@ -3005,6 +3037,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         restoreDefaultConfig,
         saldaoConfig,
         updateSaldaoConfig,
+        storeTheme,
+        updateStoreTheme,
         promotions,
         isLoadingPromotions,
         savePromotion,

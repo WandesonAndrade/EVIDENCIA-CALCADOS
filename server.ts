@@ -745,14 +745,12 @@ app.use("/mp-api", async (req, res) => {
     signal: controller.signal,
   };
 
-  // Repassa o header de Autorização do frontend, se houver
-  if (req.headers.authorization) {
+  // Prioriza o token oficial do servidor para segurança e evitar tokens legados em cache do browser
+  const serverMpToken = process.env.MERCADO_PAGO_ACCESS_TOKEN?.replace(/['"]/g, "").trim();
+  if (serverMpToken) {
+    (options.headers as Record<string, string>)["Authorization"] = `Bearer ${serverMpToken}`;
+  } else if (req.headers.authorization) {
     (options.headers as Record<string, string>)["Authorization"] = req.headers.authorization;
-  } else {
-    const mpToken = process.env.MERCADO_PAGO_ACCESS_TOKEN?.replace(/['"]/g, "").trim();
-    if (mpToken) {
-      (options.headers as Record<string, string>)["Authorization"] = `Bearer ${mpToken}`;
-    }
   }
 
   if (req.headers["x-idempotency-key"]) {

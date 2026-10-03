@@ -34,6 +34,7 @@ import { scrollToSectionWithOffset } from "../lib/scrollUtils";
 import { normalizeCategoryName, normalizeSubcategoryName, isProductInCategory } from "../services/moblinkCategoriesService";
 import { hasProductValidPhoto } from "../services/moblinkProductsService";
 import { HeaderLiveSearch } from "./products/storefront/HeaderLiveSearch";
+import { AudienceMegaMenu } from "./products/storefront/AudienceMegaMenu";
 import { extractAudienceSubcategories, buildCategoryUrl, AudienceKey } from "./products/utils/categoryNavigationUtils";
 
 export const Header: React.FC = () => {
@@ -663,79 +664,15 @@ export const Header: React.FC = () => {
             {/* PAINEL MEGA-MENU DROPDOWN DINÂMICO */}
             <AnimatePresence>
               {activeMegaMenu && (
-                <motion.div
-                  initial={{ opacity: 0, y: 12, scale: 0.98 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 8, scale: 0.98 }}
-                  transition={{ duration: 0.18, ease: "easeOut" }}
-                  onMouseEnter={() => handleNavMouseEnter(activeMegaMenu)}
+                <AudienceMegaMenu
+                  activeAudience={activeMegaMenu}
+                  isDark={isDark}
+                  subcategories={dynamicMegaMenuSubcategories}
+                  onSelectCategory={handleMegaMenuCategoryClick}
+                  onClose={() => setActiveMegaMenu(null)}
+                  onMouseEnter={handleNavMouseEnter}
                   onMouseLeave={handleNavMouseLeave}
-                  className={`absolute left-0 right-0 top-full mt-2 z-50 rounded-3xl border shadow-2xl overflow-hidden backdrop-blur-xl transition-all ${
-                    isDark
-                      ? "bg-slate-900/98 border-slate-800 text-slate-100 shadow-slate-950/80"
-                      : "bg-white/98 border-slate-200/80 text-slate-900 shadow-slate-900/15"
-                  }`}
-                >
-                  <div className="p-6 md:p-8 max-w-7xl mx-auto">
-                    {/* Banner Topo do Mega-Menu */}
-                    <div className={`flex items-center justify-between p-4 px-6 rounded-2xl mb-6 border ${
-                      isDark ? "bg-slate-950/80 border-slate-800" : "bg-gradient-to-r from-[#002850] to-[#003e92] text-white border-transparent"
-                    }`}>
-                      <div>
-                        <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-amber-400/20 text-amber-300 text-[10px] font-extrabold tracking-wider uppercase mb-1">
-                          <Sparkles className="w-3 h-3 text-amber-400" />
-                          <span>
-                            {activeMegaMenu === 'feminino' ? 'Coleção Feminina' : activeMegaMenu === 'masculino' ? 'Coleção Masculina' : 'Coleção Infantil & Bebê'}
-                          </span>
-                        </div>
-                        <h3 className="text-base md:text-lg font-black tracking-tight text-white capitalize">
-                          Subcategorias {activeMegaMenu === 'feminino' ? 'Femininas' : activeMegaMenu === 'masculino' ? 'Masculinas' : 'Infantis'}
-                        </h3>
-                        <p className="text-xs text-slate-200/90 font-medium">
-                          Subcategorias cadastradas com produtos disponíveis e foto na loja
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => handleMegaMenuCategoryClick(activeMegaMenu, 'TODAS')}
-                        className="hidden sm:inline-flex items-center gap-2 text-xs font-black px-4 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 cursor-pointer transition-all shadow-sm shrink-0"
-                      >
-                        <span>Explorar Tudo {activeMegaMenu.toUpperCase()}</span>
-                        <ChevronRight className="w-4 h-4" />
-                      </button>
-                    </div>
-
-                    {/* Lista Dinâmica de Subcategorias em Grid */}
-                    {dynamicMegaMenuSubcategories.length > 0 ? (
-                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-                        {dynamicMegaMenuSubcategories.map((item, idx) => (
-                          <button
-                            key={idx}
-                            onClick={() => handleMegaMenuCategoryClick(activeMegaMenu, item.name)}
-                            className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between group ${
-                              isDark
-                                ? "bg-slate-800/60 border-slate-700/80 hover:bg-[#003e92]/30 hover:border-amber-400/50 text-slate-100"
-                                : "bg-slate-50 border-slate-200/80 hover:bg-[#003e92] hover:text-white hover:border-[#003e92] text-slate-800 shadow-2xs"
-                            }`}
-                          >
-                            <div className="min-w-0 flex-1 pr-2">
-                              <span className="text-xs font-bold block truncate group-hover:translate-x-0.5 transition-transform">
-                                {item.name}
-                              </span>
-                              <span className="text-[10px] font-medium opacity-65 block mt-0.5">
-                                {item.count} {item.count === 1 ? 'produto' : 'produtos'}
-                              </span>
-                            </div>
-                            <ChevronRight className="w-4 h-4 shrink-0 opacity-40 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
-                          </button>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-center py-6 text-xs text-slate-500">
-                        Nenhuma subcategoria individual encontrada para esta seção no momento.
-                      </div>
-                    )}
-                  </div>
-                </motion.div>
+                />
               )}
             </AnimatePresence>
           </div>

@@ -16,7 +16,8 @@ export const ProductBadges: React.FC<ProductBadgesProps> = ({
   position = 'corner',
   showErpInfo = false,
 }) => {
-  const { saldaoConfig, promotions = [] } = useApp();
+  const { saldaoConfig, promotions = [], storeTheme } = useApp();
+  const isOutubroRosa = storeTheme === 'outubro-rosa';
   const saldaoCalc = getSaldaoProductPrice(product, saldaoConfig);
   const applicablePromo = getApplicablePromotion(product, promotions);
 
@@ -46,19 +47,39 @@ export const ProductBadges: React.FC<ProductBadgesProps> = ({
     return (
       <div className="absolute top-3.5 left-3.5 flex flex-col gap-1 z-10">
         {saldaoCalc.isSaldao ? (
-          <span className="px-2.5 py-1 text-[10px] font-black text-white bg-gradient-to-r from-rose-600 to-amber-500 rounded-full shadow-md uppercase tracking-wider animate-pulse flex items-center gap-1">
+          <span
+            className={`px-2.5 py-1 text-[10px] font-black text-white ${
+              isOutubroRosa
+                ? 'bg-gradient-to-r from-[#FF2D78] via-[#E11D48] to-[#BE185D] shadow-pink-600/30'
+                : 'bg-gradient-to-r from-[#FF4500] via-[#FF6000] to-[#FFA000] shadow-orange-600/30'
+            } rounded-full shadow-md uppercase tracking-wider animate-pulse flex items-center gap-1`}
+          >
             🔥 SALDÃO -{saldaoCalc.discountPercent}%
           </span>
         ) : applicablePromo ? (
-          <span className="px-2.5 py-1 text-[10px] font-black text-slate-950 bg-gradient-to-r from-amber-400 to-amber-500 rounded-full shadow-md uppercase tracking-wider animate-bounce flex items-center gap-1">
+          <span
+            className={`px-2.5 py-1 text-[10px] font-black ${
+              isOutubroRosa
+                ? 'text-white bg-gradient-to-r from-[#FF2D78] to-[#DB2777]'
+                : 'text-slate-950 bg-gradient-to-r from-amber-400 to-amber-500'
+            } rounded-full shadow-md uppercase tracking-wider animate-bounce flex items-center gap-1`}
+          >
             🏷️ {applicablePromo.discountLabel}
           </span>
         ) : discountPercent > 0 ? (
-          <span className="px-2.5 py-0.5 text-[10px] font-bold text-white bg-[#e30000] rounded-full shadow-xs uppercase tracking-wider">
+          <span
+            className={`px-2.5 py-0.5 text-[10px] font-bold text-white ${
+              isOutubroRosa ? 'bg-[#E11D48]' : 'bg-[#e30000]'
+            } rounded-full shadow-xs uppercase tracking-wider`}
+          >
             -{discountPercent}% OFF
           </span>
         ) : (
-          <span className="px-2.5 py-0.5 text-[10px] font-bold text-white bg-[#006EDB] rounded-full shadow-xs uppercase tracking-wider">
+          <span
+            className={`px-2.5 py-0.5 text-[10px] font-bold text-white ${
+              isOutubroRosa ? 'bg-[#FF2D78]' : 'bg-[#006EDB]'
+            } rounded-full shadow-xs uppercase tracking-wider`}
+          >
             Novo
           </span>
         )}
@@ -70,17 +91,33 @@ export const ProductBadges: React.FC<ProductBadgesProps> = ({
   return (
     <div className="flex items-center gap-1.5 flex-wrap">
       {saldaoCalc.isSaldao && (
-        <span className="px-2 py-0.5 text-[9px] font-black text-white bg-rose-600 rounded-md uppercase">
+        <span
+          className={`px-2 py-0.5 text-[9px] font-black text-white ${
+            isOutubroRosa
+              ? 'bg-gradient-to-r from-[#FF2D78] to-[#BE185D]'
+              : 'bg-gradient-to-r from-[#FF4500] to-[#FFA000]'
+          } rounded-md uppercase`}
+        >
           Saldão -{saldaoCalc.discountPercent}%
         </span>
       )}
       {applicablePromo && (
-        <span className="px-2 py-0.5 text-[9px] font-black text-amber-950 bg-amber-400 rounded-md uppercase">
+        <span
+          className={`px-2 py-0.5 text-[9px] font-black ${
+            isOutubroRosa
+              ? 'text-white bg-gradient-to-r from-[#FF2D78] to-[#DB2777]'
+              : 'text-amber-950 bg-amber-400'
+          } rounded-md uppercase`}
+        >
           {applicablePromo.discountLabel}
         </span>
       )}
       {discountPercent > 0 && !saldaoCalc.isSaldao && !applicablePromo && (
-        <span className="px-2 py-0.5 text-[9px] font-bold text-white bg-[#e30000] rounded-md uppercase">
+        <span
+          className={`px-2 py-0.5 text-[9px] font-bold text-white ${
+            isOutubroRosa ? 'bg-[#E11D48]' : 'bg-[#e30000]'
+          } rounded-md uppercase`}
+        >
           -{discountPercent}% OFF
         </span>
       )}

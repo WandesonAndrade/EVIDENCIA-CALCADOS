@@ -884,3 +884,96 @@ O Dashboard Financeiro (`FinancialDashboard.tsx`) no `AdminPanel.tsx` (aba `fina
    - Validação por correspondência de palavras no nome do produto para palavras com 3 ou mais caracteres.
 3. **Sincronização de Pílulas e Navegação (`CategoryPage.tsx`)**:
    - `availableSubcategories`: Calcula as subcategorias ativas a partir dos produtos da categoria pai, permitindo que as pílulas superiores continuem visíveis e navegáveis com a subcategoria ativa destacada com badge preenchido.
+
+---
+
+## 36. Mega Menu de Públicos & Cards Pastel com Miniaturas Reais (`AudienceMegaMenu.tsx` & `Header.tsx`)
+
+### A. Diagnóstico e Necessidade de Navegação
+- A navegação superior do e-commerce dependia de dropdowns simples que não ofereciam visão rica das coleções segmentadas por público (Feminino, Masculino e Infantil) nem exibiam os produtos reais disponíveis.
+
+### B. Solução Implementada
+1. **Mega Menu em Dropdown Desktop e Painel Mobile**:
+   - Componentizado em `AudienceMegaMenu.tsx` e ativado no `Header.tsx` para as abas *Feminino*, *Masculino* e *Infantil*.
+   - **Banner Hero Superior**: Exibe imagem de capa da coleção com tipografia editorial, badge com contagem de produtos e chamada com botão de ação direta para explorar o catálogo daquele público.
+2. **Cards de Subcategorias Orgânicos Pastel**:
+   - Badges de ícones temáticos pastel na esquerda com cantos arredondados suaves (`ShoppingBag`, `Footprints`, `Watch`, `Luggage`, `Gift`, `Wallet`, `Droplets`, etc.).
+   - Tipografia clara com título da subcategoria e contador dinâmico de produtos ativos em estoque.
+   - Botão circular de chevron com transição suave no hover.
+   - Fundo com blob orgânico em tom aquarela/pastel correspondente.
+   - Miniatura com foto real de capa do produto em estoque daquela subcategoria, com escala animada e fallback gracioso.
+3. **Harmonização com Tema e Modo Escuro**:
+   - Totalmente compatível com Tailwind CSS v4, suporte a modo escuro e integração reativa ao tema ativo de campanhas.
+
+---
+
+## 37. Banner Vetorial 3D do Saldão de Calçados 100% em Código (`SaldaoBanner.tsx`)
+
+### A. Diagnóstico de Performance e Design
+- Banners gráficos baseados em imagens estáticas (PNG/JPG com textos queimados) apresentavam perda de legibilidade em telas de alta densidade, distorções em mobile e impossibilidade de tradução/adaptação dinâmica para campanhas temáticas.
+
+### B. Solução Implementada
+1. **Design 100% em Código e SVG Vetorial 3D**:
+   - Desenvolvido em `src/components/SaldaoBanner.tsx` e inserido na vitrine principal (`ProductList.tsx`).
+   - Iluminação e fundo dinâmico: azul marinho profundo em gradiente radial e linear (`#011438` a `#052b6e`) com halo solar âmbar/laranja brilhante de alta intensidade na direita, grid sutil de micropartículas e traços dinâmicos de energia/sparks.
+   - Palco e calçados vetoriais em SVG 3D: Pódio cilíndrico tridimensional, sacolas de presentes em azul real e laranja, e par de tênis esportivo moderno com camadas vetoriais detalhadas de sola, entressola e cabedal.
+2. **Tipografia de Alto Impacto e CTA**:
+   - Pílula com gradiente de fogo `ÚLTIMAS UNIDADES EM ESTOQUE` e ícone `<Flame />` pulsante.
+   - Título bicolor de destaque `🔥 Saldão de Calçados -% OFF` em branco e laranja elétrico (ou magenta/rosa quando em campanha).
+   - Botão pill branco com microinteração de seta `Ver todos os calçados em saldão →`.
+3. **Barra de Confiança Integrada**:
+   - 4 pilares de confiança no rodapé do banner: *Entrega Rápida*, *Compra Segura*, *Parcele em até 12x* e *Troca e Devolução*.
+
+---
+
+## 38. Crediário Próprio Exclusivo para Consulta e Pagamento de Carnês & Boletos ERP (`MeuCrediario.tsx`)
+
+### A. Reestruturação da Regra de Negócio
+- As antigas opções 1 (*Solicitar Avaliação de Crédito*) e 2 (*Comprar com Crediário / Importar Carrinho*) geravam confusão com o checkout tradicional e fluxo de crédito no balcão da loja física.
+- O objetivo prioritário da funcionalidade no e-commerce é servir como **portal direto de autoatendimento para clientes que já possuem compras no crediário físico** quitarem suas faturas online com segurança e rapidez.
+
+### B. Solução Implementada
+1. **Foco Estrito na Consulta e Quitação de Faturas**:
+   - Removidas as telas e formulários das opções 1 e 2 do componente `MeuCrediario.tsx`.
+   - Mantida exclusivamente a **Opção 3 (Carnês & Boletos MobLink ERP)** com integração direta ao backend.
+2. **Carregamento Automático por CPF**:
+   - Se o cliente já estiver autenticado na loja e possuir CPF preenchido em seu perfil, a tela consulta automaticamente suas faturas em aberto no MobLink sem exigir digitação manual.
+3. **Pagamento Instantâneo via PIX com Baixa Automatizada**:
+   - Geração de QR Code PIX e código Copia e Cola via Mercado Pago com expiração configurada.
+   - Verificação em tempo real do status de liquidação do PIX e emissão de comprovante digital.
+   - Textos de chamada em banners no `CheckoutPage.tsx`, `ProductDetail.tsx` e CMS do `AdminPanel.tsx` alinhados para consulta e quitação de carnês.
+
+---
+
+## 39. Gerenciador Central de Temas & Campanhas (Outubro Rosa) em Tempo Real (`themeService.ts`, `AdminPanel.tsx`)
+
+### A. Diagnóstico e Arquitetura de Campanhas
+- Modificações pontuais em folhas de estilo para datas comemorativas (como Outubro Rosa, Black Friday, Natal) eram lentas, exigiam alterações manuais em múltiplos arquivos e deploys de código a cada mudança ou reversão.
+
+### B. Solução Implementada
+1. **Aba "Temas & Campanhas" no Painel Admin (`AdminPanel.tsx`)**:
+   - Nova aba dedicada no menu lateral de `CMS & Vitrine` com ícone `<Palette />`.
+   - Permite ao administrador alternar com 1 clique entre o **"Tema Padrão (Azul Evidência)"** e a campanha **"Outubro Rosa"**, além de reverter a qualquer momento.
+2. **Sincronização em Nuvem em Tempo Real (`themeService.ts` & `AppContext.tsx`)**:
+   - Persistência na coleção `settings/theme` do Firestore e cache local no `localStorage`.
+   - Listener reativo com `onSnapshot` no `AppContext.tsx`: Quando o administrador altera o tema no painel, todas as abas e dispositivos de clientes abertos recebem o tema instantaneamente sem necessidade de recarregar a página (`isPinkTheme`).
+3. **Propagação Completa da Identidade Visual na Vitrine**:
+   - **Hero (`Hero.tsx`)**: Linhas neon, curvas de fundo, badges de coleção e botão principal nos tons rosa/magenta (`#FF2D78`, `#BE185D`).
+   - **Banner do Saldão (`SaldaoBanner.tsx`)**: Gradiente de fundo, halo de luz, sacola/pódio vetoriais 3D adaptados para rosa vibrante e vinho profundo (`#240316`).
+   - **Audience Mega Menu (`AudienceMegaMenu.tsx`)**: Banners de coleção, destaques e badges temáticos.
+   - **Cards de Produto (`StorefrontProductCard.tsx`, `ProductPriceDisplay.tsx`, `ProductBadges.tsx`)**:
+     * Preço principal em rosa vibrante (`#BE185D` / `#D81B60`).
+     * Tags e badges de saldão/ofertas em gradiente rosa/magenta (`#FF2D78` via `#E11D48` a `#BE185D`).
+     * Pílulas de numeração da grade com fundo/borda rosa pastel e hover neon `#FF2D78`.
+     * Botão "Comprar" em gradiente temático e halo sutil de borda.
+   - **Bento Grid & Vitrine (`ProductList.tsx`)**:
+     * 3 cards promocionais da vitrine com gradientes rosa/vinho suave (`#FFFFFF` via `#FFF5F8` a `#FCE8F0`), badges temáticos e botões em gradiente rosa.
+     * Barra de Vantagens (Entrega Rápida, 12x, Troca, Atendimento) com ícones em rosa pastel suave (`#FFF0F5`), borda rosa e hover neon `#FF2D78`.
+     * Links "Ver todos..." das seções de novidades, calçados, confecções e acessórios em `#BE185D` e divisórias harmonizadas.
+   - **Detalhes do Produto (`ProductDetail.tsx`)**:
+     * Galeria de fotos, badges, swatches de cores, cabeçalhos, botões de numeração da grade, botões "Adicionar à Sacola" e "Comprar Agora" e cards de garantia 100% harmonizados com a paleta rosa.
+   - **Calculadora de Frete (`ShippingCalculator.tsx`)**:
+     * Ícone de caminhão, foco do input de CEP, botão "Calcular" e seleção de frete em rosa neon `#FF2D78`.
+   - **Navegação e Menus Auxiliares (`CategoryPage.tsx`, `SubcategoryCarousel.tsx`, `CategorySandwichMenu.tsx`, `HeaderLiveSearch.tsx`, `StorefrontProductGrid.tsx`)**:
+     * Todos os botões "Ver todas...", filtros de grade, spinners e estados vazios sincronizados com a identidade da campanha.
+

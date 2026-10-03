@@ -200,8 +200,10 @@ export const CategoryPage: React.FC = () => {
     selectedCategory,
     saldaoConfig,
     promotions = [],
+    storeTheme,
   } = useApp();
 
+  const isOutubroRosa = storeTheme === 'outubro-rosa';
   const isDark = theme === 'dark';
   const [cardsPerPage, setCardsPerPage] = useState(4);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -636,7 +638,9 @@ export const CategoryPage: React.FC = () => {
         {hasActiveFilters && (
           <button
             onClick={clearAllFilters}
-            className="text-[11px] font-bold text-[#006EDB] hover:text-[#00509E] flex items-center space-x-1 transition-colors cursor-pointer"
+            className={`text-[11px] font-bold ${
+              isOutubroRosa ? 'text-[#BE185D] hover:text-[#9D174D]' : 'text-[#006EDB] hover:text-[#00509E]'
+            } flex items-center space-x-1 transition-colors cursor-pointer`}
           >
             <RotateCcw className="h-3 w-3" />
             <span>Limpar</span>
@@ -648,10 +652,12 @@ export const CategoryPage: React.FC = () => {
       <div className="border-b border-blue-900/10 pb-5">
         <button
           onClick={() => setIsBrandOpen(!isBrandOpen)}
-          className="w-full flex items-center justify-between font-extrabold text-sm text-[#003B73] py-1 cursor-pointer transition-colors hover:text-[#006EDB]"
+          className={`w-full flex items-center justify-between font-extrabold text-sm text-[#003B73] py-1 cursor-pointer transition-colors ${
+            isOutubroRosa ? 'hover:text-[#FF2D78]' : 'hover:text-[#006EDB]'
+          }`}
         >
           <div className="flex items-center space-x-2">
-            <Tag className="h-4 w-4 text-[#006EDB]" />
+            <Tag className={`h-4 w-4 ${isOutubroRosa ? 'text-[#FF2D78]' : 'text-[#006EDB]'}`} />
             <span>Marca</span>
           </div>
           {isBrandOpen ? <ChevronUp className="h-4 w-4 text-[#003B73]" /> : <ChevronDown className="h-4 w-4 text-[#003B73]" />}
@@ -711,10 +717,12 @@ export const CategoryPage: React.FC = () => {
         <div className="border-b border-blue-900/10 pb-5">
           <button
             onClick={() => setIsGradeOpen(!isGradeOpen)}
-            className="w-full flex items-center justify-between font-extrabold text-sm text-[#003B73] py-1 cursor-pointer transition-colors hover:text-[#006EDB]"
+            className={`w-full flex items-center justify-between font-extrabold text-sm text-[#003B73] py-1 cursor-pointer transition-colors ${
+              isOutubroRosa ? 'hover:text-[#FF2D78]' : 'hover:text-[#006EDB]'
+            }`}
           >
             <div className="flex items-center space-x-2">
-              <Ruler className="h-4 w-4 text-[#006EDB]" />
+              <Ruler className={`h-4 w-4 ${isOutubroRosa ? 'text-[#FF2D78]' : 'text-[#006EDB]'}`} />
               <span>Tamanho / Grade</span>
             </div>
             {isGradeOpen ? <ChevronUp className="h-4 w-4 text-[#003B73]" /> : <ChevronDown className="h-4 w-4 text-[#003B73]" />}
@@ -731,7 +739,11 @@ export const CategoryPage: React.FC = () => {
                     onClick={() => toggleSizeFilter(size)}
                     className={`py-2 text-xs font-bold rounded-xl border transition-all cursor-pointer text-center ${
                       isSelected
-                        ? 'bg-[#003B73] text-white border-[#003B73] shadow-xs scale-[1.03]'
+                        ? isOutubroRosa
+                          ? 'bg-gradient-to-r from-[#FF2D78] to-[#BE185D] text-white border-[#FF2D78] shadow-pink-600/25 scale-[1.03]'
+                          : 'bg-[#003B73] text-white border-[#003B73] shadow-xs scale-[1.03]'
+                        : isOutubroRosa
+                        ? 'bg-white text-[#9D174D] border-pink-900/15 hover:border-[#FF2D78] hover:bg-pink-50'
                         : 'bg-white text-[#00509E] border-blue-900/15 hover:border-[#006EDB] hover:bg-[#DDF1FF]'
                     }`}
                   >
@@ -960,7 +972,11 @@ export const CategoryPage: React.FC = () => {
                   setSelectedSubcategory('TODAS');
                   if (setGlobalSubcategory) setGlobalSubcategory('TODAS');
                 }}
-                className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full bg-[#DDF1FF] text-[#006EDB] hover:bg-blue-100 hover:text-[#00509E] text-xs font-bold transition-all border border-blue-900/15 cursor-pointer shadow-2xs mr-2"
+                className={`inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full ${
+                  isOutubroRosa
+                    ? 'bg-pink-100 text-[#BE185D] hover:bg-pink-200 hover:text-[#9D174D] border-pink-300/40'
+                    : 'bg-[#DDF1FF] text-[#006EDB] hover:bg-blue-100 hover:text-[#00509E] border-blue-900/15'
+                } text-xs font-bold transition-all border cursor-pointer shadow-2xs mr-2`}
               >
                 <span>Ver todas as subcategorias</span>
                 <X className="h-3.5 w-3.5" />
@@ -984,7 +1000,11 @@ export const CategoryPage: React.FC = () => {
               }}
               className={`px-3.5 py-1 rounded-full text-xs font-bold transition-all cursor-pointer shadow-2xs border ${
                 !activeSubcategory
-                  ? 'bg-[#003B73] text-white border-[#003B73]'
+                  ? isOutubroRosa
+                    ? 'bg-gradient-to-r from-[#FF2D78] to-[#BE185D] text-white border-[#FF2D78]'
+                    : 'bg-[#003B73] text-white border-[#003B73]'
+                  : isOutubroRosa
+                  ? 'bg-white text-[#9D174D] border-pink-900/15 hover:border-[#FF2D78] hover:bg-pink-50'
                   : 'bg-white text-[#003B73] border-blue-900/15 hover:border-[#006EDB] hover:bg-blue-50'
               }`}
             >
@@ -1004,7 +1024,11 @@ export const CategoryPage: React.FC = () => {
                   }}
                   className={`px-3.5 py-1 rounded-full text-xs font-bold transition-all cursor-pointer shadow-2xs border ${
                     isActive
-                      ? 'bg-[#003B73] text-white border-[#003B73]'
+                      ? isOutubroRosa
+                        ? 'bg-gradient-to-r from-[#FF2D78] to-[#BE185D] text-white border-[#FF2D78]'
+                        : 'bg-[#003B73] text-white border-[#003B73]'
+                      : isOutubroRosa
+                      ? 'bg-white text-[#9D174D] border-pink-900/15 hover:border-[#FF2D78] hover:bg-pink-50'
                       : 'bg-white text-[#00509E] border-blue-900/15 hover:border-[#006EDB] hover:bg-blue-50'
                   }`}
                 >
@@ -1090,9 +1114,13 @@ export const CategoryPage: React.FC = () => {
             {config.isDealsPage ? (
               <div className="space-y-10">
                 {/* BARRA DE NAVEGAÇÃO E SELEÇÃO DE SEÇÕES DA PÁGINA DE OFERTAS */}
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 rounded-3xl bg-[#EEF8FF] border border-blue-900/10 shadow-sm">
+                <div className={`flex flex-col sm:flex-row items-center justify-between gap-3 p-4 rounded-3xl ${
+                  isOutubroRosa
+                    ? 'bg-pink-50 border border-pink-900/15 shadow-sm'
+                    : 'bg-[#EEF8FF] border border-blue-900/10 shadow-sm'
+                }`}>
                   <div className="flex items-center space-x-2">
-                    <Tag className="h-4 w-4 text-[#006EDB]" />
+                    <Tag className={`h-4 w-4 ${isOutubroRosa ? 'text-[#FF2D78]' : 'text-[#006EDB]'}`} />
                     <span className="text-xs font-black text-[#003B73] uppercase tracking-wider">
                       Seções em Destaque
                     </span>
@@ -1103,7 +1131,11 @@ export const CategoryPage: React.FC = () => {
                       onClick={() => setOffersSectionTab('all')}
                       className={`px-3.5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
                         offersSectionTab === 'all'
-                          ? 'bg-[#003B73] text-white shadow-xs'
+                          ? isOutubroRosa
+                            ? 'bg-gradient-to-r from-[#FF2D78] to-[#BE185D] text-white shadow-xs'
+                            : 'bg-[#003B73] text-white shadow-xs'
+                          : isOutubroRosa
+                          ? 'bg-white text-[#9D174D] border border-pink-900/15 hover:bg-pink-50'
                           : 'bg-white text-[#003B73] border border-blue-900/10 hover:bg-[#DDF1FF]'
                       }`}
                     >

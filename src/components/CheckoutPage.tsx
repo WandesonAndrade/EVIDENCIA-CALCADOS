@@ -707,10 +707,10 @@ export const CheckoutPage: React.FC = () => {
                 <div className="mt-6 p-4 rounded-2xl border border-dashed border-amber-500/30 bg-amber-500/5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                   <div className="space-y-0.5">
                     <p className="text-xs font-bold text-amber-700 dark:text-amber-400">
-                      Prefere comprar no Crediário Próprio?
+                      Possui carnês do Crediário Próprio?
                     </p>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                      Solicite sua avaliação de limite ou envie seu carrinho diretamente para aprovação no módulo de crediário.
+                      Consulte faturas em aberto e efetue o pagamento das suas parcelas via Pix.
                     </p>
                   </div>
                   <button
@@ -718,7 +718,7 @@ export const CheckoutPage: React.FC = () => {
                     onClick={() => setCurrentView('meu-crediario')}
                     className="shrink-0 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-600 text-slate-950 transition-all cursor-pointer shadow-sm"
                   >
-                    Acessar Crediário
+                    Consultar Carnês
                   </button>
                 </div>
               </div>

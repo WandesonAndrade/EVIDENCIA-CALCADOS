@@ -54,9 +54,11 @@ export const CategorySandwichMenu: React.FC<CategorySandwichMenuProps> = ({ isOp
     setSelectedMenuTab,
     setCurrentView,
     theme,
-    saldaoConfig
+    saldaoConfig,
+    storeTheme,
   } = useApp();
 
+  const isOutubroRosa = storeTheme === 'outubro-rosa';
   const isDark = theme === 'dark';
 
   // Level 1: null (Categorias Principais) | string (Nome da Categoria Selecionada)
@@ -307,7 +309,9 @@ export const CategorySandwichMenu: React.FC<CategorySandwichMenuProps> = ({ isOp
                         <activeCategory.icon className={`h-6 w-6 ${activeCategory.iconColor}`} />
                       </div>
                       <div>
-                        <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#006EDB]">
+                        <span className={`text-[10px] font-extrabold uppercase tracking-widest ${
+                          isOutubroRosa ? 'text-[#FF2D78]' : 'text-[#006EDB]'
+                        }`}>
                           DEPARTAMENTO
                         </span>
                         <h3 className="text-lg font-black tracking-tight leading-tight text-[#003B73] dark:text-white">
@@ -321,14 +325,18 @@ export const CategorySandwichMenu: React.FC<CategorySandwichMenuProps> = ({ isOp
                       onClick={() => handleSelectSubcategory(activeCategory.name, 'TODAS')}
                       className={`w-full p-3.5 rounded-2xl border flex items-center justify-between transition-all cursor-pointer font-bold text-xs ${
                         selectedCategory.toUpperCase() === activeCategory.key && selectedSubcategory === 'TODAS'
-                          ? 'bg-[#006EDB] border-[#006EDB] text-white shadow-md'
+                          ? isOutubroRosa
+                            ? 'bg-gradient-to-r from-[#FF2D78] via-[#E11D48] to-[#BE185D] border-[#FF2D78] text-white shadow-md shadow-pink-600/25'
+                            : 'bg-[#006EDB] border-[#006EDB] text-white shadow-md'
                           : isDark
                             ? 'bg-slate-900/60 border-slate-800 hover:border-slate-700 text-slate-200'
+                            : isOutubroRosa
+                            ? 'bg-white border-pink-900/10 hover:bg-pink-50 hover:border-pink-300 text-[#003B73] shadow-xs'
                             : 'bg-white border-blue-900/10 hover:bg-[#EEF8FF] text-[#003B73] shadow-xs'
                       }`}
                     >
                       <div className="flex items-center space-x-2.5">
-                        <PackageCheck className="h-4 w-4 text-[#006EDB]" />
+                        <PackageCheck className={`h-4 w-4 ${isOutubroRosa ? 'text-[#FF2D78]' : 'text-[#006EDB]'}`} />
                         <span>Ver Todos em {activeCategory.name}</span>
                       </div>
                       <ChevronRight className="h-4 w-4 opacity-50" />

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
-import { Product, Order, OrderStatus, PaymentStatus, UserProfile, Category, HeroBanner, HomeSectionConfig, AboutConfig, ContactConfig, SaldaoConfig, PromoCampaign } from '../types';
+import { Product, Order, OrderStatus, PaymentStatus, UserProfile, Category, HeroBanner, HomeSectionConfig, AboutConfig, ContactConfig, SaldaoConfig, PromoCampaign, StoreThemeId, AVAILABLE_STORE_THEMES } from '../types';
 import { MoblinkIntegrationPanel } from './MoblinkIntegrationPanel';
 import { MoblinkProductsManager } from './MoblinkProductsManager';
 import { MoblinkClientsManager } from './MoblinkClientsManager';
@@ -30,7 +30,7 @@ import {
   Info, Sliders, Zap, Barcode, Image, ArrowUp, ArrowDown,
   BookOpen, PhoneCall, Globe, CheckCircle2, Sparkles, Layout, HelpCircle,
   FileText, Briefcase, MapPin, Gift, Heart, ShoppingCart, Cake, AlertTriangle, LogOut, Shield,
-  FolderTree, Tag, X, ExternalLink, CreditCard, Menu
+  FolderTree, Tag, X, ExternalLink, CreditCard, Menu, Palette
 } from 'lucide-react';
 import { AdminOrdersList } from './orders/AdminOrdersList';
 import { AdminBoxManager } from './AdminBoxManager';
@@ -56,6 +56,7 @@ type AdminTab =
   | 'settings'
   | 'saldao'
   | 'promotions'
+  | 'themes'
   | 'team';
 
 export const AdminPanel: React.FC = () => {
@@ -92,6 +93,8 @@ export const AdminPanel: React.FC = () => {
     restoreDefaultConfig,
     saldaoConfig,
     updateSaldaoConfig,
+    storeTheme,
+    updateStoreTheme,
     promotions = [],
     sellers = [],
     savePromotion,
@@ -1259,7 +1262,29 @@ export const AdminPanel: React.FC = () => {
                   )}
                 </button>
 
-                {/* 4. Editor "Sobre Nós" */}
+                {/* 4. Temas & Campanhas Sazonais */}
+                <button
+                  onClick={() => handleSelectTab('themes')}
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    activeTab === 'themes'
+                      ? isDark ? 'bg-pink-500/10 text-pink-400 border border-pink-500/30' : 'bg-slate-900 text-white shadow-sm'
+                      : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <div className="flex items-center space-x-3">
+                    <Palette className="h-4 w-4 text-pink-400" />
+                    <span>Temas & Campanhas</span>
+                  </div>
+                  <span className={`px-1.5 py-0.5 text-[9px] font-black rounded-md uppercase ${
+                    storeTheme === 'outubro-rosa'
+                      ? 'bg-pink-500 text-white'
+                      : 'bg-slate-700 text-slate-300'
+                  }`}>
+                    {storeTheme === 'outubro-rosa' ? 'Rosa' : 'Padrão'}
+                  </span>
+                </button>
+
+                {/* 5. Editor "Sobre Nós" */}
                 <button
                   onClick={() => handleSelectTab('about-editor')}
                   className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
@@ -1748,7 +1773,7 @@ export const AdminPanel: React.FC = () => {
                           <option value="feminino">Feminino</option>
                           <option value="masculino">Masculino</option>
                           <option value="ofertas">Ofertas</option>
-                          <option value="meu-crediario">Meu Crediário (Simulação / Análise)</option>
+                          <option value="meu-crediario">Meu Crediário (Carnês e Boletos)</option>
                           <option value="sapatos-sociais">Sapatos Sociais</option>
                           <option value="botas">Botas</option>
                           <option value="acessorios">Acessórios</option>
@@ -2839,6 +2864,181 @@ export const AdminPanel: React.FC = () => {
                   })}
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* TAB: GERENCIADOR DE TEMAS & CAMPANHAS SAZONAIS */}
+        {activeTab === 'themes' && (
+          <div className="space-y-6 max-w-5xl">
+            {/* Header com Descrição */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h2 className="text-2xl font-black tracking-tight flex items-center space-x-2">
+                  <Palette className="h-6 w-6 text-pink-400" />
+                  <span>Temas & Campanhas da Vitrine</span>
+                </h2>
+                <p className="text-xs text-slate-400 mt-1">
+                  Ative ou desative temas comemorativos (como Outubro Rosa) com 1 clique. Todas as alterações sincronizam em tempo real para os clientes da loja.
+                </p>
+              </div>
+
+              {/* Status Pill do Tema Atual */}
+              <div className={`px-4 py-2.5 rounded-2xl border flex items-center space-x-3 shrink-0 ${
+                storeTheme === 'outubro-rosa'
+                  ? 'bg-pink-950/40 border-pink-500/40 text-pink-300 shadow-lg shadow-pink-950/50'
+                  : isDark ? 'bg-slate-800 border-slate-700 text-sky-300' : 'bg-blue-50 border-blue-200 text-blue-700'
+              }`}>
+                <span className={`w-3 h-3 rounded-full animate-ping ${
+                  storeTheme === 'outubro-rosa' ? 'bg-pink-500' : 'bg-blue-500'
+                }`} />
+                <div className="text-xs">
+                  <span className="font-semibold opacity-70 block text-[10px] tracking-wider uppercase">TEMA ATIVO NO MOMENTO</span>
+                  <span className="font-black text-sm">
+                    {storeTheme === 'outubro-rosa' ? '🌸 Outubro Rosa' : '🔷 Tema Padrão (Azul Evidência)'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Grid dos Cards de Temas */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {AVAILABLE_STORE_THEMES.map((themeDef) => {
+                const isActive = storeTheme === themeDef.id;
+                const isRosa = themeDef.id === 'outubro-rosa';
+
+                return (
+                  <div
+                    key={themeDef.id}
+                    className={`rounded-3xl border p-6 sm:p-7 flex flex-col justify-between transition-all duration-300 relative overflow-hidden ${
+                      isActive
+                        ? isRosa
+                          ? 'bg-gradient-to-br from-pink-950/40 via-slate-900 to-slate-900 border-pink-500/60 shadow-xl shadow-pink-950/40 ring-2 ring-pink-500/30'
+                          : 'bg-gradient-to-br from-blue-950/40 via-slate-900 to-slate-900 border-blue-500/60 shadow-xl shadow-blue-950/40 ring-2 ring-blue-500/30'
+                        : isDark
+                          ? 'bg-slate-900/60 border-slate-800 hover:border-slate-700'
+                          : 'bg-white border-slate-200 hover:border-slate-300 shadow-sm'
+                    }`}
+                  >
+                    {/* Badge de Ativo no Canto */}
+                    {isActive && (
+                      <div className="absolute top-4 right-4">
+                        <span className={`inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                          isRosa
+                            ? 'bg-pink-500 text-white shadow-md shadow-pink-600/40'
+                            : 'bg-blue-600 text-white shadow-md shadow-blue-600/40'
+                        }`}>
+                          <CheckCircle2 className="w-3 h-3" />
+                          <span>Tema Ativo</span>
+                        </span>
+                      </div>
+                    )}
+
+                    <div className="space-y-4">
+                      {/* Tag do Tema */}
+                      <span className={`inline-block text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-xl ${
+                        isRosa
+                          ? 'bg-pink-500/10 text-pink-400 border border-pink-500/30'
+                          : 'bg-blue-500/10 text-blue-400 border border-blue-500/30'
+                      }`}>
+                        {themeDef.badge}
+                      </span>
+
+                      {/* Título & Descrição */}
+                      <div>
+                        <h3 className="text-xl font-black tracking-tight">{themeDef.name}</h3>
+                        <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">{themeDef.description}</p>
+                      </div>
+
+                      {/* Paleta de Cores (Swatches) */}
+                      <div className="pt-2">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-2">
+                          Paleta de Cores Aplicada
+                        </span>
+                        <div className="flex items-center space-x-3">
+                          <div className="flex items-center space-x-1.5">
+                            <span className="w-5 h-5 rounded-full border border-white/20 shadow-xs" style={{ background: themeDef.primaryColor }} />
+                            <span className="text-[10px] font-mono text-slate-300">Fundo</span>
+                          </div>
+                          <div className="flex items-center space-x-1.5">
+                            <span className="w-5 h-5 rounded-full border border-white/20 shadow-xs" style={{ background: themeDef.secondaryColor }} />
+                            <span className="text-[10px] font-mono text-slate-300">Neon/Destaque</span>
+                          </div>
+                          <div className="flex items-center space-x-1.5">
+                            <span className="w-5 h-5 rounded-full border border-white/20 shadow-xs" style={{ background: themeDef.accentColor }} />
+                            <span className="text-[10px] font-mono text-slate-300">Botões</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Mockup de Prévia Visual */}
+                      <div 
+                        className="rounded-2xl p-4 text-white relative overflow-hidden shadow-inner border border-white/10"
+                        style={{ background: themeDef.previewBg }}
+                      >
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-extrabold text-[11px] uppercase tracking-wider">
+                            {isRosa ? '🌸 Campanha Rosa' : '⭐ Coleção Evidência'}
+                          </span>
+                          <span className="px-2 py-0.5 rounded-full text-[9px] font-black" style={{ background: themeDef.accentColor }}>
+                            -20% OFF
+                          </span>
+                        </div>
+                        <div className="mt-3">
+                          <div className="text-sm font-black tracking-tight">Calçados & Acessórios</div>
+                          <div className="w-8 h-1 rounded-full mt-1.5 shadow-sm" style={{ background: themeDef.secondaryColor }} />
+                        </div>
+                      </div>
+
+                      {/* Componentes Impactados */}
+                      <div className="text-[11px] text-slate-400 space-y-1 bg-slate-950/30 p-3.5 rounded-xl border border-slate-800/60">
+                        <span className="font-bold text-slate-300 block text-[10px] uppercase">Onde este tema altera as cores:</span>
+                        <p>• <strong>Hero Banner Principal:</strong> fundo, curvas em neon, botão CTA e barra de vantagens</p>
+                        <p>• <strong>Banner de Saldão de Calçados:</strong> fundo em código 3D, sacola e textos de oferta</p>
+                        <p>• <strong>Mega Menu de Subcategorias:</strong> banner da vitrine de público (feminino/masculino)</p>
+                      </div>
+                    </div>
+
+                    {/* Botão de Ação */}
+                    <div className="pt-6 mt-4 border-t border-slate-800/60">
+                      {isActive ? (
+                        <button
+                          type="button"
+                          disabled
+                          className="w-full py-3 rounded-xl bg-slate-800/80 text-slate-400 font-bold text-xs cursor-default flex items-center justify-center space-x-2 border border-slate-700/60"
+                        >
+                          <Check className="w-4 h-4 text-emerald-400" />
+                          <span>Tema Atualmente em Uso na Loja</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              await updateStoreTheme(themeDef.id);
+                              addToast(
+                                'Tema Alterado com Sucesso!',
+                                `A vitrine da loja agora está usando o ${themeDef.name}.`,
+                                'success'
+                              );
+                            } catch (err: any) {
+                              addToast('Erro ao Alterar Tema', err.message || 'Falha ao salvar tema', 'error');
+                            }
+                          }}
+                          className={`w-full py-3 rounded-xl font-black text-xs transition-all cursor-pointer shadow-lg active:scale-98 flex items-center justify-center space-x-2 text-white ${
+                            isRosa
+                              ? 'bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-500 hover:to-rose-500 shadow-pink-950/50'
+                              : 'bg-gradient-to-r from-blue-600 to-sky-600 hover:from-blue-500 hover:to-sky-500 shadow-blue-950/50'
+                          }`}
+                        >
+                          <Sparkles className="w-4 h-4" />
+                          <span>Ativar {themeDef.name} na Loja</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}

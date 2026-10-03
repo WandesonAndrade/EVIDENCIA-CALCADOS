@@ -32,8 +32,11 @@ export const ProductDetail: React.FC = () => {
     toggleFavorite,
     theme,
     saldaoConfig,
-    promotions = []
+    promotions = [],
+    storeTheme,
   } = useApp();
+
+  const isOutubroRosa = storeTheme === 'outubro-rosa';
 
   const [selectedLinhaOption, setSelectedLinhaOption] = useState<string | number | null>(null);
   const [selectedColunaOption, setSelectedColunaOption] = useState<string | null>(null);
@@ -624,7 +627,9 @@ export const ProductDetail: React.FC = () => {
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <span className={`px-3 py-1 rounded-full text-[10px] font-extrabold tracking-wider uppercase border ${
-                isDark ? 'bg-blue-900/30 text-blue-200 border-blue-800' : 'bg-[#DDF1FF] text-[#003B73] border-[#006EDB]/20'
+                isOutubroRosa
+                  ? 'bg-pink-100 text-[#9D174D] dark:bg-pink-950/40 dark:text-pink-200 border-pink-300/40'
+                  : isDark ? 'bg-blue-900/30 text-blue-200 border-blue-800' : 'bg-[#DDF1FF] text-[#003B73] border-[#006EDB]/20'
               }`}>
                 {(p.category && p.category.toUpperCase() !== 'GERAL')
                   ? normalizeCategoryName(p.category)
@@ -651,14 +656,14 @@ export const ProductDetail: React.FC = () => {
                 <span>Ref: <strong className="font-mono text-[#003B73] dark:text-slate-200 font-black">{p.referencia || p.referenceCode}</strong></span>
               )}
               <span>•</span>
-              <span>Vendido e entregue por <strong className="text-[#006EDB] font-extrabold">Evidência Calçados</strong></span>
+              <span>Vendido e entregue por <strong className={`${isOutubroRosa ? 'text-[#FF2D78]' : 'text-[#006EDB]'} font-extrabold`}>Evidência Calçados</strong></span>
             </div>
           </div>
 
           {/* GALERIA DE FOTOS COM ALTURA FIXA E PROPORCIONAL (ENCAIXA NA TELA SEM SCROLL) */}
           <div className="relative space-y-2">
             <div className={`relative h-[260px] sm:h-[320px] lg:h-[340px] rounded-2xl overflow-hidden border p-4 flex items-center justify-center transition-all ${
-              isDark ? 'bg-slate-950 border-slate-800' : 'bg-[#EEF8FF] border-blue-900/10'
+              isDark ? 'bg-slate-950 border-slate-800' : isOutubroRosa ? 'bg-[#FFF5F8] border-pink-900/10' : 'bg-[#EEF8FF] border-blue-900/10'
             }`}>
               <motion.img
                 key={activeImageIndex}
@@ -712,7 +717,9 @@ export const ProductDetail: React.FC = () => {
                       key={idx}
                       onClick={() => setActiveImageIndex(idx)}
                       className={`h-1.5 rounded-full transition-all cursor-pointer ${
-                        activeImageIndex === idx ? 'w-4 bg-[#006EDB]' : 'w-1.5 bg-white/60 hover:bg-white'
+                        activeImageIndex === idx
+                          ? isOutubroRosa ? 'w-4 bg-[#FF2D78]' : 'w-4 bg-[#006EDB]'
+                          : 'w-1.5 bg-white/60 hover:bg-white'
                       }`}
                     />
                   ))}
@@ -729,7 +736,9 @@ export const ProductDetail: React.FC = () => {
                     onClick={() => setActiveImageIndex(idx)}
                     className={`w-14 h-14 sm:w-16 sm:h-16 rounded-xl overflow-hidden border-2 transition-all cursor-pointer shrink-0 p-1 bg-white dark:bg-slate-900 ${
                       activeImageIndex === idx
-                        ? 'border-[#006EDB] scale-105 shadow-md ring-2 ring-[#006EDB]/20'
+                        ? isOutubroRosa
+                          ? 'border-[#FF2D78] scale-105 shadow-md ring-2 ring-[#FF2D78]/25'
+                          : 'border-[#006EDB] scale-105 shadow-md ring-2 ring-[#006EDB]/20'
                         : isDark ? 'border-slate-800 opacity-60 hover:opacity-100' : 'border-blue-900/10 opacity-70 hover:opacity-100'
                     }`}
                   >
@@ -752,7 +761,7 @@ export const ProductDetail: React.FC = () => {
             <div className="space-y-2 pt-3 border-t border-blue-900/10 dark:border-slate-800">
               <div className="flex items-center justify-between text-xs">
                 <span className={`font-extrabold ${isDark ? 'text-white' : 'text-[#003B73]'}`}>
-                  Cor selecionada: <span className="font-black text-[#006EDB]">{selectedColunaOption || 'Selecione a cor'}</span>
+                  Cor selecionada: <span className={`font-black ${isOutubroRosa ? 'text-[#FF2D78]' : 'text-[#006EDB]'}`}>{selectedColunaOption || 'Selecione a cor'}</span>
                 </span>
               </div>
 
@@ -806,13 +815,17 @@ export const ProductDetail: React.FC = () => {
                       onClick={() => handleSelectColorOption(colorOpt)}
                       className={`relative group rounded-xl border-2 p-1 transition-all cursor-pointer flex flex-col items-center justify-center bg-white dark:bg-slate-900 ${
                         isSelected
-                          ? 'border-[#006EDB] ring-4 ring-[#DDF1FF] shadow-sm'
+                          ? isOutubroRosa
+                            ? 'border-[#FF2D78] ring-4 ring-pink-100 dark:ring-pink-950/40 shadow-sm'
+                            : 'border-[#006EDB] ring-4 ring-[#DDF1FF] shadow-sm'
                           : isDark ? 'border-slate-800 hover:border-slate-700' : 'border-blue-900/10 hover:border-blue-900/30'
                       }`}
                       title={`Selecionar cor ${colorOpt}`}
                     >
                       {photoCount > 1 && (
-                        <span className="absolute -top-1 -right-1 bg-[#006EDB] text-white text-[8px] font-black px-1.5 py-0.2 rounded-full shadow-xs z-10">
+                        <span className={`absolute -top-1 -right-1 ${
+                          isOutubroRosa ? 'bg-[#FF2D78]' : 'bg-[#006EDB]'
+                        } text-white text-[8px] font-black px-1.5 py-0.2 rounded-full shadow-xs z-10`}>
                           {photoCount}
                         </span>
                       )}
@@ -820,11 +833,13 @@ export const ProductDetail: React.FC = () => {
                         {colorPhoto ? (
                           <img src={colorPhoto} alt={colorOpt} className="w-full h-full object-contain p-0.5" />
                         ) : (
-                          <span className="w-4 h-4 rounded-full bg-[#006EDB]" />
+                          <span className={`w-4 h-4 rounded-full ${isOutubroRosa ? 'bg-[#FF2D78]' : 'bg-[#006EDB]'}`} />
                         )}
                       </div>
                       <span className={`text-[10px] font-extrabold mt-1 px-0.5 truncate max-w-[58px] ${
-                        isSelected ? 'text-[#006EDB]' : isDark ? 'text-slate-300' : 'text-[#003B73]'
+                        isSelected
+                          ? isOutubroRosa ? 'text-[#FF2D78]' : 'text-[#006EDB]'
+                          : isDark ? 'text-slate-300' : 'text-[#003B73]'
                       }`}>
                         {colorOpt}
                       </span>
@@ -837,7 +852,9 @@ export const ProductDetail: React.FC = () => {
 
           {/* Descrição Detalhada & Especificações */}
           <div className="space-y-2 pt-3 border-t border-blue-900/10 dark:border-slate-800">
-            <h4 className="text-[11px] font-extrabold uppercase tracking-wider text-[#006EDB]">
+            <h4 className={`text-[11px] font-extrabold uppercase tracking-wider ${
+              isOutubroRosa ? 'text-[#BE185D]' : 'text-[#006EDB]'
+            }`}>
               Detalhes & Especificações do Modelo
             </h4>
             {(() => {
@@ -873,19 +890,28 @@ export const ProductDetail: React.FC = () => {
           }`}>
             {/* Banner Destacado do Saldão de Calçados ou Oferta Promocional */}
             {saldaoCalc.isSaldao ? (
-              <div className="p-3.5 rounded-2xl bg-gradient-to-r from-rose-500/15 via-amber-500/15 to-rose-500/15 border border-rose-500/30 text-rose-500 flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <Tag className="h-5 w-5 text-rose-500 shrink-0" />
+              <div className={`p-3.5 rounded-2xl ${
+                isOutubroRosa
+                  ? 'bg-gradient-to-r from-[#240316] via-[#3D0624] to-[#5E0938] border border-pink-500/30 text-white shadow-md shadow-pink-950/30'
+                  : 'bg-gradient-to-r from-[#011438] via-[#032158] to-[#052b6e] border border-blue-600/30 text-white shadow-md shadow-blue-950/30'
+              } flex items-center justify-between`}>
+                <div className="flex items-center space-x-2.5">
+                  <Tag className={`h-5 w-5 ${isOutubroRosa ? 'text-[#FF2D78]' : 'text-[#38BDF8]'} shrink-0`} />
                   <div>
-                    <div className="text-xs font-black uppercase tracking-wider text-rose-500">
-                      🔥 SALDÃO DE CALÇADOS - {saldaoCalc.discountPercent}% OFF
+                    <div className="text-xs font-black uppercase tracking-wider text-white flex items-center gap-1.5 flex-wrap">
+                      <span>🔥 SALDÃO DE CALÇADOS</span>
+                      <span className={isOutubroRosa ? 'text-[#FF75C3]' : 'text-[#FF7A00]'}>-{saldaoCalc.discountPercent}% OFF</span>
                     </div>
-                    <div className="text-[10px] text-slate-400 font-medium">
+                    <div className={`text-[10px] ${isOutubroRosa ? 'text-pink-100/90' : 'text-sky-100/80'} font-medium`}>
                       Estoque baixo (últimas unidades). Aproveite!
                     </div>
                   </div>
                 </div>
-                <span className="px-2 py-0.5 rounded-md bg-rose-500 text-white font-black text-[10px] uppercase">
+                <span className={`px-2.5 py-1 rounded-full ${
+                  isOutubroRosa
+                    ? 'bg-gradient-to-r from-[#FF2D78] via-[#E11D48] to-[#BE185D] shadow-pink-600/30'
+                    : 'bg-gradient-to-r from-[#FF4500] via-[#FF6000] to-[#FFA000] shadow-orange-600/30'
+                } text-white font-black text-[10px] uppercase tracking-tight shadow-md shrink-0`}>
                   -{saldaoCalc.discountPercent}%
                 </span>
               </div>
@@ -911,11 +937,19 @@ export const ProductDetail: React.FC = () => {
             {/* PAINEL DE PREÇO */}
             <div className="space-y-2.5">
               <div className="flex items-baseline space-x-2 flex-wrap">
-                <span className="text-3xl sm:text-4xl lg:text-4xl font-black tracking-tight text-[#003B73] dark:text-white">
+                <span className={`text-3xl sm:text-4xl lg:text-4xl font-black tracking-tight ${
+                  isOutubroRosa
+                    ? isDark ? 'text-pink-400' : 'text-[#BE185D]'
+                    : isDark ? 'text-white' : 'text-[#003B73]'
+                }`}>
                   R$ {precoVistaCalculado.toFixed(2).replace('.', ',')}
                 </span>
                 {saldaoCalc.isSaldao ? (
-                  <span className="text-[11px] font-extrabold text-white bg-rose-500 px-2.5 py-1 rounded-full shadow-xs">
+                  <span className={`text-[11px] font-extrabold text-white ${
+                    isOutubroRosa
+                      ? 'bg-gradient-to-r from-[#FF2D78] to-[#BE185D]'
+                      : 'bg-gradient-to-r from-[#FF4500] to-[#FFA000]'
+                  } px-2.5 py-1 rounded-full shadow-xs`}>
                     Saldão ({saldaoCalc.discountPercent}% OFF)
                   </span>
                 ) : precoVistaCalculado < p.price ? (
@@ -938,10 +972,18 @@ export const ProductDetail: React.FC = () => {
               {/* Tabela Resumo de Pagamento */}
               <div className="text-xs space-y-1.5 text-[#52708F] dark:text-slate-400 border-t pt-2.5 border-blue-900/10 dark:border-slate-800">
                 <div>
-                  • <strong>Cartão de Crédito:</strong> <span className="font-bold text-[#003B73] dark:text-slate-200">R$ {precoCartaoCalculado.toFixed(2).replace('.', ',')}</span> (em até 10x sem juros)
+                  • <strong>Cartão de Crédito:</strong> <span className={`font-bold ${
+                    isOutubroRosa
+                      ? isDark ? 'text-pink-300' : 'text-[#9D174D]'
+                      : isDark ? 'text-slate-200' : 'text-[#003B73]'
+                  }`}>R$ {precoCartaoCalculado.toFixed(2).replace('.', ',')}</span> (em até 10x sem juros)
                 </div>
                 <div>
-                  • <strong>Crediário da Loja:</strong> <span className="font-bold text-[#003B73] dark:text-slate-200">R$ {precoCrediarioCalculado.toFixed(2).replace('.', ',')}</span> (em até 6x sem juros no Carnê)
+                  • <strong>Crediário da Loja:</strong> <span className={`font-bold ${
+                    isOutubroRosa
+                      ? isDark ? 'text-pink-300' : 'text-[#9D174D]'
+                      : isDark ? 'text-slate-200' : 'text-[#003B73]'
+                  }`}>R$ {precoCrediarioCalculado.toFixed(2).replace('.', ',')}</span> (em até 6x sem juros no Carnê)
                 </div>
               </div>
             </div>
@@ -957,7 +999,9 @@ export const ProductDetail: React.FC = () => {
                   onClick={() => setSelectedDeliveryType('Entrega para Outras Cidades')}
                   className={`flex-1 py-2 px-3 rounded-xl font-extrabold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer ${
                     selectedDeliveryType !== 'Retirada na Loja'
-                      ? 'bg-white dark:bg-slate-800 text-[#0071E3] shadow-xs'
+                      ? isOutubroRosa
+                        ? 'bg-white dark:bg-slate-800 text-[#FF2D78] shadow-xs'
+                        : 'bg-white dark:bg-slate-800 text-[#0071E3] shadow-xs'
                       : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
                   }`}
                 >
@@ -1009,7 +1053,9 @@ export const ProductDetail: React.FC = () => {
                   Selecione a Numeração / Tamanho:
                 </label>
                 {selectedLinhaOption && (
-                  <span className="text-xs text-emerald-700 dark:text-emerald-400 font-extrabold flex items-center gap-1">
+                  <span className={`text-xs ${
+                    isOutubroRosa ? 'text-[#BE185D] dark:text-pink-300' : 'text-emerald-700 dark:text-emerald-400'
+                  } font-extrabold flex items-center gap-1`}>
                     <CheckCircle2 className="h-3.5 w-3.5" /> Tamanho {selectedLinhaOption}
                   </span>
                 )}
@@ -1027,9 +1073,13 @@ export const ProductDetail: React.FC = () => {
                       onClick={() => setSelectedLinhaOption(sizeOpt)}
                       className={`h-10 rounded-xl border text-xs font-black transition-all cursor-pointer flex items-center justify-center ${
                         isSelected
-                          ? 'bg-[#003B73] border-[#003B73] text-white shadow-md'
+                          ? isOutubroRosa
+                            ? 'bg-[#BE185D] border-[#BE185D] text-white shadow-md shadow-pink-600/30'
+                            : 'bg-[#003B73] border-[#003B73] text-white shadow-md'
                           : isDark
                           ? 'border-slate-800 text-slate-300 bg-slate-950 hover:border-slate-700'
+                          : isOutubroRosa
+                          ? 'border-pink-900/15 text-[#9D174D] bg-white hover:bg-[#FFF0F5]'
                           : 'border-blue-900/15 text-[#003B73] bg-white hover:bg-[#EEF8FF]'
                       }`}
                     >
@@ -1062,7 +1112,11 @@ export const ProductDetail: React.FC = () => {
             <div className="space-y-2.5 pt-2">
               <button
                 onClick={handleAddToCart}
-                className="w-full flex items-center justify-center space-x-2 py-3.5 px-6 bg-[#006EDB] hover:bg-[#00509E] active:scale-98 text-white font-black text-xs uppercase tracking-wider rounded-full shadow-md transition-all cursor-pointer"
+                className={`w-full flex items-center justify-center space-x-2 py-3.5 px-6 ${
+                  isOutubroRosa
+                    ? 'bg-gradient-to-r from-[#FF2D78] via-[#E11D48] to-[#BE185D] hover:from-[#E11D48] hover:to-[#9D174D] shadow-pink-600/25 hover:shadow-pink-600/35'
+                    : 'bg-[#006EDB] hover:bg-[#00509E] shadow-blue-600/20 hover:shadow-blue-600/30'
+                } active:scale-98 text-white font-black text-xs uppercase tracking-wider rounded-full shadow-md transition-all cursor-pointer`}
               >
                 <ShoppingBag className="h-4 w-4 stroke-[2.5]" />
                 <span>Adicionar à Sacola</span>
@@ -1070,7 +1124,11 @@ export const ProductDetail: React.FC = () => {
 
               <button
                 onClick={handleInstantBuy}
-                className="w-full flex items-center justify-center space-x-2 py-3.5 px-6 bg-[#003B73] hover:bg-[#00509E] active:scale-98 text-white font-black text-xs uppercase tracking-wider rounded-full shadow-md transition-all cursor-pointer"
+                className={`w-full flex items-center justify-center space-x-2 py-3.5 px-6 ${
+                  isOutubroRosa
+                    ? 'bg-[#3D0624] hover:bg-[#240316] text-white shadow-md'
+                    : 'bg-[#003B73] hover:bg-[#00509E] text-white shadow-md'
+                } active:scale-98 font-black text-xs uppercase tracking-wider rounded-full transition-all cursor-pointer`}
               >
                 <span>Comprar Agora</span>
                 <ArrowRight className="w-4 h-4 stroke-[2.5]" />
@@ -1079,9 +1137,11 @@ export const ProductDetail: React.FC = () => {
               {p.crediarioProprio && (
                 <button
                   onClick={() => setCurrentView('meu-crediario')}
-                  className="w-full py-2 px-3 text-center text-[11px] font-extrabold text-[#006EDB] hover:underline cursor-pointer block"
+                  className={`w-full py-2 px-3 text-center text-[11px] font-extrabold ${
+                    isOutubroRosa ? 'text-[#FF2D78]' : 'text-[#006EDB]'
+                  } hover:underline cursor-pointer block`}
                 >
-                  Simular Crediário Próprio em até 6x no Carnê →
+                  Consultar Carnês e Boletos do Crediário →
                 </button>
               )}
             </div>
@@ -1093,9 +1153,13 @@ export const ProductDetail: React.FC = () => {
       {/* PAINEL DE BENEFÍCIOS DO PRODUTO ESTILO APPLE */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-8">
         <div className={`p-6 rounded-3xl border text-center flex flex-col items-center space-y-2.5 ${
-          isDark ? 'bg-[#161617] border-white/10' : 'bg-[#f5f5f7] border-black/5'
+          isDark 
+            ? isOutubroRosa ? 'bg-[#1F0314]/70 border-pink-500/20' : 'bg-[#161617] border-white/10'
+            : isOutubroRosa ? 'bg-white border-pink-900/10 shadow-xs' : 'bg-[#f5f5f7] border-black/5'
         }`}>
-          <div className="p-3 rounded-full bg-[#0071e3]/10 text-[#0071e3]">
+          <div className={`p-3 rounded-full ${
+            isOutubroRosa ? 'bg-pink-100 dark:bg-pink-950/50 text-[#FF2D78]' : 'bg-[#0071e3]/10 text-[#0071e3]'
+          }`}>
             <Shield className="h-6 w-6" />
           </div>
           <h4 className={`text-sm font-bold ${isDark ? 'text-white' : 'text-[#1d1d1f]'}`}>Garantia de Qualidade</h4>
@@ -1103,9 +1167,13 @@ export const ProductDetail: React.FC = () => {
         </div>
 
         <div className={`p-6 rounded-3xl border text-center flex flex-col items-center space-y-2.5 ${
-          isDark ? 'bg-[#161617] border-white/10' : 'bg-[#f5f5f7] border-black/5'
+          isDark 
+            ? isOutubroRosa ? 'bg-[#1F0314]/70 border-pink-500/20' : 'bg-[#161617] border-white/10'
+            : isOutubroRosa ? 'bg-white border-pink-900/10 shadow-xs' : 'bg-[#f5f5f7] border-black/5'
         }`}>
-          <div className="p-3 rounded-full bg-[#0071e3]/10 text-[#0071e3]">
+          <div className={`p-3 rounded-full ${
+            isOutubroRosa ? 'bg-pink-100 dark:bg-pink-950/50 text-[#FF2D78]' : 'bg-[#0071e3]/10 text-[#0071e3]'
+          }`}>
             <Truck className="h-6 w-6" />
           </div>
           <h4 className={`text-sm font-bold ${isDark ? 'text-white' : 'text-[#1d1d1f]'}`}>Entrega Rápida e Segura</h4>
@@ -1113,9 +1181,13 @@ export const ProductDetail: React.FC = () => {
         </div>
 
         <div className={`p-6 rounded-3xl border text-center flex flex-col items-center space-y-2.5 ${
-          isDark ? 'bg-[#161617] border-white/10' : 'bg-[#f5f5f7] border-black/5'
+          isDark 
+            ? isOutubroRosa ? 'bg-[#1F0314]/70 border-pink-500/20' : 'bg-[#161617] border-white/10'
+            : isOutubroRosa ? 'bg-white border-pink-900/10 shadow-xs' : 'bg-[#f5f5f7] border-black/5'
         }`}>
-          <div className="p-3 rounded-full bg-[#0071e3]/10 text-[#0071e3]">
+          <div className={`p-3 rounded-full ${
+            isOutubroRosa ? 'bg-pink-100 dark:bg-pink-950/50 text-[#FF2D78]' : 'bg-[#0071e3]/10 text-[#0071e3]'
+          }`}>
             <RefreshCw className="h-6 w-6" />
           </div>
           <h4 className={`text-sm font-bold ${isDark ? 'text-white' : 'text-[#1d1d1f]'}`}>Troca Simplificada em 15 Dias</h4>

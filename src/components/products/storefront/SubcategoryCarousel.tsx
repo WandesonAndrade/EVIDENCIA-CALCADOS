@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Sparkles, ShoppingBag, Footprints, Luggage, Watch, Wallet, Heart, Shirt } from 'lucide-react';
 import { normalizeCategoryName, normalizeSubcategoryName } from '../../../services/moblinkCategoriesService';
+import { useApp } from '../../../context/AppContext';
 
 export interface SubcategoryItem {
   id: string;
@@ -112,6 +113,8 @@ export const SubcategoryCarousel: React.FC<SubcategoryCarouselProps> = ({
   title = 'Compre por Categoria',
   subtitle = 'Acesso rápido aos modelos e estilos mais procurados da loja.',
 }) => {
+  const { storeTheme } = useApp();
+  const isOutubroRosa = storeTheme === 'outubro-rosa';
   const carouselRef = useRef<HTMLDivElement | null>(null);
   const isDark = theme === 'dark';
   const [imgErrors, setImgErrors] = useState<Record<string, boolean>>({});
@@ -130,12 +133,10 @@ export const SubcategoryCarousel: React.FC<SubcategoryCarouselProps> = ({
   return (
     <div className="space-y-4">
       {/* Top Header com Botões de Navegação */}
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 border-b pb-3 border-blue-900/10 dark:border-white/10">
+      <div className={`flex flex-col sm:flex-row sm:items-end justify-between gap-3 border-b pb-3 ${
+        isOutubroRosa ? 'border-pink-900/15 dark:border-pink-500/20' : 'border-blue-900/10 dark:border-white/10'
+      }`}>
         <div>
-          <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-widest bg-[#DDF1FF] text-[#003B73] dark:bg-blue-900/30 dark:text-blue-200 border border-[#006EDB]/20 mb-1.5">
-            <Sparkles className="h-3 w-3 text-[#006EDB]" />
-            <span>Navegação Rápida</span>
-          </span>
           <h2 className={`text-2xl sm:text-3xl font-black tracking-tight ${isDark ? 'text-white' : 'text-[#003B73]'}`}>
             {title}
           </h2>
@@ -152,6 +153,8 @@ export const SubcategoryCarousel: React.FC<SubcategoryCarouselProps> = ({
             className={`p-2 rounded-full border transition-all cursor-pointer ${
               isDark
                 ? 'bg-slate-900 border-white/10 text-white hover:bg-slate-800'
+                : isOutubroRosa
+                ? 'bg-white border-pink-900/15 text-[#BE185D] hover:bg-pink-50 shadow-xs'
                 : 'bg-white border-blue-900/10 text-[#003B73] hover:bg-blue-50 shadow-xs'
             }`}
             title="Rolar para a esquerda"
@@ -164,6 +167,8 @@ export const SubcategoryCarousel: React.FC<SubcategoryCarouselProps> = ({
             className={`p-2 rounded-full border transition-all cursor-pointer ${
               isDark
                 ? 'bg-slate-900 border-white/10 text-white hover:bg-slate-800'
+                : isOutubroRosa
+                ? 'bg-white border-pink-900/15 text-[#BE185D] hover:bg-pink-50 shadow-xs'
                 : 'bg-white border-blue-900/10 text-[#003B73] hover:bg-blue-50 shadow-xs'
             }`}
             title="Rolar para a direita"
@@ -218,7 +223,9 @@ export const SubcategoryCarousel: React.FC<SubcategoryCarouselProps> = ({
               {/* Rótulo da Subcategoria */}
               <span
                 className={`text-xs sm:text-sm font-extrabold line-clamp-1 mt-2.5 transition-colors ${
-                  isDark ? 'text-slate-100 group-hover:text-blue-400' : 'text-[#003B73] group-hover:text-[#006EDB]'
+                  isDark
+                    ? isOutubroRosa ? 'text-slate-100 group-hover:text-pink-400' : 'text-slate-100 group-hover:text-blue-400'
+                    : isOutubroRosa ? 'text-[#003B73] group-hover:text-[#FF2D78]' : 'text-[#003B73] group-hover:text-[#006EDB]'
                 }`}
               >
                 {displayName}

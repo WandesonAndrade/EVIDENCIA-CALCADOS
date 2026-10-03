@@ -3,6 +3,7 @@ import { Product } from '../../../types';
 import { StorefrontProductCard } from './StorefrontProductCard';
 import { AnimatePresence } from 'motion/react';
 import { ShoppingBag, RefreshCw, X } from 'lucide-react';
+import { useApp } from '../../../context/AppContext';
 
 export interface StorefrontProductGridProps {
   products: Product[];
@@ -23,12 +24,14 @@ export const StorefrontProductGrid: React.FC<StorefrontProductGridProps> = ({
   onResetFilters,
   isLoading = false,
 }) => {
+  const { storeTheme } = useApp();
+  const isOutubroRosa = storeTheme === 'outubro-rosa';
   const isDark = theme === 'dark';
 
   if (isLoading) {
     return (
       <div className="py-20 flex flex-col items-center justify-center space-y-4">
-        <RefreshCw className="w-8 h-8 text-[#006EDB] animate-spin" />
+        <RefreshCw className={`w-8 h-8 ${isOutubroRosa ? 'text-[#FF2D78]' : 'text-[#006EDB]'} animate-spin`} />
         <p className="text-sm font-semibold text-slate-500">Carregando calçados...</p>
       </div>
     );
@@ -37,7 +40,11 @@ export const StorefrontProductGrid: React.FC<StorefrontProductGridProps> = ({
   if (products.length === 0) {
     return (
       <div className="py-16 text-center space-y-4 max-w-md mx-auto">
-        <div className="w-16 h-16 mx-auto rounded-3xl bg-blue-50 dark:bg-slate-800 flex items-center justify-center text-[#006EDB]">
+        <div className={`w-16 h-16 mx-auto rounded-3xl ${
+          isOutubroRosa 
+            ? 'bg-pink-100 dark:bg-pink-950/60 text-[#FF2D78]' 
+            : 'bg-blue-50 dark:bg-slate-800 text-[#006EDB]'
+        } flex items-center justify-center`}>
           <ShoppingBag className="w-8 h-8 stroke-[1.5]" />
         </div>
         <div className="space-y-1">
@@ -52,7 +59,11 @@ export const StorefrontProductGrid: React.FC<StorefrontProductGridProps> = ({
           <button
             type="button"
             onClick={onResetFilters}
-            className="inline-flex items-center space-x-1.5 px-4 py-2 rounded-full bg-[#006EDB] text-white text-xs font-bold hover:bg-[#00509E] transition-all shadow-xs cursor-pointer"
+            className={`inline-flex items-center space-x-1.5 px-4 py-2 rounded-full ${
+              isOutubroRosa
+                ? 'bg-gradient-to-r from-[#FF2D78] via-[#E11D48] to-[#BE185D] hover:from-[#E11D48] hover:to-[#9D174D] shadow-pink-600/25'
+                : 'bg-[#006EDB] hover:bg-[#00509E] shadow-blue-600/20'
+            } text-white text-xs font-bold transition-all shadow-xs cursor-pointer`}
           >
             <X className="w-3.5 h-3.5" />
             <span>Limpar filtros de busca</span>

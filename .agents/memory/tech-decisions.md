@@ -137,5 +137,23 @@ updated: 2026-09-18
 - **Função Canônica `isSubcategoryMatch` (`categoryNavigationUtils.ts`):** Lematização de plural/singular (`toSingularStem`), remoção de acentos e bloqueio estrito de strings vazias para eliminar o bug de `cleanSub.includes("") === true`.
 - **Navegação Contínua em `CategoryPage.tsx`:** Pílulas de subcategorias permanecem ativas na categoria pai com a subcategoria selecionada destacada com badge preenchido.
 
+## 23. Mega Menu de Públicos & Cards de Subcategorias com Foto Real (`AudienceMegaMenu.tsx`)
+- **Arquitetura Desacoplada por Audiência:** Componente unificado para navegação em Feminino, Masculino e Infantil integrado ao `Header.tsx`.
+- **Cards Pastel com Miniatura de Produto:** Seleciona dinamicamente a primeira foto real em estoque para cada subcategoria e desenha blob em tom pastel semântico com ícone temático e contagem de modelos ativos.
+
+## 24. Banner do Saldão Vetorial 3D em Código Puro SVG (`SaldaoBanner.tsx`)
+- **Eliminação de Assets Rásicos Pré-renderizados:** Substituição de PNGs estáticos pesados por renderização 100% vetorial de calçado esportivo 3D com solado em camadas, pódio e sacolas de compra.
+- **Iluminação Neon & Responsividade:** Gradientes CSS de alta intensidade com halo solar e micropartículas leves, mantendo nitidez absoluta em retina displays e reduzindo consumo de banda.
+
+## 25. Especialização do Crediário Próprio para Liquidação de Carnês ERP MobLink (`MeuCrediario.tsx`)
+- **Foco Estrito no Autoatendimento Financeiro:** Desativação das antigas opções de requisição de limite e importação de carrinho em favor de consulta de parcelas e liquidação de carnês emitidos no MobLink.
+- **Automação por CPF:** Carregamento transparente de faturas do cliente autenticado via CPF do perfil e integração nativa com webhook de baixa instantânea via PIX.
+
+## 26. Gerenciamento Central de Temas e Propagação Reativa em Nuvem (`themeService.ts`, `AppContext.tsx`)
+- **Fonte Única de Verdade:** Coleção `settings/theme` no Firestore com fallback em `localStorage`.
+- **Sincronização em Tempo Real (`onSnapshot`):** Mudança imediata de tema em todas as instâncias e dispositivos conectados sem recarregar a aplicação.
+- **Isolamento de Estilos:** Flag global `isPinkTheme` propagada via `useApp()` que comuta variáveis e classes utilitárias da paleta de cores (Azul Evidência vs Outubro Rosa) nos componentes essenciais da vitrine, cards, bento grid e detalhes do produto.
+
+
 
 

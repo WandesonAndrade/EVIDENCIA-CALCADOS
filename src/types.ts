@@ -510,3 +510,45 @@ export interface ICreditOrder {
   analyzedAt?: string;
   analyzedBy?: string;
 }
+
+export type StoreThemeId = 'default' | 'outubro-rosa';
+
+export interface StoreThemeConfig {
+  activeTheme: StoreThemeId;
+  updatedAt: string;
+}
+
+export interface ThemeDefinition {
+  id: StoreThemeId;
+  name: string;
+  badge: string;
+  description: string;
+  primaryColor: string;
+  secondaryColor: string;
+  accentColor: string;
+  previewBg: string;
+}
+
+export const AVAILABLE_STORE_THEMES: ThemeDefinition[] = [
+  {
+    id: 'default',
+    name: 'Tema Padrão (Azul Evidência)',
+    badge: 'Identidade Clássica',
+    description: 'Visual oficial da loja com azul marinho profundo (#001736 / #002554), azul ciano neon (#0071E3) e acabamento elegante.',
+    primaryColor: '#002554',
+    secondaryColor: '#0071E3',
+    accentColor: '#FF7A00',
+    previewBg: 'linear-gradient(135deg, #001838 0%, #00244F 50%, #0052A3 100%)',
+  },
+  {
+    id: 'outubro-rosa',
+    name: 'Outubro Rosa',
+    badge: 'Campanha de Conscientização',
+    description: 'Visual especial para a campanha com tons vinho escuro (#240316 / #2C0317), magenta e rosa neon vibrante (#FF2D78).',
+    primaryColor: '#2C0317',
+    secondaryColor: '#FF2D78',
+    accentColor: '#E11D48',
+    previewBg: 'linear-gradient(135deg, #240316 0%, #450727 50%, #780A41 100%)',
+  },
+];
+

@@ -65,8 +65,9 @@ export const ProductPriceDisplay: React.FC<ProductPriceDisplayProps> = ({
   showInstallments = true,
   compact = false,
 }) => {
-  const { saldaoConfig, promotions = [] } = useApp();
+  const { saldaoConfig, promotions = [], storeTheme } = useApp();
   const isDark = theme === 'dark';
+  const isOutubroRosa = storeTheme === 'outubro-rosa';
 
   const {
     mainPrice,
@@ -83,7 +84,13 @@ export const ProductPriceDisplay: React.FC<ProductPriceDisplayProps> = ({
     return (
       <div className="space-y-0.5">
         <div className="flex items-baseline gap-1.5 flex-wrap">
-          <span className="font-mono font-black text-sm text-[#003B73] dark:text-blue-400">
+          <span
+            className={`font-mono font-black text-sm ${
+              isOutubroRosa
+                ? isDark ? 'text-pink-400' : 'text-[#BE185D]'
+                : 'text-[#003B73] dark:text-blue-400'
+            }`}
+          >
             R$ {pixPrice}
           </span>
           {originalPrice && (
@@ -105,11 +112,13 @@ export const ProductPriceDisplay: React.FC<ProductPriceDisplayProps> = ({
         <div className="flex items-center space-x-1.5 flex-wrap">
           <span
             className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md border ${
-              isSaldao
-                ? 'text-rose-800 dark:text-rose-300 bg-rose-100 dark:bg-rose-950/80 border-rose-300/50'
-                : applicablePromo
-                  ? 'text-amber-900 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/80 border-amber-300/50'
-                  : 'text-emerald-800 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/80 border-emerald-300/50'
+              isOutubroRosa
+                ? 'text-[#9D174D] dark:text-pink-300 bg-pink-100 dark:bg-pink-950/80 border-pink-300/60'
+                : isSaldao
+                  ? 'text-rose-800 dark:text-rose-300 bg-rose-100 dark:bg-rose-950/80 border-rose-300/50'
+                  : applicablePromo
+                    ? 'text-amber-900 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/80 border-amber-300/50'
+                    : 'text-emerald-800 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/80 border-emerald-300/50'
             }`}
           >
             {isSaldao
@@ -125,7 +134,13 @@ export const ProductPriceDisplay: React.FC<ProductPriceDisplayProps> = ({
           )}
         </div>
         <div className="flex items-baseline space-x-1.5">
-          <span className={`text-2xl sm:text-3xl font-black tracking-tight ${isDark ? 'text-white' : 'text-[#003B73]'}`}>
+          <span
+            className={`text-2xl sm:text-3xl font-black tracking-tight ${
+              isOutubroRosa
+                ? isDark ? 'text-pink-400' : 'text-[#BE185D]'
+                : isDark ? 'text-white' : 'text-[#003B73]'
+            }`}
+          >
             R$ {pixPrice}
           </span>
         </div>
@@ -133,8 +148,27 @@ export const ProductPriceDisplay: React.FC<ProductPriceDisplayProps> = ({
 
       {showInstallments && (
         <p className="text-xs text-[#52708F] font-medium pt-0.5">
-          ou <strong className={isDark ? 'text-slate-200' : 'text-[#003B73]'}>R$ {mainPrice.toFixed(2).replace('.', ',')}</strong> em até{' '}
-          <strong className={isDark ? 'text-slate-200' : 'text-[#003B73]'}>{parcelas}x de R$ {valorParcela}</strong> s/ juros
+          ou{' '}
+          <strong
+            className={
+              isOutubroRosa
+                ? isDark ? 'text-pink-300' : 'text-[#9D174D]'
+                : isDark ? 'text-slate-200' : 'text-[#003B73]'
+            }
+          >
+            R$ {mainPrice.toFixed(2).replace('.', ',')}
+          </strong>{' '}
+          em até{' '}
+          <strong
+            className={
+              isOutubroRosa
+                ? isDark ? 'text-pink-300' : 'text-[#9D174D]'
+                : isDark ? 'text-slate-200' : 'text-[#003B73]'
+            }
+          >
+            {parcelas}x de R$ {valorParcela}
+          </strong>{' '}
+          s/ juros
         </p>
       )}
     </div>

@@ -1,6 +1,6 @@
 import { Product } from '../../../types';
 import { normalizeSubcategoryName } from '../../../services/moblinkCategoriesService';
-import { hasProductValidPhoto } from '../../../utils/photoUtils';
+import { hasProductValidPhoto, getProductCoverPhoto } from '../../../utils/photoUtils';
 import { extractClassificacaoCategoria, isIgnoredClassification } from '../../../services/moblinkProductsService';
 
 export type AudienceKey = 'feminino' | 'masculino' | 'infantil';
@@ -10,6 +10,7 @@ export interface AudienceSubcategoryItem {
   slug: string;
   count: number;
   category: string;
+  image?: string;
 }
 
 export interface AudienceMetadata {
@@ -28,27 +29,27 @@ export const AUDIENCE_CONFIGS: Record<AudienceKey, AudienceMetadata> = {
     label: 'Feminino',
     title: 'Subcategorias Femininas',
     collectionBadge: 'COLEÇÃO FEMININA',
-    subtitle: 'Subcategorias cadastradas com produtos disponíveis e foto na loja',
-    ctaText: 'Explorar Tudo FEMININO',
-    bannerGradient: 'from-[#002850] to-[#003e92]',
+    subtitle: 'Descubra nossas subcategorias e encontre o estilo perfeito para você.',
+    ctaText: 'Explorar Tudo Feminino',
+    bannerGradient: 'from-[#002554] via-[#003B73] to-[#0055A5]',
   },
   masculino: {
     key: 'masculino',
     label: 'Masculino',
     title: 'Subcategorias Masculinas',
     collectionBadge: 'COLEÇÃO MASCULINA',
-    subtitle: 'Subcategorias cadastradas com produtos disponíveis e foto na loja',
-    ctaText: 'Explorar Tudo MASCULINO',
-    bannerGradient: 'from-[#002244] to-[#003875]',
+    subtitle: 'Descubra nossas subcategorias e encontre os modelos ideais para você.',
+    ctaText: 'Explorar Tudo Masculino',
+    bannerGradient: 'from-[#001E3D] via-[#003366] to-[#004C99]',
   },
   infantil: {
     key: 'infantil',
     label: 'Infantil & Bebê',
     title: 'Subcategorias Infantis',
     collectionBadge: 'COLEÇÃO INFANTIL & BEBÊ',
-    subtitle: 'Subcategorias cadastradas com produtos disponíveis e foto na loja',
-    ctaText: 'Explorar Tudo INFANTIL',
-    bannerGradient: 'from-[#002d5a] to-[#004a80]',
+    subtitle: 'Conforto, diversão e estilo para acompanhar cada passo dos pequenos.',
+    ctaText: 'Explorar Tudo Infantil',
+    bannerGradient: 'from-[#00224D] via-[#003875] to-[#0059B3]',
   },
 };
 
@@ -439,7 +440,7 @@ export function extractAudienceSubcategories(
 ): AudienceSubcategoryItem[] {
   if (!products || products.length === 0) return [];
 
-  const subMap = new Map<string, { name: string; count: number; category: string }>();
+  const subMap = new Map<string, { name: string; count: number; category: string; image?: string }>();
 
   products.forEach((prod) => {
     // 1. Visibilidade na loja
@@ -467,11 +468,15 @@ export function extractAudienceSubcategories(
     if (key === 'FEMININO' || key === 'MASCULINO' || key === 'INFANTIL' || key === 'GERAL' || key.includes('SEM CLASSIFICA')) return;
 
     const catName = prod.category || prod.nome_grupo || 'Calçados';
+    const coverPhoto = getProductCoverPhoto(prod);
     const existing = subMap.get(key);
     if (existing) {
       existing.count += 1;
+      if (!existing.image && coverPhoto) {
+        existing.image = coverPhoto;
+      }
     } else {
-      subMap.set(key, { name: normName, count: 1, category: catName });
+      subMap.set(key, { name: normName, count: 1, category: catName, image: coverPhoto });
     }
   });
 
