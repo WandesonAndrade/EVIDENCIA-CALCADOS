@@ -1062,4 +1062,96 @@ O Dashboard Financeiro (`FinancialDashboard.tsx`) no `AdminPanel.tsx` (aba `fina
 6. **Calculadora de Frete (`ShippingCalculator.tsx`) e Busca ao Vivo (`HeaderLiveSearch.tsx`)**:
    - Ícones de caminhão, raio e foco dos inputs em `#EC4899`.
 
+---
+
+## 43. Alinhamento Responsivo e Correção de Largura em Dispositivos Móveis (Mobile Viewport & 100% Width)
+
+### A. Diagnóstico da Falha Visual em Celulares
+- Em telas mobile (360px a 430px de largura), o layout da vitrine apresentava um desalinhamento acentuado à esquerda: o cabeçalho, o banner Hero, a barra de benefícios e a vitrine ocupavam apenas ~80% da tela, deixando uma coluna vazia (~20% da largura) na lateral direita exibindo o gradiente de fundo do `body`.
+- Enquanto o conteúdo parecia espremido, o botão flutuante de atendimento do WhatsApp (`FloatingAssistant.tsx`) ficava posicionado na borda direita real do aparelho, comprovando que o canvas do documento estava sendo expandido além do limite da tela física (viewport overflow).
+
+### B. Causas Raiz Identificadas
+1. **Ausência de Contenção Estrita no Viewport Global (`index.css` e `App.tsx`)**:
+   - As tags `html`, `body` e `#root` não possuíam `overflow-x: hidden` e `max-width: 100vw` forçados, permitindo que elementos com larguras fixas ou textos longos expandissem a largura horizontal do documento.
+   - O elemento de iluminação ambiente (`w-[1400px]`) no topo de `App.tsx` não tinha limite de largura relativa e forçava a largura do canvas no WebKit/Safari mobile.
+2. **Textos Rígidos com `whitespace-nowrap` sem Quebra**:
+   - O título do `SaldaoBanner.tsx` possuía a classe `whitespace-nowrap`, ocupando ~412px de largura e ultrapassando a largura de celulares comuns (360px-390px).
+3. **Links e Rodapés sem Quebra de Linha Flexível**:
+   - O rodapé (`Footer.tsx`) mantinha a linha de copyright e links institucionais em uma única linha rígida (`space-x-4`), excedendo a largura da tela em celulares menores.
+4. **Falta de `w-full` Explicito nos Containers Flex**:
+   - Vários containers do `Header.tsx`, `Hero.tsx` e `ProductList.tsx` dependiam de largura implícita, que ficava presa à largura inicial antes da expansão do canvas.
+5. **Logo e Ícones do Topo com Espaçamento Rígido**:
+   - O logo da marca (`BrandLogo.tsx`) e os ícones de utilidade do cabeçalho tinham espaçamentos e fontes que colidiam em telas de 360px.
+
+### C. Solução e Melhorias Implementadas
+1. **Contenção Global no `src/index.css`**:
+   - Adicionadas regras estritas de viewport:
+     ```css
+     html { width: 100%; max-width: 100vw; overflow-x: hidden; box-sizing: border-box; }
+     body { width: 100%; max-width: 100vw; overflow-x: hidden; position: relative; margin: 0; padding: 0; }
+     #root { width: 100%; max-width: 100%; overflow-x: hidden; position: relative; min-height: 100vh; }
+     ```
+2. **Blindagem do Layout Raiz (`src/App.tsx`)**:
+   - Container principal atualizado para `min-h-screen w-full max-w-full overflow-x-hidden`.
+   - Iluminação ambiente com `max-w-full pointer-events-none`.
+   - Elementos `<main>` e containers internos com `w-full max-w-full`.
+3. **Cabeçalho Responsivo Sólido (`src/components/Header.tsx` e `src/components/BrandLogo.tsx`)**:
+   - Header envolvido com `w-full` e preenchimento lateral adaptativo `px-3 sm:px-6`.
+   - Espaçamento entre ícones ajustado de rígido para responsivo (`space-x-2 sm:space-x-5 lg:space-x-6 shrink-0`).
+   - `BrandLogo.tsx` atualizado com tipografia fluida (`text-xl sm:text-2xl md:text-3xl`) para garantir que o logo nunca empurre os ícones para fora da tela em smartphones.
+4. **Hero Banner Fluido e Otimizado (`src/components/Hero.tsx`)**:
+   - Margens externas adaptadas para `mx-3 sm:mx-6 lg:mx-8 my-3 sm:my-4` com altura mínima proporcional (`min-h-[460px] sm:min-h-[520px]`).
+   - Padding interno do texto ajustado para `p-5 sm:p-10 lg:p-12`.
+   - Setas laterais de navegação ocultadas no mobile (`hidden sm:flex`), eliminando interferência com os textos e o botão CTA do banner.
+5. **Correção do Título do Saldão (`src/components/SaldaoBanner.tsx`)**:
+   - Remoção de `whitespace-nowrap` no título principal, substituído por `flex flex-wrap items-center gap-1.5 sm:gap-2.5` e tamanho de fonte responsivo `text-lg sm:text-2xl md:text-3xl`.
+6. **Barra de Benefícios e Vitrine (`src/components/ProductList.tsx`)**:
+   - Container principal atualizado com `w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 overflow-hidden`.
+   - Barra de benefícios com `w-full`, padding `p-3.5 sm:p-6`, cantos arredondados responsivos `rounded-2xl sm:rounded-3xl` e espaçamento interno adaptativo.
+7. **Rodapé com Quebra Automática (`src/components/Footer.tsx`)**:
+   - Linha de copyright e links institucionais com `flex flex-wrap items-center justify-center gap-x-3 sm:gap-x-4 gap-y-1.5 w-full text-center sm:text-left`, eliminando o overflow de 394px no mobile.
+
+---
+
+## 44. Otimização Cirúrgica para Dispositivos Móveis Ultracompactos (Larguras < 385px)
+
+### A. Contexto e Motivação
+- Dispositivos populares com telas de 360px a 375px (como Galaxy A Series, Motorola Moto G, iPhone SE, iPhone 12/13 Mini) possuem espaço horizontal extremamente restrito (cerca de 336px a 351px úteis com margens laterais).
+- Em grids de 2 colunas, cada card de produto dispõe de apenas ~160px a 165px de largura. Qualquer espaçamento interno ou tamanho de fonte rígido pode comprimir fotos de produtos, quebrar rótulos de preços ou criar alturas desiguais.
+
+### B. Melhorias Específicas Implementadas
+1. **Logo e Topo Ultracompactos (`BrandLogo.tsx` e `Header.tsx`)**:
+   - Tipografia do logo com escala fluida: título `text-[17px] min-[390px]:text-xl sm:text-2xl`, subtítulo `text-xs min-[390px]:text-sm sm:text-lg` e tagline `text-[0.44rem] min-[390px]:text-[0.52rem]`.
+   - Botão do menu sanduíche mobile com padding `p-1 min-[390px]:p-1.5` e ícone `h-4.5 w-4.5 min-[390px]:h-5`.
+   - Ícones de utilidade à direita com espaçamento adaptativo `space-x-1 min-[390px]:space-x-2` e ícones `h-5 w-5 sm:h-6 sm:w-6`, eliminando qualquer colisão horizontal.
+   - Pílulas de categoria no topo (`Header.tsx`): padding `py-1.5 px-2.5 min-[390px]:px-3.5` e texto `text-[11px] min-[390px]:text-xs`.
+2. **Hero Banner Fluido (`Hero.tsx`)**:
+   - Margens externas `mx-2.5 min-[390px]:mx-3 sm:mx-6`, padding interno `p-4 min-[390px]:p-5 sm:p-10`.
+   - Título adaptado para `text-2xl min-[390px]:text-3xl sm:text-5xl lg:text-[52px]`.
+   - Descrição com `line-clamp-3 sm:line-clamp-none` e texto `text-[11px] min-[390px]:text-xs`.
+   - Botões CTAs com `text-[11px] min-[390px]:text-xs px-4 min-[390px]:px-5 sm:px-6 py-2.5 min-[390px]:py-3`.
+   - Rodapé de confiança integrado: grid com `gap-2 min-[390px]:gap-2.5`, ícones `h-3.5 w-3.5 min-[390px]:h-4` e textos `text-[9.5px]` / `text-[7.5px]`.
+3. **Barra de Vantagens e Confiança Harmonizada (`ProductList.tsx`)**:
+   - Padronizadas as 4 vantagens (Entrega, Parcelamento, Troca, WhatsApp) com:
+     - Container: `p-2.5 min-[390px]:p-3.5 sm:p-6` e `gap-2 min-[390px]:gap-2.5 sm:gap-6`.
+     - Cada card: `space-x-2 min-[390px]:space-x-2.5 p-1 min-[390px]:p-1.5`.
+     - Ícones: `p-2 min-[390px]:p-2.5` com dimensões `h-4.5 w-4.5 sm:h-5 sm:w-5`.
+     - Títulos: `text-[11px] min-[390px]:text-xs sm:text-sm font-extrabold`.
+     - Subtítulos: `text-[9px] min-[390px]:text-[10px] sm:text-[11px]`.
+4. **Bento Grid de Lançamentos e Coleções (`ProductList.tsx`)**:
+   - Banner principal: `p-5 min-[390px]:p-7 sm:p-10 min-h-[290px] sm:min-h-[340px]`, título `text-xl min-[390px]:text-2xl sm:text-3xl` e botão `text-[11px] min-[390px]:text-xs px-5 min-[390px]:px-6 py-2.5 min-[390px]:py-3.5`.
+   - Banners menores: `p-5 min-[390px]:p-7 sm:p-8 min-h-[150px] sm:min-h-[165px]`, título `text-base min-[390px]:text-lg sm:text-xl` e botão `text-[10px] min-[390px]:text-[11px] px-4 min-[390px]:px-5 py-2 min-[390px]:py-2.5`.
+5. **Cards de Produto da Vitrine (`StorefrontProductCard.tsx` + Atomics)**:
+   - Moldura da imagem: padding reduzido para `p-3.5 min-[390px]:p-5 sm:p-6`, dando maior destaque visual ao calçado.
+   - Badges de canto: `top-2 min-[390px]:top-2.5 left-2 min-[390px]:left-2.5` com padding `px-2 min-[390px]:px-2.5 py-0.5 min-[390px]:py-1 text-[9px] min-[390px]:text-[10px]`.
+   - Botão de favorito: `top-2.5 right-2.5 p-1.5 min-[390px]:p-2` com ícone `h-3.5 w-3.5 sm:h-4 sm:w-4`.
+   - Área textual: padding `p-3 min-[390px]:p-4 sm:p-5`, espaçamento `space-y-2 min-[390px]:space-y-3` e título `text-xs min-[390px]:text-sm min-h-[32px] min-[390px]:min-h-[40px]`.
+   - Preço Pix: `text-xl min-[390px]:text-2xl sm:text-3xl`, badge de desconto `text-[9px] min-[390px]:text-[10px]` e linha de parcelamento `text-[10.5px] min-[390px]:text-xs`.
+   - Botão "Comprar": `py-2 min-[390px]:py-2.5 px-3 min-[390px]:px-4 text-[11px] min-[390px]:text-xs`.
+6. **Grid e Carrossel de Subcategorias (`StorefrontProductGrid.tsx` e `SubcategoryCarousel.tsx`)**:
+   - Espaçamento do grid ajustado para `gap-2.5 min-[390px]:gap-3.5 sm:gap-6`, ganhando 4px úteis de largura por card.
+   - Círculos de subcategorias com diâmetro `w-[72px] h-[72px] min-[390px]:w-20 min-[390px]:h-20` e espaçamento horizontal `space-x-3 min-[390px]:space-x-4`.
+
+
+
 

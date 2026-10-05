@@ -14,20 +14,20 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({ className = '', size = 'md
   const isWhiteLogo = variant === 'white' || isDark;
 
   const titleSizeClass = size === 'sm' 
-    ? 'text-xl sm:text-2xl' 
+    ? 'text-base min-[390px]:text-lg sm:text-2xl' 
     : size === 'lg' 
-    ? 'text-3xl sm:text-4xl' 
-    : 'text-2xl sm:text-3xl';
+    ? 'text-2xl min-[390px]:text-3xl sm:text-4xl' 
+    : 'text-[17px] min-[390px]:text-xl sm:text-2xl md:text-3xl';
 
   const subtitleSizeClass = size === 'sm' 
-    ? 'text-sm sm:text-base' 
+    ? 'text-[11px] min-[390px]:text-xs sm:text-base' 
     : size === 'lg' 
-    ? 'text-xl sm:text-2xl' 
-    : 'text-lg sm:text-xl';
+    ? 'text-lg min-[390px]:text-xl sm:text-2xl' 
+    : 'text-xs min-[390px]:text-sm sm:text-lg md:text-xl';
 
   const taglineSizeClass = size === 'sm' 
-    ? 'text-[0.55rem] px-2 py-0.2' 
-    : 'text-[0.6rem] sm:text-[0.65rem] px-2.5 py-0.5';
+    ? 'text-[0.45rem] px-1.5 py-0.2' 
+    : 'text-[0.44rem] min-[390px]:text-[0.52rem] sm:text-[0.65rem] px-1.5 min-[390px]:px-2 sm:px-2.5 py-0.5';
 
   return (
     <motion.div

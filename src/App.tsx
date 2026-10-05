@@ -176,18 +176,18 @@ const AppContent: React.FC = () => {
 
 
   return (
-    <div className={`min-h-screen transition-colors duration-300 font-sans flex flex-col justify-between selection:bg-[#0071e3] selection:text-white relative ${
+    <div className={`min-h-screen w-full max-w-full overflow-x-hidden transition-colors duration-300 font-sans flex flex-col justify-between selection:bg-[#0071e3] selection:text-white relative ${
       theme === 'dark' 
         ? 'bg-[#050b18] text-slate-100 dark' 
         : 'bg-transparent text-slate-900 antialiased'
     }`}>
       {/* Luz ambiente de estúdio sutil para o topo do projeto */}
       {theme !== 'dark' && !isAdminView && (
-        <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
-          <div className="absolute -top-40 left-1/2 -translate-x-1/2 w-[1400px] h-[700px] bg-gradient-to-b from-[#0056b3]/15 via-[#003e92]/5 to-transparent rounded-full blur-3xl" />
+        <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden max-w-full">
+          <div className="absolute -top-40 left-1/2 -translate-x-1/2 w-[1400px] max-w-[1400px] h-[700px] bg-gradient-to-b from-[#0056b3]/15 via-[#003e92]/5 to-transparent rounded-full blur-3xl pointer-events-none" />
         </div>
       )}
-      <div className="relative z-10">
+      <div className="relative z-10 w-full max-w-full">
         {!isCheckoutView && <Header />}
         
         {showIncompleteWarning && !isCheckoutView && (
@@ -211,7 +211,7 @@ const AppContent: React.FC = () => {
           </div>
         )}
 
-        <main className={`${isCheckoutView ? '' : 'pb-12'} animate-fade-in`}>
+        <main className={`w-full max-w-full ${isCheckoutView ? '' : 'pb-12'} animate-fade-in`}>
           <Suspense fallback={<LoadingSpinner fullScreen />}>
             {renderActiveView()}
           </Suspense>

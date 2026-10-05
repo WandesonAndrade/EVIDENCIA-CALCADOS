@@ -106,7 +106,7 @@ const StorefrontProductCardComponent: React.FC<StorefrontProductCardProps> = ({
       exit={{ opacity: 0, scale: 0.95 }}
       whileHover={{ y: -8 }}
       transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
-      className={`group relative flex flex-col justify-between h-full rounded-3xl border transition-all duration-300 overflow-hidden cursor-pointer ${
+      className={`group relative flex flex-col justify-between h-full rounded-2xl sm:rounded-3xl border transition-all duration-300 overflow-hidden cursor-pointer ${
         isDark
           ? isOutubroRosa
             ? 'bg-[#101828]/95 border-pink-500/15 text-white hover:border-[#EC4899]/60 hover:shadow-2xl hover:shadow-pink-950/80 backdrop-blur-md'
@@ -119,7 +119,7 @@ const StorefrontProductCardComponent: React.FC<StorefrontProductCardProps> = ({
     >
       {/* Moldura da Foto do Produto com Efeitos de Profundidade */}
       <div
-        className={`relative aspect-square w-full overflow-hidden p-6 flex items-center justify-center border-b transition-all duration-500 ${
+        className={`relative aspect-square w-full overflow-hidden p-3.5 min-[390px]:p-5 sm:p-6 flex items-center justify-center border-b transition-all duration-500 ${
           isDark
             ? isOutubroRosa
               ? 'bg-gradient-to-b from-[#420626] to-[#101828] border-pink-500/10 group-hover:from-[#540832] group-hover:to-[#181124]'
@@ -149,7 +149,7 @@ const StorefrontProductCardComponent: React.FC<StorefrontProductCardProps> = ({
               e.stopPropagation();
               onToggleFavorite(product.id);
             }}
-            className={`absolute top-3.5 right-3.5 p-2 rounded-full border transition-all duration-300 z-10 cursor-pointer ${
+            className={`absolute top-2.5 right-2.5 p-1.5 min-[390px]:p-2 rounded-full border transition-all duration-300 z-10 cursor-pointer ${
               isFavorite
                 ? 'bg-rose-500 border-rose-500 text-white shadow-md shadow-rose-500/30 scale-105'
                 : isDark
@@ -158,7 +158,7 @@ const StorefrontProductCardComponent: React.FC<StorefrontProductCardProps> = ({
             }`}
             title={isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
           >
-            <Heart className={`w-4 h-4 ${isFavorite ? 'fill-white' : ''}`} />
+            <Heart className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isFavorite ? 'fill-white' : ''}`} />
           </button>
         )}
 
@@ -213,17 +213,17 @@ const StorefrontProductCardComponent: React.FC<StorefrontProductCardProps> = ({
       </div>
 
       {/* Informações do Produto */}
-      <div className="p-4 sm:p-5 flex flex-col justify-between flex-1 space-y-3">
+      <div className="p-3 min-[390px]:p-4 sm:p-5 flex flex-col justify-between flex-1 space-y-2 min-[390px]:space-y-3">
         <div className="space-y-1.5">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-[10px] font-black uppercase tracking-widest text-[#52708F] dark:text-slate-400">
+          <div className="flex items-center justify-between gap-1.5 min-[390px]:gap-2">
+            <span className="text-[9.5px] min-[390px]:text-[10px] font-black uppercase tracking-widest text-[#52708F] dark:text-slate-400 truncate">
               {product.category || 'Evidência Calçados'}
             </span>
 
             {/* Selo Compacto de Grade para Mobile (sem hover) */}
             {availableSizes.length > 0 && (
               <span
-                className={`sm:hidden text-[9px] font-bold px-2 py-0.5 rounded-full border ${
+                className={`sm:hidden text-[8.5px] min-[390px]:text-[9px] font-bold px-1.5 min-[390px]:px-2 py-0.5 rounded-full border shrink-0 ${
                   isOutubroRosa
                     ? 'bg-pink-50 dark:bg-pink-950/60 text-[#BE185D] dark:text-pink-300 border-pink-200/60 dark:border-pink-800/40'
                     : 'bg-blue-50 dark:bg-blue-950/60 text-[#006EDB] dark:text-blue-300 border-blue-200/50 dark:border-blue-800/40'
@@ -238,7 +238,7 @@ const StorefrontProductCardComponent: React.FC<StorefrontProductCardProps> = ({
 
           {/* Título com transição de cor suave */}
           <h3
-            className={`text-sm font-black tracking-tight line-clamp-2 min-h-[40px] leading-snug transition-colors ${
+            className={`text-xs min-[390px]:text-sm font-black tracking-tight line-clamp-2 min-h-[32px] min-[390px]:min-h-[40px] leading-snug transition-colors ${
               isDark
                 ? isOutubroRosa
                   ? 'text-slate-100 group-hover:text-pink-400'
@@ -256,11 +256,11 @@ const StorefrontProductCardComponent: React.FC<StorefrontProductCardProps> = ({
         </div>
 
         {/* Botão Comprar com Micro-animação */}
-        <div className="pt-1">
+        <div className="pt-0.5 sm:pt-1">
           <button
             type="button"
             onClick={handleClick}
-            className={`group/btn w-full py-2.5 px-4 rounded-full active:scale-[0.98] text-white text-xs font-black tracking-wider transition-all duration-300 shadow-md hover:shadow-lg flex items-center justify-center space-x-2 cursor-pointer ${
+            className={`group/btn w-full py-2 min-[390px]:py-2.5 px-3 min-[390px]:px-4 rounded-full active:scale-[0.98] text-white text-[11px] min-[390px]:text-xs font-black tracking-wider transition-all duration-300 shadow-md hover:shadow-lg flex items-center justify-center space-x-1.5 min-[390px]:space-x-2 cursor-pointer ${
               isOutubroRosa
                 ? 'bg-gradient-to-r from-[#DB2777] via-[#EC4899] to-[#F472B6] hover:from-[#BE185D] hover:to-[#DB2777] shadow-pink-500/25 hover:shadow-pink-500/35'
                 : 'bg-gradient-to-r from-[#006EDB] to-[#00509E] hover:from-[#005AB5] hover:to-[#003B73] shadow-blue-600/20 hover:shadow-blue-600/30'

@@ -254,27 +254,27 @@ export const Header: React.FC = () => {
 
       {/* 2. MAIN HEADER BAR (Azul Bem Forte Âncora Visual #003B73) */}
       <div
-        className={`transition-all duration-300 ${
+        className={`w-full transition-all duration-300 ${
           isDark
             ? "bg-slate-950 border-b border-slate-800 text-white"
             : "bg-[#003B73] text-white shadow-md border-b border-white/10"
         }`}
       >
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-20 gap-6">
+        <div className="max-w-7xl mx-auto px-2.5 min-[390px]:px-3 sm:px-6 lg:px-8 w-full">
+          <div className="flex items-center justify-between h-16 sm:h-20 gap-1.5 min-[390px]:gap-2 sm:gap-6 w-full">
             {/* Logo Oficial Evidência Calçados (Branca) */}
-            <div className="flex items-center space-x-3 shrink-0">
+            <div className="flex items-center space-x-1.5 min-[390px]:space-x-2 sm:space-x-3 shrink-0">
               <button
                 id="sandwich-menu-button-main"
                 onClick={() => setIsSandwichMenuOpen(true)}
-                className={`p-2 rounded-xl border transition-all cursor-pointer flex items-center justify-center sm:hidden ${
+                className={`p-1 min-[390px]:p-1.5 sm:p-2 rounded-lg sm:rounded-xl border transition-all cursor-pointer flex items-center justify-center sm:hidden ${
                   isDark
                     ? "bg-slate-900 border-slate-800 text-amber-400"
                     : "bg-white/20 border-white/30 text-white hover:bg-white/30"
                 }`}
                 title="Abrir Menu de Departamentos"
               >
-                <Menu className="h-5 w-5" />
+                <Menu className="h-4.5 w-4.5 min-[390px]:h-5 min-[390px]:w-5" />
               </button>
               <BrandLogo size="md" variant="white" />
             </div>
@@ -285,12 +285,12 @@ export const Header: React.FC = () => {
             </div>
 
             {/* Ícones de Utilidade & Conta (Direita) - Ajustado para Perfeita Leitura no Mobile */}
-            <div className="flex items-center space-x-2.5 sm:space-x-6 shrink-0">
+            <div className="flex items-center space-x-1 min-[390px]:space-x-2 sm:space-x-5 lg:space-x-6 shrink-0">
               {/* Botão Meus Favoritos */}
               <button
                 id="favorites-button"
                 onClick={() => setCurrentView("favorites")}
-                className={`flex flex-col items-center justify-center text-[11px] font-medium transition-all cursor-pointer group ${
+                className={`flex flex-col items-center justify-center text-[11px] font-medium transition-all cursor-pointer group p-1 min-[390px]:p-0 ${
                   currentView === "favorites"
                     ? "text-amber-300 font-bold"
                     : isDark
@@ -301,7 +301,7 @@ export const Header: React.FC = () => {
               >
                 <div className="relative mb-0.5">
                   <Heart
-                    className={`h-5.5 w-5.5 sm:h-6 sm:w-6 transition-transform group-hover:scale-110 ${
+                    className={`h-5 w-5 sm:h-6 sm:w-6 transition-transform group-hover:scale-110 ${
                       favorites.length > 0
                         ? "fill-rose-500 text-rose-500"
                         : isDark ? "text-slate-200" : "text-white"
@@ -320,7 +320,7 @@ export const Header: React.FC = () => {
               <button
                 id="cart-button"
                 onClick={() => setCurrentView("cart")}
-                className={`flex flex-col items-center justify-center text-[11px] font-medium transition-all cursor-pointer group ${
+                className={`flex flex-col items-center justify-center text-[11px] font-medium transition-all cursor-pointer group p-1 min-[390px]:p-0 ${
                   currentView === "cart"
                     ? "text-amber-300 font-bold"
                     : isDark
@@ -330,10 +330,10 @@ export const Header: React.FC = () => {
                 title="Meu Carrinho de Compras"
               >
                 <div className="relative mb-0.5">
-                  <ShoppingBag className={`h-5.5 w-5.5 sm:h-6 sm:w-6 transition-transform group-hover:scale-110 ${
+                  <ShoppingBag className={`h-5 w-5 sm:h-6 sm:w-6 transition-transform group-hover:scale-110 ${
                     isDark ? "text-slate-200" : "text-white"
                   }`} />
-                  <span className={`absolute -top-1.5 -right-2 text-[10px] font-black w-4.5 h-4.5 flex items-center justify-center rounded-full shadow-xs ${
+                  <span className={`absolute -top-1.5 -right-2 text-[9px] min-[390px]:text-[10px] font-black w-4 h-4 min-[390px]:w-4.5 min-[390px]:h-4.5 flex items-center justify-center rounded-full shadow-xs ${
                     isDark ? "bg-amber-400 text-black" : "bg-white text-[#003e92]"
                   }`}>
                     {totalItems}
@@ -346,7 +346,7 @@ export const Header: React.FC = () => {
               <button
                 id="theme-toggle-button"
                 onClick={toggleTheme}
-                className={`p-1.5 rounded-full transition-all cursor-pointer ${
+                className={`p-1 min-[390px]:p-1.5 rounded-full transition-all cursor-pointer ${
                   isDark
                     ? "text-amber-400 hover:bg-slate-800"
                     : "text-white hover:bg-white/15"
@@ -354,9 +354,9 @@ export const Header: React.FC = () => {
                 title={isDark ? "Modo Claro" : "Modo Escuro"}
               >
                 {isDark ? (
-                  <Sun className="h-5 w-5" />
+                  <Sun className="h-4.5 w-4.5 sm:h-5 sm:w-5" />
                 ) : (
-                  <Moon className="h-5 w-5" />
+                  <Moon className="h-4.5 w-4.5 sm:h-5 sm:w-5" />
                 )}
               </button>
 
@@ -544,20 +544,20 @@ export const Header: React.FC = () => {
           </div>
 
           {/* Campo de Busca no Mobile Dinâmico Inteligente */}
-          <div className="pb-3 sm:hidden">
+          <div className="pb-2.5 sm:hidden w-full">
             <HeaderLiveSearch isMobile />
           </div>
 
           {/* 3. CATEGORY NAVIGATION CARD & MEGA-MENU CONTAINER */}
-          <div className="py-2.5 pb-4 relative">
+          <div className="py-2 pb-3.5 relative w-full">
             <div
-              className={`rounded-2xl border px-4 py-2 flex items-center justify-between overflow-x-auto no-scrollbar transition-all ${
+              className={`w-full rounded-2xl border px-2 min-[390px]:px-3 sm:px-4 py-1.5 min-[390px]:py-2 flex items-center justify-between overflow-x-auto no-scrollbar transition-all ${
                 isDark
                   ? "bg-slate-900/90 border-slate-800 shadow-slate-950/50"
                   : "bg-white/95 backdrop-blur-md border-white/40 shadow-md text-neutral-800"
               }`}
             >
-              <nav className="flex items-center space-x-4 sm:space-x-8 text-xs font-semibold tracking-tight whitespace-nowrap w-full">
+              <nav className="flex items-center space-x-2 min-[390px]:space-x-3 sm:space-x-8 text-xs font-semibold tracking-tight whitespace-nowrap w-full">
                 {/* Botão Azul com Hambúrguer + Setinha para Baixo */}
                 <button
                   id="sandwich-menu-trigger-nav"
@@ -570,11 +570,11 @@ export const Header: React.FC = () => {
                 </button>
 
                 {/* Links Principais: Ofertas & Saldão, Feminino, Masculino, Infantil */}
-                <div className="flex items-center space-x-2 sm:space-x-4 overflow-x-auto no-scrollbar flex-1">
+                <div className="flex items-center space-x-1.5 min-[390px]:space-x-2 sm:space-x-4 overflow-x-auto no-scrollbar flex-1">
                   {/* Ofertas & Saldão */}
                   <button
                     onClick={() => handleMegaMenuCategoryClick("OFERTAS", "TODAS")}
-                    className="py-2 px-3 rounded-xl transition-all cursor-pointer flex items-center space-x-1.5 text-rose-600 font-extrabold hover:text-rose-700 hover:bg-rose-500/10 text-xs shrink-0"
+                    className="py-1.5 min-[390px]:py-2 px-2.5 min-[390px]:px-3 rounded-xl transition-all cursor-pointer flex items-center space-x-1 text-rose-600 font-extrabold hover:text-rose-700 hover:bg-rose-500/10 text-[11px] min-[390px]:text-xs shrink-0"
                   >
                     <Tag className="h-3.5 w-3.5 text-rose-600" />
                     <span>Ofertas & Saldão</span>
@@ -591,7 +591,7 @@ export const Header: React.FC = () => {
                         if (activeMegaMenu === 'feminino') setActiveMegaMenu(null);
                         else setActiveMegaMenu('feminino');
                       }}
-                      className={`py-2 px-3.5 rounded-xl transition-all cursor-pointer flex items-center space-x-1.5 text-xs font-bold ${
+                      className={`py-1.5 min-[390px]:py-2 px-2.5 min-[390px]:px-3.5 rounded-xl transition-all cursor-pointer flex items-center space-x-1 text-[11px] min-[390px]:text-xs font-bold ${
                         activeMegaMenu === 'feminino' || (selectedSubcategory.toUpperCase() === 'FEMININO')
                           ? "font-extrabold text-[#003e92] dark:text-amber-400 bg-[#003e92]/10 dark:bg-amber-400/10"
                           : isDark
@@ -617,7 +617,7 @@ export const Header: React.FC = () => {
                         if (activeMegaMenu === 'masculino') setActiveMegaMenu(null);
                         else setActiveMegaMenu('masculino');
                       }}
-                      className={`py-2 px-3.5 rounded-xl transition-all cursor-pointer flex items-center space-x-1.5 text-xs font-bold ${
+                      className={`py-1.5 min-[390px]:py-2 px-2.5 min-[390px]:px-3.5 rounded-xl transition-all cursor-pointer flex items-center space-x-1 text-[11px] min-[390px]:text-xs font-bold ${
                         activeMegaMenu === 'masculino' || (selectedSubcategory.toUpperCase() === 'MASCULINO')
                           ? "font-extrabold text-[#003e92] dark:text-amber-400 bg-[#003e92]/10 dark:bg-amber-400/10"
                           : isDark
@@ -643,7 +643,7 @@ export const Header: React.FC = () => {
                         if (activeMegaMenu === 'infantil') setActiveMegaMenu(null);
                         else setActiveMegaMenu('infantil');
                       }}
-                      className={`py-2 px-3.5 rounded-xl transition-all cursor-pointer flex items-center space-x-1.5 text-xs font-bold ${
+                      className={`py-1.5 min-[390px]:py-2 px-2.5 min-[390px]:px-3.5 rounded-xl transition-all cursor-pointer flex items-center space-x-1 text-[11px] min-[390px]:text-xs font-bold ${
                         activeMegaMenu === 'infantil' || (selectedSubcategory.toUpperCase().includes('INFANTIL'))
                           ? "font-extrabold text-[#003e92] dark:text-amber-400 bg-[#003e92]/10 dark:bg-amber-400/10"
                           : isDark

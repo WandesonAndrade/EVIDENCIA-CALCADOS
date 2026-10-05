@@ -184,10 +184,10 @@ export const Footer: React.FC = () => {
         </div>
 
         {/* Linha Inferior de Copyright e Links Úteis */}
-        <div className="pt-8 flex flex-col sm:flex-row items-center justify-between font-normal text-[11px] gap-4 text-blue-200/80">
+        <div className="pt-8 flex flex-col sm:flex-row items-center justify-between font-normal text-[11px] gap-4 text-blue-200/80 w-full text-center sm:text-left">
           <p>© 2025 Evidência Calçados. Todos os direitos reservados.</p>
 
-          <div className="flex items-center space-x-4">
+          <div className="flex flex-wrap items-center justify-center gap-x-3 sm:gap-x-4 gap-y-1.5">
             <button
               onClick={() => setCurrentView("support")}
               className="hover:text-white transition-colors cursor-pointer"

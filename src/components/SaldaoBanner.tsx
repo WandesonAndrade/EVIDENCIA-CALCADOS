@@ -93,15 +93,15 @@ export const SaldaoBanner: React.FC<SaldaoBannerProps> = ({
               </span>
             </div>
 
-            {/* Título Principal Bicolor com Fogo e -% OFF SEM QUEBRA DE LINHA */}
-            <div className="flex items-center gap-2 sm:gap-2.5 whitespace-nowrap">
-              <span className="text-2xl sm:text-3xl select-none shrink-0 leading-none" role="img" aria-label="fogo">
+            {/* Título Principal Bicolor com Fogo e -% OFF */}
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2.5">
+              <span className="text-xl sm:text-3xl select-none shrink-0 leading-none" role="img" aria-label="fogo">
                 🔥
               </span>
-              <h2 className="text-xl sm:text-2xl md:text-3xl lg:text-[30px] xl:text-[34px] font-black tracking-tight text-white leading-none whitespace-nowrap">
+              <h2 className="text-lg sm:text-2xl md:text-3xl lg:text-[30px] xl:text-[34px] font-black tracking-tight text-white leading-tight">
                 Saldão de Calçados
               </h2>
-              <span className={`text-xl sm:text-2xl md:text-3xl lg:text-[30px] xl:text-[34px] font-black ${isOutubroRosa ? 'text-[#F472B6]' : 'text-[#FF7A00]'} tracking-tight leading-none whitespace-nowrap`}>
+              <span className={`text-lg sm:text-2xl md:text-3xl lg:text-[30px] xl:text-[34px] font-black ${isOutubroRosa ? 'text-[#F472B6]' : 'text-[#FF7A00]'} tracking-tight leading-tight shrink-0`}>
                 -{discountPercent}% OFF
               </span>
             </div>

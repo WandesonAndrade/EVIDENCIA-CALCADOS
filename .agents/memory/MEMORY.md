@@ -263,3 +263,20 @@ Este arquivo é a memória persistente do projeto (AG Kit), consolidando decisõ
     - **Roteamento Inteligente no Hero (`Hero.tsx`)**: O clique do botão no Hero reconhece os prefixos e navega diretamente para a categoria ou campanha correspondente.
     - **Filtro Específico na Vitrine (`CategoryPage.tsx`)**: Suporte a campanhas específicas (`cleanTabKey.startsWith('promo:')`), categorias e subcategorias com cabeçalho personalizado e filtro exato de produtos participantes.
 
+41. **Alinhamento e Responsividade Mobile Sem Overflow Horizontal (Implementado):**
+    - **Contenção Estrita Global (`src/index.css`)**: Regras `html, body { width: 100%; max-width: 100vw; overflow-x: hidden; }` e `#root { width: 100%; max-width: 100%; overflow-x: hidden; }` para blindar o canvas contra expansão por filhos transbordantes.
+    - **Layout Raiz (`src/App.tsx`)**: Container `w-full max-w-full overflow-x-hidden`, e iluminação ambiente restrita com `max-w-full pointer-events-none`.
+    - **Header & Logo (`Header.tsx` & `BrandLogo.tsx`)**: Padding lateral adaptativo `px-3 sm:px-6`, espaçamento elástico `space-x-2 sm:space-x-5` e fonte fluida no logo (`text-xl sm:text-2xl md:text-3xl`).
+    - **Hero & Saldão (`Hero.tsx` & `SaldaoBanner.tsx`)**: Ocultação de setas desktop no mobile (`hidden sm:flex`), remoção de `whitespace-nowrap` rígido do título do saldão e títulos responsivos com quebra fluida.
+    - **Barra de Benefícios & Rodapé (`ProductList.tsx` & `Footer.tsx`)**: Containers com `w-full overflow-hidden`, padding responsivo e quebra de linhas (`flex-wrap`) nos links institucionais e copyright do rodapé.
+
+42. **Otimização Ultracompacta para Telas com Largura < 385px (Implementado):**
+    - **Header & Logo**: `BrandLogo` com título `text-[17px] min-[390px]:text-xl`, subtítulo `text-xs min-[390px]:text-sm` e tagline `text-[0.44rem]`. Espaçamento de ícones `space-x-1 min-[390px]:space-x-2`, ícones `h-5 w-5 sm:h-6 sm:w-6` e menu sanduíche com padding compacto.
+    - **Hero Banner**: Margens `mx-2.5 min-[390px]:mx-3`, padding interno `p-4 min-[390px]:p-5`, título `text-2xl min-[390px]:text-3xl`, descrição com `line-clamp-3`, botões com padding e fonte proporcionais e rodapé com ícones `h-3.5 w-3.5` e tipografia `text-[9.5px]` / `text-[7.5px]`.
+    - **Barra de Vantagens**: Padronização dos 4 cards com container `p-2.5 min-[390px]:p-3.5`, `gap-2 min-[390px]:gap-2.5`, ícones `h-4.5 w-4.5`, títulos `text-[11px]` e subtítulos `text-[9px]`.
+    - **Bento Grid**: Card principal `p-5 min-[390px]:p-7`, título `text-xl min-[390px]:text-2xl` e cards menores `p-5 min-[390px]:p-7` com tipografia harmonizada.
+    - **Cards de Produto (`StorefrontProductCard` & Atomics)**: Moldura de imagem `p-3.5 min-[390px]:p-5` para maior destaque ao calçado, badges no canto `top-2 left-2` com `text-[9px]`, área de info `p-3 min-[390px]:p-4`, título `text-xs min-[390px]:text-sm min-h-[32px]`, preço `text-xl min-[390px]:text-2xl` e botão "Comprar" `py-2 min-[390px]:py-2.5 text-[11px] min-[390px]:text-xs`.
+    - **Grid & Carrossel**: Grid gap reduzido para `gap-2.5 min-[390px]:gap-3.5` e diâmetro de círculos de subcategoria `w-[72px] h-[72px] min-[390px]:w-20` com `space-x-3`.
+
+
+

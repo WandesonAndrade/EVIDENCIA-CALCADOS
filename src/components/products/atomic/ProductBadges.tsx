@@ -45,10 +45,10 @@ export const ProductBadges: React.FC<ProductBadgesProps> = ({
 
   if (position === 'corner') {
     return (
-      <div className="absolute top-3.5 left-3.5 flex flex-col gap-1 z-10">
+      <div className="absolute top-2 min-[390px]:top-2.5 left-2 min-[390px]:left-2.5 flex flex-col gap-1 z-10">
         {saldaoCalc.isSaldao ? (
           <span
-            className={`px-2.5 py-1 text-[10px] font-black text-white ${
+            className={`px-2 min-[390px]:px-2.5 py-0.5 min-[390px]:py-1 text-[9px] min-[390px]:text-[10px] font-black text-white ${
               isOutubroRosa
                 ? 'bg-gradient-to-r from-[#EC4899] via-[#F472B6] to-[#DB2777] shadow-pink-500/30'
                 : 'bg-gradient-to-r from-[#FF4500] via-[#FF6000] to-[#FFA000] shadow-orange-600/30'
@@ -58,7 +58,7 @@ export const ProductBadges: React.FC<ProductBadgesProps> = ({
           </span>
         ) : applicablePromo ? (
           <span
-            className={`px-2.5 py-1 text-[10px] font-black ${
+            className={`px-2 min-[390px]:px-2.5 py-0.5 min-[390px]:py-1 text-[9px] min-[390px]:text-[10px] font-black ${
               isOutubroRosa
                 ? 'text-white bg-gradient-to-r from-[#EC4899] to-[#F472B6]'
                 : 'text-slate-950 bg-gradient-to-r from-amber-400 to-amber-500'
@@ -68,7 +68,7 @@ export const ProductBadges: React.FC<ProductBadgesProps> = ({
           </span>
         ) : discountPercent > 0 ? (
           <span
-            className={`px-2.5 py-0.5 text-[10px] font-bold text-white ${
+            className={`px-2 min-[390px]:px-2.5 py-0.5 text-[9px] min-[390px]:text-[10px] font-bold text-white ${
               isOutubroRosa ? 'bg-[#EC4899]' : 'bg-[#e30000]'
             } rounded-full shadow-xs uppercase tracking-wider`}
           >
@@ -76,7 +76,7 @@ export const ProductBadges: React.FC<ProductBadgesProps> = ({
           </span>
         ) : (
           <span
-            className={`px-2.5 py-0.5 text-[10px] font-bold text-white ${
+            className={`px-2 min-[390px]:px-2.5 py-0.5 text-[9px] min-[390px]:text-[10px] font-bold text-white ${
               isOutubroRosa ? 'bg-[#EC4899]' : 'bg-[#006EDB]'
             } rounded-full shadow-xs uppercase tracking-wider`}
           >

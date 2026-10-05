@@ -109,9 +109,9 @@ export const ProductPriceDisplay: React.FC<ProductPriceDisplayProps> = ({
   return (
     <div className="space-y-1 pt-1">
       <div className="space-y-0.5">
-        <div className="flex items-center space-x-1.5 flex-wrap">
+        <div className="flex items-center space-x-1 min-[390px]:space-x-1.5 flex-wrap gap-y-0.5">
           <span
-            className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md border ${
+            className={`text-[9px] min-[390px]:text-[10px] font-black uppercase tracking-wider px-1.5 min-[390px]:px-2 py-0.5 rounded-md border ${
               isOutubroRosa
                 ? 'text-[#9D174D] dark:text-pink-300 bg-pink-100 dark:bg-pink-950/80 border-pink-300/60'
                 : isSaldao
@@ -128,14 +128,14 @@ export const ProductPriceDisplay: React.FC<ProductPriceDisplayProps> = ({
                 : 'À Vista no PIX (-10%)'}
           </span>
           {originalPrice && (
-            <span className="text-xs line-through text-[#52708F]">
+            <span className="text-[10.5px] min-[390px]:text-xs line-through text-[#52708F]">
               R$ {originalPrice.toFixed(2).replace('.', ',')}
             </span>
           )}
         </div>
         <div className="flex items-baseline space-x-1.5">
           <span
-            className={`text-2xl sm:text-3xl font-black tracking-tight ${
+            className={`text-xl min-[390px]:text-2xl sm:text-3xl font-black tracking-tight ${
               isOutubroRosa
                 ? isDark ? 'text-pink-400' : 'text-[#BE185D]'
                 : isDark ? 'text-white' : 'text-[#003B73]'
@@ -147,7 +147,7 @@ export const ProductPriceDisplay: React.FC<ProductPriceDisplayProps> = ({
       </div>
 
       {showInstallments && (
-        <p className="text-xs text-[#52708F] font-medium pt-0.5">
+        <p className="text-[10.5px] min-[390px]:text-xs text-[#52708F] font-medium pt-0.5 leading-tight">
           ou{' '}
           <strong
             className={

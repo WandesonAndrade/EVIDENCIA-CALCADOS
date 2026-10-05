@@ -339,11 +339,11 @@ export const ProductList: React.FC = () => {
     <section
       id="catalog-products-section"
       ref={catalogSectionRef}
-      className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-16"
+      className="w-full max-w-7xl mx-auto px-2.5 min-[390px]:px-3 sm:px-6 lg:px-8 py-5 min-[390px]:py-6 sm:py-8 space-y-10 sm:space-y-16 overflow-hidden"
     >
       {/* RESULTADOS DA BUSCA INTELIGENTE (QUANDO HOUVER TERMO DE PESQUISA DIGITADO) */}
       {searchQuery && searchQuery.trim() ? (
-        <div className="space-y-6 pt-2">
+        <div className="space-y-6 pt-2 w-full">
           <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b ${
             isOutubroRosa ? 'border-pink-900/15 dark:border-pink-500/20' : 'border-blue-900/10 dark:border-white/10'
           }`}>
@@ -408,7 +408,7 @@ export const ProductList: React.FC = () => {
       ) : (
         <>
           {/* BARRA DE VANTAGENS & CONFIANÇA (POSICIONADA NO TOPO, LOGO ABAIXO DO HERO BANNER) */}
-          <div className={`p-4 sm:p-6 rounded-3xl border transition-all ${
+          <div className={`p-2.5 min-[390px]:p-3.5 sm:p-6 rounded-2xl sm:rounded-3xl border transition-all w-full ${
             isDark 
               ? isOutubroRosa
                 ? 'bg-[#1F0314]/90 border-pink-500/20 text-slate-200 shadow-xl shadow-pink-950/20'
@@ -417,11 +417,11 @@ export const ProductList: React.FC = () => {
                 ? 'bg-white border-pink-900/10 shadow-sm text-[#003B73]'
                 : 'bg-white border-blue-900/10 shadow-sm text-[#003B73]'
           }`}>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 min-[390px]:gap-2.5 sm:gap-6">
               
               {/* Vantagem 1: Entrega Rápida */}
-              <div className="flex items-center space-x-3.5 p-2 rounded-2xl group transition-transform hover:scale-[1.02]">
-                <div className={`p-3 rounded-2xl shrink-0 transition-all ${
+              <div className="flex items-center space-x-2 min-[390px]:space-x-2.5 sm:space-x-3.5 p-1 min-[390px]:p-1.5 sm:p-2 rounded-xl sm:rounded-2xl group transition-transform hover:scale-[1.02]">
+                <div className={`p-2 min-[390px]:p-2.5 sm:p-3 rounded-xl sm:rounded-2xl shrink-0 transition-all ${
                   isDark 
                     ? isOutubroRosa
                       ? 'bg-pink-500/15 text-pink-300 border border-pink-500/25 group-hover:bg-[#EC4899] group-hover:text-white group-hover:border-[#EC4899]'
@@ -430,25 +430,25 @@ export const ProductList: React.FC = () => {
                       ? 'bg-[#FFF0F5] text-[#EC4899] border border-pink-200/70 group-hover:bg-[#EC4899] group-hover:text-white group-hover:border-[#EC4899]'
                       : 'bg-[#EAF5FF] text-[#006EDB] border border-blue-100'
                 }`}>
-                  <Truck className="h-5 w-5 stroke-[2.2]" />
+                  <Truck className="h-4.5 w-4.5 sm:h-5 sm:w-5 stroke-[2.2]" />
                 </div>
                 <div>
-                  <h4 className={`text-xs sm:text-sm font-extrabold tracking-tight transition-colors ${
+                  <h4 className={`text-[11px] min-[390px]:text-xs sm:text-sm font-extrabold tracking-tight transition-colors ${
                     isDark 
                       ? isOutubroRosa ? 'text-white group-hover:text-pink-300' : 'text-white'
                       : isOutubroRosa ? 'text-[#003B73] group-hover:text-[#BE185D]' : 'text-[#003B73]'
                   }`}>
                     Entrega Rápida
                   </h4>
-                  <p className={`text-[11px] font-medium leading-tight ${isDark ? 'text-slate-400' : 'text-[#52708F]'}`}>
+                  <p className={`text-[9px] min-[390px]:text-[10px] sm:text-[11px] font-medium leading-tight ${isDark ? 'text-slate-400' : 'text-[#52708F]'}`}>
                     Para todo o Brasil ou retirada em Caxias
                   </p>
                 </div>
               </div>
 
               {/* Vantagem 2: Parcelamento Facilitado */}
-              <div className="flex items-center space-x-3.5 p-2 rounded-2xl group transition-transform hover:scale-[1.02]">
-                <div className={`p-3 rounded-2xl shrink-0 transition-all ${
+              <div className="flex items-center space-x-2 min-[390px]:space-x-2.5 sm:space-x-3.5 p-1 min-[390px]:p-1.5 sm:p-2 rounded-xl sm:rounded-2xl group transition-transform hover:scale-[1.02]">
+                <div className={`p-2 min-[390px]:p-2.5 sm:p-3 rounded-xl sm:rounded-2xl shrink-0 transition-all ${
                   isDark 
                     ? isOutubroRosa
                       ? 'bg-pink-500/15 text-pink-300 border border-pink-500/25 group-hover:bg-[#EC4899] group-hover:text-white group-hover:border-[#EC4899]'
@@ -457,25 +457,25 @@ export const ProductList: React.FC = () => {
                       ? 'bg-[#FFF0F5] text-[#EC4899] border border-pink-200/70 group-hover:bg-[#EC4899] group-hover:text-white group-hover:border-[#EC4899]'
                       : 'bg-[#EAF5FF] text-[#006EDB] border border-blue-100'
                 }`}>
-                  <CreditCard className="h-5 w-5 stroke-[2.2]" />
+                  <CreditCard className="h-4.5 w-4.5 sm:h-5 sm:w-5 stroke-[2.2]" />
                 </div>
                 <div>
-                  <h4 className={`text-xs sm:text-sm font-extrabold tracking-tight transition-colors ${
+                  <h4 className={`text-[11px] min-[390px]:text-xs sm:text-sm font-extrabold tracking-tight transition-colors ${
                     isDark 
                       ? isOutubroRosa ? 'text-white group-hover:text-pink-300' : 'text-white'
                       : isOutubroRosa ? 'text-[#003B73] group-hover:text-[#BE185D]' : 'text-[#003B73]'
                   }`}>
                     Parcele em até 10x
                   </h4>
-                  <p className={`text-[11px] font-medium leading-tight ${isDark ? 'text-slate-400' : 'text-[#52708F]'}`}>
+                  <p className={`text-[9px] min-[390px]:text-[10px] sm:text-[11px] font-medium leading-tight ${isDark ? 'text-slate-400' : 'text-[#52708F]'}`}>
                     No cartão ou desconto exclusivo no Pix
                   </p>
                 </div>
               </div>
 
               {/* Vantagem 3: Troca Simplificada */}
-              <div className="flex items-center space-x-3.5 p-2 rounded-2xl group transition-transform hover:scale-[1.02]">
-                <div className={`p-3 rounded-2xl shrink-0 transition-all ${
+              <div className="flex items-center space-x-2 min-[390px]:space-x-2.5 sm:space-x-3.5 p-1 min-[390px]:p-1.5 sm:p-2 rounded-xl sm:rounded-2xl group transition-transform hover:scale-[1.02]">
+                <div className={`p-2 min-[390px]:p-2.5 sm:p-3 rounded-xl sm:rounded-2xl shrink-0 transition-all ${
                   isDark 
                     ? isOutubroRosa
                       ? 'bg-pink-500/15 text-pink-300 border border-pink-500/25 group-hover:bg-[#EC4899] group-hover:text-white group-hover:border-[#EC4899]'
@@ -484,25 +484,25 @@ export const ProductList: React.FC = () => {
                       ? 'bg-[#FFF0F5] text-[#EC4899] border border-pink-200/70 group-hover:bg-[#EC4899] group-hover:text-white group-hover:border-[#EC4899]'
                       : 'bg-[#EAF5FF] text-[#006EDB] border border-blue-100'
                 }`}>
-                  <RefreshCw className="h-5 w-5 stroke-[2.2]" />
+                  <RefreshCw className="h-4.5 w-4.5 sm:h-5 sm:w-5 stroke-[2.2]" />
                 </div>
                 <div>
-                  <h4 className={`text-xs sm:text-sm font-extrabold tracking-tight transition-colors ${
+                  <h4 className={`text-[11px] min-[390px]:text-xs sm:text-sm font-extrabold tracking-tight transition-colors ${
                     isDark 
                       ? isOutubroRosa ? 'text-white group-hover:text-pink-300' : 'text-white'
                       : isOutubroRosa ? 'text-[#003B73] group-hover:text-[#BE185D]' : 'text-[#003B73]'
                   }`}>
                     Troca Simplificada
                   </h4>
-                  <p className={`text-[11px] font-medium leading-tight ${isDark ? 'text-slate-400' : 'text-[#52708F]'}`}>
+                  <p className={`text-[9px] min-[390px]:text-[10px] sm:text-[11px] font-medium leading-tight ${isDark ? 'text-slate-400' : 'text-[#52708F]'}`}>
                     Até 7 dias garantidos sem complicações
                   </p>
                 </div>
               </div>
 
               {/* Vantagem 4: Atendimento Humanizado */}
-              <div className="flex items-center space-x-3.5 p-2 rounded-2xl group transition-transform hover:scale-[1.02]">
-                <div className={`p-3 rounded-2xl shrink-0 transition-all ${
+              <div className="flex items-center space-x-2 min-[390px]:space-x-2.5 sm:space-x-3.5 p-1 min-[390px]:p-1.5 sm:p-2 rounded-xl sm:rounded-2xl group transition-transform hover:scale-[1.02]">
+                <div className={`p-2 min-[390px]:p-2.5 sm:p-3 rounded-xl sm:rounded-2xl shrink-0 transition-all ${
                   isDark 
                     ? isOutubroRosa
                       ? 'bg-pink-500/15 text-pink-300 border border-pink-500/25 group-hover:bg-[#EC4899] group-hover:text-white group-hover:border-[#EC4899]'
@@ -511,17 +511,17 @@ export const ProductList: React.FC = () => {
                       ? 'bg-[#FFF0F5] text-[#EC4899] border border-pink-200/70 group-hover:bg-[#EC4899] group-hover:text-white group-hover:border-[#EC4899]'
                       : 'bg-[#EAF5FF] text-[#006EDB] border border-blue-100'
                 }`}>
-                  <Headphones className="h-5 w-5 stroke-[2.2]" />
+                  <Headphones className="h-4.5 w-4.5 sm:h-5 sm:w-5 stroke-[2.2]" />
                 </div>
                 <div>
-                  <h4 className={`text-xs sm:text-sm font-extrabold tracking-tight transition-colors ${
+                  <h4 className={`text-[11px] min-[390px]:text-xs sm:text-sm font-extrabold tracking-tight transition-colors ${
                     isDark 
                       ? isOutubroRosa ? 'text-white group-hover:text-pink-300' : 'text-white'
                       : isOutubroRosa ? 'text-[#003B73] group-hover:text-[#BE185D]' : 'text-[#003B73]'
                   }`}>
                     Atendimento Humano
                   </h4>
-                  <p className={`text-[11px] font-medium leading-tight ${isDark ? 'text-slate-400' : 'text-[#52708F]'}`}>
+                  <p className={`text-[9px] min-[390px]:text-[10px] sm:text-[11px] font-medium leading-tight ${isDark ? 'text-slate-400' : 'text-[#52708F]'}`}>
                     Tire suas dúvidas direto no WhatsApp
                   </p>
                 </div>
@@ -614,11 +614,11 @@ export const ProductList: React.FC = () => {
       )}
 
       {/* 3. BENTO GRID (BANNERS DE DESTAQUE PADRONIZADOS COM A MARCA EVIDÊNCIA) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6">
         {/* Banner Esquerdo Grande (Lançamentos / Novidades) */}
         <div 
           onClick={() => handleSelectCategory('NOVIDADES')}
-          className={`lg:col-span-6 rounded-3xl p-8 sm:p-10 flex items-center justify-between relative overflow-hidden transition-all duration-500 min-h-[340px] border cursor-pointer group shadow-xl ${
+          className={`lg:col-span-6 rounded-3xl p-5 min-[390px]:p-7 sm:p-10 flex items-center justify-between relative overflow-hidden transition-all duration-500 min-h-[290px] sm:min-h-[340px] border cursor-pointer group shadow-xl ${
             isDark 
               ? isOutubroRosa
                 ? 'bg-gradient-to-br from-[#540832] via-[#750C44] to-[#400627] border-pink-400/30 text-white hover:border-[#EC4899]/50 hover:shadow-2xl hover:shadow-pink-950/80'
@@ -628,8 +628,8 @@ export const ProductList: React.FC = () => {
                 : 'bg-gradient-to-br from-[#FFFFFF] via-[#F8FBFF] to-[#EAF2FC] border-blue-900/10 text-[#003B73] hover:border-[#006EDB]/40 hover:shadow-2xl hover:shadow-blue-900/10'
           }`}
         >
-          <div className="space-y-3.5 z-20 w-full sm:w-[58%] pr-2">
-            <span className={`inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider px-3.5 py-1 rounded-full border shadow-xs transition-all ${
+          <div className="space-y-3 sm:space-y-3.5 z-20 w-full sm:w-[58%] pr-2">
+            <span className={`inline-flex items-center gap-1.5 text-[9.5px] min-[390px]:text-[10px] font-black uppercase tracking-wider px-3 min-[390px]:px-3.5 py-1 rounded-full border shadow-xs transition-all ${
               isOutubroRosa
                 ? 'text-[#9D174D] dark:text-pink-300 bg-pink-100 dark:bg-pink-950/70 border-pink-300/50'
                 : isDark ? 'text-blue-300 bg-blue-950/60 border-blue-500/30' : 'text-[#003B73] bg-[#EAF4FE] border-[#006EDB]/25'
@@ -637,17 +637,17 @@ export const ProductList: React.FC = () => {
               <span className={`w-1.5 h-1.5 rounded-full ${isOutubroRosa ? 'bg-[#EC4899]' : 'bg-[#006EDB]'} animate-pulse`} />
               COLEÇÃO 2026
             </span>
-            <h3 className={`text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight leading-tight transition-colors ${
+            <h3 className={`text-xl min-[390px]:text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight leading-tight transition-colors ${
               isDark
                 ? isOutubroRosa ? 'text-white group-hover:text-pink-300' : 'text-white'
                 : isOutubroRosa ? 'text-[#003B73] group-hover:text-[#BE185D]' : 'text-[#003B73]'
             }`}>
               Novos modelos todas as semanas
             </h3>
-            <p className={`text-xs sm:text-sm font-medium leading-relaxed max-w-[95%] ${isDark ? 'text-slate-300' : 'text-[#4A6B8C]'}`}>
+            <p className={`text-[11px] min-[390px]:text-xs sm:text-sm font-medium leading-relaxed max-w-[95%] ${isDark ? 'text-slate-300' : 'text-[#4A6B8C]'}`}>
               As maiores tendências e lançamentos em calçados femininos, masculinos e infantis, sempre em primeira mão.
             </p>
-            <div className="pt-2">
+            <div className="pt-1.5 sm:pt-2">
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); handleSelectCategory('NOVIDADES'); }}
@@ -655,10 +655,10 @@ export const ProductList: React.FC = () => {
                   isOutubroRosa
                     ? 'bg-gradient-to-r from-[#DB2777] via-[#EC4899] to-[#F472B6] hover:from-[#BE185D] hover:to-[#DB2777] shadow-pink-500/25 hover:shadow-pink-500/35'
                     : 'bg-gradient-to-r from-[#006EDB] to-[#00509E] hover:from-[#005AB5] hover:to-[#003B73] shadow-blue-600/20 hover:shadow-blue-600/30'
-                } text-white text-xs font-black tracking-wider px-6 py-3.5 rounded-full uppercase transition-all duration-300 cursor-pointer shadow-lg hover:shadow-xl flex items-center space-x-2.5 active:scale-95`}
+                } text-white text-[11px] min-[390px]:text-xs font-black tracking-wider px-5 min-[390px]:px-6 py-2.5 min-[390px]:py-3.5 rounded-full uppercase transition-all duration-300 cursor-pointer shadow-lg hover:shadow-xl flex items-center space-x-2 sm:space-x-2.5 active:scale-95`}
               >
                 <span>VER NOVIDADES</span>
-                <ArrowRight className="w-4 h-4 stroke-[2.5] group-hover/btn:translate-x-1.5 transition-transform duration-300" />
+                <ArrowRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[2.5] group-hover/btn:translate-x-1.5 transition-transform duration-300" />
               </button>
             </div>
           </div>
@@ -678,22 +678,22 @@ export const ProductList: React.FC = () => {
         </div>
 
         {/* Coluna Direita (2 Banners Menores Studio) */}
-        <div className="lg:col-span-6 grid grid-rows-2 gap-6">
+        <div className="lg:col-span-6 grid grid-rows-2 gap-4 sm:gap-6">
           {/* Top Card (Linha Sapatos / Calçados) */}
           <div 
             onClick={() => handleSelectCategory('CALÇADOS')}
-            className={`rounded-3xl p-7 sm:p-8 flex items-center justify-between relative overflow-hidden transition-all duration-500 min-h-[165px] border cursor-pointer group shadow-xl ${
+            className={`rounded-3xl p-5 min-[390px]:p-7 sm:p-8 flex items-center justify-between relative overflow-hidden transition-all duration-500 min-h-[150px] sm:min-h-[165px] border cursor-pointer group shadow-xl ${
               isDark 
                 ? isOutubroRosa
                   ? 'bg-gradient-to-br from-[#540832] via-[#750C44] to-[#400627] border-pink-400/30 text-white hover:border-[#EC4899]/50 hover:shadow-2xl hover:shadow-pink-950/80'
                   : 'bg-gradient-to-br from-[#111A2E] via-[#0E1627] to-[#0A101D] border-white/10 text-white hover:border-blue-400/40 hover:shadow-2xl hover:shadow-blue-500/10' 
-                : isOutubroRosa
-                  ? 'bg-gradient-to-br from-[#FFFFFF] via-[#FFF5F8] to-[#FCE8F0] border-pink-900/10 text-[#003B73] hover:border-[#EC4899]/50 hover:shadow-2xl hover:shadow-pink-900/15'
-                  : 'bg-gradient-to-br from-[#FFFFFF] via-[#F8FBFF] to-[#EAF2FC] border-blue-900/10 text-[#003B73] hover:border-[#006EDB]/40 hover:shadow-2xl hover:shadow-blue-900/10'
+              : isOutubroRosa
+                ? 'bg-gradient-to-br from-[#FFFFFF] via-[#FFF5F8] to-[#FCE8F0] border-pink-900/10 text-[#003B73] hover:border-[#EC4899]/50 hover:shadow-2xl hover:shadow-pink-900/15'
+                : 'bg-gradient-to-br from-[#FFFFFF] via-[#F8FBFF] to-[#EAF2FC] border-blue-900/10 text-[#003B73] hover:border-[#006EDB]/40 hover:shadow-2xl hover:shadow-blue-900/10'
             }`}
           >
             <div className="space-y-2 z-20 w-full sm:w-[58%] pr-2">
-              <span className={`inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full border shadow-xs transition-all ${
+              <span className={`inline-flex items-center gap-1.5 text-[9.5px] min-[390px]:text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full border shadow-xs transition-all ${
                 isOutubroRosa
                   ? 'text-[#9D174D] dark:text-pink-300 bg-pink-100 dark:bg-pink-950/70 border-pink-300/50'
                   : isDark ? 'text-blue-300 bg-blue-950/60 border-blue-500/30' : 'text-[#003B73] bg-[#EAF4FE] border-[#006EDB]/25'
@@ -701,14 +701,14 @@ export const ProductList: React.FC = () => {
                 <Sparkles className={`w-3 h-3 ${isOutubroRosa ? 'text-[#EC4899]' : 'text-[#006EDB]'}`} />
                 LINHA CALÇADOS
               </span>
-              <h3 className={`text-lg sm:text-xl font-black tracking-tight transition-colors ${
+              <h3 className={`text-base min-[390px]:text-lg sm:text-xl font-black tracking-tight transition-colors ${
                 isDark
                   ? isOutubroRosa ? 'text-white group-hover:text-pink-300' : 'text-white'
                   : isOutubroRosa ? 'text-[#003B73] group-hover:text-[#BE185D]' : 'text-[#003B73]'
               }`}>
                 Para todos os seus momentos
               </h3>
-              <p className={`text-xs font-medium ${isDark ? 'text-slate-300' : 'text-[#4A6B8C]'}`}>
+              <p className={`text-[11px] min-[390px]:text-xs font-medium ${isDark ? 'text-slate-300' : 'text-[#4A6B8C]'}`}>
                 Desempenho, amortecimento e elegância do casual ao sofisticado.
               </p>
               <div className="pt-1">
@@ -719,7 +719,7 @@ export const ProductList: React.FC = () => {
                     isOutubroRosa
                       ? 'bg-gradient-to-r from-[#DB2777] via-[#EC4899] to-[#F472B6] hover:from-[#BE185D] hover:to-[#DB2777] shadow-pink-500/20 hover:shadow-pink-500/30'
                       : 'bg-[#006EDB] hover:bg-[#00509E] shadow-blue-600/15 hover:shadow-blue-600/25'
-                  } text-white text-[11px] font-black tracking-wider px-5 py-2.5 rounded-full uppercase transition-all duration-300 cursor-pointer shadow-md hover:shadow-lg flex items-center space-x-2 active:scale-95`}
+                  } text-white text-[10px] min-[390px]:text-[11px] font-black tracking-wider px-4 min-[390px]:px-5 py-2 min-[390px]:py-2.5 rounded-full uppercase transition-all duration-300 cursor-pointer shadow-md hover:shadow-lg flex items-center space-x-1.5 sm:space-x-2 active:scale-95`}
                 >
                   <span>VER CALÇADOS</span>
                   <ArrowRight className="w-3.5 h-3.5 stroke-[2.5] group-hover/btn:translate-x-1 transition-transform duration-300" />
@@ -744,18 +744,18 @@ export const ProductList: React.FC = () => {
           {/* Bottom Card (Bolsas & Acessórios) */}
           <div 
             onClick={() => handleSelectCategory('ACESSÓRIOS')}
-            className={`rounded-3xl p-7 sm:p-8 flex items-center justify-between relative overflow-hidden transition-all duration-500 min-h-[165px] border cursor-pointer group shadow-xl ${
+            className={`rounded-3xl p-5 min-[390px]:p-7 sm:p-8 flex items-center justify-between relative overflow-hidden transition-all duration-500 min-h-[150px] sm:min-h-[165px] border cursor-pointer group shadow-xl ${
               isDark 
                 ? isOutubroRosa
                   ? 'bg-gradient-to-br from-[#540832] via-[#750C44] to-[#400627] border-pink-400/30 text-white hover:border-[#EC4899]/50 hover:shadow-2xl hover:shadow-pink-950/80'
                   : 'bg-gradient-to-br from-[#111A2E] via-[#0E1627] to-[#0A101D] border-white/10 text-white hover:border-blue-400/40 hover:shadow-2xl hover:shadow-blue-500/10' 
-                : isOutubroRosa
-                  ? 'bg-gradient-to-br from-[#FFFFFF] via-[#FFF5F8] to-[#FCE8F0] border-pink-900/10 text-[#003B73] hover:border-[#EC4899]/50 hover:shadow-2xl hover:shadow-pink-900/15'
-                  : 'bg-gradient-to-br from-[#FFFFFF] via-[#F8FBFF] to-[#EAF2FC] border-blue-900/10 text-[#003B73] hover:border-[#006EDB]/40 hover:shadow-2xl hover:shadow-blue-900/10'
+              : isOutubroRosa
+                ? 'bg-gradient-to-br from-[#FFFFFF] via-[#FFF5F8] to-[#FCE8F0] border-pink-900/10 text-[#003B73] hover:border-[#EC4899]/50 hover:shadow-2xl hover:shadow-pink-900/15'
+                : 'bg-gradient-to-br from-[#FFFFFF] via-[#F8FBFF] to-[#EAF2FC] border-blue-900/10 text-[#003B73] hover:border-[#006EDB]/40 hover:shadow-2xl hover:shadow-blue-900/10'
             }`}
           >
             <div className="space-y-2 z-20 w-full sm:w-[58%] pr-2">
-              <span className={`inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full border shadow-xs transition-all ${
+              <span className={`inline-flex items-center gap-1.5 text-[9.5px] min-[390px]:text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full border shadow-xs transition-all ${
                 isOutubroRosa
                   ? 'text-[#9D174D] dark:text-pink-300 bg-pink-100 dark:bg-pink-950/70 border-pink-300/50'
                   : isDark ? 'text-blue-300 bg-blue-950/60 border-blue-500/30' : 'text-[#003B73] bg-[#EAF4FE] border-[#006EDB]/25'
@@ -763,14 +763,14 @@ export const ProductList: React.FC = () => {
                 <ShoppingBag className={`w-3 h-3 ${isOutubroRosa ? 'text-[#EC4899]' : 'text-[#006EDB]'}`} />
                 BOLSAS & ACESSÓRIOS
               </span>
-              <h3 className={`text-lg sm:text-xl font-black tracking-tight transition-colors ${
+              <h3 className={`text-base min-[390px]:text-lg sm:text-xl font-black tracking-tight transition-colors ${
                 isDark
                   ? isOutubroRosa ? 'text-white group-hover:text-pink-300' : 'text-white'
                   : isOutubroRosa ? 'text-[#003B73] group-hover:text-[#BE185D]' : 'text-[#003B73]'
               }`}>
                 Bolsas que completam você
               </h3>
-              <p className={`text-xs font-medium ${isDark ? 'text-slate-300' : 'text-[#4A6B8C]'}`}>
+              <p className={`text-[11px] min-[390px]:text-xs font-medium ${isDark ? 'text-slate-300' : 'text-[#4A6B8C]'}`}>
                 Design contemporâneo, acabamento refinado e versatilidade em cada detalhe.
               </p>
               <div className="pt-1">
@@ -781,7 +781,7 @@ export const ProductList: React.FC = () => {
                     isOutubroRosa
                       ? 'bg-gradient-to-r from-[#DB2777] via-[#EC4899] to-[#F472B6] hover:from-[#BE185D] hover:to-[#DB2777] shadow-pink-500/20 hover:shadow-pink-500/30'
                       : 'bg-[#006EDB] hover:bg-[#00509E] shadow-blue-600/15 hover:shadow-blue-600/25'
-                  } text-white text-[11px] font-black tracking-wider px-5 py-2.5 rounded-full uppercase transition-all duration-300 cursor-pointer shadow-md hover:shadow-lg flex items-center space-x-2 active:scale-95`}
+                  } text-white text-[10px] min-[390px]:text-[11px] font-black tracking-wider px-4 min-[390px]:px-5 py-2 min-[390px]:py-2.5 rounded-full uppercase transition-all duration-300 cursor-pointer shadow-md hover:shadow-lg flex items-center space-x-1.5 sm:space-x-2 active:scale-95`}
                 >
                   <span>VER ACESSÓRIOS</span>
                   <ArrowRight className="w-3.5 h-3.5 stroke-[2.5] group-hover/btn:translate-x-1 transition-transform duration-300" />

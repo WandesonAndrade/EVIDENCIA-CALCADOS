@@ -181,7 +181,7 @@ export const SubcategoryCarousel: React.FC<SubcategoryCarouselProps> = ({
       {/* Carrossel Deslizante de Subcategorias Estilo Circular Pastel Blobs */}
       <div
         ref={carouselRef}
-        className="flex items-start space-x-4 sm:space-x-6 lg:space-x-7 overflow-x-auto no-scrollbar scroll-smooth py-3 px-1"
+        className="flex items-start space-x-3 min-[390px]:space-x-4 sm:space-x-6 lg:space-x-7 overflow-x-auto no-scrollbar scroll-smooth py-2.5 sm:py-3 px-1"
       >
         {subcategories.map((sub, idx) => {
           const palette = PASTEL_PALETTE[idx % PASTEL_PALETTE.length];
@@ -193,11 +193,11 @@ export const SubcategoryCarousel: React.FC<SubcategoryCarouselProps> = ({
               key={sub.id}
               type="button"
               onClick={() => onSelectSubcategory(sub.name)}
-              className="group flex-shrink-0 flex flex-col items-center cursor-pointer select-none text-center focus:outline-none min-w-[82px] sm:min-w-[100px] max-w-[120px] transition-transform active:scale-95"
+              className="group flex-shrink-0 flex flex-col items-center cursor-pointer select-none text-center focus:outline-none min-w-[74px] min-[390px]:min-w-[82px] sm:min-w-[100px] max-w-[120px] transition-transform active:scale-95"
             >
               {/* Bolha circular orgânica em tom pastel */}
               <div
-                className={`w-20 h-20 sm:w-24 sm:h-24 rounded-full sm:rounded-[30px] flex items-center justify-center p-3 relative transition-all duration-300 shadow-xs group-hover:shadow-md group-hover:scale-108 border ${palette.border} ${palette.bg} ${palette.darkBg}`}
+                className={`w-[72px] h-[72px] min-[390px]:w-20 min-[390px]:h-20 sm:w-24 sm:h-24 rounded-full sm:rounded-[30px] flex items-center justify-center p-2.5 min-[390px]:p-3 relative transition-all duration-300 shadow-xs group-hover:shadow-md group-hover:scale-108 border ${palette.border} ${palette.bg} ${palette.darkBg}`}
               >
                 {/* Efeito sutil de gradiente aquarela interno */}
                 <div

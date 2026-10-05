@@ -401,7 +401,7 @@ export const Hero: React.FC = () => {
     const words = title.trim().split(/\s+/);
     if (words.length <= 2) {
       return (
-        <h1 className="text-3xl sm:text-5xl lg:text-[54px] font-black tracking-tight leading-[1.08] text-white drop-shadow-sm">
+        <h1 className="text-2xl min-[390px]:text-3xl sm:text-5xl lg:text-[54px] font-black tracking-tight leading-[1.08] text-white drop-shadow-sm">
           {title}
         </h1>
       );
@@ -413,7 +413,7 @@ export const Hero: React.FC = () => {
     const secondPart = words.slice(splitIndex).join(' ');
 
     return (
-      <h1 className="text-3xl sm:text-5xl lg:text-[52px] font-black tracking-tight leading-[1.06] text-white drop-shadow-sm">
+      <h1 className="text-2xl min-[390px]:text-3xl sm:text-5xl lg:text-[52px] font-black tracking-tight leading-[1.06] text-white drop-shadow-sm">
         <span>{firstPart} </span>
         <span className={`${isOutubroRosa ? 'text-[#F472B6]' : 'text-[#0084FF]'} block sm:inline`}>{secondPart}</span>
       </h1>
@@ -423,7 +423,7 @@ export const Hero: React.FC = () => {
   return (
     <div 
       id="hero-banner" 
-      className={`relative overflow-hidden rounded-3xl mx-4 sm:mx-6 lg:mx-8 my-4 lg:my-6 min-h-[490px] sm:min-h-[520px] lg:min-h-[560px] max-w-7xl lg:mx-auto select-none shadow-2xl transition-all duration-300 group/hero border ${
+      className={`relative overflow-hidden rounded-2xl sm:rounded-3xl mx-2.5 min-[390px]:mx-3 sm:mx-6 lg:mx-8 my-2.5 min-[390px]:my-3 sm:my-4 lg:my-6 min-h-[430px] min-[390px]:min-h-[460px] sm:min-h-[520px] lg:min-h-[560px] max-w-7xl lg:mx-auto select-none shadow-2xl transition-all duration-300 group/hero border ${
         isOutubroRosa ? 'border-pink-500/30 bg-[#540832]' : 'border-blue-900/20 bg-[#001736]'
       }`}
       onMouseEnter={() => setIsPaused(true)}
@@ -493,10 +493,10 @@ export const Hero: React.FC = () => {
       } z-10 pointer-events-none`} />
 
       {/* 3. Coluna de Conteúdo à Esquerda */}
-      <div className="relative z-20 flex flex-col justify-between h-full min-h-[490px] sm:min-h-[520px] lg:min-h-[560px] p-6 sm:p-10 lg:p-12 xl:p-14 max-w-xl lg:max-w-[49%]">
+      <div className="relative z-20 flex flex-col justify-between h-full min-h-[430px] min-[390px]:min-h-[460px] sm:min-h-[520px] lg:min-h-[560px] p-4 min-[390px]:p-5 sm:p-10 lg:p-12 xl:p-14 w-full max-w-xl lg:max-w-[49%]">
         
         {/* Bloco Superior & Central */}
-        <div className="space-y-5 my-auto pt-2">
+        <div className="space-y-3.5 sm:space-y-5 my-auto pt-1 sm:pt-2">
           {/* Badge da Coleção */}
           <motion.div 
             key={`tag-${currentSlide}`}
@@ -504,11 +504,11 @@ export const Hero: React.FC = () => {
             animate={{ opacity: 1, y: 0 }}
             className="inline-flex items-center space-x-2"
           >
-            <span className={`text-[11px] font-extrabold tracking-wider uppercase px-4 py-1.5 rounded-full border ${
+            <span className={`text-[10px] min-[390px]:text-[11px] font-extrabold tracking-wider uppercase px-3 min-[390px]:px-4 py-1.5 rounded-full border ${
               isOutubroRosa
                 ? 'bg-[#780B44]/80 text-[#FDF2F8] border-pink-400/50'
                 : 'bg-[#00224C]/80 text-[#DDF1FF] border-[#0071E3]/50'
-            } backdrop-blur-md shadow-xs inline-flex items-center space-x-2`}>
+            } backdrop-blur-md shadow-xs inline-flex items-center space-x-1.5 min-[390px]:space-x-2`}>
               {renderBadgeIcon(currentBanner.collectionTag)}
               <span>{currentBanner.collectionTag}</span>
             </span>
@@ -522,29 +522,29 @@ export const Hero: React.FC = () => {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
-              className="space-y-4"
+              className="space-y-3 sm:space-y-4"
             >
               {renderTwoToneTitle(currentBanner.title)}
 
-              <p className={`text-xs sm:text-sm lg:text-base font-normal leading-relaxed ${
+              <p className={`text-[11px] min-[390px]:text-xs sm:text-sm lg:text-base font-normal leading-relaxed ${
                 isOutubroRosa ? 'text-[#FFE4F0]/90' : 'text-[#DDF1FF]/90'
-              } max-w-lg`}>
+              } max-w-lg line-clamp-3 sm:line-clamp-none`}>
                 {currentBanner.description}
               </p>
 
               {/* Botões de Ação Dinâmicos (CTAs) */}
-              <div className="pt-3 flex flex-wrap items-center gap-3">
+              <div className="pt-2 sm:pt-3 flex flex-wrap items-center gap-2.5 sm:gap-3">
                 {currentBanner.ctas.map((cta, idx) => {
                   if (cta.variant === 'outline') {
                     return (
                       <button
                         key={`cta-${idx}`}
                         onClick={() => handleCtaClick(cta)}
-                        className="inline-flex items-center justify-center text-xs sm:text-sm font-semibold px-5 sm:px-6 py-3 rounded-full border border-white/25 text-white hover:bg-white/10 hover:border-white/40 active:scale-95 transition-all backdrop-blur-sm cursor-pointer space-x-2 group/btn shadow-xs"
+                        className="inline-flex items-center justify-center text-[11px] min-[390px]:text-xs sm:text-sm font-semibold px-4 min-[390px]:px-5 sm:px-6 py-2.5 min-[390px]:py-3 rounded-full border border-white/25 text-white hover:bg-white/10 hover:border-white/40 active:scale-95 transition-all backdrop-blur-sm cursor-pointer space-x-1.5 sm:space-x-2 group/btn shadow-xs"
                       >
-                        <BookOpen className="w-4 h-4 stroke-[2] shrink-0" />
+                        <BookOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[2] shrink-0" />
                         <span>{cta.text}</span>
-                        <ArrowRight className="w-3.5 h-3.5 stroke-[2.5] shrink-0 transition-transform group-hover/btn:translate-x-1" />
+                        <ArrowRight className="w-3 h-3 sm:w-3.5 sm:h-3.5 stroke-[2.5] shrink-0 transition-transform group-hover/btn:translate-x-1" />
                       </button>
                     );
                   }
@@ -554,14 +554,14 @@ export const Hero: React.FC = () => {
                     <button
                       key={`cta-${idx}`}
                       onClick={() => handleCtaClick(cta)}
-                      className={`inline-flex items-center justify-center text-xs sm:text-sm font-bold px-6 sm:px-7 py-3 rounded-full ${
+                      className={`inline-flex items-center justify-center text-[11px] min-[390px]:text-xs sm:text-sm font-bold px-5 min-[390px]:px-6 sm:px-7 py-2.5 min-[390px]:py-3 rounded-full ${
                         isOutubroRosa
                           ? 'bg-gradient-to-r from-[#DB2777] via-[#EC4899] to-[#F472B6] hover:from-[#BE185D] hover:to-[#DB2777] text-white shadow-lg shadow-pink-500/30'
                           : 'bg-[#0071E3] hover:bg-[#005fb8] text-white shadow-lg shadow-blue-600/30'
-                      } active:scale-95 transition-all cursor-pointer space-x-2 group/btn`}
+                      } active:scale-95 transition-all cursor-pointer space-x-1.5 sm:space-x-2 group/btn`}
                     >
                       <span>{cta.text}</span>
-                      <ArrowRight className="w-4 h-4 stroke-[2.5] shrink-0 transition-transform group-hover/btn:translate-x-1" />
+                      <ArrowRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[2.5] shrink-0 transition-transform group-hover/btn:translate-x-1" />
                     </button>
                   );
                 })}
@@ -571,44 +571,44 @@ export const Hero: React.FC = () => {
         </div>
 
         {/* 4. Barra de Confiança Integrada no Rodapé do Banner */}
-        <div className="pt-6 border-t border-white/10 grid grid-cols-2 sm:grid-cols-4 gap-3 text-left">
-          <div className="flex items-center space-x-2.5">
-            <Truck className={`h-4 w-4 ${isOutubroRosa ? 'text-[#F472B6]' : 'text-[#0084FF]'} shrink-0 stroke-[2.2]`} />
+        <div className="pt-4 sm:pt-6 border-t border-white/10 grid grid-cols-2 sm:grid-cols-4 gap-2 min-[390px]:gap-2.5 sm:gap-3 text-left">
+          <div className="flex items-center space-x-2 min-[390px]:space-x-2.5">
+            <Truck className={`h-3.5 w-3.5 min-[390px]:h-4 min-[390px]:w-4 ${isOutubroRosa ? 'text-[#F472B6]' : 'text-[#0084FF]'} shrink-0 stroke-[2.2]`} />
             <div>
-              <h5 className="text-[10px] sm:text-[11px] font-bold text-white tracking-tight leading-none">Entrega Rápida</h5>
-              <span className={`text-[8px] sm:text-[9px] ${isOutubroRosa ? 'text-[#FFE4F0]/70' : 'text-[#DDF1FF]/70'} leading-none`}>Para todo o Brasil</span>
+              <h5 className="text-[9.5px] min-[390px]:text-[10px] sm:text-[11px] font-bold text-white tracking-tight leading-none">Entrega Rápida</h5>
+              <span className={`text-[7.5px] min-[390px]:text-[8px] sm:text-[9px] ${isOutubroRosa ? 'text-[#FFE4F0]/70' : 'text-[#DDF1FF]/70'} leading-none`}>Para todo o Brasil</span>
             </div>
           </div>
 
-          <div className="flex items-center space-x-2.5">
-            <ShieldCheck className={`h-4 w-4 ${isOutubroRosa ? 'text-[#F472B6]' : 'text-[#0084FF]'} shrink-0 stroke-[2.2]`} />
+          <div className="flex items-center space-x-2 min-[390px]:space-x-2.5">
+            <ShieldCheck className={`h-3.5 w-3.5 min-[390px]:h-4 min-[390px]:w-4 ${isOutubroRosa ? 'text-[#F472B6]' : 'text-[#0084FF]'} shrink-0 stroke-[2.2]`} />
             <div>
-              <h5 className="text-[10px] sm:text-[11px] font-bold text-white tracking-tight leading-none">Compra Segura</h5>
-              <span className={`text-[8px] sm:text-[9px] ${isOutubroRosa ? 'text-[#FFE4F0]/70' : 'text-[#DDF1FF]/70'} leading-none`}>Seus dados protegidos</span>
+              <h5 className="text-[9.5px] min-[390px]:text-[10px] sm:text-[11px] font-bold text-white tracking-tight leading-none">Compra Segura</h5>
+              <span className={`text-[7.5px] min-[390px]:text-[8px] sm:text-[9px] ${isOutubroRosa ? 'text-[#FFE4F0]/70' : 'text-[#DDF1FF]/70'} leading-none`}>Seus dados protegidos</span>
             </div>
           </div>
 
-          <div className="flex items-center space-x-2.5">
-            <CreditCard className={`h-4 w-4 ${isOutubroRosa ? 'text-[#F472B6]' : 'text-[#0084FF]'} shrink-0 stroke-[2.2]`} />
+          <div className="flex items-center space-x-2 min-[390px]:space-x-2.5">
+            <CreditCard className={`h-3.5 w-3.5 min-[390px]:h-4 min-[390px]:w-4 ${isOutubroRosa ? 'text-[#F472B6]' : 'text-[#0084FF]'} shrink-0 stroke-[2.2]`} />
             <div>
-              <h5 className="text-[10px] sm:text-[11px] font-bold text-white tracking-tight leading-none">Parcele em até 10x</h5>
-              <span className={`text-[8px] sm:text-[9px] ${isOutubroRosa ? 'text-[#FFE4F0]/70' : 'text-[#DDF1FF]/70'} leading-none`}>No cartão de crédito</span>
+              <h5 className="text-[9.5px] min-[390px]:text-[10px] sm:text-[11px] font-bold text-white tracking-tight leading-none">Parcele em até 10x</h5>
+              <span className={`text-[7.5px] min-[390px]:text-[8px] sm:text-[9px] ${isOutubroRosa ? 'text-[#FFE4F0]/70' : 'text-[#DDF1FF]/70'} leading-none`}>No cartão de crédito</span>
             </div>
           </div>
 
-          <div className="flex items-center space-x-2.5">
-            <RefreshCw className={`h-4 w-4 ${isOutubroRosa ? 'text-[#F472B6]' : 'text-[#0084FF]'} shrink-0 stroke-[2.2]`} />
+          <div className="flex items-center space-x-2 min-[390px]:space-x-2.5">
+            <RefreshCw className={`h-3.5 w-3.5 min-[390px]:h-4 min-[390px]:w-4 ${isOutubroRosa ? 'text-[#F472B6]' : 'text-[#0084FF]'} shrink-0 stroke-[2.2]`} />
             <div>
-              <h5 className="text-[10px] sm:text-[11px] font-bold text-white tracking-tight leading-none">Troca e Devolução</h5>
-              <span className={`text-[8px] sm:text-[9px] ${isOutubroRosa ? 'text-[#FFE4F0]/70' : 'text-[#DDF1FF]/70'} leading-none`}>Sem complicação</span>
+              <h5 className="text-[9.5px] min-[390px]:text-[10px] sm:text-[11px] font-bold text-white tracking-tight leading-none">Troca e Devolução</h5>
+              <span className={`text-[7.5px] min-[390px]:text-[8px] sm:text-[9px] ${isOutubroRosa ? 'text-[#FFE4F0]/70' : 'text-[#DDF1FF]/70'} leading-none`}>Sem complicação</span>
             </div>
           </div>
         </div>
 
       </div>
 
-      {/* 5. Controles do Slider: Botões de Navegação discretos com Glassmorphism */}
-      <div className="absolute inset-y-0 right-0 left-auto lg:left-[51%] flex items-center justify-between px-4 sm:px-8 pointer-events-none z-30">
+      {/* 5. Controles do Slider: Botões de Navegação discretos com Glassmorphism (Desktop & Tablet) */}
+      <div className="hidden sm:flex absolute inset-y-0 right-0 left-auto lg:left-[51%] items-center justify-between px-4 sm:px-8 pointer-events-none z-30">
         <button
           onClick={handlePrev}
           className="pointer-events-auto w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-black/40 hover:bg-black/70 backdrop-blur-md border border-white/15 text-white flex items-center justify-center transition-all cursor-pointer active:scale-95 shadow-lg"
