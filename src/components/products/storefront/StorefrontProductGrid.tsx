@@ -31,7 +31,7 @@ export const StorefrontProductGrid: React.FC<StorefrontProductGridProps> = ({
   if (isLoading) {
     return (
       <div className="py-20 flex flex-col items-center justify-center space-y-4">
-        <RefreshCw className={`w-8 h-8 ${isOutubroRosa ? 'text-[#FF2D78]' : 'text-[#006EDB]'} animate-spin`} />
+        <RefreshCw className={`w-8 h-8 ${isOutubroRosa ? 'text-[#EC4899]' : 'text-[#006EDB]'} animate-spin`} />
         <p className="text-sm font-semibold text-slate-500">Carregando calçados...</p>
       </div>
     );
@@ -42,7 +42,7 @@ export const StorefrontProductGrid: React.FC<StorefrontProductGridProps> = ({
       <div className="py-16 text-center space-y-4 max-w-md mx-auto">
         <div className={`w-16 h-16 mx-auto rounded-3xl ${
           isOutubroRosa 
-            ? 'bg-pink-100 dark:bg-pink-950/60 text-[#FF2D78]' 
+            ? 'bg-pink-100 dark:bg-pink-950/60 text-[#EC4899]' 
             : 'bg-blue-50 dark:bg-slate-800 text-[#006EDB]'
         } flex items-center justify-center`}>
           <ShoppingBag className="w-8 h-8 stroke-[1.5]" />
@@ -61,7 +61,7 @@ export const StorefrontProductGrid: React.FC<StorefrontProductGridProps> = ({
             onClick={onResetFilters}
             className={`inline-flex items-center space-x-1.5 px-4 py-2 rounded-full ${
               isOutubroRosa
-                ? 'bg-gradient-to-r from-[#FF2D78] via-[#E11D48] to-[#BE185D] hover:from-[#E11D48] hover:to-[#9D174D] shadow-pink-600/25'
+                ? 'bg-gradient-to-r from-[#DB2777] via-[#EC4899] to-[#F472B6] hover:from-[#BE185D] hover:to-[#DB2777] shadow-pink-500/25'
                 : 'bg-[#006EDB] hover:bg-[#00509E] shadow-blue-600/20'
             } text-white text-xs font-bold transition-all shadow-xs cursor-pointer`}
           >

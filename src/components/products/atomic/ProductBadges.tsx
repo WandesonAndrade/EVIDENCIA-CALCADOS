@@ -50,7 +50,7 @@ export const ProductBadges: React.FC<ProductBadgesProps> = ({
           <span
             className={`px-2.5 py-1 text-[10px] font-black text-white ${
               isOutubroRosa
-                ? 'bg-gradient-to-r from-[#FF2D78] via-[#E11D48] to-[#BE185D] shadow-pink-600/30'
+                ? 'bg-gradient-to-r from-[#EC4899] via-[#F472B6] to-[#DB2777] shadow-pink-500/30'
                 : 'bg-gradient-to-r from-[#FF4500] via-[#FF6000] to-[#FFA000] shadow-orange-600/30'
             } rounded-full shadow-md uppercase tracking-wider animate-pulse flex items-center gap-1`}
           >
@@ -60,7 +60,7 @@ export const ProductBadges: React.FC<ProductBadgesProps> = ({
           <span
             className={`px-2.5 py-1 text-[10px] font-black ${
               isOutubroRosa
-                ? 'text-white bg-gradient-to-r from-[#FF2D78] to-[#DB2777]'
+                ? 'text-white bg-gradient-to-r from-[#EC4899] to-[#F472B6]'
                 : 'text-slate-950 bg-gradient-to-r from-amber-400 to-amber-500'
             } rounded-full shadow-md uppercase tracking-wider animate-bounce flex items-center gap-1`}
           >
@@ -69,7 +69,7 @@ export const ProductBadges: React.FC<ProductBadgesProps> = ({
         ) : discountPercent > 0 ? (
           <span
             className={`px-2.5 py-0.5 text-[10px] font-bold text-white ${
-              isOutubroRosa ? 'bg-[#E11D48]' : 'bg-[#e30000]'
+              isOutubroRosa ? 'bg-[#EC4899]' : 'bg-[#e30000]'
             } rounded-full shadow-xs uppercase tracking-wider`}
           >
             -{discountPercent}% OFF
@@ -77,7 +77,7 @@ export const ProductBadges: React.FC<ProductBadgesProps> = ({
         ) : (
           <span
             className={`px-2.5 py-0.5 text-[10px] font-bold text-white ${
-              isOutubroRosa ? 'bg-[#FF2D78]' : 'bg-[#006EDB]'
+              isOutubroRosa ? 'bg-[#EC4899]' : 'bg-[#006EDB]'
             } rounded-full shadow-xs uppercase tracking-wider`}
           >
             Novo
@@ -94,7 +94,7 @@ export const ProductBadges: React.FC<ProductBadgesProps> = ({
         <span
           className={`px-2 py-0.5 text-[9px] font-black text-white ${
             isOutubroRosa
-              ? 'bg-gradient-to-r from-[#FF2D78] to-[#BE185D]'
+              ? 'bg-gradient-to-r from-[#EC4899] to-[#F472B6]'
               : 'bg-gradient-to-r from-[#FF4500] to-[#FFA000]'
           } rounded-md uppercase`}
         >
@@ -105,7 +105,7 @@ export const ProductBadges: React.FC<ProductBadgesProps> = ({
         <span
           className={`px-2 py-0.5 text-[9px] font-black ${
             isOutubroRosa
-              ? 'text-white bg-gradient-to-r from-[#FF2D78] to-[#DB2777]'
+              ? 'text-white bg-gradient-to-r from-[#EC4899] to-[#F472B6]'
               : 'text-amber-950 bg-amber-400'
           } rounded-md uppercase`}
         >
@@ -115,7 +115,7 @@ export const ProductBadges: React.FC<ProductBadgesProps> = ({
       {discountPercent > 0 && !saldaoCalc.isSaldao && !applicablePromo && (
         <span
           className={`px-2 py-0.5 text-[9px] font-bold text-white ${
-            isOutubroRosa ? 'bg-[#E11D48]' : 'bg-[#e30000]'
+            isOutubroRosa ? 'bg-[#EC4899]' : 'bg-[#e30000]'
           } rounded-md uppercase`}
         >
           -{discountPercent}% OFF

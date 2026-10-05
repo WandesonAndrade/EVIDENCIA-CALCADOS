@@ -201,6 +201,7 @@ export const CheckoutPage: React.FC = () => {
   };
 
   const [onlineTab, setOnlineTab] = useState<'pix' | 'credit'>('credit');
+  const [currentPixPaymentId, setCurrentPixPaymentId] = useState<string | number | undefined>(undefined);
   const [installments, setInstallments] = useState<number>(1);
   const [selectedSellerName, setSelectedSellerName] = useState<string>('Atendimento Direto da Loja');
   const [teamSellers, setTeamSellers] = useState<UserProfile[]>([]);
@@ -693,6 +694,7 @@ export const CheckoutPage: React.FC = () => {
                   externalReference={`ped_${Date.now()}`}
                   isDark={isDark}
                   onActiveTabChange={(tab) => setOnlineTab(tab)}
+                  onPixGenerated={(id) => setCurrentPixPaymentId(id)}
                   onPaymentApproved={(details) => handleConfirmOrder(details.paymentId, details.status)}
                   onPaymentFailed={(err) => console.error("Payment failed", err)}
                 />
@@ -798,7 +800,7 @@ export const CheckoutPage: React.FC = () => {
 
               {/* Botão Oficial de Concluir para Pix */}
               <button
-                onClick={() => handleConfirmOrder()}
+                onClick={() => handleConfirmOrder(currentPixPaymentId, 'Pendente')}
                 disabled={isProcessing || onlineTab === 'credit'}
                 className={`w-full mt-8 py-4 rounded-2xl font-semibold text-base transition-all flex items-center justify-center gap-2 cursor-pointer ${
                   isProcessing || onlineTab === 'credit' 

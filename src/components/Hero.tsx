@@ -140,7 +140,7 @@ export const Hero: React.FC = () => {
         return activeBanners.map((b) => {
           const tab = (b.tabKey || '').toLowerCase();
           const badgeText = b.badge || 'Coleção Evidência';
-          const isOffers = tab === 'ofertas' || badgeText.toUpperCase().includes('OFERTA') || b.title.includes('50% OFF');
+          const isOffers = tab === 'ofertas' || tab.startsWith('promo:') || badgeText.toUpperCase().includes('OFERTA') || b.title.includes('50% OFF');
 
           const cleanDesc = (b.description || '')
             .replace(/no Crediário Próprio Evidência\.?/gi, 'na Evidência Calçados.')
@@ -152,6 +152,7 @@ export const Hero: React.FC = () => {
             ctas.push({
               text: b.buttonText || 'Aproveitar Ofertas',
               action: 'offers',
+              targetParam: b.tabKey,
               variant: 'primary',
               icon: 'arrow'
             });
@@ -180,6 +181,62 @@ export const Hero: React.FC = () => {
               text: b.buttonText || 'Explorar Linha Masculina',
               action: 'category',
               targetParam: 'MASCULINO',
+              variant: 'primary',
+              icon: 'arrow'
+            });
+            ctas.push({
+              text: 'Ver Catálogo Completo',
+              action: 'catalog',
+              variant: 'outline',
+              icon: 'arrow'
+            });
+          } else if (tab === 'infantil' || badgeText.toUpperCase().includes('INFANTIL')) {
+            ctas.push({
+              text: b.buttonText || 'Conferir Linha Infantil',
+              action: 'category',
+              targetParam: 'INFANTIL',
+              variant: 'primary',
+              icon: 'arrow'
+            });
+            ctas.push({
+              text: 'Ver Catálogo Completo',
+              action: 'catalog',
+              variant: 'outline',
+              icon: 'arrow'
+            });
+          } else if (tab === 'lançamentos' || tab === 'lancamentos' || tab === 'novidades') {
+            ctas.push({
+              text: b.buttonText || 'Ver Lançamentos',
+              action: 'category',
+              targetParam: 'lançamentos',
+              variant: 'primary',
+              icon: 'arrow'
+            });
+            ctas.push({
+              text: 'Ver Catálogo Completo',
+              action: 'catalog',
+              variant: 'outline',
+              icon: 'arrow'
+            });
+          } else if (tab === 'meu-crediario') {
+            ctas.push({
+              text: b.buttonText || 'Meu Crediário',
+              action: 'category',
+              targetParam: 'meu-crediario',
+              variant: 'primary',
+              icon: 'credit'
+            });
+            ctas.push({
+              text: 'Ver Catálogo Completo',
+              action: 'catalog',
+              variant: 'outline',
+              icon: 'arrow'
+            });
+          } else if (b.tabKey && tab !== 'todos') {
+            ctas.push({
+              text: b.buttonText || 'Conferir Coleção',
+              action: 'category',
+              targetParam: b.tabKey,
               variant: 'primary',
               icon: 'arrow'
             });
@@ -250,23 +307,60 @@ export const Hero: React.FC = () => {
   const handleCtaClick = (cta: HeroSlideCTA) => {
     switch (cta.action) {
       case 'offers':
-        if (setSelectedSubcategory) setSelectedSubcategory('TODAS');
-        if (setSelectedCategory) setSelectedCategory('OFERTAS');
-        if (setSelectedMenuTab) setSelectedMenuTab('ofertas');
-        if (setCurrentView) setCurrentView('category-page');
-        setTimeout(() => {
-          scrollToSectionWithOffset('category-all-items-section');
-        }, 100);
+        if (cta.targetParam && cta.targetParam.startsWith('promo:')) {
+          if (setSelectedSubcategory) setSelectedSubcategory('TODAS');
+          if (setSelectedCategory) setSelectedCategory('OFERTAS');
+          if (setSelectedMenuTab) setSelectedMenuTab(cta.targetParam);
+          if (setCurrentView) setCurrentView('category-page');
+          setTimeout(() => {
+            scrollToSectionWithOffset('category-all-items-section');
+          }, 100);
+        } else {
+          if (setSelectedSubcategory) setSelectedSubcategory('TODAS');
+          if (setSelectedCategory) setSelectedCategory('OFERTAS');
+          if (setSelectedMenuTab) setSelectedMenuTab('ofertas');
+          if (setCurrentView) setCurrentView('category-page');
+          setTimeout(() => {
+            scrollToSectionWithOffset('category-all-items-section');
+          }, 100);
+        }
         break;
 
       case 'category':
         if (cta.targetParam) {
-          if (cta.targetParam.toLowerCase() === 'meu-crediario') {
+          const param = cta.targetParam;
+          if (param.toLowerCase() === 'meu-crediario') {
             setCurrentView('meu-crediario');
             window.scrollTo({ top: 0, behavior: 'smooth' });
+          } else if (param.startsWith('promo:')) {
+            if (setSelectedSubcategory) setSelectedSubcategory('TODAS');
+            if (setSelectedCategory) setSelectedCategory('OFERTAS');
+            if (setSelectedMenuTab) setSelectedMenuTab(param);
+            setCurrentView('category-page');
+            setTimeout(() => {
+              scrollToSectionWithOffset('category-all-items-section');
+            }, 100);
+          } else if (param.startsWith('subcategoria:')) {
+            const parts = param.replace('subcategoria:', '').split(':');
+            const subName = parts.length > 1 ? parts[1].trim() : parts[0].trim();
+            const catName = parts.length > 1 ? parts[0].trim() : 'TODOS';
+            setSelectedCategory(catName.toUpperCase(), subName);
+            if (setSelectedMenuTab) setSelectedMenuTab(param);
+            setCurrentView('category-page');
+            setTimeout(() => {
+              scrollToSectionWithOffset('category-all-items-section');
+            }, 100);
+          } else if (param.startsWith('categoria:')) {
+            const catName = param.replace('categoria:', '').trim();
+            setSelectedCategory(catName.toUpperCase(), 'TODAS');
+            if (setSelectedMenuTab) setSelectedMenuTab(catName.toLowerCase());
+            setCurrentView('category-page');
+            setTimeout(() => {
+              scrollToSectionWithOffset('category-all-items-section');
+            }, 100);
           } else {
-            setSelectedCategory(cta.targetParam.toUpperCase());
-            if (setSelectedMenuTab) setSelectedMenuTab(cta.targetParam.toLowerCase());
+            setSelectedCategory(param.toUpperCase(), 'TODAS');
+            if (setSelectedMenuTab) setSelectedMenuTab(param.toLowerCase());
             setCurrentView('category-page');
             setTimeout(() => {
               scrollToSectionWithOffset('category-all-items-section');
@@ -321,7 +415,7 @@ export const Hero: React.FC = () => {
     return (
       <h1 className="text-3xl sm:text-5xl lg:text-[52px] font-black tracking-tight leading-[1.06] text-white drop-shadow-sm">
         <span>{firstPart} </span>
-        <span className={`${isOutubroRosa ? 'text-[#FF2D78]' : 'text-[#0084FF]'} block sm:inline`}>{secondPart}</span>
+        <span className={`${isOutubroRosa ? 'text-[#F472B6]' : 'text-[#0084FF]'} block sm:inline`}>{secondPart}</span>
       </h1>
     );
   };
@@ -330,7 +424,7 @@ export const Hero: React.FC = () => {
     <div 
       id="hero-banner" 
       className={`relative overflow-hidden rounded-3xl mx-4 sm:mx-6 lg:mx-8 my-4 lg:my-6 min-h-[490px] sm:min-h-[520px] lg:min-h-[560px] max-w-7xl lg:mx-auto select-none shadow-2xl transition-all duration-300 group/hero border ${
-        isOutubroRosa ? 'border-pink-900/30 bg-[#240316]' : 'border-blue-900/20 bg-[#001736]'
+        isOutubroRosa ? 'border-pink-500/30 bg-[#540832]' : 'border-blue-900/20 bg-[#001736]'
       }`}
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
@@ -366,9 +460,9 @@ export const Hero: React.FC = () => {
         >
           <defs>
             <linearGradient id="heroWaveGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor={isOutubroRosa ? '#240316' : '#001838'} />
-              <stop offset="55%" stopColor={isOutubroRosa ? '#450727' : '#00244F'} />
-              <stop offset="100%" stopColor={isOutubroRosa ? '#1C0211' : '#00132B'} />
+              <stop offset="0%" stopColor={isOutubroRosa ? '#4A062B' : '#001838'} />
+              <stop offset="55%" stopColor={isOutubroRosa ? '#780B44' : '#00244F'} />
+              <stop offset="100%" stopColor={isOutubroRosa ? '#3B0422' : '#00132B'} />
             </linearGradient>
             <filter id="heroGlow" x="-20%" y="-20%" width="140%" height="140%">
               <feGaussianBlur stdDeviation="4" result="blur" />
@@ -384,7 +478,7 @@ export const Hero: React.FC = () => {
           <path 
             d="M 430 0 C 465 60, 525 140, 525 225 C 525 320, 480 420, 395 500" 
             fill="none" 
-            stroke={isOutubroRosa ? '#FF2D78' : '#0071E3'} 
+            stroke={isOutubroRosa ? '#F472B6' : '#0071E3'} 
             strokeWidth="3.5" 
             filter="url(#heroGlow)"
           />
@@ -394,7 +488,7 @@ export const Hero: React.FC = () => {
       {/* 2.1 Overlay Mobile / Tablet com Gradiente Suave */}
       <div className={`lg:hidden absolute inset-0 bg-gradient-to-r ${
         isOutubroRosa
-          ? 'from-[#240316]/95 via-[#450727]/90 to-[#1C0211]/80'
+          ? 'from-[#4A062B]/95 via-[#780B44]/90 to-[#3B0422]/80'
           : 'from-[#001838]/95 via-[#00244F]/90 to-[#00132B]/80'
       } z-10 pointer-events-none`} />
 
@@ -412,7 +506,7 @@ export const Hero: React.FC = () => {
           >
             <span className={`text-[11px] font-extrabold tracking-wider uppercase px-4 py-1.5 rounded-full border ${
               isOutubroRosa
-                ? 'bg-[#4D072C]/80 text-[#FFE4F0] border-[#FF2D78]/50'
+                ? 'bg-[#780B44]/80 text-[#FDF2F8] border-pink-400/50'
                 : 'bg-[#00224C]/80 text-[#DDF1FF] border-[#0071E3]/50'
             } backdrop-blur-md shadow-xs inline-flex items-center space-x-2`}>
               {renderBadgeIcon(currentBanner.collectionTag)}
@@ -462,7 +556,7 @@ export const Hero: React.FC = () => {
                       onClick={() => handleCtaClick(cta)}
                       className={`inline-flex items-center justify-center text-xs sm:text-sm font-bold px-6 sm:px-7 py-3 rounded-full ${
                         isOutubroRosa
-                          ? 'bg-gradient-to-r from-[#E11D48] to-[#FF2D78] hover:from-[#BE123C] hover:to-[#E11D48] text-white shadow-lg shadow-pink-600/30'
+                          ? 'bg-gradient-to-r from-[#DB2777] via-[#EC4899] to-[#F472B6] hover:from-[#BE185D] hover:to-[#DB2777] text-white shadow-lg shadow-pink-500/30'
                           : 'bg-[#0071E3] hover:bg-[#005fb8] text-white shadow-lg shadow-blue-600/30'
                       } active:scale-95 transition-all cursor-pointer space-x-2 group/btn`}
                     >
@@ -479,7 +573,7 @@ export const Hero: React.FC = () => {
         {/* 4. Barra de Confiança Integrada no Rodapé do Banner */}
         <div className="pt-6 border-t border-white/10 grid grid-cols-2 sm:grid-cols-4 gap-3 text-left">
           <div className="flex items-center space-x-2.5">
-            <Truck className={`h-4 w-4 ${isOutubroRosa ? 'text-[#FF2D78]' : 'text-[#0084FF]'} shrink-0 stroke-[2.2]`} />
+            <Truck className={`h-4 w-4 ${isOutubroRosa ? 'text-[#F472B6]' : 'text-[#0084FF]'} shrink-0 stroke-[2.2]`} />
             <div>
               <h5 className="text-[10px] sm:text-[11px] font-bold text-white tracking-tight leading-none">Entrega Rápida</h5>
               <span className={`text-[8px] sm:text-[9px] ${isOutubroRosa ? 'text-[#FFE4F0]/70' : 'text-[#DDF1FF]/70'} leading-none`}>Para todo o Brasil</span>
@@ -487,7 +581,7 @@ export const Hero: React.FC = () => {
           </div>
 
           <div className="flex items-center space-x-2.5">
-            <ShieldCheck className={`h-4 w-4 ${isOutubroRosa ? 'text-[#FF2D78]' : 'text-[#0084FF]'} shrink-0 stroke-[2.2]`} />
+            <ShieldCheck className={`h-4 w-4 ${isOutubroRosa ? 'text-[#F472B6]' : 'text-[#0084FF]'} shrink-0 stroke-[2.2]`} />
             <div>
               <h5 className="text-[10px] sm:text-[11px] font-bold text-white tracking-tight leading-none">Compra Segura</h5>
               <span className={`text-[8px] sm:text-[9px] ${isOutubroRosa ? 'text-[#FFE4F0]/70' : 'text-[#DDF1FF]/70'} leading-none`}>Seus dados protegidos</span>
@@ -495,15 +589,15 @@ export const Hero: React.FC = () => {
           </div>
 
           <div className="flex items-center space-x-2.5">
-            <CreditCard className={`h-4 w-4 ${isOutubroRosa ? 'text-[#FF2D78]' : 'text-[#0084FF]'} shrink-0 stroke-[2.2]`} />
+            <CreditCard className={`h-4 w-4 ${isOutubroRosa ? 'text-[#F472B6]' : 'text-[#0084FF]'} shrink-0 stroke-[2.2]`} />
             <div>
-              <h5 className="text-[10px] sm:text-[11px] font-bold text-white tracking-tight leading-none">Parcele em até 12x</h5>
+              <h5 className="text-[10px] sm:text-[11px] font-bold text-white tracking-tight leading-none">Parcele em até 10x</h5>
               <span className={`text-[8px] sm:text-[9px] ${isOutubroRosa ? 'text-[#FFE4F0]/70' : 'text-[#DDF1FF]/70'} leading-none`}>No cartão de crédito</span>
             </div>
           </div>
 
           <div className="flex items-center space-x-2.5">
-            <RefreshCw className={`h-4 w-4 ${isOutubroRosa ? 'text-[#FF2D78]' : 'text-[#0084FF]'} shrink-0 stroke-[2.2]`} />
+            <RefreshCw className={`h-4 w-4 ${isOutubroRosa ? 'text-[#F472B6]' : 'text-[#0084FF]'} shrink-0 stroke-[2.2]`} />
             <div>
               <h5 className="text-[10px] sm:text-[11px] font-bold text-white tracking-tight leading-none">Troca e Devolução</h5>
               <span className={`text-[8px] sm:text-[9px] ${isOutubroRosa ? 'text-[#FFE4F0]/70' : 'text-[#DDF1FF]/70'} leading-none`}>Sem complicação</span>
@@ -540,7 +634,7 @@ export const Hero: React.FC = () => {
             onClick={() => setCurrentSlide(idx)}
             className={`h-1.5 rounded-full transition-all duration-300 cursor-pointer ${
               currentSlide === idx 
-                ? (isOutubroRosa ? 'w-9 bg-[#FF2D78] shadow-sm shadow-pink-500/50' : 'w-9 bg-[#0084FF] shadow-sm shadow-blue-500/50')
+                ? (isOutubroRosa ? 'w-9 bg-[#F472B6] shadow-sm shadow-pink-400/60' : 'w-9 bg-[#0084FF] shadow-sm shadow-blue-500/50')
                 : 'w-6 bg-white/30 hover:bg-white/60'
             }`}
             aria-label={`Ir para slide ${idx + 1}`}

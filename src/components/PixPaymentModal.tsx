@@ -52,6 +52,7 @@ export const PixPaymentModal: React.FC<PixPaymentModalProps> = ({
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const hasFetchedRef = useRef(false);
+  const approvedRef = useRef(false);
 
   // Stop polling
   const stopPolling = useCallback(() => {
@@ -69,6 +70,22 @@ export const PixPaymentModal: React.FC<PixPaymentModalProps> = ({
     }
   }, []);
 
+  const handleApproved = useCallback((paymentId: number | string) => {
+    if (approvedRef.current) return;
+    approvedRef.current = true;
+    stopPolling();
+    stopTimer();
+    setState('approved');
+
+    // Atualiza status para 'approved' na coleção pix_transacoes no Firestore
+    const parcelKey = String(externalReference || parcelDescription).trim().toLowerCase();
+    pixFirestoreService.updatePixStatus(pixFirestoreService.buildDocId(parcelKey), 'approved').catch(console.warn);
+
+    if (onPaymentSuccess) {
+      onPaymentSuccess(paymentId);
+    }
+  }, [stopPolling, stopTimer, onPaymentSuccess, externalReference, parcelDescription]);
+
   // Poll payment status
   const startPolling = useCallback((paymentId: number | string) => {
     stopPolling();
@@ -77,17 +94,7 @@ export const PixPaymentModal: React.FC<PixPaymentModalProps> = ({
       try {
         const data = await pixPaymentService.checkPixStatus(paymentId);
         if (data.success && data.status === 'approved') {
-          stopPolling();
-          stopTimer();
-          setState('approved');
-
-          // Atualiza status para 'approved' na coleção pix_transacoes no Firestore
-          const parcelKey = String(externalReference || parcelDescription).trim().toLowerCase();
-          pixFirestoreService.updatePixStatus(pixFirestoreService.buildDocId(parcelKey), 'approved').catch(console.warn);
-
-          if (onPaymentSuccess) {
-            onPaymentSuccess(paymentId);
-          }
+          handleApproved(paymentId);
         }
       } catch {
         // Silently ignore polling errors — keep trying
@@ -98,10 +105,11 @@ export const PixPaymentModal: React.FC<PixPaymentModalProps> = ({
     pollingRef.current = setInterval(checkStatus, 3_500);
     // Also check immediately after a short delay
     setTimeout(checkStatus, 1_500);
-  }, [stopPolling, stopTimer, onPaymentSuccess, externalReference, parcelDescription]);
+  }, [stopPolling, handleApproved]);
 
   // Fetch / Generate Pix
   const fetchPix = useCallback(async (forceNew = false) => {
+    approvedRef.current = false;
     setState('loading');
     setPixData(null);
     setErrorMsg('');
@@ -509,19 +517,11 @@ export const PixPaymentModal: React.FC<PixPaymentModalProps> = ({
                     </div>
                   </div>
 
-                  {/* Botão de Enviar ao WhatsApp após pagar */}
-                  <div className="pt-2">
-                    <button
-                      onClick={() => {
-                        if (onPaymentSuccess && pixData) {
-                          onPaymentSuccess(pixData.payment_id);
-                        }
-                      }}
-                      className="w-full py-2.5 px-4 rounded-xl bg-[#25D366] hover:bg-[#20ba5a] text-white text-xs font-black uppercase tracking-wider flex items-center justify-center space-x-2 shadow-md transition-all cursor-pointer"
-                    >
-                      <MessageSquare className="h-4 w-4" />
-                      <span>Já Paguei / Enviar Pedido no WhatsApp</span>
-                    </button>
+                  {/* Status Informativo */}
+                  <div className="pt-2 text-center">
+                    <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                      Assim que o pagamento for identificado pelo Mercado Pago, a baixa será feita automaticamente.
+                    </p>
                   </div>
 
                   {/* Payment ID */}

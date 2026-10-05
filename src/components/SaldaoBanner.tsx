@@ -34,12 +34,12 @@ export const SaldaoBanner: React.FC<SaldaoBannerProps> = ({
       id="saldao-destaque-banner"
       className={`relative overflow-hidden rounded-2xl sm:rounded-3xl lg:rounded-[28px] border text-white select-none group transition-all duration-300 ${
         isOutubroRosa 
-          ? 'border-pink-500/30 bg-[#260315] shadow-2xl shadow-pink-950/60' 
+          ? 'border-pink-400/40 bg-[#540832] shadow-2xl shadow-pink-950/40' 
           : 'border-blue-600/30 bg-[#021B4D] shadow-2xl shadow-blue-950/60'
       }`}
       style={{
         background: isOutubroRosa
-          ? 'linear-gradient(108deg, #240316 0%, #3D0624 35%, #5E0938 62%, #2B0319 100%)'
+          ? 'linear-gradient(108deg, #5B0836 0%, #7D0D47 35%, #9D174D 62%, #680A3A 100%)'
           : 'linear-gradient(108deg, #011438 0%, #032158 35%, #052b6e 62%, #021a47 100%)'
       }}
     >
@@ -47,7 +47,7 @@ export const SaldaoBanner: React.FC<SaldaoBannerProps> = ({
       <div 
         className="absolute right-[12%] sm:right-[16%] lg:right-[18%] top-1/2 -translate-y-1/2 w-[260px] sm:w-[380px] lg:w-[480px] h-[220px] sm:h-[300px] lg:h-[360px] rounded-full pointer-events-none"
         style={{
-          background: `radial-gradient(circle, rgba(255, 115, 0, 0.95) 0%, rgba(255, 145, 0, 0.70) 28%, rgba(255, 95, 0, 0.20) 54%, ${isOutubroRosa ? 'rgba(38, 3, 21, 0)' : 'rgba(2, 27, 77, 0)'} 72%)`,
+          background: `radial-gradient(circle, rgba(255, 115, 0, 0.95) 0%, rgba(255, 145, 0, 0.70) 28%, rgba(255, 95, 0, 0.20) 54%, ${isOutubroRosa ? 'rgba(91, 8, 54, 0)' : 'rgba(2, 27, 77, 0)'} 72%)`,
           filter: 'blur(16px)',
           opacity: 0.95
         }}
@@ -101,7 +101,7 @@ export const SaldaoBanner: React.FC<SaldaoBannerProps> = ({
               <h2 className="text-xl sm:text-2xl md:text-3xl lg:text-[30px] xl:text-[34px] font-black tracking-tight text-white leading-none whitespace-nowrap">
                 Saldão de Calçados
               </h2>
-              <span className="text-xl sm:text-2xl md:text-3xl lg:text-[30px] xl:text-[34px] font-black text-[#FF7A00] tracking-tight leading-none whitespace-nowrap">
+              <span className={`text-xl sm:text-2xl md:text-3xl lg:text-[30px] xl:text-[34px] font-black ${isOutubroRosa ? 'text-[#F472B6]' : 'text-[#FF7A00]'} tracking-tight leading-none whitespace-nowrap`}>
                 -{discountPercent}% OFF
               </span>
             </div>
@@ -126,22 +126,22 @@ export const SaldaoBanner: React.FC<SaldaoBannerProps> = ({
               <defs>
                 {/* Gradiente do Pódio Superior */}
                 <linearGradient id="podiumTopGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor={isOutubroRosa ? '#6B0F3A' : '#143C8A'} />
-                  <stop offset="50%" stopColor={isOutubroRosa ? '#4A0826' : '#0B255E'} />
-                  <stop offset="100%" stopColor={isOutubroRosa ? '#2C0316' : '#051740'} />
+                  <stop offset="0%" stopColor={isOutubroRosa ? '#9D174D' : '#143C8A'} />
+                  <stop offset="50%" stopColor={isOutubroRosa ? '#700B40' : '#0B255E'} />
+                  <stop offset="100%" stopColor={isOutubroRosa ? '#4A062B' : '#051740'} />
                 </linearGradient>
 
                 {/* Gradiente da Face do Pódio */}
                 <linearGradient id="podiumBodyGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-                  <stop offset="0%" stopColor={isOutubroRosa ? '#4A0826' : '#0B2660'} />
-                  <stop offset="100%" stopColor={isOutubroRosa ? '#1F020F' : '#03102C'} />
+                  <stop offset="0%" stopColor={isOutubroRosa ? '#700B40' : '#0B2660'} />
+                  <stop offset="100%" stopColor={isOutubroRosa ? '#3B0422' : '#03102C'} />
                 </linearGradient>
 
                 {/* Gradiente da Sacola Temática */}
                 <linearGradient id="themeBagGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor={isOutubroRosa ? '#BE185D' : '#124099'} />
-                  <stop offset="60%" stopColor={isOutubroRosa ? '#831843' : '#092766'} />
-                  <stop offset="100%" stopColor={isOutubroRosa ? '#50072B' : '#051945'} />
+                  <stop offset="0%" stopColor={isOutubroRosa ? '#EC4899' : '#124099'} />
+                  <stop offset="60%" stopColor={isOutubroRosa ? '#BE185D' : '#092766'} />
+                  <stop offset="100%" stopColor={isOutubroRosa ? '#831843' : '#051945'} />
                 </linearGradient>
 
                 {/* Gradiente da Sacola Laranja */}
@@ -341,12 +341,12 @@ export const SaldaoBanner: React.FC<SaldaoBannerProps> = ({
             </div>
           </div>
 
-          {/* Pilar 3: Parcele em até 12x */}
+          {/* Pilar 3: Parcele em até 10x */}
           <div className="flex items-center space-x-2">
             <CreditCard className={`h-3.5 w-3.5 ${isOutubroRosa ? 'text-[#F472B6]' : 'text-[#38BDF8]'} shrink-0 stroke-[2.2]`} />
             <div>
               <h5 className="text-[10px] sm:text-[11px] font-bold text-white tracking-tight leading-none">
-                Parcele em até 12x
+                Parcele em até 10x
               </h5>
               <span className={`text-[8px] sm:text-[9px] ${isOutubroRosa ? 'text-pink-200/70' : 'text-sky-200/70'} leading-none`}>
                 No cartão de crédito

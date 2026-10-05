@@ -544,11 +544,11 @@ export const AVAILABLE_STORE_THEMES: ThemeDefinition[] = [
     id: 'outubro-rosa',
     name: 'Outubro Rosa',
     badge: 'Campanha de Conscientização',
-    description: 'Visual especial para a campanha com tons vinho escuro (#240316 / #2C0317), magenta e rosa neon vibrante (#FF2D78).',
-    primaryColor: '#2C0317',
-    secondaryColor: '#FF2D78',
-    accentColor: '#E11D48',
-    previewBg: 'linear-gradient(135deg, #240316 0%, #450727 50%, #780A41 100%)',
+    description: 'Visual especial para a campanha com tons rosa radiante (#5B0836 / #831843), pink vibrante (#EC4899) e rosa suave iluminado (#F472B6).',
+    primaryColor: '#5B0836',
+    secondaryColor: '#EC4899',
+    accentColor: '#F472B6',
+    previewBg: 'linear-gradient(135deg, #5B0836 0%, #831843 45%, #DB2777 80%, #F472B6 100%)',
   },
 ];
 

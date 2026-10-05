@@ -270,6 +270,52 @@ export const CategoryPage: React.FC = () => {
       ? 'infantil'
       : cleanTabKey;
 
+    // 0. Verifica se é uma campanha promocional específica cadastrada (ex: promo:ID)
+    if (cleanTabKey.startsWith('promo:')) {
+      const promoId = cleanTabKey.replace('promo:', '').trim();
+      const specificPromo = promotions.find(p => p.id === promoId);
+      if (specificPromo) {
+        return {
+          title: `🔥 ${specificPromo.title.toUpperCase()}`,
+          subtitle: specificPromo.description || `Confira todos os produtos com desconto exclusivo da campanha ${specificPromo.title}!`,
+          bannerImage: 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?q=80&w=1600&auto=format&fit=crop',
+          badgeText: `🏷️ ${specificPromo.discountType === 'percentage' ? `${specificPromo.discountValue}% OFF` : `R$ ${specificPromo.discountValue} OFF`}`,
+          isDealsPage: true,
+          filter: (prod: Product) => (specificPromo.productIds || []).includes(prod.id)
+        };
+      }
+    }
+
+    // 0.1 Verifica se é uma subcategoria específica cadastrada (ex: subcategoria:Sandálias)
+    if (cleanTabKey.startsWith('subcategoria:')) {
+      const parts = cleanTabKey.replace('subcategoria:', '').split(':');
+      const subName = parts.length > 1 ? parts[1].trim() : parts[0].trim();
+      const catName = parts.length > 1 ? parts[0].trim() : '';
+      return {
+        title: subName.toUpperCase(),
+        subtitle: `Confira todos os modelos de ${subName} disponíveis na Evidência Calçados.`,
+        bannerImage: 'https://images.unsplash.com/photo-1549298916-b41d501d3772?q=80&w=1600&auto=format&fit=crop',
+        badgeText: `SUBCATEGORIA: ${subName.toUpperCase()}`,
+        filter: (prod: Product) => {
+          if (catName && !isProductInCategory(prod, catName)) return false;
+          return isSubcategoryMatch(prod, subName);
+        }
+      };
+    }
+
+    // 0.2 Verifica se é uma categoria específica cadastrada (ex: categoria:CALÇADOS)
+    if (cleanTabKey.startsWith('categoria:')) {
+      const rawCat = cleanTabKey.replace('categoria:', '').trim();
+      const normCat = normalizeCategoryName(rawCat);
+      return {
+        title: normCat.toUpperCase(),
+        subtitle: `Confira nossa coleção completa de ${normCat} com qualidade e conforto exclusivos Evidência Calçados.`,
+        bannerImage: 'https://images.unsplash.com/photo-1549298916-b41d501d3772?q=80&w=1600&auto=format&fit=crop',
+        badgeText: `CATEGORIA: ${normCat.toUpperCase()}`,
+        filter: (prod: Product) => isProductInCategory(prod, rawCat)
+      };
+    }
+
     const isSaldaoOrOfertas = (
       cleanTabKey.includes('saldão') || cleanTabKey.includes('saldao') || cleanTabKey.includes('oferta') || cleanTabKey.includes('promoção') || cleanTabKey.includes('promocao') ||
       cleanSubKey.includes('saldão') || cleanSubKey.includes('saldao') || cleanSubKey.includes('oferta') || cleanSubKey.includes('promoção') || cleanSubKey.includes('promocao') ||
@@ -482,7 +528,22 @@ export const CategoryPage: React.FC = () => {
       : cleanTabKey;
 
     let parentCheck: (prod: Product) => boolean = () => true;
-    if (TAB_CONFIGS[effectiveKey]) {
+    if (cleanTabKey.startsWith('promo:')) {
+      const pId = cleanTabKey.replace('promo:', '').trim();
+      const p = promotions.find(item => item.id === pId);
+      parentCheck = (prod: Product) => (p?.productIds || []).includes(prod.id);
+    } else if (cleanTabKey.startsWith('categoria:')) {
+      const cat = cleanTabKey.replace('categoria:', '').trim();
+      parentCheck = (prod: Product) => isProductInCategory(prod, cat);
+    } else if (cleanTabKey.startsWith('subcategoria:')) {
+      const parts = cleanTabKey.replace('subcategoria:', '').split(':');
+      const sub = parts.length > 1 ? parts[1].trim() : parts[0].trim();
+      const cat = parts.length > 1 ? parts[0].trim() : '';
+      parentCheck = (prod: Product) => {
+        if (cat && !isProductInCategory(prod, cat)) return false;
+        return isSubcategoryMatch(prod, sub);
+      };
+    } else if (TAB_CONFIGS[effectiveKey]) {
       parentCheck = TAB_CONFIGS[effectiveKey].filter;
     } else if (cleanTabKey !== 'todos') {
       const foundCategory = categories.find(c => c.id === selectedMenuTab || c.name.toLowerCase() === selectedMenuTab.toLowerCase() || normalizeCategoryName(c.name).toLowerCase() === selectedMenuTab.toLowerCase());
@@ -653,11 +714,11 @@ export const CategoryPage: React.FC = () => {
         <button
           onClick={() => setIsBrandOpen(!isBrandOpen)}
           className={`w-full flex items-center justify-between font-extrabold text-sm text-[#003B73] py-1 cursor-pointer transition-colors ${
-            isOutubroRosa ? 'hover:text-[#FF2D78]' : 'hover:text-[#006EDB]'
+            isOutubroRosa ? 'hover:text-[#EC4899]' : 'hover:text-[#006EDB]'
           }`}
         >
           <div className="flex items-center space-x-2">
-            <Tag className={`h-4 w-4 ${isOutubroRosa ? 'text-[#FF2D78]' : 'text-[#006EDB]'}`} />
+            <Tag className={`h-4 w-4 ${isOutubroRosa ? 'text-[#EC4899]' : 'text-[#006EDB]'}`} />
             <span>Marca</span>
           </div>
           {isBrandOpen ? <ChevronUp className="h-4 w-4 text-[#003B73]" /> : <ChevronDown className="h-4 w-4 text-[#003B73]" />}
@@ -718,11 +779,11 @@ export const CategoryPage: React.FC = () => {
           <button
             onClick={() => setIsGradeOpen(!isGradeOpen)}
             className={`w-full flex items-center justify-between font-extrabold text-sm text-[#003B73] py-1 cursor-pointer transition-colors ${
-              isOutubroRosa ? 'hover:text-[#FF2D78]' : 'hover:text-[#006EDB]'
+              isOutubroRosa ? 'hover:text-[#EC4899]' : 'hover:text-[#006EDB]'
             }`}
           >
             <div className="flex items-center space-x-2">
-              <Ruler className={`h-4 w-4 ${isOutubroRosa ? 'text-[#FF2D78]' : 'text-[#006EDB]'}`} />
+              <Ruler className={`h-4 w-4 ${isOutubroRosa ? 'text-[#EC4899]' : 'text-[#006EDB]'}`} />
               <span>Tamanho / Grade</span>
             </div>
             {isGradeOpen ? <ChevronUp className="h-4 w-4 text-[#003B73]" /> : <ChevronDown className="h-4 w-4 text-[#003B73]" />}
@@ -740,10 +801,10 @@ export const CategoryPage: React.FC = () => {
                     className={`py-2 text-xs font-bold rounded-xl border transition-all cursor-pointer text-center ${
                       isSelected
                         ? isOutubroRosa
-                          ? 'bg-gradient-to-r from-[#FF2D78] to-[#BE185D] text-white border-[#FF2D78] shadow-pink-600/25 scale-[1.03]'
+                          ? 'bg-gradient-to-r from-[#EC4899] to-[#F472B6] text-white border-[#EC4899] shadow-pink-500/25 scale-[1.03]'
                           : 'bg-[#003B73] text-white border-[#003B73] shadow-xs scale-[1.03]'
                         : isOutubroRosa
-                        ? 'bg-white text-[#9D174D] border-pink-900/15 hover:border-[#FF2D78] hover:bg-pink-50'
+                        ? 'bg-white text-[#9D174D] border-pink-900/15 hover:border-[#EC4899] hover:bg-pink-50'
                         : 'bg-white text-[#00509E] border-blue-900/15 hover:border-[#006EDB] hover:bg-[#DDF1FF]'
                     }`}
                   >
@@ -1001,10 +1062,10 @@ export const CategoryPage: React.FC = () => {
               className={`px-3.5 py-1 rounded-full text-xs font-bold transition-all cursor-pointer shadow-2xs border ${
                 !activeSubcategory
                   ? isOutubroRosa
-                    ? 'bg-gradient-to-r from-[#FF2D78] to-[#BE185D] text-white border-[#FF2D78]'
+                    ? 'bg-gradient-to-r from-[#EC4899] to-[#F472B6] text-white border-[#EC4899]'
                     : 'bg-[#003B73] text-white border-[#003B73]'
                   : isOutubroRosa
-                  ? 'bg-white text-[#9D174D] border-pink-900/15 hover:border-[#FF2D78] hover:bg-pink-50'
+                  ? 'bg-white text-[#9D174D] border-pink-900/15 hover:border-[#EC4899] hover:bg-pink-50'
                   : 'bg-white text-[#003B73] border-blue-900/15 hover:border-[#006EDB] hover:bg-blue-50'
               }`}
             >
@@ -1025,10 +1086,10 @@ export const CategoryPage: React.FC = () => {
                   className={`px-3.5 py-1 rounded-full text-xs font-bold transition-all cursor-pointer shadow-2xs border ${
                     isActive
                       ? isOutubroRosa
-                        ? 'bg-gradient-to-r from-[#FF2D78] to-[#BE185D] text-white border-[#FF2D78]'
+                        ? 'bg-gradient-to-r from-[#EC4899] to-[#F472B6] text-white border-[#EC4899]'
                         : 'bg-[#003B73] text-white border-[#003B73]'
                       : isOutubroRosa
-                      ? 'bg-white text-[#9D174D] border-pink-900/15 hover:border-[#FF2D78] hover:bg-pink-50'
+                      ? 'bg-white text-[#9D174D] border-pink-900/15 hover:border-[#EC4899] hover:bg-pink-50'
                       : 'bg-white text-[#00509E] border-blue-900/15 hover:border-[#006EDB] hover:bg-blue-50'
                   }`}
                 >
@@ -1120,7 +1181,7 @@ export const CategoryPage: React.FC = () => {
                     : 'bg-[#EEF8FF] border border-blue-900/10 shadow-sm'
                 }`}>
                   <div className="flex items-center space-x-2">
-                    <Tag className={`h-4 w-4 ${isOutubroRosa ? 'text-[#FF2D78]' : 'text-[#006EDB]'}`} />
+                    <Tag className={`h-4 w-4 ${isOutubroRosa ? 'text-[#EC4899]' : 'text-[#006EDB]'}`} />
                     <span className="text-xs font-black text-[#003B73] uppercase tracking-wider">
                       Seções em Destaque
                     </span>
@@ -1132,7 +1193,7 @@ export const CategoryPage: React.FC = () => {
                       className={`px-3.5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
                         offersSectionTab === 'all'
                           ? isOutubroRosa
-                            ? 'bg-gradient-to-r from-[#FF2D78] to-[#BE185D] text-white shadow-xs'
+                            ? 'bg-gradient-to-r from-[#EC4899] to-[#F472B6] text-white shadow-xs'
                             : 'bg-[#003B73] text-white shadow-xs'
                           : isOutubroRosa
                           ? 'bg-white text-[#9D174D] border border-pink-900/15 hover:bg-pink-50'

@@ -154,6 +154,18 @@ updated: 2026-09-18
 - **Sincronização em Tempo Real (`onSnapshot`):** Mudança imediata de tema em todas as instâncias e dispositivos conectados sem recarregar a aplicação.
 - **Isolamento de Estilos:** Flag global `isPinkTheme` propagada via `useApp()` que comuta variáveis e classes utilitárias da paleta de cores (Azul Evidência vs Outubro Rosa) nos componentes essenciais da vitrine, cards, bento grid e detalhes do produto.
 
+## 27. Destinos Dinâmicos de Banners Hero para Categorias e Campanhas de Ofertas
+- **Estruturação por Prefixos Semânticos:** Uso de prefixos padronizados (`promo:ID`, `categoria:NOME`, `subcategoria:NOME`) no campo `tabKey` de `HeroBanner`.
+- **Roteamento Desacoplado no Hero (`Hero.tsx`):** O disparador `handleCtaClick` analisa os prefixos e comuta atômica e confiavelmente entre `offers`, `category`, e `catalog`.
+- **Filtro Específico e Contexto Reativo (`CategoryPage.tsx`):** `getTabConfig` intercepta campanhas individuais em `promotions`, renderizando títulos, subtítulos, badges com percentual de desconto e filtrando estritamente os `productIds` cadastrados.
+
+## 28. Matriz Cromática Radiante do Outubro Rosa (Eliminação de Vermelho e Vinho Fechado)
+- **Eliminação de Resíduos Carmim/Vinho:** Substituição definitiva de códigos `#240316`, `#3D0624`, `#FF2D78`, `#E11D48` por paleta feminina luminosa e radiante.
+- **Tokens Utilizados:** Rosa Neon Fluorescente (`#F472B6`), Rosa Radiante (`#EC4899`, `#DB2777`), Rosa Nobre de Fundo (`#5B0836`, `#831843`, `#9D174D`) e Rosa Pastel Suave (`#FBCFE8`, `#FDF2F8`, `#FFF0F5`).
+- **Validação Global:** Cobertura em todos os componentes de vitrine (`Hero`, `SaldaoBanner`, `StorefrontProductCard`, `ProductDetail`, `AudienceMegaMenu`, `CategoryPage`, `ShippingCalculator`, `HeaderLiveSearch`).
+
+
+
 
 
 

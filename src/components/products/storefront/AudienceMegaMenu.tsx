@@ -380,7 +380,7 @@ export const AudienceMegaMenu: React.FC<AudienceMegaMenuProps> = ({
                 ? 'bg-gradient-to-r from-slate-950 via-[#36051D] to-[#54082F] border-pink-950/60 text-white'
                 : 'bg-gradient-to-r from-slate-950 via-[#00224D] to-[#003875] border-slate-800 text-white'
               : isOutubroRosa
-                ? 'bg-gradient-to-r from-[#2C0317] via-[#4D0629] to-[#780A41] border-pink-700/40 text-white'
+                ? 'bg-gradient-to-r from-[#5B0836] via-[#7D0D47] to-[#9D174D] border-pink-500/40 text-white'
                 : 'bg-gradient-to-r from-[#002554] via-[#003875] to-[#0052A3] border-blue-900/40 text-white'
           }`}
         >
@@ -431,7 +431,7 @@ export const AudienceMegaMenu: React.FC<AudienceMegaMenuProps> = ({
 
               {/* Linha de Destaque Neon da Marca */}
               <div className={`w-10 h-1 rounded-full ${
-                isOutubroRosa ? 'bg-[#FF2D78] shadow-[0_0_10px_#FF2D78]' : 'bg-[#00D0FF] shadow-[0_0_10px_#00D0FF]'
+                isOutubroRosa ? 'bg-[#F472B6] shadow-[0_0_10px_#F472B6]' : 'bg-[#00D0FF] shadow-[0_0_10px_#00D0FF]'
               } mt-3`} />
             </div>
 
@@ -441,7 +441,7 @@ export const AudienceMegaMenu: React.FC<AudienceMegaMenuProps> = ({
               <div className="relative hidden md:flex items-center justify-center w-52 lg:w-60 h-24">
                 {/* Base do Pódio Circular */}
                 <div className={`absolute bottom-1 w-44 lg:w-48 h-6 ${
-                  isOutubroRosa ? 'bg-[#240314]/80 border border-pink-400/30' : 'bg-[#001D40]/70 border border-sky-400/20'
+                  isOutubroRosa ? 'bg-[#50082E]/80 border border-pink-400/30' : 'bg-[#001D40]/70 border border-sky-400/20'
                 } rounded-[100%] shadow-inner`} />
 
                 {/* 3 Produtos Sobrepostos */}

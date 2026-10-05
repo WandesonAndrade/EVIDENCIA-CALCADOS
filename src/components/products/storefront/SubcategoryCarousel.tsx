@@ -225,7 +225,7 @@ export const SubcategoryCarousel: React.FC<SubcategoryCarouselProps> = ({
                 className={`text-xs sm:text-sm font-extrabold line-clamp-1 mt-2.5 transition-colors ${
                   isDark
                     ? isOutubroRosa ? 'text-slate-100 group-hover:text-pink-400' : 'text-slate-100 group-hover:text-blue-400'
-                    : isOutubroRosa ? 'text-[#003B73] group-hover:text-[#FF2D78]' : 'text-[#003B73] group-hover:text-[#006EDB]'
+                    : isOutubroRosa ? 'text-[#003B73] group-hover:text-[#EC4899]' : 'text-[#003B73] group-hover:text-[#006EDB]'
                 }`}
               >
                 {displayName}

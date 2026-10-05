@@ -124,7 +124,7 @@ export const ShippingCalculator: React.FC<ShippingCalculatorProps> = ({
       {!hideHeader && (
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-slate-800 font-bold text-sm">
-            <Truck className={`w-4 h-4 ${isOutubroRosa ? 'text-[#FF2D78]' : 'text-[#0071E3]'}`} />
+            <Truck className={`w-4 h-4 ${isOutubroRosa ? 'text-[#EC4899]' : 'text-[#0071E3]'}`} />
             <span>Calcular Frete e Prazos</span>
           </div>
           <span className="text-[11px] font-semibold text-slate-400">Melhor Envio</span>
@@ -142,7 +142,7 @@ export const ShippingCalculator: React.FC<ShippingCalculatorProps> = ({
               placeholder="00000-000"
               maxLength={9}
               className={`w-full px-4 py-2.5 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 ${
-                isOutubroRosa ? 'focus:ring-[#FF2D78]' : 'focus:ring-[#0071E3]'
+                isOutubroRosa ? 'focus:ring-[#EC4899]' : 'focus:ring-[#0071E3]'
               } font-mono text-sm font-bold text-slate-800 placeholder:font-normal placeholder:text-slate-400 bg-white`}
             />
           </div>
@@ -151,7 +151,7 @@ export const ShippingCalculator: React.FC<ShippingCalculatorProps> = ({
             disabled={loading}
             className={`px-5 py-2.5 ${
               isOutubroRosa
-                ? 'bg-gradient-to-r from-[#FF2D78] to-[#BE185D] hover:from-[#E11D48] hover:to-[#9D174D] shadow-pink-600/20'
+                ? 'bg-gradient-to-r from-[#DB2777] via-[#EC4899] to-[#F472B6] hover:from-[#BE185D] hover:to-[#DB2777] shadow-pink-500/20'
                 : 'bg-[#0071E3] hover:bg-[#005bb5]'
             } text-white font-semibold text-xs rounded-2xl transition shadow-sm hover:shadow flex items-center justify-center gap-1.5 shrink-0`}
           >
@@ -193,7 +193,7 @@ export const ShippingCalculator: React.FC<ShippingCalculatorProps> = ({
                   className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
                     isSelected
                       ? isOutubroRosa
-                        ? "bg-white border-[#FF2D78] ring-2 ring-[#FF2D78]/20 shadow-sm"
+                        ? "bg-white border-[#EC4899] ring-2 ring-[#EC4899]/20 shadow-sm"
                         : "bg-white border-[#0071E3] ring-2 ring-[#0071E3]/20 shadow-sm"
                       : "bg-white hover:bg-slate-100/80 border-slate-200"
                   }`}
@@ -204,7 +204,7 @@ export const ShippingCalculator: React.FC<ShippingCalculatorProps> = ({
                       className={`w-5 h-5 rounded-full border flex items-center justify-center transition ${
                         isSelected
                           ? isOutubroRosa
-                            ? "bg-[#FF2D78] border-[#FF2D78] text-white"
+                            ? "bg-[#EC4899] border-[#EC4899] text-white"
                             : "bg-[#0071E3] border-[#0071E3] text-white"
                           : "border-slate-300 bg-white"
                       }`}

@@ -172,7 +172,7 @@ export const HeaderLiveSearch: React.FC<HeaderLiveSearchProps> = ({ isMobile = f
               <div className="flex items-center space-x-1.5">
                 <span className={`p-1 rounded-lg ${
                   isOutubroRosa
-                    ? 'bg-pink-100 text-[#FF2D78] dark:bg-pink-950/70 dark:text-pink-300'
+                    ? 'bg-pink-100 text-[#EC4899] dark:bg-pink-950/70 dark:text-pink-300'
                     : 'bg-[#0071E3]/10 text-[#0071E3] dark:bg-blue-500/20 dark:text-blue-400'
                 }`}>
                   <Zap className="h-3.5 w-3.5 stroke-[2.5]" />
@@ -286,7 +286,7 @@ export const HeaderLiveSearch: React.FC<HeaderLiveSearchProps> = ({ isMobile = f
                   onClick={handleViewAllCatalog}
                   className={`w-full py-2 px-3 rounded-xl ${
                     isOutubroRosa
-                      ? 'bg-gradient-to-r from-[#FF2D78] via-[#E11D48] to-[#BE185D] hover:from-[#E11D48] hover:to-[#9D174D] shadow-pink-600/25'
+                      ? 'bg-gradient-to-r from-[#DB2777] via-[#EC4899] to-[#F472B6] hover:from-[#BE185D] hover:to-[#DB2777] shadow-pink-500/25'
                       : 'bg-[#0071E3] hover:bg-[#005bb5]'
                   } text-white text-xs font-bold transition-all cursor-pointer flex items-center justify-center space-x-1.5 shadow-sm active:scale-[0.99]`}
                 >

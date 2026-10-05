@@ -310,7 +310,7 @@ export const CategorySandwichMenu: React.FC<CategorySandwichMenuProps> = ({ isOp
                       </div>
                       <div>
                         <span className={`text-[10px] font-extrabold uppercase tracking-widest ${
-                          isOutubroRosa ? 'text-[#FF2D78]' : 'text-[#006EDB]'
+                          isOutubroRosa ? 'text-[#EC4899]' : 'text-[#006EDB]'
                         }`}>
                           DEPARTAMENTO
                         </span>
@@ -326,7 +326,7 @@ export const CategorySandwichMenu: React.FC<CategorySandwichMenuProps> = ({ isOp
                       className={`w-full p-3.5 rounded-2xl border flex items-center justify-between transition-all cursor-pointer font-bold text-xs ${
                         selectedCategory.toUpperCase() === activeCategory.key && selectedSubcategory === 'TODAS'
                           ? isOutubroRosa
-                            ? 'bg-gradient-to-r from-[#FF2D78] via-[#E11D48] to-[#BE185D] border-[#FF2D78] text-white shadow-md shadow-pink-600/25'
+                            ? 'bg-gradient-to-r from-[#DB2777] via-[#EC4899] to-[#F472B6] border-[#EC4899] text-white shadow-md shadow-pink-600/25'
                             : 'bg-[#006EDB] border-[#006EDB] text-white shadow-md'
                           : isDark
                             ? 'bg-slate-900/60 border-slate-800 hover:border-slate-700 text-slate-200'
@@ -336,7 +336,7 @@ export const CategorySandwichMenu: React.FC<CategorySandwichMenuProps> = ({ isOp
                       }`}
                     >
                       <div className="flex items-center space-x-2.5">
-                        <PackageCheck className={`h-4 w-4 ${isOutubroRosa ? 'text-[#FF2D78]' : 'text-[#006EDB]'}`} />
+                        <PackageCheck className={`h-4 w-4 ${isOutubroRosa ? 'text-[#EC4899]' : 'text-[#006EDB]'}`} />
                         <span>Ver Todos em {activeCategory.name}</span>
                       </div>
                       <ChevronRight className="h-4 w-4 opacity-50" />

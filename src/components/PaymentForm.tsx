@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   CreditCard,
   QrCode,
@@ -32,6 +32,7 @@ interface PaymentFormProps {
   onPaymentApproved: (details: { method: string; paymentId: string | number; installments?: number; status?: 'Confirmado' | 'Em Análise' }) => void;
   onPaymentFailed?: (errorMsg: string) => void;
   onActiveTabChange?: (tab: 'pix' | 'credit') => void;
+  onPixGenerated?: (paymentId: string | number) => void;
 }
 
 type TabType = 'pix' | 'credit';
@@ -46,6 +47,7 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({
   onPaymentApproved,
   onPaymentFailed,
   onActiveTabChange,
+  onPixGenerated,
 }) => {
   const [activeTab, setActiveTab] = useState<TabType>('credit');
 
@@ -75,6 +77,7 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({
   const [pixPaymentId, setPixPaymentId] = useState<string | number | null>(null);
   const [copiedPix, setCopiedPix] = useState(false);
   const [isGeneratingPix, setIsGeneratingPix] = useState(false);
+  const pixApprovedRef = useRef(false);
   const isTestMode = Boolean((import.meta.env.VITE_MERCADO_PAGO_PUBLIC_KEY || '').startsWith('TEST-'));
 
   // Formatação do Número do Cartão (0000 0000 0000 0000)
@@ -113,7 +116,7 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({
     setHolderCpf(formatted);
   };
 
-  // Opções de Parcelamento de 1x a 12x
+  // Opções de Parcelamento de 1x a 10x sem juros
   const installmentOptions = useMemo(() => {
     return Array.from({ length: 10 }, (_, i) => {
       const count = i + 1;
@@ -148,6 +151,7 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({
         setPixQrCode(res.qrCode);
         setPixQrCodeBase64(res.qrCodeBase64 || null);
         setPixPaymentId(res.paymentId);
+        onPixGenerated?.(res.paymentId);
 
         bankMigrationService.recordTransaction({
           orderId: externalReference || `ped_${Date.now()}`,
@@ -174,35 +178,36 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({
     }
   }, [activeTab]);
 
+  // Único caminho de aprovação Pix: só conclui o pedido após o Mercado Pago confirmar 'approved'
+  const confirmPixApproved = (paymentId: string | number) => {
+    if (pixApprovedRef.current) return;
+    pixApprovedRef.current = true;
+    setSuccessMessage('Pagamento PIX Aprovado Instantaneamente! 🎉');
+
+    bankMigrationService.reconcileTransaction(externalReference || '', paymentId, 'approved');
+
+    setTimeout(() => {
+      onPaymentApproved({ method: 'Pix', paymentId, status: 'Confirmado' });
+    }, 1500);
+  };
+
   // Polling Inteligente para Pix (Verificação a cada 4 segundos)
   useEffect(() => {
     if (activeTab !== 'pix' || !pixPaymentId) return;
-
-    let intervalId: NodeJS.Timeout;
 
     const checkStatus = async () => {
       try {
         const res = await pixPaymentService.checkPixStatus(pixPaymentId);
         if (res.success && res.status === 'approved') {
           clearInterval(intervalId);
-          setSuccessMessage('Pagamento PIX Aprovado Instantaneamente! 🎉');
-
-          bankMigrationService.reconcileTransaction(
-            externalReference || '',
-            pixPaymentId,
-            'approved'
-          );
-
-          setTimeout(() => {
-            onPaymentApproved({ method: 'Pix', paymentId: pixPaymentId });
-          }, 1500);
+          confirmPixApproved(pixPaymentId);
         }
-      } catch (err) {
+      } catch {
         // Ignora falhas pontuais de conexão no polling
       }
     };
 
-    intervalId = setInterval(checkStatus, 4000);
+    const intervalId = setInterval(checkStatus, 4000);
     return () => clearInterval(intervalId);
   }, [activeTab, pixPaymentId]);
 
@@ -547,9 +552,12 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({
 
               <div className="space-y-1">
                 <p className="text-xs font-bold text-slate-300">Escaneie o QR Code ou Copie a Chave Pix abaixo:</p>
-                <p className="text-[11px] text-emerald-400 font-medium flex items-center justify-center gap-1">
+                <p role="status" className="text-[11px] text-emerald-400 font-medium flex items-center justify-center gap-1">
                   <Loader2 className="h-3 w-3 animate-spin text-emerald-400" />
-                  <span>Aguardando confirmação do pagamento (Polling a cada 4s)</span>
+                  <span>Aguardando confirmação do pagamento</span>
+                </p>
+                <p className="text-[11px] text-slate-400">
+                  Assim que o Mercado Pago confirmar, seu pedido será concluído automaticamente.
                 </p>
               </div>
 
@@ -568,30 +576,6 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({
                   <>
                     <Copy className="h-5 w-5" />
                     <span>Copiar Código Pix (Copia e Cola)</span>
-                  </>
-                )}
-              </button>
-              
-              <button
-                type="button"
-                onClick={() => {
-                  if (activeTab === 'pix' && !isGeneratingPix && pixQrCode) {
-                    onPaymentApproved({ method: 'pix', paymentId: pixPaymentId || Date.now() });
-                  } else {
-                    handleGeneratePix();
-                  }
-                }}
-                className="w-full py-4 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-base rounded-2xl transition-all shadow-sm active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
-              >
-                {pixQrCode ? (
-                  <>
-                    <CheckCircle2 className="h-5 w-5" />
-                    <span>Já Paguei - Concluir Pedido</span>
-                  </>
-                ) : (
-                  <>
-                    <QrCode className="h-5 w-5 text-white/90" />
-                    <span>Gerar Código Pix de R$ {grandTotal.toFixed(2).replace('.', ',')}</span>
                   </>
                 )}
               </button>

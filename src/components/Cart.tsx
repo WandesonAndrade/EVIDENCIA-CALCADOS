@@ -330,18 +330,18 @@ export const Cart: React.FC = () => {
               </div>
             </div>
 
-            {/* Crediário Próprio Accent */}
+            {/* Pagamento com Cartão Accent */}
             <div className={`p-4 rounded-2xl text-xs space-y-1.5 border backdrop-blur-md ${
               isDark
-                ? 'bg-amber-400/10 border-amber-400/20 text-amber-300'
-                : 'bg-amber-50 border-amber-200 text-amber-900'
+                ? 'bg-blue-400/10 border-blue-400/20 text-blue-300'
+                : 'bg-blue-50 border-blue-200 text-[#003B73]'
             }`}>
               <p className="font-bold flex items-center space-x-2">
-                <CreditCard className="h-4 w-4 text-amber-500" />
-                <span>Crediário Próprio Evidência</span>
+                <CreditCard className="h-4 w-4 text-[#006EDB]" />
+                <span>Parcelamento no Cartão</span>
               </p>
               <p className="text-[11px] font-medium leading-relaxed opacity-90">
-                Parcele em até 6x sem juros! Você escolherá a entrega e número de parcelas na próxima etapa.
+                Parcele em até 10x sem juros! Você escolherá o endereço de entrega e a opção de pagamento na próxima etapa.
               </p>
             </div>
 

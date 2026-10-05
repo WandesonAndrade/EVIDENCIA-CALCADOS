@@ -33,10 +33,10 @@ Este arquivo é a memória persistente do projeto (AG Kit), consolidando decisõ
 4. **Hero Banners & Campanhas Sazonais (Outubro Rosa):**
    - Componentizados dinamicamente via `HeroSlide[]` e `HeroSlideCTA[]`.
    - Focados em vendas e moda (Campanha Rosa, Coleção Feminina, Ofertas).
-   - **Tema Outubro Rosa Aplicado nos 3 Componentes Principais da Vitrine:**
-     1. `Hero.tsx`: Fundo e painel curvo em vinho/rosa escuro (`#240316`, `#450727`), linha guia com brilho neon rosa (`#FF2D78`), badge e textos bicolores com rosa vibrante, botão CTA e indicadores no mesmo padrão.
-     2. `SaldaoBanner.tsx`: Fundo em gradiente vinho/rosa escuro (`#240316` via `#3D0624` para `#5E0938`), pódio e sacola 3D em tons magenta/rosa (`#BE185D`, `#EC4899`, `#F472B6`), ícones e texto do botão em rosa profundo `#9D174D`.
-     3. `AudienceMegaMenu.tsx`: Banner superior de subcategorias com gradiente rosa/vinho (`#2C0317` a `#780A41`), linha neon rosa `#FF2D78`, badge de coleção e botão com texto `#9D174D`.
+   - **Tema Outubro Rosa Radiante e Luminoso (Sem Tons Vinho/Vermelho Escuro):**
+     1. `Hero.tsx`: Fundo e painel curvo em rosa profundo radiante (`#540832`, `#4A062B` a `#780B44`), linha guia com brilho neon rosa claro (`#F472B6`), badge e textos bicolores com rosa vibrante (`#F472B6`, `#EC4899`), botão CTA em gradiente rosa iluminado (`#DB2777` a `#F472B6`) e indicadores em `#F472B6`.
+     2. `SaldaoBanner.tsx`: Fundo em gradiente rosa radiante (`#5B0836` via `#7D0D47` para `#9D174D`), pódio e sacola 3D em tons rosa/magenta luminosos (`#9D174D`, `#EC4899`, `#F472B6`), destaque `-XX% OFF` em `#F472B6`, ícones e texto do botão em rosa `#9D174D`.
+     3. `AudienceMegaMenu.tsx`: Banner superior de subcategorias com gradiente rosa luminoso (`#5B0836` a `#9D174D`), linha neon rosa `#F472B6`, badge de coleção e botão com texto `#9D174D`.
 
 5. **Logística e Frete:**
    - Melhor Envio via adapter desacoplado com fallback regional por CEP.
@@ -191,7 +191,7 @@ Este arquivo é a memória persistente do projeto (AG Kit), consolidando decisõ
     - **Definição Atômica de Estado**: `setSelectedCategory(category, subcategoryToSet)` no `AppContext.tsx` grava simultaneamente categoria e subcategoria, eliminando o reset acidental para `'TODAS'`.
     - **Função Canônica `isSubcategoryMatch` (`categoryNavigationUtils.ts`)**: Lematização com `toSingularStem` para plural/singular (*"bolsa"* e *"bolsas"*, *"sandalia"* e *"sandalias"*), remoção de acentos e bloqueio estrito de strings vazias para evitar o bug de `string.includes("") === true`.
 34. **Barra de Benefícios no Topo & Priorização Estrita de Calçados em Novidades (Implementado):**
-    - **Barra de Vantagens e Confiança no Topo da Vitrine**: Reposicionada do final da página para logo abaixo do Hero Banner no `ProductList.tsx`, garantindo que o visitante veja imediatamente os 4 pilares de confiança da loja (*Entrega Rápida, Parcelamento em até 12x, Troca Simplificada em 7 dias e Atendimento Humano via WhatsApp*) antes de navegar pelos produtos.
+    - **Barra de Vantagens e Confiança no Topo da Vitrine**: Reposicionada do final da página para logo abaixo do Hero Banner no `ProductList.tsx`, garantindo que o visitante veja imediatamente os 4 pilares de confiança da loja (*Entrega Rápida, Parcelamento em até 10x, Troca Simplificada em 7 dias e Atendimento Humano via WhatsApp*) antes de navegar pelos produtos.
     - **Priorização Estrita de Calçados em "Novidades da Estação"**: Utiliza a função utilitária `isFootwearProduct` para impedir que perfumes, cosméticos e confecções ocupem os slots de destaque da vitrine de novidades da Evidência Calçados, garantindo que os lançamentos de calçados (sandálias, tênis, saltos e rasteiras) tenham precedência máxima nos 5 cards da vitrine principal.
 35. **Mega-Menu de Subcategorias Orgânico Pastel com Fotos Reais e Showcase Hero (`AudienceMegaMenu.tsx`) (Implementado):**
     - **Design de Alta Fidelidade**: Transformado o painel dropdown do Mega-Menu (`Header.tsx`) para refletir a nova referência visual premium de e-commerce.
@@ -209,7 +209,7 @@ Este arquivo é a memória persistente do projeto (AG Kit), consolidando decisõ
     - **Iluminação e Fundo Dinâmico**: Fundo azul marinho profundo em gradiente radial e linear (`#011438` a `#052b6e`) com halo solar âmbar/laranja brilhante de alta intensidade na direita, grid sutil de micropartículas e traços dinâmicos de energia/sparks em laranja.
     - **Tipografia e Chamadas de Alto Impacto**: Pílula com gradiente de fogo `ÚLTIMAS UNIDADES EM ESTOQUE` e ícone `<Flame />` pulsante, título bicolor de destaque `🔥 Saldão de Calçados -% OFF` em branco e laranja elétrico, e subtítulo com ícone `<Tag />`.
     - **Palco e Calçados Vetoriais em SVG 3D**: Renderização 100% vetorial de pódio cilíndrico tridimensional, sacolas de presentes em azul real (com traço do carrinho de compras) e laranja, e par de tênis esportivo moderno com camadas detalhadas de sola, entressola e cabedal.
-    - **Barra de Confiança e CTA**: 4 pilares de confiança (Entrega Rápida, Compra Segura, Parcele em até 12x, Troca e Devolução) no rodapé do banner e botão pill branco com microinteração de seta `Ver todos os calçados em saldão →`.
+    - **Barra de Confiança e CTA**: 4 pilares de confiança (Entrega Rápida, Compra Segura, Parcele em até 10x, Troca e Devolução) no rodapé do banner e botão pill branco com microinteração de seta `Ver todos os calçados em saldão →`.
 
 37. **Crediário Próprio Exclusivo para Consulta e Pagamento de Carnês & Boletos ERP (Implementado):**
     - Removidas as antigas opções 1 (*Solicitar Avaliação de Crédito*) e 2 (*Comprar com Crediário / Importar Carrinho*) do módulo `/meu-crediario` (`MeuCrediario.tsx`).
@@ -221,19 +221,45 @@ Este arquivo é a memória persistente do projeto (AG Kit), consolidando decisõ
     - **Aba Dedicada "Temas & Campanhas"**: Localizada no menu lateral do painel em `CMS & Vitrine` com ícone `<Palette />`.
     - **Controle Centralizado e em Tempo Real**: O administrador pode alternar com 1 clique entre o **"Tema Padrão (Azul Evidência)"** e o **"Outubro Rosa"**, além de poder reverter a qualquer momento ao final da campanha.
     - **Sincronização em Nuvem (Firestore + LocalStorage)**: Gerenciado via `src/services/themeService.ts` com persistência na coleção `settings/theme` do Firestore e listener `onSnapshot` no `AppContext.tsx`, propagando a troca de tema instantaneamente para todas as sessões e abas abertas sem recarregar a página.
-    - **Adaptação Dinâmica na Vitrine**: Aplica instantaneamente os tons da campanha rosa (`#240316`, `#FF2D78`, `#BE185D`) nos 3 componentes chave da loja:
-      1. `Hero.tsx`: Curvas de fundo, linhas neon, badges de coleção e botão CTA.
-      2. `SaldaoBanner.tsx`: Gradiente de fundo, halo de luz, sacola/pódio vetoriais 3D e botões.
-      3. `AudienceMegaMenu.tsx`: Banner hero superior, badges e destaques de coleção.
-      4. `StorefrontProductCard.tsx` + `ProductPriceDisplay.tsx` + `ProductBadges.tsx`: Preço principal em rosa vibrante (`#BE185D` / `#D81B60`), tags/badges de saldão e ofertas em gradiente rosa/magenta (`#FF2D78` via `#E11D48` a `#BE185D`), tags de parcelamento, selo flutuante e pílulas de tamanhos da grade com fundo/borda rosa pastel e hover neon rosa (`#FF2D78`), botão "Comprar" com gradiente rosa temático e borda/hover do card harmonizados.
-      5. `ProductList.tsx` (Bento Grid de Destaque): Os 3 cards promocionais da vitrine adaptam seus gradientes para rosa/vinho suave (`#FFFFFF` via `#FFF5F8` a `#FCE8F0`), badges temáticos com dot/ícone rosa neon (`#FF2D78`), botões de ação ("VER NOVIDADES", "VER CALÇADOS", "VER ACESSÓRIOS") em gradiente rosa temático e glows ambientais em rosa.
-      6. `ProductList.tsx` (Barra de Vantagens e Confiança do Topo): Os 4 blocos de benefícios (Entrega Rápida, Parcele em até 12x, Troca Simplificada, Atendimento Humano) recebem ícones com fundo rosa pastel suave (`#FFF0F5`), borda rosa (`border-pink-200/70`), ícone rosa vibrante (`#FF2D78`), hover invertido com preenchimento em rosa neon `#FF2D78` e títulos com realce rosa temático.
-      7. `ProductDetail.tsx` (Tela de Detalhes do Produto): Adaptação completa ao tema Outubro Rosa — badge de categoria em rosa, seller text "Evidência Calçados" com realce `#FF2D78`, galeria de fotos com fundo suave `#FFF5F8`, bullets ativos e miniatura selecionada com anel `#FF2D78`, swatch de cores com anel/contador rosa, cabeçalho de especificações em `#BE185D`, banner superior de Saldão com gradiente magenta/vinho profundo (`#240316` a `#5E0938`), preço em destaque em rosa vibrante (`#BE185D` / `#FF75C3`), bullets de parcelamento em `#9D174D`, abas de frete com aba ativa em `#FF2D78`, seleção de numeração/grade com botões em `#BE185D`, botões de ação ("Adicionar à Sacola" em gradiente `#FF2D78` a `#BE185D`, "Comprar Agora" em vinho `#3D0624`) e os 3 cards inferiores de garantia/confiança com ícones em rosa vibrante `#FF2D78`.
-      8. `ShippingCalculator.tsx` (Calculadora de Frete Integrada): Ícone de caminhão em `#FF2D78`, anel de foco do input de CEP em `#FF2D78`, botão "Calcular" em gradiente rosa temático (`#FF2D78` a `#BE185D`) e rádio/borda da opção de frete selecionada em `#FF2D78`.
+    - **Adaptação Dinâmica na Vitrine (Paleta Oficial Outubro Rosa Radiante)**: Aplica instantaneamente os tons da campanha rosa (`#5B0836`, `#EC4899`, `#F472B6`, `#DB2777`, `#BE185D`) nos componentes da loja:
+      1. `Hero.tsx`: Curvas de fundo em gradiente rosa profundo radiante (`#540832`, `#4A062B` a `#780B44`), linhas neon e indicadores em `#F472B6`, badges de coleção e títulos bicolores em `#F472B6`, e botão CTA em gradiente rosa iluminado (`#DB2777` via `#EC4899` a `#F472B6`).
+      2. `SaldaoBanner.tsx`: Gradiente de fundo rosa radiante (`#5B0836` a `#9D174D`), destaque `-XX% OFF` em `#F472B6`, sacola e pódio vetoriais 3D em tons magenta/rosa (`#9D174D`, `#EC4899`, `#F472B6`) e botões com realce `#9D174D`.
+      3. `AudienceMegaMenu.tsx`: Banner hero superior em gradiente rosa (`#5B0836` a `#9D174D`), linha neon `#F472B6`, pódio 3D em `#50082E`, badges e destaques de coleção.
+      4. `StorefrontProductCard.tsx` + `ProductPriceDisplay.tsx` + `ProductBadges.tsx`: Preço principal em rosa vibrante (`#BE185D`), tags/badges de saldão e ofertas em gradiente rosa temático (`#EC4899` a `#F472B6`), tags de parcelamento, selo flutuante e pílulas de tamanhos da grade com fundo/borda rosa pastel e hover em `#EC4899`, botão "Comprar" com gradiente rosa iluminado (`#DB2777` via `#EC4899` a `#F472B6`) e borda/hover do card harmonizados.
+      5. `ProductList.tsx` (Bento Grid de Destaque): Os 3 cards promocionais da vitrine com gradiente suave (`#540832` via `#750C44` a `#400627`), badges temáticos com dot/ícone em `#EC4899`, botões de ação ("VER NOVIDADES", "VER CALÇADOS", "VER ACESSÓRIOS") em gradiente rosa temático (`#DB2777` via `#EC4899` a `#F472B6`) e glows ambientais em rosa.
+      6. `ProductList.tsx` (Barra de Vantagens e Confiança do Topo): Os 4 blocos de benefícios (Entrega Rápida, Parcele em até 10x, Troca Simplificada, Atendimento Humano) recebem ícones com fundo rosa pastel suave (`#FFF0F5`), borda rosa (`border-pink-200/70`), ícone rosa vibrante (`#EC4899`), hover invertido com preenchimento em rosa `#EC4899` e títulos com realce rosa temático.
+      7. `ProductDetail.tsx` (Tela de Detalhes do Produto): Adaptação completa ao tema Outubro Rosa — badge de categoria em rosa, seller text "Evidência Calçados" com realce `#EC4899`, galeria de fotos com fundo suave `#FFF5F8`, bullets ativos e miniatura selecionada com anel `#EC4899`, swatch de cores com anel/contador rosa `#EC4899`, banner superior de Saldão com gradiente rosa radiante (`#5B0836` via `#831843` a `#9D174D`) e ícone `#F472B6`, preço em destaque em rosa vibrante (`#BE185D` / `#FBCFE8`), abas de frete com aba ativa em `#EC4899`, seleção de numeração/grade com botões em `#BE185D`, botões de ação ("Adicionar à Sacola" em gradiente `#DB2777` a `#F472B6`, "Comprar Agora" em `#831843`) e os 3 cards inferiores de garantia/confiança com ícones em rosa vibrante `#EC4899`.
+      8. `ShippingCalculator.tsx` (Calculadora de Frete Integrada): Ícone de caminhão em `#EC4899`, anel de foco do input de CEP em `#EC4899`, botão "Calcular" em gradiente rosa temático (`#DB2777` via `#EC4899` a `#F472B6`) e rádio/borda da opção de frete selecionada em `#EC4899`.
       9. **Links de Seção & Navegação da Vitrine ("Ver todos...")**:
-         - `ProductList.tsx`: Botões de seção "Ver todas as novidades →", "Ver todos os calçados →", "Ver todas as confecções →" e "Ver todos os acessórios →" adaptados para `#BE185D` (hover `#9D174D` / modo escuro `text-pink-300`), divisórias de seção em `border-pink-900/15` e cabeçalho da busca com badge rosa e termo em destaque `#FF2D78`.
-         - `SubcategoryCarousel.tsx`: Divisória de cabeçalho em `border-pink-900/15`, botões de rolagem circular com realce rosa e hover do rótulo da subcategoria em `#FF2D78`.
-         - `StorefrontProductGrid.tsx`: Spinner em `#FF2D78`, caixa de ícone de estado vazio em rosa suave e botão de reset de filtros em gradiente rosa.
-         - `CategoryPage.tsx`: Botão "Ver todas as subcategorias" em fundo rosa pastel com texto `#BE185D`, pílulas ativas de subcategoria em gradiente rosa `#FF2D78` a `#BE185D`, aba "Ver Todas" de ofertas em gradiente rosa e botões de grade/tamanho na barra lateral harmonizados.
-         - `CategorySandwichMenu.tsx`: Ação rápida "Ver Todos em {categoria}" com badge e botão em gradiente rosa temático e ícone `PackageCheck` em `#FF2D78`.
-         - `HeaderLiveSearch.tsx`: Botão de rodapé "Ver todos os produtos no catálogo" em gradiente rosa temático e badge de sugestões em `#FF2D78`.
+         - `ProductList.tsx`: Botões de seção "Ver todas as novidades →", "Ver todos os calçados →", "Ver todas as confecções →" e "Ver todos os acessórios →" adaptados para `#BE185D` (hover `#9D174D` / modo escuro `text-pink-300`), divisórias de seção em `border-pink-900/15` e cabeçalho da busca com badge rosa e termo em destaque `#EC4899`.
+         - `SubcategoryCarousel.tsx`: Divisória de cabeçalho em `border-pink-900/15`, botões de rolagem circular com realce rosa e hover do rótulo da subcategoria em `#EC4899`.
+         - `StorefrontProductGrid.tsx`: Spinner em `#EC4899`, caixa de ícone de estado vazio em rosa suave e botão de reset de filtros em gradiente rosa (`#DB2777` via `#EC4899` a `#F472B6`).
+         - `CategoryPage.tsx`: Botão "Ver todas as subcategorias" em fundo rosa pastel com texto `#BE185D`, pílulas ativas de subcategoria em gradiente rosa `#EC4899` a `#F472B6`, aba "Ver Todas" de ofertas em gradiente rosa e botões de grade/tamanho na barra lateral harmonizados.
+         - `CategorySandwichMenu.tsx`: Ação rápida "Ver Todos em {categoria}" com badge e botão em gradiente rosa temático (`#DB2777` via `#EC4899` a `#F472B6`) e ícone `PackageCheck` em `#EC4899`.
+         - `HeaderLiveSearch.tsx`: Botão de rodapé "Ver todos os produtos no catálogo" em gradiente rosa temático (`#DB2777` via `#EC4899` a `#F472B6`) e badge de sugestões em `#EC4899`.
+
+39. **Migração para Credenciais de Produção do Mercado Pago & Blindagem do Fluxo Pix (Implementado):**
+    - **Credenciais de Produção**:
+      - `MERCADO_PAGO_ACCESS_TOKEN` / `VITE_MERCADO_PAGO_ACCESS_TOKEN` configurados com a chave de produção da conta `ELAINNE COMERCIO DE CALCADOS LTDA` (CNPJ `60.997.831/0001-01`).
+      - `VITE_MERCADO_PAGO_PUBLIC_KEY` configurado com a chave pública de produção para tokenização segura de cartões de crédito.
+      - Variáveis sincronizadas em `.env`, `functions/.env` (Cloud Functions) e documentadas em `.env.example`.
+      - Exigência de chave Pix cadastrada na conta do Mercado Pago para evitar o erro `Collector user without key enabled for QR rendernull`.
+    - **Blindagem do Proxy Backend (`server.ts`)**:
+      - Rota `/mp-api` refatorada para dar precedência absoluta à credencial `process.env.MERCADO_PAGO_ACCESS_TOKEN` do servidor, descartando headers de autorização antigos ou defasados enviados pelo browser.
+    - **Eliminação de Falso Pagamento ("Já Paguei")**:
+      - Botão manual "Já Paguei - Concluir Pedido" removido de `PaymentForm.tsx` e `PixPaymentModal.tsx`.
+      - Tela do Pix limpa com QR Code dinâmico, botão de copiar código e texto com polling de verificação oficial no Mercado Pago.
+      - **Aprovação Automática**: Ao identificar `approved` na API do Mercado Pago via polling, o pedido é concluído automaticamente como **`Confirmado`**.
+      - **Pagamento com Demora**: O `CheckoutPage.tsx` armazena o `pixPaymentId` gerado. Caso o cliente finalize o pedido ou saia antes da aprovação, o pedido é gravado como **`Pendente`** com o ID do Pix associado, ficando disponível para conferência na tela **Meus Pedidos**.
+
+40. **Destinos Dinâmicos de Banners Hero para Categorias e Ofertas Cadastradas (Implementado):**
+    - **Dropdown Agrupado (`AdminPanel.tsx`)**: Campo "Link / Aba de Destino" no modal de criação/edição de banners refatorado com `<optgroup>` semânticos:
+      * *Vitrine & Páginas Principais*: Catálogo Completo, Lançamentos (2026), Meu Crediário (Carnês e Boletos ERP).
+      * *Ofertas & Promoções Cadastradas*: Todas as Ofertas & Saldão Geral + cada campanha individual ativa/pausada cadastrada no Firestore (`promo:${promo.id}`).
+      * *Coleções por Público*: Feminino, Masculino, Infantil & Bebê.
+      * *Categorias Cadastradas*: Categorias dinâmicas normalizadas do ERP/MobLink (`categoria:${cat.name}`).
+      * *Subcategorias de Calçados & Acessórios*: Sandálias, Tênis, Rasteiras, Botas, Scarpins, Chinelos, Mocassins, Sapatos, Bolsas, Carteiras.
+    - **Rótulo Amigável no CMS (`getBannerDestinationLabel`)**: Na listagem de banners do admin, o destino é exibido de forma legível e profissional em vez de códigos de URL.
+    - **Roteamento Inteligente no Hero (`Hero.tsx`)**: O clique do botão no Hero reconhece os prefixos e navega diretamente para a categoria ou campanha correspondente.
+    - **Filtro Específico na Vitrine (`CategoryPage.tsx`)**: Suporte a campanhas específicas (`cleanTabKey.startsWith('promo:')`), categorias e subcategorias com cabeçalho personalizado e filtro exato de produtos participantes.
+

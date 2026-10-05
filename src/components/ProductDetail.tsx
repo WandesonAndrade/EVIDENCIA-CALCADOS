@@ -656,7 +656,7 @@ export const ProductDetail: React.FC = () => {
                 <span>Ref: <strong className="font-mono text-[#003B73] dark:text-slate-200 font-black">{p.referencia || p.referenceCode}</strong></span>
               )}
               <span>•</span>
-              <span>Vendido e entregue por <strong className={`${isOutubroRosa ? 'text-[#FF2D78]' : 'text-[#006EDB]'} font-extrabold`}>Evidência Calçados</strong></span>
+              <span>Vendido e entregue por <strong className={`${isOutubroRosa ? 'text-[#EC4899]' : 'text-[#006EDB]'} font-extrabold`}>Evidência Calçados</strong></span>
             </div>
           </div>
 
@@ -718,7 +718,7 @@ export const ProductDetail: React.FC = () => {
                       onClick={() => setActiveImageIndex(idx)}
                       className={`h-1.5 rounded-full transition-all cursor-pointer ${
                         activeImageIndex === idx
-                          ? isOutubroRosa ? 'w-4 bg-[#FF2D78]' : 'w-4 bg-[#006EDB]'
+                          ? isOutubroRosa ? 'w-4 bg-[#EC4899]' : 'w-4 bg-[#006EDB]'
                           : 'w-1.5 bg-white/60 hover:bg-white'
                       }`}
                     />
@@ -737,7 +737,7 @@ export const ProductDetail: React.FC = () => {
                     className={`w-14 h-14 sm:w-16 sm:h-16 rounded-xl overflow-hidden border-2 transition-all cursor-pointer shrink-0 p-1 bg-white dark:bg-slate-900 ${
                       activeImageIndex === idx
                         ? isOutubroRosa
-                          ? 'border-[#FF2D78] scale-105 shadow-md ring-2 ring-[#FF2D78]/25'
+                          ? 'border-[#EC4899] scale-105 shadow-md ring-2 ring-[#EC4899]/30'
                           : 'border-[#006EDB] scale-105 shadow-md ring-2 ring-[#006EDB]/20'
                         : isDark ? 'border-slate-800 opacity-60 hover:opacity-100' : 'border-blue-900/10 opacity-70 hover:opacity-100'
                     }`}
@@ -761,7 +761,7 @@ export const ProductDetail: React.FC = () => {
             <div className="space-y-2 pt-3 border-t border-blue-900/10 dark:border-slate-800">
               <div className="flex items-center justify-between text-xs">
                 <span className={`font-extrabold ${isDark ? 'text-white' : 'text-[#003B73]'}`}>
-                  Cor selecionada: <span className={`font-black ${isOutubroRosa ? 'text-[#FF2D78]' : 'text-[#006EDB]'}`}>{selectedColunaOption || 'Selecione a cor'}</span>
+                  Cor selecionada: <span className={`font-black ${isOutubroRosa ? 'text-[#EC4899]' : 'text-[#006EDB]'}`}>{selectedColunaOption || 'Selecione a cor'}</span>
                 </span>
               </div>
 
@@ -816,7 +816,7 @@ export const ProductDetail: React.FC = () => {
                       className={`relative group rounded-xl border-2 p-1 transition-all cursor-pointer flex flex-col items-center justify-center bg-white dark:bg-slate-900 ${
                         isSelected
                           ? isOutubroRosa
-                            ? 'border-[#FF2D78] ring-4 ring-pink-100 dark:ring-pink-950/40 shadow-sm'
+                            ? 'border-[#EC4899] ring-4 ring-pink-100 dark:ring-pink-950/40 shadow-sm'
                             : 'border-[#006EDB] ring-4 ring-[#DDF1FF] shadow-sm'
                           : isDark ? 'border-slate-800 hover:border-slate-700' : 'border-blue-900/10 hover:border-blue-900/30'
                       }`}
@@ -824,7 +824,7 @@ export const ProductDetail: React.FC = () => {
                     >
                       {photoCount > 1 && (
                         <span className={`absolute -top-1 -right-1 ${
-                          isOutubroRosa ? 'bg-[#FF2D78]' : 'bg-[#006EDB]'
+                          isOutubroRosa ? 'bg-[#EC4899]' : 'bg-[#006EDB]'
                         } text-white text-[8px] font-black px-1.5 py-0.2 rounded-full shadow-xs z-10`}>
                           {photoCount}
                         </span>
@@ -833,12 +833,12 @@ export const ProductDetail: React.FC = () => {
                         {colorPhoto ? (
                           <img src={colorPhoto} alt={colorOpt} className="w-full h-full object-contain p-0.5" />
                         ) : (
-                          <span className={`w-4 h-4 rounded-full ${isOutubroRosa ? 'bg-[#FF2D78]' : 'bg-[#006EDB]'}`} />
+                          <span className={`w-4 h-4 rounded-full ${isOutubroRosa ? 'bg-[#EC4899]' : 'bg-[#006EDB]'}`} />
                         )}
                       </div>
                       <span className={`text-[10px] font-extrabold mt-1 px-0.5 truncate max-w-[58px] ${
                         isSelected
-                          ? isOutubroRosa ? 'text-[#FF2D78]' : 'text-[#006EDB]'
+                          ? isOutubroRosa ? 'text-[#EC4899]' : 'text-[#006EDB]'
                           : isDark ? 'text-slate-300' : 'text-[#003B73]'
                       }`}>
                         {colorOpt}
@@ -892,15 +892,15 @@ export const ProductDetail: React.FC = () => {
             {saldaoCalc.isSaldao ? (
               <div className={`p-3.5 rounded-2xl ${
                 isOutubroRosa
-                  ? 'bg-gradient-to-r from-[#240316] via-[#3D0624] to-[#5E0938] border border-pink-500/30 text-white shadow-md shadow-pink-950/30'
+                  ? 'bg-gradient-to-r from-[#5B0836] via-[#831843] to-[#9D174D] border border-pink-400/40 text-white shadow-md shadow-pink-950/20'
                   : 'bg-gradient-to-r from-[#011438] via-[#032158] to-[#052b6e] border border-blue-600/30 text-white shadow-md shadow-blue-950/30'
               } flex items-center justify-between`}>
                 <div className="flex items-center space-x-2.5">
-                  <Tag className={`h-5 w-5 ${isOutubroRosa ? 'text-[#FF2D78]' : 'text-[#38BDF8]'} shrink-0`} />
+                  <Tag className={`h-5 w-5 ${isOutubroRosa ? 'text-[#F472B6]' : 'text-[#38BDF8]'} shrink-0`} />
                   <div>
                     <div className="text-xs font-black uppercase tracking-wider text-white flex items-center gap-1.5 flex-wrap">
                       <span>🔥 SALDÃO DE CALÇADOS</span>
-                      <span className={isOutubroRosa ? 'text-[#FF75C3]' : 'text-[#FF7A00]'}>-{saldaoCalc.discountPercent}% OFF</span>
+                      <span className={isOutubroRosa ? 'text-[#FBCFE8]' : 'text-[#FF7A00]'}>-{saldaoCalc.discountPercent}% OFF</span>
                     </div>
                     <div className={`text-[10px] ${isOutubroRosa ? 'text-pink-100/90' : 'text-sky-100/80'} font-medium`}>
                       Estoque baixo (últimas unidades). Aproveite!
@@ -909,7 +909,7 @@ export const ProductDetail: React.FC = () => {
                 </div>
                 <span className={`px-2.5 py-1 rounded-full ${
                   isOutubroRosa
-                    ? 'bg-gradient-to-r from-[#FF2D78] via-[#E11D48] to-[#BE185D] shadow-pink-600/30'
+                    ? 'bg-gradient-to-r from-[#EC4899] to-[#F472B6] shadow-pink-600/30'
                     : 'bg-gradient-to-r from-[#FF4500] via-[#FF6000] to-[#FFA000] shadow-orange-600/30'
                 } text-white font-black text-[10px] uppercase tracking-tight shadow-md shrink-0`}>
                   -{saldaoCalc.discountPercent}%
@@ -947,7 +947,7 @@ export const ProductDetail: React.FC = () => {
                 {saldaoCalc.isSaldao ? (
                   <span className={`text-[11px] font-extrabold text-white ${
                     isOutubroRosa
-                      ? 'bg-gradient-to-r from-[#FF2D78] to-[#BE185D]'
+                      ? 'bg-gradient-to-r from-[#EC4899] to-[#F472B6]'
                       : 'bg-gradient-to-r from-[#FF4500] to-[#FFA000]'
                   } px-2.5 py-1 rounded-full shadow-xs`}>
                     Saldão ({saldaoCalc.discountPercent}% OFF)
@@ -1000,7 +1000,7 @@ export const ProductDetail: React.FC = () => {
                   className={`flex-1 py-2 px-3 rounded-xl font-extrabold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer ${
                     selectedDeliveryType !== 'Retirada na Loja'
                       ? isOutubroRosa
-                        ? 'bg-white dark:bg-slate-800 text-[#FF2D78] shadow-xs'
+                        ? 'bg-white dark:bg-slate-800 text-[#EC4899] shadow-xs'
                         : 'bg-white dark:bg-slate-800 text-[#0071E3] shadow-xs'
                       : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
                   }`}
@@ -1114,7 +1114,7 @@ export const ProductDetail: React.FC = () => {
                 onClick={handleAddToCart}
                 className={`w-full flex items-center justify-center space-x-2 py-3.5 px-6 ${
                   isOutubroRosa
-                    ? 'bg-gradient-to-r from-[#FF2D78] via-[#E11D48] to-[#BE185D] hover:from-[#E11D48] hover:to-[#9D174D] shadow-pink-600/25 hover:shadow-pink-600/35'
+                    ? 'bg-gradient-to-r from-[#DB2777] via-[#EC4899] to-[#F472B6] hover:from-[#BE185D] hover:to-[#DB2777] shadow-pink-500/25 hover:shadow-pink-500/35'
                     : 'bg-[#006EDB] hover:bg-[#00509E] shadow-blue-600/20 hover:shadow-blue-600/30'
                 } active:scale-98 text-white font-black text-xs uppercase tracking-wider rounded-full shadow-md transition-all cursor-pointer`}
               >
@@ -1126,7 +1126,7 @@ export const ProductDetail: React.FC = () => {
                 onClick={handleInstantBuy}
                 className={`w-full flex items-center justify-center space-x-2 py-3.5 px-6 ${
                   isOutubroRosa
-                    ? 'bg-[#3D0624] hover:bg-[#240316] text-white shadow-md'
+                    ? 'bg-[#831843] hover:bg-[#700B40] text-white shadow-md'
                     : 'bg-[#003B73] hover:bg-[#00509E] text-white shadow-md'
                 } active:scale-98 font-black text-xs uppercase tracking-wider rounded-full transition-all cursor-pointer`}
               >
@@ -1138,7 +1138,7 @@ export const ProductDetail: React.FC = () => {
                 <button
                   onClick={() => setCurrentView('meu-crediario')}
                   className={`w-full py-2 px-3 text-center text-[11px] font-extrabold ${
-                    isOutubroRosa ? 'text-[#FF2D78]' : 'text-[#006EDB]'
+                    isOutubroRosa ? 'text-[#EC4899]' : 'text-[#006EDB]'
                   } hover:underline cursor-pointer block`}
                 >
                   Consultar Carnês e Boletos do Crediário →
@@ -1154,11 +1154,11 @@ export const ProductDetail: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-8">
         <div className={`p-6 rounded-3xl border text-center flex flex-col items-center space-y-2.5 ${
           isDark 
-            ? isOutubroRosa ? 'bg-[#1F0314]/70 border-pink-500/20' : 'bg-[#161617] border-white/10'
+            ? isOutubroRosa ? 'bg-[#3D0825]/70 border-pink-500/20' : 'bg-[#161617] border-white/10'
             : isOutubroRosa ? 'bg-white border-pink-900/10 shadow-xs' : 'bg-[#f5f5f7] border-black/5'
         }`}>
           <div className={`p-3 rounded-full ${
-            isOutubroRosa ? 'bg-pink-100 dark:bg-pink-950/50 text-[#FF2D78]' : 'bg-[#0071e3]/10 text-[#0071e3]'
+            isOutubroRosa ? 'bg-pink-100 dark:bg-pink-950/50 text-[#EC4899]' : 'bg-[#0071e3]/10 text-[#0071e3]'
           }`}>
             <Shield className="h-6 w-6" />
           </div>
@@ -1168,11 +1168,11 @@ export const ProductDetail: React.FC = () => {
 
         <div className={`p-6 rounded-3xl border text-center flex flex-col items-center space-y-2.5 ${
           isDark 
-            ? isOutubroRosa ? 'bg-[#1F0314]/70 border-pink-500/20' : 'bg-[#161617] border-white/10'
+            ? isOutubroRosa ? 'bg-[#3D0825]/70 border-pink-500/20' : 'bg-[#161617] border-white/10'
             : isOutubroRosa ? 'bg-white border-pink-900/10 shadow-xs' : 'bg-[#f5f5f7] border-black/5'
         }`}>
           <div className={`p-3 rounded-full ${
-            isOutubroRosa ? 'bg-pink-100 dark:bg-pink-950/50 text-[#FF2D78]' : 'bg-[#0071e3]/10 text-[#0071e3]'
+            isOutubroRosa ? 'bg-pink-100 dark:bg-pink-950/50 text-[#EC4899]' : 'bg-[#0071e3]/10 text-[#0071e3]'
           }`}>
             <Truck className="h-6 w-6" />
           </div>
@@ -1182,11 +1182,11 @@ export const ProductDetail: React.FC = () => {
 
         <div className={`p-6 rounded-3xl border text-center flex flex-col items-center space-y-2.5 ${
           isDark 
-            ? isOutubroRosa ? 'bg-[#1F0314]/70 border-pink-500/20' : 'bg-[#161617] border-white/10'
+            ? isOutubroRosa ? 'bg-[#3D0825]/70 border-pink-500/20' : 'bg-[#161617] border-white/10'
             : isOutubroRosa ? 'bg-white border-pink-900/10 shadow-xs' : 'bg-[#f5f5f7] border-black/5'
         }`}>
           <div className={`p-3 rounded-full ${
-            isOutubroRosa ? 'bg-pink-100 dark:bg-pink-950/50 text-[#FF2D78]' : 'bg-[#0071e3]/10 text-[#0071e3]'
+            isOutubroRosa ? 'bg-pink-100 dark:bg-pink-950/50 text-[#EC4899]' : 'bg-[#0071e3]/10 text-[#0071e3]'
           }`}>
             <RefreshCw className="h-6 w-6" />
           </div>

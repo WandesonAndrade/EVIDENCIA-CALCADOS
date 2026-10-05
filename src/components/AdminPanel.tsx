@@ -641,6 +641,36 @@ export const AdminPanel: React.FC = () => {
     setIsBannerModalOpen(true);
   };
 
+  const getBannerDestinationLabel = (key: string = '') => {
+    if (!key) return 'Catálogo Completo';
+    const lower = key.toLowerCase();
+    if (lower === 'ofertas') return '🔥 Todas as Ofertas & Saldão';
+    if (lower === 'todos') return '🌟 Catálogo Completo';
+    if (lower === 'lançamentos' || lower === 'lancamentos' || lower === 'novidades') return '⭐ Lançamentos & Novidades';
+    if (lower === 'meu-crediario') return '💳 Meu Crediário (Carnês e Boletos)';
+    if (lower === 'feminino') return '✨ Coleção Feminina';
+    if (lower === 'masculino') return '✨ Coleção Masculina';
+    if (lower === 'infantil') return '✨ Coleção Infantil';
+
+    if (key.startsWith('promo:')) {
+      const promoId = key.replace('promo:', '').trim();
+      const p = promotions.find(pr => pr.id === promoId);
+      return p ? `🏷️ Oferta: ${p.title}` : `🏷️ Oferta #${promoId.slice(0, 6)}`;
+    }
+
+    if (key.startsWith('categoria:')) {
+      return `📁 Categoria: ${key.replace('categoria:', '').trim()}`;
+    }
+
+    if (key.startsWith('subcategoria:')) {
+      const parts = key.replace('subcategoria:', '').split(':');
+      const subName = parts.length > 1 ? parts[1].trim() : parts[0].trim();
+      return `👠 Subcategoria: ${subName}`;
+    }
+
+    return `#${key}`;
+  };
+
   const handleSaveBanner = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!bannerTitle || !bannerImage) {
@@ -1629,7 +1659,7 @@ export const AdminPanel: React.FC = () => {
                     <div className="pt-2 text-xs font-semibold text-amber-400 flex items-center space-x-2">
                       <span>CTA: "{banner.buttonText}"</span>
                       <span>•</span>
-                      <span>Destino: #{banner.tabKey}</span>
+                      <span>Destino: {getBannerDestinationLabel(banner.tabKey)}</span>
                     </div>
                   </div>
 
@@ -1761,22 +1791,81 @@ export const AdminPanel: React.FC = () => {
                       </div>
 
                       <div>
-                        <label className="block text-xs font-bold mb-1 text-slate-300">Link / Aba de Destino</label>
+                        <label className={`block text-xs font-bold mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                          Link / Destino do Clique *
+                        </label>
                         <select
                           value={bannerTabKey}
                           onChange={(e) => setBannerTabKey(e.target.value)}
-                          className={`w-full p-3 rounded-xl text-xs border focus:outline-none ${
-                            isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-100 border-slate-300'
+                          className={`w-full p-3 rounded-xl text-xs border font-medium focus:outline-none focus:ring-2 focus:ring-amber-400 ${
+                            isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-100 border-slate-300 text-slate-900'
                           }`}
                         >
-                          <option value="lançamentos">Lançamentos</option>
-                          <option value="feminino">Feminino</option>
-                          <option value="masculino">Masculino</option>
-                          <option value="ofertas">Ofertas</option>
-                          <option value="meu-crediario">Meu Crediário (Carnês e Boletos)</option>
-                          <option value="sapatos-sociais">Sapatos Sociais</option>
-                          <option value="botas">Botas</option>
-                          <option value="acessorios">Acessórios</option>
+                          <optgroup label="🌟 Vitrine & Páginas Principais">
+                            <option value="todos">Catálogo Completo (Todos os Produtos)</option>
+                            <option value="lançamentos">Lançamentos & Novidades (2026)</option>
+                            <option value="meu-crediario">Meu Crediário (Carnês e Boletos ERP)</option>
+                          </optgroup>
+
+                          <optgroup label="🔥 Ofertas & Promoções Cadastradas">
+                            <option value="ofertas">🔥 Todas as Ofertas & Saldão Geral</option>
+                            {promotions && promotions.length > 0 ? (
+                              promotions.map((promo) => (
+                                <option key={promo.id} value={`promo:${promo.id}`}>
+                                  🏷️ Oferta: {promo.title} {promo.discountValue ? `(${promo.discountType === 'percentage' ? `${promo.discountValue}% OFF` : `R$ ${promo.discountValue} OFF`})` : ''} {promo.active ? '● Ativa' : '○ Pausada'}
+                                </option>
+                              ))
+                            ) : null}
+                          </optgroup>
+
+                          <optgroup label="👥 Coleções por Público">
+                            <option value="feminino">✨ Coleção Feminina</option>
+                            <option value="masculino">✨ Coleção Masculina</option>
+                            <option value="infantil">✨ Coleção Infantil & Bebê</option>
+                          </optgroup>
+
+                          <optgroup label="📁 Categorias Cadastradas">
+                            {cleanCategories && cleanCategories.length > 0 ? (
+                              cleanCategories.map((cat) => (
+                                <option key={cat.id || cat.name} value={`categoria:${cat.name}`}>
+                                  📁 {cat.name.toUpperCase()}
+                                </option>
+                              ))
+                            ) : (
+                              <>
+                                <option value="categoria:CALÇADOS">📁 CALÇADOS</option>
+                                <option value="categoria:CONFECÇÕES">📁 CONFECÇÕES & ROUPAS</option>
+                                <option value="categoria:ACESSÓRIOS">📁 ACESSÓRIOS</option>
+                                <option value="categoria:PERFUMES">📁 PERFUMES</option>
+                                <option value="categoria:COSMÉTICOS">📁 COSMÉTICOS</option>
+                                <option value="categoria:ESCOLAR">📁 ARTIGOS ESCOLARES</option>
+                              </>
+                            )}
+                          </optgroup>
+
+                          <optgroup label="👠 Subcategorias de Calçados & Acessórios">
+                            <option value="subcategoria:Sandálias">↳ Sandálias</option>
+                            <option value="subcategoria:Tênis">↳ Tênis</option>
+                            <option value="subcategoria:Rasteiras & Papetes">↳ Rasteiras & Papetes</option>
+                            <option value="subcategoria:Botas">↳ Botas & Coturnos</option>
+                            <option value="subcategoria:Scarpins & Saltos">↳ Scarpins & Saltos</option>
+                            <option value="subcategoria:Chinelos & Slides">↳ Chinelos & Slides</option>
+                            <option value="subcategoria:Mocassins">↳ Mocassins</option>
+                            <option value="subcategoria:Sapatos">↳ Sapatos Sociais</option>
+                            <option value="subcategoria:Bolsas">↳ Bolsas & Mochilas</option>
+                            <option value="subcategoria:Carteiras">↳ Carteiras & Cintos</option>
+                          </optgroup>
+
+                          {/* Preserva destinos customizados previamente salvos */}
+                          {bannerTabKey && 
+                            !['todos', 'lançamentos', 'lancamentos', 'novidades', 'meu-crediario', 'ofertas', 'feminino', 'masculino', 'infantil'].includes(bannerTabKey.toLowerCase()) &&
+                            !bannerTabKey.startsWith('promo:') &&
+                            !bannerTabKey.startsWith('categoria:') &&
+                            !bannerTabKey.startsWith('subcategoria:') && (
+                              <optgroup label="Outro / Personalizado">
+                                <option value={bannerTabKey}>{bannerTabKey}</option>
+                              </optgroup>
+                          )}
                         </select>
                       </div>
                     </div>

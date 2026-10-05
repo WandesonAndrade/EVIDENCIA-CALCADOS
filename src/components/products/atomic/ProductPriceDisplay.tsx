@@ -43,7 +43,7 @@ export function calculateProductPriceDetails(
 
   const rawPix = (saldaoCalc.isSaldao || applicablePromo) ? mainPrice : mainPrice * 0.9;
   const pixPrice = rawPix.toFixed(2).replace('.', ',');
-  const parcelas = 6;
+  const parcelas = 10;
   const valorParcela = (mainPrice / parcelas).toFixed(2).replace('.', ',');
 
   return {
