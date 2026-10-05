@@ -1043,12 +1043,12 @@ var getEnvVar = (key) => {
   return String(val || "").replace(/['"]/g, "").trim();
 };
 var firebaseConfig = {
-  projectId: getEnvVar("VITE_FIREBASE_PROJECT_ID"),
-  appId: getEnvVar("VITE_FIREBASE_APP_ID"),
-  apiKey: getEnvVar("VITE_FIREBASE_API_KEY"),
-  authDomain: getEnvVar("VITE_FIREBASE_AUTH_DOMAIN"),
-  storageBucket: getEnvVar("VITE_FIREBASE_STORAGE_BUCKET"),
-  messagingSenderId: getEnvVar("VITE_FIREBASE_MESSAGING_SENDER_ID")
+  projectId: getEnvVar("VITE_FIREBASE_PROJECT_ID") || "evidenciacalcados-test",
+  appId: getEnvVar("VITE_FIREBASE_APP_ID") || "1:123456789:web:123456",
+  apiKey: getEnvVar("VITE_FIREBASE_API_KEY") || "AIzaSyDummyKeyForBuildAndTesting000000",
+  authDomain: getEnvVar("VITE_FIREBASE_AUTH_DOMAIN") || "evidenciacalcados-test.firebaseapp.com",
+  storageBucket: getEnvVar("VITE_FIREBASE_STORAGE_BUCKET") || "evidenciacalcados-test.firebasestorage.app",
+  messagingSenderId: getEnvVar("VITE_FIREBASE_MESSAGING_SENDER_ID") || "123456789"
 };
 var app = (0, import_app.initializeApp)(firebaseConfig);
 var auth = (0, import_auth.getAuth)(app);
@@ -1766,13 +1766,11 @@ app2.use("/mp-api", async (req, res) => {
     },
     signal: controller.signal
   };
-  if (req.headers.authorization) {
+  const serverMpToken = process.env.MERCADO_PAGO_ACCESS_TOKEN?.replace(/['"]/g, "").trim();
+  if (serverMpToken) {
+    options.headers["Authorization"] = `Bearer ${serverMpToken}`;
+  } else if (req.headers.authorization) {
     options.headers["Authorization"] = req.headers.authorization;
-  } else {
-    const mpToken = process.env.MERCADO_PAGO_ACCESS_TOKEN?.replace(/['"]/g, "").trim();
-    if (mpToken) {
-      options.headers["Authorization"] = `Bearer ${mpToken}`;
-    }
   }
   if (req.headers["x-idempotency-key"]) {
     options.headers["X-Idempotency-Key"] = req.headers["x-idempotency-key"];

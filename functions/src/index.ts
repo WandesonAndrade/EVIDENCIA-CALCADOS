@@ -1,23 +1,25 @@
-import * as functions from "firebase-functions/v2";
-import * as admin from "firebase-admin";
+import { onRequest } from "firebase-functions/v2/https";
 
-// Inicializa o admin usando permissões nativas de nuvem do Firebase
-if (!admin.apps.length) {
-  admin.initializeApp();
+let appInstance: any = null;
+function getApp() {
+  if (!appInstance) {
+    const appModule = require("../server.cjs");
+    appInstance = appModule.default || appModule.app || appModule;
+  }
+  return appInstance;
 }
 
-// Requerendo o servidor Express pré-empacotado da aplicação raiz (Vite)
-// O firebase-tools fará upload da pasta dist/ junto se configurarmos no firebase.json
-const app = require("../../dist/server.cjs").default || require("../../dist/server.cjs");
-
-// Expondo a API completa
-export const api = functions.https.onRequest(
+// Expondo a API completa publicamente com permissão allUsers
+export const api = onRequest(
   {
     region: "us-central1",
     memory: "512MiB",
     timeoutSeconds: 300,
     minInstances: 0,
-    cors: false, // O cors já é tratado no server.cjs
+    cors: true,
+    invoker: "public",
   },
-  app
+  (req: any, res: any) => {
+    return getApp()(req, res);
+  }
 );
