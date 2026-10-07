@@ -1152,6 +1152,57 @@ O Dashboard Financeiro (`FinancialDashboard.tsx`) no `AdminPanel.tsx` (aba `fina
    - Espaçamento do grid ajustado para `gap-2.5 min-[390px]:gap-3.5 sm:gap-6`, ganhando 4px úteis de largura por card.
    - Círculos de subcategorias com diâmetro `w-[72px] h-[72px] min-[390px]:w-20 min-[390px]:h-20` e espaçamento horizontal `space-x-3 min-[390px]:space-x-4`.
 
+---
 
+## 45. Cards Promocionais de Alto Impacto na Vitrine (Estilo Retail Inspirado na Referência) e Carrossel Mobile
 
+### A. Contexto e Motivação
+- A seção assimétrica anterior (Bento Grid com 1 banner grande e 2 menores) foi reformulada para seguir a referência visual moderna de e-commerces líderes de mercado (Magalu, Kabum, Shopee), com foco em alta conversão visual e separação de 3 verticais de vendas estratégicas: Lançamentos de Calçados, Meu Crediário Próprio e Bolsas & Acessórios.
 
+### B. Especificações dos 3 Cards (`src/components/ProductList.tsx`)
+1. **Card 1 - Calçados & Novidades (Esquerda)**:
+   - Fundo em degradê vermelho retail (`#E50914` via `#DC2626` para `#B91C1C`) no tema padrão ou magenta radiante no tema Outubro Rosa.
+   - Eyebrow `COLEÇÃO 2026`, título `CALÇADOS`, condição `COM CUPONS DE ATÉ`, destaque neon `40% OFF` e botão CTA pill branco `VER OFERTAS 🛒`.
+   - Direcionamento automático para a categoria de Novidades.
+2. **Card 2 - Meu Crediário Evidência Calçados (Central - 100% Fiel à Nova Identidade)**:
+   - Fundo em degradê vinho profundo radiante (`#450529` a `#5C0837`).
+   - Eyebrow `CREDIÁRIO PRÓPRIO ────`, título `MEU` com badge de cartão iluminado + `CREDIÁRIO` em degradê pink luminoso (`#FF6EA7`).
+   - Cópia descritiva: *"Consulte seus calçados, faturas e pague parcelas no Pix com baixa instantânea"*.
+   - 3 pilares de benefícios: *Calçados / Rápido & fácil*, *Via Pix / Baixa na hora*, *Seguro / 100% online*.
+   - Botão pill branco `ACESSAR CREDIÁRIO` com badge circular de seta em vinho, selo circular superior flutuante com ícone de tênis e `100% ONLINE`.
+   - Fotografia oficial da composição com caixa física Evidência Calçados, tênis branco/rose gold, smartphone com app Meu Crediário (`public/meu-crediario-banner.jpg`).
+   - Destino direto para a rota `/meu-crediario`.
+3. **Card 3 - Bolsas & Acessórios (Direita)**:
+   - Fundo vermelho retail / magenta, eyebrow `TUDO PARA VOCÊ`, título `BOLSAS & ACESSÓRIOS`, condição `COM ATÉ`, destaque `50% OFF`, botão `VER OFERTAS 🛒`.
+   - Direcionamento para a categoria de Acessórios.
+4. **Experiência Mobile com Carrossel Lateral (`< md`)**:
+   - Em telas pequenas, os cards são renderizados em um carrossel deslizante suave (`flex overflow-x-auto snap-x snap-mandatory no-scrollbar`).
+   - Largura `w-[86vw] min-[390px]:w-[84vw] sm:w-[380px]` com `snap-center` para efeito peek do próximo card na borda direita.
+   - Indicador de paginação com 3 pílulas interativas na base para transição por toque.
+   - Em telas médias e desktop (`md:`), exibe rigorosamente o grid de 3 colunas lado a lado.
+
+---
+
+## 46. Gestão Completa dos Cards Promocionais no Painel Admin (CMS Vitrine)
+
+### A. Arquitetura e Módulo Gestor (`src/components/admin/FeaturedPromoCardsManager.tsx`)
+- Criado componente dedicado para gerenciamento dos 3 cards da vitrine, integrado ao `AdminPanel.tsx` sob a tab `'promo-cards'` (`Cards da Vitrine (3 Banners)`) dentro do grupo `CMS & VITRINE`.
+- Atalho direto na aba de Banners Hero para navegação intuitiva.
+
+### B. Recursos do Gestor
+1. **Prévia Visual em Tempo Real**:
+   - Réplica idêntica à vitrine com sincronização em tempo real conforme digitação.
+   - Interação direta: clicar em qualquer card na prévia ativa sua edição imediata.
+2. **Edição Granular de Cada Card**:
+   - `active`: Toggle para ativar ou ocultar o card na vitrine.
+   - `cardType`: Modo `standard` (descontos e cupons) ou modo `crediario` (pilares de carnês e selo flutuante).
+   - `badge`, `title`, `subtitle`, `highlightCondition`, `discountHighlight`, `badgeTopRight`, `buttonText`, `footnote`.
+   - `buttonLink`: Seletor inteligente agrupado (Páginas principais, Ofertas vigentes, Categorias do ERP, ou link customizado).
+3. **Upload e Presets de Fotos**:
+   - Upload direto para o bucket Supabase Storage (`banners/`) com conversão automática WebP.
+   - Presets de 1 clique para imagens padrão (Mockup Oficial Meu Crediário, Tênis Unsplash, Bolsas Unsplash).
+   - Box informativo com medidas oficiais recomendadas (1024 x 756 px ou 1200 x 800 px, proporção ~4:3 ou ~3:2).
+4. **Persistência Firestore**:
+   - Armazenamento no documento `storeConfig/layout` com o array `featuredPromoCards: FeaturedPromoCard[]`.
+   - Reatividade em tempo real na vitrine via `useApp().featuredPromoCards` e fallback seguro para `DEFAULT_FEATURED_PROMO_CARDS`.
+   - Botão para restaurar configurações originais de fábrica a qualquer momento.

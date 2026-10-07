@@ -276,7 +276,33 @@ Este arquivo é a memória persistente do projeto (AG Kit), consolidando decisõ
     - **Barra de Vantagens**: Padronização dos 4 cards com container `p-2.5 min-[390px]:p-3.5`, `gap-2 min-[390px]:gap-2.5`, ícones `h-4.5 w-4.5`, títulos `text-[11px]` e subtítulos `text-[9px]`.
     - **Bento Grid**: Card principal `p-5 min-[390px]:p-7`, título `text-xl min-[390px]:text-2xl` e cards menores `p-5 min-[390px]:p-7` com tipografia harmonizada.
     - **Cards de Produto (`StorefrontProductCard` & Atomics)**: Moldura de imagem `p-3.5 min-[390px]:p-5` para maior destaque ao calçado, badges no canto `top-2 left-2` com `text-[9px]`, área de info `p-3 min-[390px]:p-4`, título `text-xs min-[390px]:text-sm min-h-[32px]`, preço `text-xl min-[390px]:text-2xl` e botão "Comprar" `py-2 min-[390px]:py-2.5 text-[11px] min-[390px]:text-xs`.
-    - **Grid & Carrossel**: Grid gap reduzido para `gap-2.5 min-[390px]:gap-3.5` e diâmetro de círculos de subcategoria `w-[72px] h-[72px] min-[390px]:w-20` com `space-x-3`.
+
+43. **Cards Promocionais de Alto Impacto na Vitrine (Estilo Retail Inspirado na Referência) (Implementado):**
+    - **Redesign dos Cards de Destaque (`ProductList.tsx`)**: Substituído o layout assimétrico anterior por uma fileira de 3 cards horizontais promocionais de alto impacto (`grid grid-cols-1 md:grid-cols-3 gap-3.5 sm:gap-4 lg:gap-5`), inspirados na referência visual de grandes e-commerces (Magalu, Kabum, Shopee).
+    - **Divisão Horizontal 50/50 & Destinos**:
+      - *Card 1 (Novidades & Calçados)*: Vermelho retail, `COLEÇÃO 2026`, `CALÇADOS`, `COM CUPONS DE ATÉ 40% OFF`, botão `VER OFERTAS 🛒`, redirecionando para a categoria de Novidades.
+      - *Card 2 (Meu Crediário Evidência Calçados - 100% Fiel à Nova Inspiração)*: Fundo em gradiente vinho profundo radiante (`#450529` a `#5C0837`), eyebrow `CREDIÁRIO PRÓPRIO ────`, título `MEU` com badge luminoso de cartão + `CREDIÁRIO` em degradê pink luminoso (`#FF6EA7`), cópia *"Consulte seus calçados, faturas e pague parcelas no Pix com baixa instantânea"*, grid de 3 benefícios (*Calçados / Rápido & fácil*, *Via Pix / Baixa na hora*, *Seguro / 100% online*), botão pill branco `ACESSAR CREDIÁRIO` com badge circular de seta em vinho, selo circular superior flutuante com ícone de tênis e `100% ONLINE`, e composição fotográfica oficial com a caixa oficial Evidência Calçados, tênis branco/rose gold, smartphone com app Meu Crediário e loja física ao fundo (`/meu-crediario-banner.jpg`), direcionando diretamente para `/meu-crediario`.
+      - *Card 3 (Bolsas & Acessórios)*: Vermelho retail, `TUDO PARA VOCÊ`, `BOLSAS & ACESSÓRIOS`, `COM ATÉ 50% OFF`, botão `VER OFERTAS 🛒`, redirecionando para a categoria de Acessórios.
+    - **Harmonização de Temas**: Suporte nativo ao modo Padrão (Vermelho Retail + Vinho Crediário) e ao modo Outubro Rosa (Magenta vibrante `#BE185D` e Vinho profundo `#540832`), além de responsividade mobile e dark mode.
+
+44. **Gestão dos 3 Cards Promocionais no Painel Admin (CMS Vitrine) (Implementado):**
+    - **Módulo Dedicado (`FeaturedPromoCardsManager.tsx`)**:
+      - Integrado à aba `promo-cards` ("Cards da Vitrine (3 Banners)") no menu `CMS & VITRINE` do `AdminPanel.tsx`, com atalho direto dentro da aba de Banners Hero.
+      - **Prévia Visual em Tempo Real**: Réplica exata dos 3 cards renderizados na vitrine, interativa e sincronizada instantaneamente conforme os campos são alterados. Clicar em qualquer card na prévia ativa sua edição imediata.
+      - **Edição Completa dos 3 Cards**:
+        * *Card 1 (Esquerda)*: Badge, Título, Condição, Destaque em %/OFF, Subtítulo, Botão CTA, Destino do Clique, Nota de rodapé, Foto e Toggle de Ativo/Oculto.
+        * *Card 2 (Central - Crediário)*: Suporte a modo `crediario`, selo superior flutuante ("100% ONLINE"), título estilizado, benefícios e cópia de faturas/Pix.
+        * *Card 3 (Direita)*: Textos promocionais, descontos, destinos dinâmicos e fotos.
+      - **Seletor de Destino Inteligente**: Opções agrupadas para Meu Crediário (`meu-crediario`), Novidades, Acessórios, Saldão, Campanhas promocionais do Firestore (`promo:${id}`) e Categorias cadastradas do MobLink ERP (`categoria:${name}`).
+      - **Upload e Presets de Fotos**:
+        * Upload direto de imagens para o Supabase Storage (pasta `banners`) com conversão para WebP.
+        * Presets rápidos com 1 clique (foto oficial Meu Crediário `/meu-crediario-banner.jpg`, calçados e bolsas).
+        * Alerta visual com dimensões oficiais recomendadas (1024 x 756 px ou 1200 x 800 px, proporção ~4:3 ou ~3:2).
+      - **Persistência no Firestore**: Dados salvos em `storeConfig/layout` (`featuredPromoCards: [...]`), com fallback resiliente para `DEFAULT_FEATURED_PROMO_CARDS` e botão para restaurar configurações originais de fábrica.
 
 
-
+45. **Carrossel Deslizante dos Cards Promocionais em Dispositivos Móveis (`ProductList.tsx`) (Implementado):**
+    - **Experiência Mobile com Carrossel Lateral**: Em telas menores (`< md`), os 3 cards promocionais de alto impacto (*Calçados*, *Meu Crediário* e *Bolsas & Acessórios*) deixaram de ficar empilhados verticalmente e agora são exibidos lado a lado em um carrossel deslizante horizontal suave (`flex overflow-x-auto snap-x snap-mandatory no-scrollbar`).
+    - **Largura e Peek Affordance**: Cada card ocupa `w-[86vw] min-[390px]:w-[84vw] sm:w-[380px]` com `snap-center`, permitindo que o próximo card fique sutilmente visível na borda direita, convidando o usuário ao deslize horizontal natural.
+    - **Indicador Interativo de Paginação**: Adicionada barra com 3 pílulas/pontos indicadores na base do carrossel (`md:hidden`) sincronizados com o scroll e clicáveis para transição direta entre os banners.
+    - **Preservação Desktop**: Em telas médias e grandes (`md:`), a exibição mantém rigorosamente o grid de 3 colunas lado a lado (`md:grid md:grid-cols-3`).

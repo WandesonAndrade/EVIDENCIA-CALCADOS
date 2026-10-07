@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
-import { Product, CartItem, Order, PaymentStatus, OrderStatus, UserProfile, UserRole, CrediarioStatus, Category, MoblinkConfig, MoblinkSyncLog, MoblinkSyncLogItem, EvidenciaAuthSession, HeroBanner, HomeSectionConfig, AboutConfig, ContactConfig, StoreConfig, ViewMode, SaldaoConfig, PromoCampaign, Seller, StoreThemeId } from '../types';
+import { Product, CartItem, Order, PaymentStatus, OrderStatus, UserProfile, UserRole, CrediarioStatus, Category, MoblinkConfig, MoblinkSyncLog, MoblinkSyncLogItem, EvidenciaAuthSession, HeroBanner, HomeSectionConfig, AboutConfig, ContactConfig, StoreConfig, ViewMode, SaldaoConfig, PromoCampaign, Seller, StoreThemeId, FeaturedPromoCard } from '../types';
 import { loadSaldaoConfig, saveSaldaoConfig, DEFAULT_SALDAO_CONFIG, getSaldaoProductPrice } from '../services/saldaoService';
 import { loadThemeConfig, saveThemeConfig, DEFAULT_THEME_CONFIG } from '../services/themeService';
 import { loadPromotionsFromLocalStorage, savePromotionsToLocalStorage, savePromotionToFirestore, deletePromotionFromFirestore, PROMOTIONS_COLLECTION, getApplicablePromotion } from '../services/promotionsService';
@@ -112,6 +112,8 @@ interface AppContextProps {
   // Store CMS Configuration & Restoration
   heroBanners: HeroBanner[];
   updateHeroBanners: (banners: HeroBanner[]) => Promise<void>;
+  featuredPromoCards: FeaturedPromoCard[];
+  updateFeaturedPromoCards: (cards: FeaturedPromoCard[]) => Promise<void>;
   homeSections: HomeSectionConfig[];
   updateHomeSections: (sections: HomeSectionConfig[]) => Promise<void>;
   aboutConfig: AboutConfig;
@@ -215,8 +217,51 @@ export const DEFAULT_CONTACT_CONFIG: ContactConfig = {
   isPromoBannerActive: true
 };
 
+export const DEFAULT_FEATURED_PROMO_CARDS: FeaturedPromoCard[] = [
+  {
+    id: 'card-1',
+    badge: 'COLEÇÃO 2026',
+    title: 'CALÇADOS',
+    highlightCondition: 'COM CUPONS DE ATÉ',
+    discountHighlight: '40% OFF',
+    buttonText: 'VER OFERTAS',
+    buttonLink: 'categoria:NOVIDADES',
+    footnote: '*IMAGEM MERAMENTE ILUSTRATIVA',
+    image: 'https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?q=80&w=900&auto=format&fit=crop',
+    cardType: 'standard',
+    active: true
+  },
+  {
+    id: 'card-2',
+    badge: 'CREDIÁRIO PRÓPRIO',
+    title: 'MEU CREDIÁRIO',
+    subtitle: 'Consulte seus calçados, faturas e pague parcelas no Pix com baixa instantânea.',
+    buttonText: 'ACESSAR CREDIÁRIO',
+    buttonLink: 'meu-crediario',
+    footnote: '*CONSULTA RÁPIDA POR CPF',
+    image: '/meu-crediario-banner.jpg',
+    cardType: 'crediario',
+    badgeTopRight: '100% ONLINE',
+    active: true
+  },
+  {
+    id: 'card-3',
+    badge: 'TUDO PARA VOCÊ',
+    title: 'BOLSAS & ACESSÓRIOS',
+    highlightCondition: 'COM ATÉ',
+    discountHighlight: '50% OFF',
+    buttonText: 'VER OFERTAS',
+    buttonLink: 'categoria:ACESSÓRIOS',
+    footnote: '*IMAGEM MERAMENTE ILUSTRATIVA',
+    image: 'https://images.unsplash.com/photo-1584917865442-de89df76afd3?q=80&w=800&auto=format&fit=crop',
+    cardType: 'standard',
+    active: true
+  }
+];
+
 export const DEFAULT_STORE_CONFIG: StoreConfig = {
   heroBanners: DEFAULT_HERO_BANNERS,
+  featuredPromoCards: DEFAULT_FEATURED_PROMO_CARDS,
   homeSections: DEFAULT_HOME_SECTIONS,
   aboutConfig: DEFAULT_ABOUT_CONFIG,
   contactConfig: DEFAULT_CONTACT_CONFIG
@@ -809,7 +854,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return DEFAULT_CONTACT_CONFIG;
   });
 
+  const [featuredPromoCards, setFeaturedPromoCards] = useState<FeaturedPromoCard[]>(() => {
+    const saved = localStorage.getItem('evidencia_cms_promo_cards');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length === 3) {
+          return parsed;
+        }
+      } catch (e) {}
+    }
+    return DEFAULT_FEATURED_PROMO_CARDS;
+  });
+
   // CMS Update Handlers (Writes to storeConfig/layout)
+  const updateFeaturedPromoCards = async (cards: FeaturedPromoCard[]) => {
+    setFeaturedPromoCards(cards);
+    localStorage.setItem('evidencia_cms_promo_cards', JSON.stringify(cards));
+    try {
+      await setDoc(doc(db, 'storeConfig', 'layout'), { featuredPromoCards: cards }, { merge: true });
+    } catch (err) {
+      console.error("❌ ERRO AO SALVAR CARDS PROMOCIONAIS NO FIRESTORE:", err);
+      throw err;
+    }
+  };
   const updateHeroBanners = async (banners: HeroBanner[]) => {
     setHeroBanners(banners);
     localStorage.setItem('evidencia_cms_hero_banners', JSON.stringify(banners));
@@ -861,11 +929,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const restoreDefaultConfig = async (): Promise<void> => {
     setHeroBanners(DEFAULT_HERO_BANNERS);
+    setFeaturedPromoCards(DEFAULT_FEATURED_PROMO_CARDS);
     setHomeSections(DEFAULT_HOME_SECTIONS);
     setAboutConfig(DEFAULT_ABOUT_CONFIG);
     setContactConfig(DEFAULT_CONTACT_CONFIG);
 
     localStorage.setItem('evidencia_cms_hero_banners', JSON.stringify(DEFAULT_HERO_BANNERS));
+    localStorage.setItem('evidencia_cms_promo_cards', JSON.stringify(DEFAULT_FEATURED_PROMO_CARDS));
     localStorage.setItem('evidencia_cms_home_sections', JSON.stringify(DEFAULT_HOME_SECTIONS));
     localStorage.setItem('evidencia_cms_about_config', JSON.stringify(DEFAULT_ABOUT_CONFIG));
     localStorage.setItem('evidencia_cms_contact_config', JSON.stringify(DEFAULT_CONTACT_CONFIG));
@@ -898,6 +968,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (data.heroBanners && Array.isArray(data.heroBanners)) {
             setHeroBanners(data.heroBanners);
             localStorage.setItem('evidencia_cms_hero_banners', JSON.stringify(data.heroBanners));
+          }
+          if (data.featuredPromoCards && Array.isArray(data.featuredPromoCards) && data.featuredPromoCards.length === 3) {
+            setFeaturedPromoCards(data.featuredPromoCards);
+            localStorage.setItem('evidencia_cms_promo_cards', JSON.stringify(data.featuredPromoCards));
           }
           if (data.homeSections && Array.isArray(data.homeSections)) {
             setHomeSections(data.homeSections);
@@ -3028,6 +3102,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         importMoblinkStockBatch,
         heroBanners,
         updateHeroBanners,
+        featuredPromoCards,
+        updateFeaturedPromoCards,
         homeSections,
         updateHomeSections,
         aboutConfig,

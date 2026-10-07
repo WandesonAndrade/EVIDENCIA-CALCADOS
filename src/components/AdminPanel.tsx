@@ -30,11 +30,12 @@ import {
   Info, Sliders, Zap, Barcode, Image, ArrowUp, ArrowDown,
   BookOpen, PhoneCall, Globe, CheckCircle2, Sparkles, Layout, HelpCircle,
   FileText, Briefcase, MapPin, Gift, Heart, ShoppingCart, Cake, AlertTriangle, LogOut, Shield,
-  FolderTree, Tag, X, ExternalLink, CreditCard, Menu, Palette
+  FolderTree, Tag, X, ExternalLink, CreditCard, Menu, Palette, LayoutGrid
 } from 'lucide-react';
 import { AdminOrdersList } from './orders/AdminOrdersList';
 import { AdminBoxManager } from './AdminBoxManager';
 import { CreditManagement } from './admin/credit/CreditManagement';
+import { FeaturedPromoCardsManager } from './admin/FeaturedPromoCardsManager';
 import { moblinkCategoriesService, normalizeCategoryName, normalizeSubcategoryName } from '../services/moblinkCategoriesService';
 
 type AdminTab = 
@@ -50,6 +51,7 @@ type AdminTab =
   | 'shipping-boxes'
   | 'moblink' 
   | 'banners' 
+  | 'promo-cards'
   | 'home-sections' 
   | 'about-editor' 
   | 'support-contact' 
@@ -375,7 +377,7 @@ export const AdminPanel: React.FC = () => {
   const [saldaoEnabledInput, setSaldaoEnabledInput] = useState(saldaoConfig?.enabled ?? true);
   const [saldaoMaxStockInput, setSaldaoMaxStockInput] = useState(saldaoConfig?.maxStock ?? 2);
   const [saldaoDiscountInput, setSaldaoDiscountInput] = useState(saldaoConfig?.discountPercent ?? 20);
-  const [saldaoBannerInput, setSaldaoBannerInput] = useState(saldaoConfig?.bannerText || '🔥 SALDÃO DE CALÇADOS - ÚLTIMAS UNIDADES COM DESCONTO EXCLUSIVO!');
+  const [saldaoBannerInput, setSaldaoBannerInput] = useState(saldaoConfig?.bannerText || 'SALDÃO DE CALÇADOS - ÚLTIMAS UNIDADES COM DESCONTO EXCLUSIVO!');
   const [isSavingSaldao, setIsSavingSaldao] = useState(false);
 
   useEffect(() => {
@@ -383,7 +385,7 @@ export const AdminPanel: React.FC = () => {
       setSaldaoEnabledInput(saldaoConfig.enabled);
       setSaldaoMaxStockInput(saldaoConfig.maxStock ?? 2);
       setSaldaoDiscountInput(saldaoConfig.discountPercent ?? 20);
-      setSaldaoBannerInput(saldaoConfig.bannerText || '🔥 SALDÃO DE CALÇADOS - ÚLTIMAS UNIDADES COM DESCONTO EXCLUSIVO!');
+      setSaldaoBannerInput(saldaoConfig.bannerText || 'SALDÃO DE CALÇADOS - ÚLTIMAS UNIDADES COM DESCONTO EXCLUSIVO!');
     }
   }, [saldaoConfig]);
 
@@ -1252,6 +1254,24 @@ export const AdminPanel: React.FC = () => {
                   <span>Banners Principais (Hero)</span>
                 </button>
 
+                {/* 1.5. Cards da Vitrine (3 Banners) */}
+                <button
+                  onClick={() => handleSelectTab('promo-cards')}
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    activeTab === 'promo-cards'
+                      ? isDark ? 'bg-amber-400/10 text-amber-400 border border-amber-400/30' : 'bg-slate-900 text-white shadow-sm'
+                      : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <div className="flex items-center space-x-3">
+                    <LayoutGrid className="h-4 w-4 text-amber-400" />
+                    <span>Cards da Vitrine (3 Banners)</span>
+                  </div>
+                  <span className="px-1.5 py-0.5 text-[9px] font-black rounded-md bg-amber-400/20 text-amber-400 uppercase">
+                    Novo
+                  </span>
+                </button>
+
                 {/* 2. Ofertas & Promoções */}
                 <button
                   onClick={() => handleSelectTab('promotions')}
@@ -1614,13 +1634,29 @@ export const AdminPanel: React.FC = () => {
                 <p className="text-xs text-slate-400">Adicione, edite, ordene e ative os banners do carrossel principal da home</p>
               </div>
 
-              <button
-                onClick={handleOpenAddBanner}
-                className="inline-flex items-center space-x-2 px-5 py-2.5 rounded-2xl bg-amber-400 text-slate-950 font-black text-xs hover:bg-amber-300 transition-all shadow-md cursor-pointer"
-              >
-                <Plus className="h-4 w-4" />
-                <span>Adicionar Novo Banner</span>
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('promo-cards')}
+                  className={`inline-flex items-center space-x-2 px-4 py-2.5 rounded-2xl border text-xs font-bold transition-all cursor-pointer ${
+                    isDark
+                      ? 'border-amber-400/30 bg-amber-400/10 text-amber-300 hover:bg-amber-400/20'
+                      : 'border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100'
+                  }`}
+                  title="Acessar o gerenciador dos 3 cards de destaque da vitrine"
+                >
+                  <LayoutGrid className="h-4 w-4" />
+                  <span>Cards da Vitrine (3 Banners)</span>
+                </button>
+
+                <button
+                  onClick={handleOpenAddBanner}
+                  className="inline-flex items-center space-x-2 px-5 py-2.5 rounded-2xl bg-amber-400 text-slate-950 font-black text-xs hover:bg-amber-300 transition-all shadow-md cursor-pointer"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span>Adicionar Novo Banner</span>
+                </button>
+              </div>
             </div>
 
             {/* List of Banners */}
@@ -1903,6 +1939,11 @@ export const AdminPanel: React.FC = () => {
               </div>
             )}
           </div>
+        )}
+
+        {/* TAB 2.5: CARDS PROMOCIONAIS DA VITRINE (3 BANNERS CMS) */}
+        {activeTab === 'promo-cards' && (
+          <FeaturedPromoCardsManager isDark={isDark} onToast={addToast} />
         )}
 
         {/* TAB 3: ORDENAÇÃO DE SEÇÕES DA HOME (NEW CMS FEATURE) */}
@@ -2628,7 +2669,7 @@ export const AdminPanel: React.FC = () => {
                   className={`w-full p-3.5 rounded-xl text-xs border focus:outline-none focus:border-rose-500 ${
                     isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-100 border-slate-300'
                   }`}
-                  placeholder="Ex: 🔥 SALDÃO DE CALÇADOS - ÚLTIMAS UNIDADES COM ATÉ 20% OFF!"
+                  placeholder="Ex: SALDÃO DE CALÇADOS - ÚLTIMAS UNIDADES COM ATÉ 20% OFF!"
                 />
               </div>
 

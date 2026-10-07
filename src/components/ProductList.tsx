@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { useApp } from "../context/AppContext";
+import { useApp, DEFAULT_FEATURED_PROMO_CARDS } from "../context/AppContext";
 import { Product } from "../types";
-import { Eye, Heart, ArrowRight, ArrowUpDown, Truck, CreditCard, RefreshCw, ShoppingBag, Sparkles, ChevronLeft, ChevronRight, Tag, Search, X, Headphones } from "lucide-react";
+import { Eye, Heart, ArrowRight, ArrowUpDown, Truck, CreditCard, RefreshCw, ShoppingBag, Sparkles, ChevronLeft, ChevronRight, Tag, Search, X, Headphones, ShoppingCart, Clock, FileText, QrCode, ShieldCheck, Laptop, Footprints } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { scrollToSectionWithOffset } from "../lib/scrollUtils";
 import { normalizeCategoryName, normalizeSubcategoryName, isProductInCategory } from "../services/moblinkCategoriesService";
@@ -49,12 +49,40 @@ export const ProductList: React.FC = () => {
     theme,
     categories: dbCategories = [],
     storeTheme,
+    featuredPromoCards,
   } = useApp();
 
   const isOutubroRosa = storeTheme === 'outubro-rosa';
   const [sortBy, setSortBy] = useState<"relevant" | "price-asc" | "price-desc" | "launches">("relevant");
   const catalogSectionRef = useRef<HTMLElement | null>(null);
   const isDark = theme === "dark";
+
+  // Estados e controle para carrossel dos cards promocionais em dispositivos móveis
+  const [activePromoIndex, setActivePromoIndex] = useState(0);
+  const promoCarouselRef = useRef<HTMLDivElement | null>(null);
+
+  const handlePromoScroll = useCallback(() => {
+    if (!promoCarouselRef.current) return;
+    const el = promoCarouselRef.current;
+    const card = el.firstElementChild as HTMLElement | null;
+    const cardWidth = card ? card.offsetWidth : el.offsetWidth * 0.85;
+    const index = Math.round(el.scrollLeft / (cardWidth + 14));
+    setActivePromoIndex(Math.min(Math.max(index, 0), 2));
+  }, []);
+
+  const scrollToPromoCard = useCallback((index: number) => {
+    if (!promoCarouselRef.current) return;
+    const el = promoCarouselRef.current;
+    const targetCard = el.children[index] as HTMLElement | undefined;
+    if (targetCard) {
+      targetCard.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+        inline: 'center'
+      });
+      setActivePromoIndex(index);
+    }
+  }, []);
 
   // Subcategorias dinâmicas extraídas prioritariamente dos produtos COM ESTOQUE DISPONÍVEL E FOTO VÁLIDA
   const activeSubcategoriesInStock = useMemo(() => {
@@ -213,6 +241,26 @@ export const ProductList: React.FC = () => {
     if (setSelectedSubcategory) setSelectedSubcategory(subName);
     if (setCurrentView) setCurrentView('category-page');
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handlePromoCardClick = (link?: string) => {
+    if (!link) return;
+    const cleanLink = link.trim();
+    if (cleanLink === 'meu-crediario' || cleanLink === '/meu-crediario') {
+      if (setCurrentView) setCurrentView('meu-crediario');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else if (cleanLink.startsWith('categoria:')) {
+      handleSelectCategory(cleanLink.replace('categoria:', ''));
+    } else if (cleanLink.startsWith('subcategoria:')) {
+      handleSelectSubcategoryItem(cleanLink.replace('subcategoria:', ''));
+    } else if (cleanLink.startsWith('promo:')) {
+      if (setSelectedSubcategory) setSelectedSubcategory('TODAS');
+      if (setSelectedCategory) setSelectedCategory(cleanLink);
+      if (setCurrentView) setCurrentView('category-page');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+      handleSelectCategory(cleanLink);
+    }
   };
 
   const { saldaoConfig } = useApp();
@@ -613,197 +661,302 @@ export const ProductList: React.FC = () => {
         </div>
       )}
 
-      {/* 3. BENTO GRID (BANNERS DE DESTAQUE PADRONIZADOS COM A MARCA EVIDÊNCIA) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6">
-        {/* Banner Esquerdo Grande (Lançamentos / Novidades) */}
-        <div 
-          onClick={() => handleSelectCategory('NOVIDADES')}
-          className={`lg:col-span-6 rounded-3xl p-5 min-[390px]:p-7 sm:p-10 flex items-center justify-between relative overflow-hidden transition-all duration-500 min-h-[290px] sm:min-h-[340px] border cursor-pointer group shadow-xl ${
-            isDark 
-              ? isOutubroRosa
-                ? 'bg-gradient-to-br from-[#540832] via-[#750C44] to-[#400627] border-pink-400/30 text-white hover:border-[#EC4899]/50 hover:shadow-2xl hover:shadow-pink-950/80'
-                : 'bg-gradient-to-br from-[#111A2E] via-[#0E1627] to-[#0A101D] border-white/10 text-white hover:border-blue-400/40 hover:shadow-2xl hover:shadow-blue-500/10' 
-              : isOutubroRosa
-                ? 'bg-gradient-to-br from-[#FFFFFF] via-[#FFF5F8] to-[#FCE8F0] border-pink-900/10 text-[#003B73] hover:border-[#EC4899]/50 hover:shadow-2xl hover:shadow-pink-900/15'
-                : 'bg-gradient-to-br from-[#FFFFFF] via-[#F8FBFF] to-[#EAF2FC] border-blue-900/10 text-[#003B73] hover:border-[#006EDB]/40 hover:shadow-2xl hover:shadow-blue-900/10'
-          }`}
-        >
-          <div className="space-y-3 sm:space-y-3.5 z-20 w-full sm:w-[58%] pr-2">
-            <span className={`inline-flex items-center gap-1.5 text-[9.5px] min-[390px]:text-[10px] font-black uppercase tracking-wider px-3 min-[390px]:px-3.5 py-1 rounded-full border shadow-xs transition-all ${
-              isOutubroRosa
-                ? 'text-[#9D174D] dark:text-pink-300 bg-pink-100 dark:bg-pink-950/70 border-pink-300/50'
-                : isDark ? 'text-blue-300 bg-blue-950/60 border-blue-500/30' : 'text-[#003B73] bg-[#EAF4FE] border-[#006EDB]/25'
-            }`}>
-              <span className={`w-1.5 h-1.5 rounded-full ${isOutubroRosa ? 'bg-[#EC4899]' : 'bg-[#006EDB]'} animate-pulse`} />
-              COLEÇÃO 2026
-            </span>
-            <h3 className={`text-xl min-[390px]:text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight leading-tight transition-colors ${
-              isDark
-                ? isOutubroRosa ? 'text-white group-hover:text-pink-300' : 'text-white'
-                : isOutubroRosa ? 'text-[#003B73] group-hover:text-[#BE185D]' : 'text-[#003B73]'
-            }`}>
-              Novos modelos todas as semanas
-            </h3>
-            <p className={`text-[11px] min-[390px]:text-xs sm:text-sm font-medium leading-relaxed max-w-[95%] ${isDark ? 'text-slate-300' : 'text-[#4A6B8C]'}`}>
-              As maiores tendências e lançamentos em calçados femininos, masculinos e infantis, sempre em primeira mão.
-            </p>
-            <div className="pt-1.5 sm:pt-2">
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); handleSelectCategory('NOVIDADES'); }}
-                className={`group/btn ${
-                  isOutubroRosa
-                    ? 'bg-gradient-to-r from-[#DB2777] via-[#EC4899] to-[#F472B6] hover:from-[#BE185D] hover:to-[#DB2777] shadow-pink-500/25 hover:shadow-pink-500/35'
-                    : 'bg-gradient-to-r from-[#006EDB] to-[#00509E] hover:from-[#005AB5] hover:to-[#003B73] shadow-blue-600/20 hover:shadow-blue-600/30'
-                } text-white text-[11px] min-[390px]:text-xs font-black tracking-wider px-5 min-[390px]:px-6 py-2.5 min-[390px]:py-3.5 rounded-full uppercase transition-all duration-300 cursor-pointer shadow-lg hover:shadow-xl flex items-center space-x-2 sm:space-x-2.5 active:scale-95`}
+      {/* 3. BANNERS DE DESTAQUE PROMOCIONAIS (ESTILO RETAIL DE ALTO IMPACTO DINÂMICOS DO CMS) */}
+      {(() => {
+        const promoCards = (featuredPromoCards && featuredPromoCards.length === 3 ? featuredPromoCards : DEFAULT_FEATURED_PROMO_CARDS);
+        const card1 = promoCards[0] || DEFAULT_FEATURED_PROMO_CARDS[0];
+        const card2 = promoCards[1] || DEFAULT_FEATURED_PROMO_CARDS[1];
+        const card3 = promoCards[2] || DEFAULT_FEATURED_PROMO_CARDS[2];
+
+        return (
+          <div className="space-y-2.5 sm:space-y-3 w-full">
+            <div
+              ref={promoCarouselRef}
+              onScroll={handlePromoScroll}
+              className="flex md:grid md:grid-cols-3 overflow-x-auto md:overflow-visible snap-x snap-mandatory md:snap-none no-scrollbar gap-3.5 sm:gap-4 lg:gap-5 w-full pb-2 md:pb-0 scroll-smooth -mx-2.5 min-[390px]:-mx-3 sm:mx-0 px-2.5 min-[390px]:px-3 sm:px-0"
+            >
+              
+              {/* CARD 1: CALÇADOS & LANÇAMENTOS (RETAIL IMPACT RED / PINK) */}
+              <div
+                onClick={() => handlePromoCardClick(card1.buttonLink)}
+                className={`group relative rounded-2xl lg:rounded-3xl overflow-hidden flex flex-row items-stretch w-[86vw] min-[390px]:w-[84vw] sm:w-[380px] md:w-auto shrink-0 snap-center md:snap-none md:shrink min-h-[175px] min-[390px]:min-h-[185px] sm:min-h-[195px] lg:min-h-[205px] border cursor-pointer select-none transition-all duration-300 hover:shadow-2xl hover:-translate-y-0.5 ${
+                  !card1.active ? 'hidden' : ''
+                } ${
+                  isDark
+                    ? isOutubroRosa
+                      ? 'border-pink-500/30 shadow-lg shadow-pink-950/40'
+                      : 'border-white/10 shadow-lg shadow-black/40'
+                    : isOutubroRosa
+                      ? 'border-pink-300/40 shadow-md shadow-pink-900/10'
+                      : 'border-slate-200/60 shadow-md shadow-slate-900/5'
+                }`}
               >
-                <span>VER NOVIDADES</span>
-                <ArrowRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[2.5] group-hover/btn:translate-x-1.5 transition-transform duration-300" />
-              </button>
-            </div>
-          </div>
-          <div className="absolute right-0 top-0 bottom-0 w-[46%] sm:w-[48%] overflow-hidden pointer-events-none">
-            <div className={`absolute inset-0 z-10 bg-gradient-to-r ${
-              isDark ? 'from-[#0F172A] via-[#0F172A]/70 to-transparent' : 'from-[#FFFFFF] via-[#FFFFFF]/60 to-transparent'
-            }`} />
-            <div className={`absolute right-[-20%] top-[10%] w-[120%] h-[120%] ${
-              isOutubroRosa ? 'bg-pink-400/15' : 'bg-blue-400/10'
-            } rounded-full blur-2xl pointer-events-none`} />
-            <img 
-              src="https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?q=80&w=900&auto=format&fit=crop" 
-              alt="Novos Modelos de Calçados" 
-              className="w-full h-full object-cover object-center group-hover:scale-108 group-hover:-rotate-1 transition-all duration-700 ease-out"
-            />
-          </div>
-        </div>
+                {/* Lado Esquerdo: Painel Gráfico Promocional */}
+                <div className={`w-[56%] min-[390px]:w-[58%] sm:w-[56%] p-3 min-[390px]:p-3.5 sm:p-4.5 flex flex-col justify-between relative z-10 shrink-0 ${
+                  isOutubroRosa
+                    ? 'bg-gradient-to-r from-[#BE185D] via-[#DB2777] to-[#BE185D]'
+                    : 'bg-gradient-to-r from-[#E50914] via-[#DC2626] to-[#B91C1C]'
+                }`}>
+                  <div className="space-y-0.5">
+                    <span className="text-[9.5px] min-[390px]:text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-white/95 block leading-tight">
+                      {card1.badge}
+                    </span>
+                    <h3 className="text-xl min-[390px]:text-2xl sm:text-2xl lg:text-[26px] font-black text-white uppercase tracking-tight leading-[0.95] drop-shadow-xs">
+                      {card1.title}
+                    </h3>
+                    {(card1.discountHighlight || card1.highlightCondition) && (
+                      <div className="pt-0.5">
+                        {card1.highlightCondition && (
+                          <span className="text-[8px] min-[390px]:text-[9px] font-extrabold text-white uppercase tracking-wide block leading-none">
+                            {card1.highlightCondition}
+                          </span>
+                        )}
+                        {card1.discountHighlight && (
+                          <span className="text-xl min-[390px]:text-2xl sm:text-2xl lg:text-[28px] font-black text-[#FFE600] tracking-tight leading-none drop-shadow-xs block">
+                            {card1.discountHighlight}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    {card1.subtitle && (
+                      <p className="text-[8px] min-[390px]:text-[8.5px] font-medium text-slate-200 leading-snug pt-0.5">
+                        {card1.subtitle}
+                      </p>
+                    )}
+                  </div>
 
-        {/* Coluna Direita (2 Banners Menores Studio) */}
-        <div className="lg:col-span-6 grid grid-rows-2 gap-4 sm:gap-6">
-          {/* Top Card (Linha Sapatos / Calçados) */}
-          <div 
-            onClick={() => handleSelectCategory('CALÇADOS')}
-            className={`rounded-3xl p-5 min-[390px]:p-7 sm:p-8 flex items-center justify-between relative overflow-hidden transition-all duration-500 min-h-[150px] sm:min-h-[165px] border cursor-pointer group shadow-xl ${
-              isDark 
-                ? isOutubroRosa
-                  ? 'bg-gradient-to-br from-[#540832] via-[#750C44] to-[#400627] border-pink-400/30 text-white hover:border-[#EC4899]/50 hover:shadow-2xl hover:shadow-pink-950/80'
-                  : 'bg-gradient-to-br from-[#111A2E] via-[#0E1627] to-[#0A101D] border-white/10 text-white hover:border-blue-400/40 hover:shadow-2xl hover:shadow-blue-500/10' 
-              : isOutubroRosa
-                ? 'bg-gradient-to-br from-[#FFFFFF] via-[#FFF5F8] to-[#FCE8F0] border-pink-900/10 text-[#003B73] hover:border-[#EC4899]/50 hover:shadow-2xl hover:shadow-pink-900/15'
-                : 'bg-gradient-to-br from-[#FFFFFF] via-[#F8FBFF] to-[#EAF2FC] border-blue-900/10 text-[#003B73] hover:border-[#006EDB]/40 hover:shadow-2xl hover:shadow-blue-900/10'
-            }`}
-          >
-            <div className="space-y-2 z-20 w-full sm:w-[58%] pr-2">
-              <span className={`inline-flex items-center gap-1.5 text-[9.5px] min-[390px]:text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full border shadow-xs transition-all ${
-                isOutubroRosa
-                  ? 'text-[#9D174D] dark:text-pink-300 bg-pink-100 dark:bg-pink-950/70 border-pink-300/50'
-                  : isDark ? 'text-blue-300 bg-blue-950/60 border-blue-500/30' : 'text-[#003B73] bg-[#EAF4FE] border-[#006EDB]/25'
-              }`}>
-                <Sparkles className={`w-3 h-3 ${isOutubroRosa ? 'text-[#EC4899]' : 'text-[#006EDB]'}`} />
-                LINHA CALÇADOS
-              </span>
-              <h3 className={`text-base min-[390px]:text-lg sm:text-xl font-black tracking-tight transition-colors ${
-                isDark
-                  ? isOutubroRosa ? 'text-white group-hover:text-pink-300' : 'text-white'
-                  : isOutubroRosa ? 'text-[#003B73] group-hover:text-[#BE185D]' : 'text-[#003B73]'
-              }`}>
-                Para todos os seus momentos
-              </h3>
-              <p className={`text-[11px] min-[390px]:text-xs font-medium ${isDark ? 'text-slate-300' : 'text-[#4A6B8C]'}`}>
-                Desempenho, amortecimento e elegância do casual ao sofisticado.
-              </p>
-              <div className="pt-1">
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); handleSelectCategory('CALÇADOS'); }}
-                  className={`group/btn ${
-                    isOutubroRosa
-                      ? 'bg-gradient-to-r from-[#DB2777] via-[#EC4899] to-[#F472B6] hover:from-[#BE185D] hover:to-[#DB2777] shadow-pink-500/20 hover:shadow-pink-500/30'
-                      : 'bg-[#006EDB] hover:bg-[#00509E] shadow-blue-600/15 hover:shadow-blue-600/25'
-                  } text-white text-[10px] min-[390px]:text-[11px] font-black tracking-wider px-4 min-[390px]:px-5 py-2 min-[390px]:py-2.5 rounded-full uppercase transition-all duration-300 cursor-pointer shadow-md hover:shadow-lg flex items-center space-x-1.5 sm:space-x-2 active:scale-95`}
-                >
-                  <span>VER CALÇADOS</span>
-                  <ArrowRight className="w-3.5 h-3.5 stroke-[2.5] group-hover/btn:translate-x-1 transition-transform duration-300" />
-                </button>
-              </div>
-            </div>
-            <div className="absolute right-0 top-0 bottom-0 w-[44%] overflow-hidden pointer-events-none">
-              <div className={`absolute inset-0 z-10 bg-gradient-to-r ${
-                isDark ? 'from-[#0F172A] via-[#0F172A]/70 to-transparent' : 'from-[#FFFFFF] via-[#FFFFFF]/60 to-transparent'
-              }`} />
-              <div className={`absolute right-[-10%] top-[-10%] w-[100%] h-[100%] ${
-                isOutubroRosa ? 'bg-pink-500/15' : 'bg-blue-500/10'
-              } rounded-full blur-xl pointer-events-none`} />
-              <img 
-                src="https://images.unsplash.com/photo-1549298916-b41d501d3772?q=80&w=800&auto=format&fit=crop" 
-                alt="Linha Calçados" 
-                className="w-full h-full object-cover object-center group-hover:scale-108 transition-all duration-700 ease-out"
-              />
-            </div>
-          </div>
+                  <div className="pt-1.5 min-[390px]:pt-2">
+                    <span className={`inline-flex items-center space-x-1.5 px-3 min-[390px]:px-3.5 py-1.5 rounded-full bg-white font-black text-[9.5px] min-[390px]:text-[10.5px] uppercase tracking-wider shadow-md group-hover:scale-105 active:scale-95 transition-transform duration-200 ${
+                      isOutubroRosa ? 'text-[#BE185D]' : 'text-[#DC2626]'
+                    }`}>
+                      <span>{card1.buttonText || 'VER OFERTAS'}</span>
+                      <ShoppingCart className="w-3.5 h-3.5 stroke-[2.5]" />
+                    </span>
+                    {card1.footnote && (
+                      <p className="text-[6.5px] min-[390px]:text-[7px] font-semibold text-white/70 uppercase tracking-tighter mt-1 leading-none">
+                        {card1.footnote}
+                      </p>
+                    )}
+                  </div>
+                </div>
 
-          {/* Bottom Card (Bolsas & Acessórios) */}
-          <div 
-            onClick={() => handleSelectCategory('ACESSÓRIOS')}
-            className={`rounded-3xl p-5 min-[390px]:p-7 sm:p-8 flex items-center justify-between relative overflow-hidden transition-all duration-500 min-h-[150px] sm:min-h-[165px] border cursor-pointer group shadow-xl ${
-              isDark 
-                ? isOutubroRosa
-                  ? 'bg-gradient-to-br from-[#540832] via-[#750C44] to-[#400627] border-pink-400/30 text-white hover:border-[#EC4899]/50 hover:shadow-2xl hover:shadow-pink-950/80'
-                  : 'bg-gradient-to-br from-[#111A2E] via-[#0E1627] to-[#0A101D] border-white/10 text-white hover:border-blue-400/40 hover:shadow-2xl hover:shadow-blue-500/10' 
-              : isOutubroRosa
-                ? 'bg-gradient-to-br from-[#FFFFFF] via-[#FFF5F8] to-[#FCE8F0] border-pink-900/10 text-[#003B73] hover:border-[#EC4899]/50 hover:shadow-2xl hover:shadow-pink-900/15'
-                : 'bg-gradient-to-br from-[#FFFFFF] via-[#F8FBFF] to-[#EAF2FC] border-blue-900/10 text-[#003B73] hover:border-[#006EDB]/40 hover:shadow-2xl hover:shadow-blue-900/10'
-            }`}
-          >
-            <div className="space-y-2 z-20 w-full sm:w-[58%] pr-2">
-              <span className={`inline-flex items-center gap-1.5 text-[9.5px] min-[390px]:text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full border shadow-xs transition-all ${
-                isOutubroRosa
-                  ? 'text-[#9D174D] dark:text-pink-300 bg-pink-100 dark:bg-pink-950/70 border-pink-300/50'
-                  : isDark ? 'text-blue-300 bg-blue-950/60 border-blue-500/30' : 'text-[#003B73] bg-[#EAF4FE] border-[#006EDB]/25'
-              }`}>
-                <ShoppingBag className={`w-3 h-3 ${isOutubroRosa ? 'text-[#EC4899]' : 'text-[#006EDB]'}`} />
-                BOLSAS & ACESSÓRIOS
-              </span>
-              <h3 className={`text-base min-[390px]:text-lg sm:text-xl font-black tracking-tight transition-colors ${
-                isDark
-                  ? isOutubroRosa ? 'text-white group-hover:text-pink-300' : 'text-white'
-                  : isOutubroRosa ? 'text-[#003B73] group-hover:text-[#BE185D]' : 'text-[#003B73]'
-              }`}>
-                Bolsas que completam você
-              </h3>
-              <p className={`text-[11px] min-[390px]:text-xs font-medium ${isDark ? 'text-slate-300' : 'text-[#4A6B8C]'}`}>
-                Design contemporâneo, acabamento refinado e versatilidade em cada detalhe.
-              </p>
-              <div className="pt-1">
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); handleSelectCategory('ACESSÓRIOS'); }}
-                  className={`group/btn ${
-                    isOutubroRosa
-                      ? 'bg-gradient-to-r from-[#DB2777] via-[#EC4899] to-[#F472B6] hover:from-[#BE185D] hover:to-[#DB2777] shadow-pink-500/20 hover:shadow-pink-500/30'
-                      : 'bg-[#006EDB] hover:bg-[#00509E] shadow-blue-600/15 hover:shadow-blue-600/25'
-                  } text-white text-[10px] min-[390px]:text-[11px] font-black tracking-wider px-4 min-[390px]:px-5 py-2 min-[390px]:py-2.5 rounded-full uppercase transition-all duration-300 cursor-pointer shadow-md hover:shadow-lg flex items-center space-x-1.5 sm:space-x-2 active:scale-95`}
-                >
-                  <span>VER ACESSÓRIOS</span>
-                  <ArrowRight className="w-3.5 h-3.5 stroke-[2.5] group-hover/btn:translate-x-1 transition-transform duration-300" />
-                </button>
+                {/* Lado Direito: Foto do Produto */}
+                <div className="w-[44%] min-[390px]:w-[42%] sm:w-[44%] relative overflow-hidden bg-slate-100 dark:bg-slate-900">
+                  <img
+                    src={card1.image}
+                    alt={card1.title}
+                    className="w-full h-full object-cover object-center group-hover:scale-110 transition-transform duration-700 ease-out"
+                  />
+                </div>
               </div>
+
+              {/* CARD 2: MEU CREDIÁRIO (INSPIRADO NA REFERÊNCIA EVIDÊNCIA CALÇADOS) */}
+              <div
+                onClick={() => handlePromoCardClick(card2.buttonLink)}
+                className={`group relative rounded-2xl lg:rounded-3xl overflow-hidden flex flex-row items-stretch w-[86vw] min-[390px]:w-[84vw] sm:w-[380px] md:w-auto shrink-0 snap-center md:snap-none md:shrink min-h-[175px] min-[390px]:min-h-[185px] sm:min-h-[195px] lg:min-h-[205px] border cursor-pointer select-none transition-all duration-300 hover:shadow-2xl hover:-translate-y-0.5 ${
+                  !card2.active ? 'hidden' : ''
+                } ${
+                  isDark
+                    ? 'border-pink-500/30 shadow-lg shadow-pink-950/40'
+                    : 'border-pink-900/15 shadow-md shadow-pink-950/10'
+                }`}
+              >
+                {/* Selo Circular Flutuante Superior: Ícone de Tênis + 100% ONLINE (Idêntico à Nova Referência) */}
+                <div className="absolute top-2 right-2 sm:top-2.5 sm:right-2.5 z-20 flex flex-col items-center justify-center w-11 h-11 min-[390px]:w-12 min-[390px]:h-12 rounded-full border-2 border-white/90 bg-[#4A0429]/95 backdrop-blur-xs text-white shadow-xl pointer-events-none">
+                  <div className="flex space-x-0.5 -mt-0.5 mb-0.5">
+                    <span className="w-0.5 h-1 bg-pink-400 rotate-[-25deg] inline-block" />
+                    <span className="w-0.5 h-1.5 bg-pink-300 inline-block" />
+                    <span className="w-0.5 h-1 bg-pink-400 rotate-[25deg] inline-block" />
+                  </div>
+                  <Footprints className="w-2.5 h-2.5 text-pink-300 mb-0.5" />
+                  <span className="text-[9.5px] min-[390px]:text-[10px] font-black leading-none tracking-tight">100%</span>
+                  <span className="text-[5px] min-[390px]:text-[5.5px] font-black uppercase tracking-tighter leading-none text-pink-200">
+                    {card2.badgeTopRight || 'ONLINE'}
+                  </span>
+                </div>
+
+                {/* Lado Esquerdo: Painel Gráfico Promocional (Vinho / Pink Gradient Fiel à Inspiração) */}
+                <div className="w-[58%] min-[390px]:w-[60%] sm:w-[58%] p-3 min-[390px]:p-3.5 sm:p-4.5 flex flex-col justify-between relative z-10 shrink-0 bg-gradient-to-br from-[#450529] via-[#5C0837] to-[#3D0324]">
+                  <div className="absolute bottom-0 left-0 w-24 h-12 bg-pink-500/20 rounded-tr-full blur-xl pointer-events-none" />
+
+                  <div className="space-y-1 relative z-10">
+                    {/* Eyebrow com Linha Guia */}
+                    <div className="flex items-center space-x-1.5">
+                      <span className="text-[8.5px] min-[390px]:text-[9.5px] sm:text-[10px] font-black uppercase tracking-wider text-pink-200/90 leading-none">
+                        {card2.badge}
+                      </span>
+                      <span className="w-5 sm:w-8 h-[1.5px] bg-pink-400/50 inline-block rounded-full" />
+                    </div>
+
+                    {/* Título: MEU + Ícone Card Iluminado + CREDIÁRIO */}
+                    <div className="space-y-0.5">
+                      <div className="flex items-center space-x-1.5">
+                        <span className="text-xl min-[390px]:text-2xl font-black text-white leading-none tracking-tight drop-shadow-xs">
+                          MEU
+                        </span>
+                        <div className="p-1 rounded-md bg-pink-500/25 border border-pink-400/40 text-pink-300 shadow-xs">
+                          <CreditCard className="w-3.5 h-3.5 stroke-[2.5]" />
+                        </div>
+                      </div>
+                      <h3 className="text-xl min-[390px]:text-2xl sm:text-2xl lg:text-[25px] font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-[#FF6EA7] via-[#F472B6] to-[#FDA4AF] uppercase leading-none drop-shadow-xs">
+                        {card2.title.replace(/^MEU\s*/i, '') || 'CREDIÁRIO'}
+                      </h3>
+                    </div>
+
+                    {/* Subtítulo com Destaque em Baixa Instantânea */}
+                    <p className="text-[8px] min-[390px]:text-[8.5px] sm:text-[9.5px] font-medium text-slate-200 leading-snug pt-0.5">
+                      {card2.subtitle || 'Consulte seus calçados, faturas e pague parcelas no Pix com baixa instantânea.'}
+                    </p>
+
+                    {/* 3 Pilares de Benefícios Conforme a Nova Imagem */}
+                    <div className="grid grid-cols-3 gap-1 py-1 sm:py-1.5 border-y border-pink-500/20 my-1 text-center bg-black/10 rounded-lg px-0.5">
+                      <div className="space-y-0.5">
+                        <div className="w-4 h-4 rounded-full bg-pink-500/20 border border-pink-400/30 flex items-center justify-center mx-auto">
+                          <Footprints className="w-2.5 h-2.5 text-pink-300" />
+                        </div>
+                        <p className="text-[7px] min-[390px]:text-[7.5px] font-bold text-white leading-tight">Calçados</p>
+                        <p className="text-[5.5px] min-[390px]:text-[6px] text-pink-200/70 leading-none">Rápido e fácil</p>
+                      </div>
+                      <div className="space-y-0.5 border-x border-pink-500/20">
+                        <div className="w-4 h-4 rounded-full bg-pink-500/20 border border-pink-400/30 flex items-center justify-center mx-auto">
+                          <QrCode className="w-2.5 h-2.5 text-pink-300" />
+                        </div>
+                        <p className="text-[7px] min-[390px]:text-[7.5px] font-bold text-white leading-tight">Via Pix</p>
+                        <p className="text-[5.5px] min-[390px]:text-[6px] text-pink-200/70 leading-none">Baixa na hora</p>
+                      </div>
+                      <div className="space-y-0.5">
+                        <div className="w-4 h-4 rounded-full bg-pink-500/20 border border-pink-400/30 flex items-center justify-center mx-auto">
+                          <ShieldCheck className="w-2.5 h-2.5 text-pink-300" />
+                        </div>
+                        <p className="text-[7px] min-[390px]:text-[7.5px] font-bold text-white leading-tight">Seguro</p>
+                        <p className="text-[5.5px] min-[390px]:text-[6px] text-pink-200/70 leading-none">100% online</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Botão Pill Branco */}
+                  <div className="pt-1 relative z-10">
+                    <span className="inline-flex items-center space-x-1.5 min-[390px]:space-x-2 px-3 min-[390px]:px-4 py-1.5 rounded-full bg-white text-[#4A0429] font-black text-[9px] min-[390px]:text-[10px] sm:text-[10.5px] uppercase tracking-wider shadow-md group-hover:scale-105 active:scale-95 transition-transform duration-200">
+                      <span>{card2.buttonText || 'ACESSAR CREDIÁRIO'}</span>
+                      <span className="w-3.5 h-3.5 min-[390px]:w-4 min-[390px]:h-4 rounded-full bg-[#4A0429] text-white flex items-center justify-center">
+                        <ArrowRight className="w-2 min-[390px]:w-2.5 h-2 min-[390px]:h-2.5 stroke-[3]" />
+                      </span>
+                    </span>
+                    {card2.footnote && (
+                      <p className="text-[6px] min-[390px]:text-[6.5px] font-semibold text-white/70 uppercase tracking-tighter mt-1 leading-none">
+                        {card2.footnote}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Lado Direito: Foto do Mockup de Smartphone + Caixa Evidência Calçados */}
+                <div className="w-[42%] min-[390px]:w-[40%] sm:w-[42%] relative overflow-hidden bg-slate-900">
+                  <img
+                    src={card2.image}
+                    alt={card2.title}
+                    className="w-full h-full object-cover object-right group-hover:scale-108 transition-transform duration-700 ease-out"
+                  />
+                </div>
+              </div>
+
+              {/* CARD 3: BOLSAS & ACESSÓRIOS (RETAIL IMPACT RED / PINK) */}
+              <div
+                onClick={() => handlePromoCardClick(card3.buttonLink)}
+                className={`group relative rounded-2xl lg:rounded-3xl overflow-hidden flex flex-row items-stretch w-[86vw] min-[390px]:w-[84vw] sm:w-[380px] md:w-auto shrink-0 snap-center md:snap-none md:shrink min-h-[175px] min-[390px]:min-h-[185px] sm:min-h-[195px] lg:min-h-[205px] border cursor-pointer select-none transition-all duration-300 hover:shadow-2xl hover:-translate-y-0.5 ${
+                  !card3.active ? 'hidden' : ''
+                } ${
+                  isDark
+                    ? isOutubroRosa
+                      ? 'border-pink-500/30 shadow-lg shadow-pink-950/40'
+                      : 'border-white/10 shadow-lg shadow-black/40'
+                    : isOutubroRosa
+                      ? 'border-pink-300/40 shadow-md shadow-pink-900/10'
+                      : 'border-slate-200/60 shadow-md shadow-slate-900/5'
+                }`}
+              >
+                {/* Lado Esquerdo: Painel Gráfico Promocional */}
+                <div className={`w-[56%] min-[390px]:w-[58%] sm:w-[56%] p-3 min-[390px]:p-3.5 sm:p-4.5 flex flex-col justify-between relative z-10 shrink-0 ${
+                  isOutubroRosa
+                    ? 'bg-gradient-to-r from-[#BE185D] via-[#DB2777] to-[#BE185D]'
+                    : 'bg-gradient-to-r from-[#E50914] via-[#DC2626] to-[#B91C1C]'
+                }`}>
+                  <div className="space-y-0.5">
+                    <span className="text-[9.5px] min-[390px]:text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-white/95 block leading-tight">
+                      {card3.badge}
+                    </span>
+                    <h3 className="text-lg min-[390px]:text-xl sm:text-xl lg:text-[22px] font-black text-white uppercase tracking-tight leading-[0.95] drop-shadow-xs">
+                      {card3.title}
+                    </h3>
+                    {(card3.discountHighlight || card3.highlightCondition) && (
+                      <div className="pt-0.5">
+                        {card3.highlightCondition && (
+                          <span className="text-[8px] min-[390px]:text-[9px] font-extrabold text-white uppercase tracking-wide block leading-none">
+                            {card3.highlightCondition}
+                          </span>
+                        )}
+                        {card3.discountHighlight && (
+                          <span className="text-xl min-[390px]:text-2xl sm:text-2xl lg:text-[28px] font-black text-[#FFE600] tracking-tight leading-none drop-shadow-xs block">
+                            {card3.discountHighlight}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    {card3.subtitle && (
+                      <p className="text-[8px] min-[390px]:text-[8.5px] font-medium text-slate-200 leading-snug pt-0.5">
+                        {card3.subtitle}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="pt-1.5 min-[390px]:pt-2">
+                    <span className={`inline-flex items-center space-x-1.5 px-3 min-[390px]:px-3.5 py-1.5 rounded-full bg-white font-black text-[9.5px] min-[390px]:text-[10.5px] uppercase tracking-wider shadow-md group-hover:scale-105 active:scale-95 transition-transform duration-200 ${
+                      isOutubroRosa ? 'text-[#BE185D]' : 'text-[#DC2626]'
+                    }`}>
+                      <span>{card3.buttonText || 'VER OFERTAS'}</span>
+                      <ShoppingCart className="w-3.5 h-3.5 stroke-[2.5]" />
+                    </span>
+                    {card3.footnote && (
+                      <p className="text-[6.5px] min-[390px]:text-[7px] font-semibold text-white/70 uppercase tracking-tighter mt-1 leading-none">
+                        {card3.footnote}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Lado Direito: Foto do Produto */}
+                <div className="w-[44%] min-[390px]:w-[42%] sm:w-[44%] relative overflow-hidden bg-slate-100 dark:bg-slate-900">
+                  <img
+                    src={card3.image}
+                    alt={card3.title}
+                    className="w-full h-full object-cover object-center group-hover:scale-110 transition-transform duration-700 ease-out"
+                  />
+                </div>
+              </div>
+
             </div>
-            <div className="absolute right-0 top-0 bottom-0 w-[44%] overflow-hidden pointer-events-none">
-              <div className={`absolute inset-0 z-10 bg-gradient-to-r ${
-                isDark ? 'from-[#0F172A] via-[#0F172A]/70 to-transparent' : 'from-[#FFFFFF] via-[#FFFFFF]/60 to-transparent'
-              }`} />
-              <div className={`absolute right-[-10%] top-[-10%] w-[100%] h-[100%] ${
-                isOutubroRosa ? 'bg-pink-500/15' : 'bg-blue-500/10'
-              } rounded-full blur-xl pointer-events-none`} />
-              <img 
-                src="https://images.unsplash.com/photo-1584917865442-de89df76afd3?q=80&w=800&auto=format&fit=crop" 
-                alt="Acessórios e Bolsas" 
-                className="w-full h-full object-cover object-center group-hover:scale-108 transition-all duration-700 ease-out"
-              />
+
+            {/* Indicador de Paginação do Carrossel em Dispositivos Móveis */}
+            <div className="flex items-center justify-center space-x-1.5 pt-0.5 md:hidden">
+              {[0, 1, 2].map((idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => scrollToPromoCard(idx)}
+                  className={`h-1.5 rounded-full transition-all duration-300 cursor-pointer ${
+                    activePromoIndex === idx
+                      ? isOutubroRosa
+                        ? 'w-6 bg-[#EC4899]'
+                        : 'w-6 bg-[#006EDB] dark:bg-amber-400'
+                      : 'w-1.5 bg-slate-300 dark:bg-slate-700'
+                  }`}
+                  aria-label={`Ir para card promocional ${idx + 1}`}
+                />
+              ))}
             </div>
           </div>
-        </div>
-      </div>
+        );
+      })()}
 
       {/* 4. SEÇÃO COLEÇÃO CALÇADOS */}
       {calcadosProducts.length > 0 && (

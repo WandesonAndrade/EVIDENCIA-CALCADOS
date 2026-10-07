@@ -7,7 +7,7 @@ export const DEFAULT_SALDAO_CONFIG: SaldaoConfig = {
   enabled: true,
   maxStock: 2,
   discountPercent: 20,
-  bannerText: '🔥 SALDÃO DE CALÇADOS - ÚLTIMAS UNIDADES COM DESCONTO EXCLUSIVO!',
+  bannerText: 'SALDÃO DE CALÇADOS - ÚLTIMAS UNIDADES COM DESCONTO EXCLUSIVO!',
   updatedAt: new Date().toISOString(),
 };
 

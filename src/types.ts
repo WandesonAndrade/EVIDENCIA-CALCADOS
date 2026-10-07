@@ -463,8 +463,25 @@ export interface ContactConfig {
   isPromoBannerActive: boolean;
 }
 
+export interface FeaturedPromoCard {
+  id: string; // 'card-1' | 'card-2' | 'card-3'
+  badge: string; // Ex: 'COLEÇÃO 2026', 'CREDIÁRIO PRÓPRIO', 'TUDO PARA VOCÊ'
+  title: string; // Ex: 'CALÇADOS', 'MEU CREDIÁRIO', 'BOLSAS & ACESSÓRIOS'
+  subtitle?: string; // Ex: 'Consulte seus calçados, faturas e pague parcelas no Pix com baixa instantânea.'
+  highlightCondition?: string; // Ex: 'COM CUPONS DE ATÉ', 'COM ATÉ'
+  discountHighlight?: string; // Ex: '40% OFF', '50% OFF'
+  buttonText: string; // Ex: 'VER OFERTAS', 'ACESSAR CREDIÁRIO'
+  buttonLink: string; // Ex: 'categoria:NOVIDADES', 'meu-crediario', 'categoria:ACESSÓRIOS'
+  footnote?: string; // Ex: '*IMAGEM MERAMENTE ILUSTRATIVA', '*CONSULTA RÁPIDA POR CPF'
+  image: string; // URL da imagem do lado direito
+  cardType?: 'standard' | 'crediario'; // 'standard' ou 'crediario'
+  badgeTopRight?: string; // Ex: '100% ONLINE'
+  active: boolean;
+}
+
 export interface StoreConfig {
   heroBanners: HeroBanner[];
+  featuredPromoCards?: FeaturedPromoCard[];
   homeSections: HomeSectionConfig[];
   aboutConfig: AboutConfig;
   contactConfig: ContactConfig;

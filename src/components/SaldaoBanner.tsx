@@ -1,7 +1,6 @@
 import React from 'react';
 import { useApp } from '../context/AppContext';
 import { 
-  Flame, 
   Truck, 
   ShieldCheck, 
   CreditCard, 
@@ -24,9 +23,9 @@ export const SaldaoBanner: React.FC<SaldaoBannerProps> = ({
   const { storeTheme } = useApp();
   const isOutubroRosa = storeTheme === 'outubro-rosa';
 
-  // Formata o subtítulo para manter conciso e elegante na vitrine
+  // Formata o subtítulo para manter conciso e elegante na vitrine, removendo quaisquer emojis
   const cleanSubtitle = bannerText 
-    ? bannerText.replace(/^🔥\s*/, '')
+    ? bannerText.replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '').trim()
     : 'Saldão de calçados – últimas unidades com desconto exclusivo!';
 
   return (
@@ -85,19 +84,15 @@ export const SaldaoBanner: React.FC<SaldaoBannerProps> = ({
           {/* Lado Esquerdo: Textos, Título e Badges */}
           <div className="space-y-2 sm:space-y-2.5 z-20 shrink-0">
             
-            {/* Badge de Destaque com Fogo e Gradiente Quente */}
+            {/* Badge de Destaque com Gradiente Quente */}
             <div className="inline-flex items-center">
-              <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-[#FF4500] via-[#FF6000] to-[#FFA000] text-white text-[9px] sm:text-[10px] font-black uppercase tracking-wider shadow-md shadow-orange-600/30 border border-white/20">
-                <Flame className="w-3 h-3 text-white fill-white shrink-0 animate-pulse" />
+              <span className="inline-flex items-center px-3 py-1 rounded-full bg-gradient-to-r from-[#FF4500] via-[#FF6000] to-[#FFA000] text-white text-[9px] sm:text-[10px] font-black uppercase tracking-wider shadow-md shadow-orange-600/30 border border-white/20">
                 <span>ÚLTIMAS UNIDADES EM ESTOQUE</span>
               </span>
             </div>
 
-            {/* Título Principal Bicolor com Fogo e -% OFF */}
+            {/* Título Principal Bicolor com -% OFF */}
             <div className="flex flex-wrap items-center gap-1.5 sm:gap-2.5">
-              <span className="text-xl sm:text-3xl select-none shrink-0 leading-none" role="img" aria-label="fogo">
-                🔥
-              </span>
               <h2 className="text-lg sm:text-2xl md:text-3xl lg:text-[30px] xl:text-[34px] font-black tracking-tight text-white leading-tight">
                 Saldão de Calçados
               </h2>
