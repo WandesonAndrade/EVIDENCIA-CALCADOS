@@ -569,3 +569,13 @@ export const AVAILABLE_STORE_THEMES: ThemeDefinition[] = [
   },
 ];
 
+export interface InstallmentDiscountConfig {
+  active: boolean;
+  percentage: number; // Porcentagem do desconto (ex: 10 para 10%)
+  cutoffHour: string; // Horário limite no dia do vencimento (padrão '22:00')
+  bannerTitle?: string;
+  bannerSubtitle?: string;
+  financeWhatsApp?: string; // Telefone do financeiro para recebimento de comprovantes (ex: '5599984125572')
+  updatedAt?: string;
+}
+

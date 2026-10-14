@@ -30,12 +30,13 @@ import {
   Info, Sliders, Zap, Barcode, Image, ArrowUp, ArrowDown,
   BookOpen, PhoneCall, Globe, CheckCircle2, Sparkles, Layout, HelpCircle,
   FileText, Briefcase, MapPin, Gift, Heart, ShoppingCart, Cake, AlertTriangle, LogOut, Shield,
-  FolderTree, Tag, X, ExternalLink, CreditCard, Menu, Palette, LayoutGrid
+  FolderTree, Tag, X, ExternalLink, CreditCard, Menu, Palette, LayoutGrid, Percent
 } from 'lucide-react';
 import { AdminOrdersList } from './orders/AdminOrdersList';
 import { AdminBoxManager } from './AdminBoxManager';
 import { CreditManagement } from './admin/credit/CreditManagement';
 import { FeaturedPromoCardsManager } from './admin/FeaturedPromoCardsManager';
+import { DiscountsManager } from './admin/discounts/DiscountsManager';
 import { moblinkCategoriesService, normalizeCategoryName, normalizeSubcategoryName } from '../services/moblinkCategoriesService';
 
 type AdminTab = 
@@ -44,6 +45,7 @@ type AdminTab =
   | 'inventory' 
   | 'sales' 
   | 'crediario'
+  | 'discounts'
   | 'customers' 
   | 'vendedores'
   | 'new-product' 
@@ -103,7 +105,8 @@ export const AdminPanel: React.FC = () => {
     deletePromotion,
     togglePromotionStatus,
     atualizarStatusCrediario,
-    updateUserCashback
+    updateUserCashback,
+    installmentDiscountConfig
   } = useApp();
 
   // Estados de Gerenciamento de Ofertas & Promoções
@@ -1144,7 +1147,27 @@ export const AdminPanel: React.FC = () => {
               )}
             </button>
 
-            {/* 5. Base de Clientes & CRM */}
+            {/* 5. Gestão de Descontos & Benefícios */}
+            <button
+              onClick={() => handleSelectTab('discounts')}
+              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'discounts'
+                  ? isDark ? 'bg-amber-400/15 text-amber-400 border border-amber-400/30 shadow-xs' : 'bg-[#0071E3] text-white shadow-xs font-bold'
+                  : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              <div className="flex items-center space-x-3 min-w-0 flex-1">
+                <Percent className={`h-4 w-4 shrink-0 ${activeTab === 'discounts' && !isDark ? 'text-white' : 'text-emerald-500'}`} />
+                <span className="truncate whitespace-nowrap">Descontos & Benefícios</span>
+              </div>
+              {installmentDiscountConfig?.active && (
+                <span className="bg-emerald-500/15 text-emerald-500 border border-emerald-500/20 px-1.5 py-0.5 rounded-md text-[10px] font-black shrink-0 ml-2" title="Desconto de pontualidade ativo">
+                  {installmentDiscountConfig.percentage}%
+                </span>
+              )}
+            </button>
+
+            {/* 6. Base de Clientes & CRM */}
             <button
               onClick={() => handleSelectTab('customers')}
               className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
@@ -1588,6 +1611,9 @@ export const AdminPanel: React.FC = () => {
 
         {/* TAB: GESTÃO DO CREDIÁRIO PRÓPRIO UNIFICADA POR ABAS */}
         {activeTab === 'crediario' && <CreditManagement isDark={isDark} />}
+
+        {/* TAB: GESTÃO DE DESCONTOS & BENEFÍCIOS (INDEPENDENTE) */}
+        {activeTab === 'discounts' && <DiscountsManager isDark={isDark} />}
 
 
         {/* TAB: BASE DE CLIENTES & CRM MOBLINK ERP (GESTÃO UNIFICADA) */}

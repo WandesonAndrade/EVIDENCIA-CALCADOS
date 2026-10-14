@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
-import { Product, CartItem, Order, PaymentStatus, OrderStatus, UserProfile, UserRole, CrediarioStatus, Category, MoblinkConfig, MoblinkSyncLog, MoblinkSyncLogItem, EvidenciaAuthSession, HeroBanner, HomeSectionConfig, AboutConfig, ContactConfig, StoreConfig, ViewMode, SaldaoConfig, PromoCampaign, Seller, StoreThemeId, FeaturedPromoCard } from '../types';
+import { Product, CartItem, Order, PaymentStatus, OrderStatus, UserProfile, UserRole, CrediarioStatus, Category, MoblinkConfig, MoblinkSyncLog, MoblinkSyncLogItem, EvidenciaAuthSession, HeroBanner, HomeSectionConfig, AboutConfig, ContactConfig, StoreConfig, ViewMode, SaldaoConfig, PromoCampaign, Seller, StoreThemeId, FeaturedPromoCard, InstallmentDiscountConfig } from '../types';
 import { loadSaldaoConfig, saveSaldaoConfig, DEFAULT_SALDAO_CONFIG, getSaldaoProductPrice } from '../services/saldaoService';
 import { loadThemeConfig, saveThemeConfig, DEFAULT_THEME_CONFIG } from '../services/themeService';
+import { loadInstallmentDiscountConfig, saveInstallmentDiscountConfig, DEFAULT_INSTALLMENT_DISCOUNT_CONFIG } from '../services/installmentDiscountService';
 import { loadPromotionsFromLocalStorage, savePromotionsToLocalStorage, savePromotionToFirestore, deletePromotionFromFirestore, PROMOTIONS_COLLECTION, getApplicablePromotion } from '../services/promotionsService';
 import { loadSellersFromLocalStorage, saveSellersToLocalStorage, saveSellerToFirestore, deleteSellerFromFirestore, SELLERS_COLLECTION } from '../services/sellersService';
 import { db, auth, seedDatabaseIfNeeded, SEED_PRODUCTS } from '../lib/firebase';
@@ -127,6 +128,9 @@ interface AppContextProps {
   // Tema da Vitrine & Campanhas Sazonais
   storeTheme: StoreThemeId;
   updateStoreTheme: (themeId: StoreThemeId) => Promise<void>;
+  // Desconto de Pontualidade nas Parcelas do Crediário
+  installmentDiscountConfig: InstallmentDiscountConfig;
+  updateInstallmentDiscountConfig: (config: Partial<InstallmentDiscountConfig>) => Promise<void>;
   // Ofertas & Promoções
   promotions: PromoCampaign[];
   isLoadingPromotions: boolean;
@@ -469,6 +473,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateStoreTheme = useCallback(async (newTheme: StoreThemeId) => {
     setStoreTheme(newTheme);
     await saveThemeConfig(newTheme);
+  }, []);
+
+  // Desconto de Pontualidade no Crediário Próprio
+  const [installmentDiscountConfig, setInstallmentDiscountConfig] = useState<InstallmentDiscountConfig>(DEFAULT_INSTALLMENT_DISCOUNT_CONFIG);
+
+  useEffect(() => {
+    loadInstallmentDiscountConfig().then(cfg => {
+      setInstallmentDiscountConfig(cfg);
+    });
+
+    const unsub = onSnapshot(doc(db, 'settings', 'installmentDiscount'), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data() as Partial<InstallmentDiscountConfig>;
+        setInstallmentDiscountConfig(prev => ({ ...prev, ...data }));
+        localStorage.setItem('evidencia_installment_discount_config', JSON.stringify({ ...DEFAULT_INSTALLMENT_DISCOUNT_CONFIG, ...data }));
+      }
+    }, (err) => {
+      console.warn('[AppContext] Falha ao ouvir mudanças em tempo real do desconto de pontualidade:', err);
+    });
+
+    return () => unsub();
+  }, []);
+
+  const updateInstallmentDiscountConfig = useCallback(async (newConfig: Partial<InstallmentDiscountConfig>) => {
+    setInstallmentDiscountConfig(prev => {
+      const merged = { ...prev, ...newConfig };
+      saveInstallmentDiscountConfig(merged);
+      return merged;
+    });
   }, []);
 
   // Ofertas & Promoções State & Handlers
@@ -3115,6 +3148,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateSaldaoConfig,
         storeTheme,
         updateStoreTheme,
+        installmentDiscountConfig,
+        updateInstallmentDiscountConfig,
         promotions,
         isLoadingPromotions,
         savePromotion,

@@ -16,6 +16,7 @@ interface PixPaymentModalProps {
   externalReference?: string;
   idVenda?: string;
   idParcela?: string;
+  financeWhatsApp?: string;
   onPaymentSuccess?: (paymentId: number | string) => void;
 }
 
@@ -41,6 +42,7 @@ export const PixPaymentModal: React.FC<PixPaymentModalProps> = ({
   externalReference,
   idVenda,
   idParcela,
+  financeWhatsApp = '5599984125572',
   onPaymentSuccess,
 }) => {
   const [state, setState] = useState<ModalState>('idle');
@@ -240,6 +242,35 @@ export const PixPaymentModal: React.FC<PixPaymentModalProps> = ({
   const formatCurrency = (v: number) =>
     v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
+  const handleWhatsAppRedirect = (paymentId: number | string) => {
+    const rawPhone = (financeWhatsApp || '5599984125572').replace(/\D/g, '');
+    const cleanPhone = rawPhone.startsWith('55') ? rawPhone : `55${rawPhone}`;
+    const formattedValue = formatCurrency(parcelValue);
+
+    let msg = `Olá, Equipe do Financeiro da Evidência Calçados! 👠👞\n\n`;
+    msg += `Acabei de realizar o pagamento da minha parcela do crediário via *Pix* pelo site:\n\n`;
+    if (nomeCliente) {
+      msg += `👤 *Cliente:* ${nomeCliente.trim()}\n`;
+    }
+    if (cpfCliente) {
+      msg += `📄 *CPF:* ${cpfCliente.trim()}\n`;
+    }
+    msg += `📌 *Parcela:* ${parcelDescription}\n`;
+    msg += `💰 *Valor Pago:* ${formattedValue}\n`;
+    msg += `🆔 *ID da Transação Pix:* #${paymentId}\n\n`;
+    msg += `Poderiam confirmar a baixa em meu crediário? Muito obrigado(a)!`;
+
+    const encodedMsg = encodeURIComponent(msg);
+    const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodedMsg}`;
+
+    window.open(whatsappUrl, '_blank');
+
+    if (onPaymentSuccess) {
+      onPaymentSuccess(paymentId);
+    }
+    onClose();
+  };
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -399,21 +430,40 @@ export const PixPaymentModal: React.FC<PixPaymentModalProps> = ({
                       Pagamento confirmado com sucesso.
                     </p>
                   </div>
-                  <p className={`text-[10px] ${isDark ? 'text-[#48484a]' : 'text-[#aeaeb2]'}`}>
-                    ID #{pixData.payment_id}
-                  </p>
+                  <div className="text-center space-y-0.5">
+                    <p className={`text-xs font-mono font-bold ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
+                      {formatCurrency(parcelValue)}
+                    </p>
+                    <p className={`text-[10px] ${isDark ? 'text-[#48484a]' : 'text-[#aeaeb2]'}`}>
+                      ID #{pixData.payment_id}
+                    </p>
+                  </div>
                   
-                  <button
-                    onClick={() => {
-                      if (onPaymentSuccess && pixData) {
-                        onPaymentSuccess(pixData.payment_id);
-                      }
-                    }}
-                    className="w-full py-3 px-6 rounded-2xl bg-[#25D366] hover:bg-[#20ba5a] text-white text-xs font-black uppercase tracking-wider flex items-center justify-center space-x-2 shadow-lg transition-all cursor-pointer"
-                  >
-                    <MessageSquare className="h-4 w-4" />
-                    <span>Prosseguir no WhatsApp (Pix Pago)</span>
-                  </button>
+                  <div className="w-full space-y-2.5 pt-2">
+                    <button
+                      onClick={() => handleWhatsAppRedirect(pixData.payment_id)}
+                      className="w-full py-3.5 px-6 rounded-2xl bg-[#25D366] hover:bg-[#20ba5a] text-white text-xs font-black uppercase tracking-wider flex items-center justify-center space-x-2 shadow-lg transition-all cursor-pointer"
+                    >
+                      <MessageSquare className="h-4 w-4" />
+                      <span>Enviar Comprovante ao Financeiro</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        if (onPaymentSuccess && pixData) {
+                          onPaymentSuccess(pixData.payment_id);
+                        }
+                        onClose();
+                      }}
+                      className={`w-full py-2.5 px-4 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
+                        isDark
+                          ? 'bg-white/5 hover:bg-white/10 text-white/70'
+                          : 'bg-black/5 hover:bg-black/10 text-black/70'
+                      }`}
+                    >
+                      Concluir sem enviar WhatsApp
+                    </button>
+                  </div>
                 </motion.div>
               )}
 

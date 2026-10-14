@@ -8,11 +8,12 @@ import {
   where,
   getDocs,
 } from "firebase/firestore";
-import { UserProfile } from "../types";
+import { UserProfile, InstallmentDiscountConfig } from "../types";
 import { cleanUndefinedProperties } from "../utils/cleanObject";
 import { evidenciaAuthService } from "../lib/evidenciaAuth";
 import { API_ENDPOINTS } from "./api";
 import { parseValor } from "../utils/numberUtils";
+import { checkInstallmentDiscountEligibility } from "./installmentDiscountService";
 
 export const MOBLINK_CLIENTES_API_URL = API_ENDPOINTS.CLIENTES;
 
@@ -372,17 +373,29 @@ export function getParcelId(inv: MoblinkContaReceber): string {
   return `${saleId}_${parcNum}`;
 }
 
-/**
- * Calcula o valor atualizado da parcela priorizando o campo `saldo_devedor` (com juros/encargos do ERP)
- */
-export function getInstallmentAmount(inv: MoblinkContaReceber): {
+export interface InstallmentAmountResult {
   displayAmount: number;
   originalAmount: number;
   hasInterest: boolean;
   interestAmount: number;
   isPaid: boolean;
   isOverdue: boolean;
-} {
+  discountApplied: boolean;
+  discountAmount: number;
+  discountPercentage: number;
+  isDueToday: boolean;
+  isPastCutoffToday: boolean;
+  cutoffHour: string;
+}
+
+/**
+ * Calcula o valor atualizado da parcela priorizando o campo `saldo_devedor` (com juros/encargos do ERP)
+ * e aplicando desconto de pontualidade se elegível (até as 22h do dia do vencimento).
+ */
+export function getInstallmentAmount(
+  inv: MoblinkContaReceber,
+  discountConfig?: InstallmentDiscountConfig
+): InstallmentAmountResult {
   const statusRaw = (inv.situacao || inv.status || "Pendente").toUpperCase();
   const isPaid =
     statusRaw.includes("PAG") ||
@@ -416,6 +429,12 @@ export function getInstallmentAmount(inv: MoblinkContaReceber): {
       interestAmount: 0,
       isPaid,
       isOverdue: false,
+      discountApplied: false,
+      discountAmount: 0,
+      discountPercentage: 0,
+      isDueToday: false,
+      isPastCutoffToday: false,
+      cutoffHour: discountConfig?.cutoffHour || '22:00',
     };
   }
 
@@ -432,6 +451,31 @@ export function getInstallmentAmount(inv: MoblinkContaReceber): {
       : explicitJuros;
   const hasInterest = computedInterest > 0.01;
 
+  // Análise de Desconto de Pontualidade
+  const eligibility = checkInstallmentDiscountEligibility(rawDueDate, discountConfig, isPaid);
+
+  if (eligibility.isEligible && discountConfig && discountConfig.percentage > 0) {
+    const pct = discountConfig.percentage;
+    const baseValue = originalAmount > 0 ? originalAmount : saldoDevedor;
+    const discountAmount = Math.round((baseValue * (pct / 100)) * 100) / 100;
+    const finalAmount = Math.max(0.01, Math.round((baseValue - discountAmount) * 100) / 100);
+
+    return {
+      displayAmount: finalAmount,
+      originalAmount: baseValue,
+      hasInterest: false,
+      interestAmount: 0,
+      isPaid,
+      isOverdue: false,
+      discountApplied: true,
+      discountAmount,
+      discountPercentage: pct,
+      isDueToday: eligibility.isDueToday,
+      isPastCutoffToday: eligibility.isPastCutoffToday,
+      cutoffHour: eligibility.formattedCutoffHour,
+    };
+  }
+
   return {
     displayAmount: saldoDevedor,
     originalAmount,
@@ -439,5 +483,11 @@ export function getInstallmentAmount(inv: MoblinkContaReceber): {
     interestAmount: computedInterest,
     isPaid,
     isOverdue,
+    discountApplied: false,
+    discountAmount: 0,
+    discountPercentage: 0,
+    isDueToday: eligibility.isDueToday,
+    isPastCutoffToday: eligibility.isPastCutoffToday,
+    cutoffHour: eligibility.formattedCutoffHour,
   };
 }

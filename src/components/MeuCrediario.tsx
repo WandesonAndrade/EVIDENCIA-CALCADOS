@@ -22,6 +22,11 @@ import {
   ShieldCheck,
   CreditCard,
   Smartphone,
+  Zap,
+  Sparkles,
+  Percent,
+  Clock,
+  Tag,
 } from 'lucide-react';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -108,11 +113,14 @@ export const MeuCrediario: React.FC = () => {
     currentAdminUser, 
     setCurrentView, 
     theme, 
-    contactConfig 
+    storeTheme,
+    contactConfig,
+    installmentDiscountConfig 
   } = useApp();
   
   const activeUser = currentAdminUser || currentUser;
   const isDark = theme === 'dark';
+  const isOutubroRosa = storeTheme === 'outubro-rosa';
 
   // ── State ERP Moblink (Carnês & Boletos) ──
   const [cpfInput, setCpfInput] = useState(activeUser?.cpf ? formatCpfMask(activeUser.cpf) : '');
@@ -249,22 +257,22 @@ export const MeuCrediario: React.FC = () => {
         const parcNum = i.parcela || `${idx + 1}/${sorted.length}`;
         const parcelUniqueKey = String(i.id || `${saleKey}_${parcNum}`);
         const isPaidByMatch = pixFirestoreService.checkIfParcelIsPaidInFirestore(i, approvedPixList);
-        const isPaid = getInstallmentAmount(i).isPaid || paidParcelKeys.has(parcelUniqueKey) || paidParcelKeys.has(String(i.id)) || isPaidByMatch;
-        const amt = getInstallmentAmount(i);
+        const isPaid = getInstallmentAmount(i, installmentDiscountConfig).isPaid || paidParcelKeys.has(parcelUniqueKey) || paidParcelKeys.has(String(i.id)) || isPaidByMatch;
+        const amt = getInstallmentAmount(i, installmentDiscountConfig);
         return isPaid ? s : s + amt.displayAmount;
       }, 0);
       const hasOverdue = sorted.some((i, idx) => {
         const parcNum = i.parcela || `${idx + 1}/${sorted.length}`;
         const parcelUniqueKey = String(i.id || `${saleKey}_${parcNum}`);
         const isPaidByMatch = pixFirestoreService.checkIfParcelIsPaidInFirestore(i, approvedPixList);
-        const isPaid = getInstallmentAmount(i).isPaid || paidParcelKeys.has(parcelUniqueKey) || paidParcelKeys.has(String(i.id)) || isPaidByMatch;
-        const amt = getInstallmentAmount(i);
+        const isPaid = getInstallmentAmount(i, installmentDiscountConfig).isPaid || paidParcelKeys.has(parcelUniqueKey) || paidParcelKeys.has(String(i.id)) || isPaidByMatch;
+        const amt = getInstallmentAmount(i, installmentDiscountConfig);
         return !isPaid && amt.isOverdue;
       });
 
       return { saleKey, items: sorted, totalValue, totalPending, hasOverdue };
     });
-  }, [invoices, paidParcelKeys, approvedPixList]);
+  }, [invoices, paidParcelKeys, approvedPixList, installmentDiscountConfig]);
 
   const totalPendingAll = useMemo(() => {
     return groupedSales.reduce((s, g) => s + g.totalPending, 0);
@@ -321,7 +329,11 @@ export const MeuCrediario: React.FC = () => {
           }`}
         >
           <div className="flex items-center space-x-3.5">
-            <div className="w-12 h-12 rounded-2xl bg-amber-500 text-slate-950 flex items-center justify-center shadow-md font-bold">
+            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-md font-bold text-white transition-all ${
+              isOutubroRosa
+                ? 'bg-gradient-to-br from-[#BE185D] to-[#831843] shadow-pink-950/20'
+                : 'bg-gradient-to-br from-[#002554] via-[#003B73] to-[#0071E3] shadow-blue-950/20'
+            }`}>
               <CreditCard className="h-6 w-6" />
             </div>
             <div>
@@ -492,6 +504,68 @@ export const MeuCrediario: React.FC = () => {
                 </div>
               </div>
 
+              {/* Banner Visual de Desconto de Pontualidade nos Padrões da Frente de Loja */}
+              {installmentDiscountConfig?.active && installmentDiscountConfig.percentage > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.98 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className={`p-4 sm:p-5 rounded-3xl border flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative overflow-hidden transition-all ${
+                    isOutubroRosa
+                      ? isDark 
+                        ? 'bg-gradient-to-r from-[#4A062B] via-[#630B3A] to-[#831843] border-pink-400/30 text-white shadow-xl shadow-pink-950/25'
+                        : 'bg-gradient-to-r from-[#5B0836] via-[#7D0D47] to-[#9D174D] border-pink-300 text-white shadow-lg'
+                      : isDark
+                        ? 'bg-gradient-to-r from-[#001D4A] via-[#002D6E] to-[#004B8F] border-blue-400/30 text-white shadow-xl shadow-blue-950/25'
+                        : 'bg-gradient-to-r from-[#002554] via-[#003B73] to-[#0052A3] border-blue-300 text-white shadow-lg'
+                  }`}
+                >
+                  <div className="flex items-start sm:items-center gap-3.5">
+                    <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 shadow-md ${
+                      isOutubroRosa
+                        ? 'bg-white/15 text-pink-200 border border-white/20'
+                        : 'bg-white/15 text-amber-300 border border-white/20'
+                    }`}>
+                      <Zap className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full shadow-xs flex items-center gap-1 ${
+                          isOutubroRosa
+                            ? 'bg-white text-[#BE185D]'
+                            : 'bg-amber-400 text-slate-950'
+                        }`}>
+                          <Sparkles className="w-3 h-3 animate-pulse" />
+                          <span>Pontualidade Premiada</span>
+                        </span>
+                        <span className={`text-xs font-black ${isOutubroRosa ? 'text-pink-200' : 'text-amber-300'}`}>
+                          {installmentDiscountConfig.percentage}% de Desconto nas Parcelas
+                        </span>
+                      </div>
+                      <h4 className="text-sm sm:text-base font-extrabold mt-1 tracking-tight text-white drop-shadow-xs">
+                        {installmentDiscountConfig.bannerTitle || 'Economize pagando sua parcela em dia!'}
+                      </h4>
+                      <p className="text-xs mt-0.5 leading-relaxed font-medium text-slate-100/90">
+                        {installmentDiscountConfig.bannerSubtitle && !installmentDiscountConfig.bannerSubtitle.includes('22')
+                          ? installmentDiscountConfig.bannerSubtitle
+                          : 'Pague suas parcelas até a data do vencimento e aproveite descontos exclusivos via Pix com baixa imediata!'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="shrink-0 flex items-center pt-2 sm:pt-0 border-t sm:border-t-0 border-white/15">
+                    <div className="px-3.5 py-2 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 text-white flex items-center gap-2.5">
+                      <ShieldCheck className={`w-4 h-4 shrink-0 ${isOutubroRosa ? 'text-pink-300' : 'text-amber-300'}`} />
+                      <div className="text-left">
+                        <span className="text-[10px] uppercase font-bold text-slate-200 block leading-none">Benefício Exclusivo</span>
+                        <span className={`text-xs font-black leading-tight block ${isOutubroRosa ? 'text-pink-200' : 'text-amber-300'}`}>
+                          Baixa Instantânea no Pix
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
               {groupedSales.length === 0 ? (
                 <div className={`${cardBase} p-8 text-center space-y-3`}>
                   <CheckCircle2 className="w-12 h-12 mx-auto text-emerald-500" />
@@ -540,7 +614,7 @@ export const MeuCrediario: React.FC = () => {
                         <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
                           {group.items.map((inv, idx) => {
                             const parcNum = inv.parcela || `${idx + 1}/${group.items.length}`;
-                            const amountInfo = getInstallmentAmount(inv);
+                            const amountInfo = getInstallmentAmount(inv, installmentDiscountConfig);
                             const parcelUniqueKey = String(inv.id || `${group.saleKey}_${parcNum}`);
                             const isPaid = amountInfo.isPaid || paidParcelKeys.has(parcelUniqueKey) || paidParcelKeys.has(String(inv.id));
                             const dueDate = inv.data_vencimento || inv.vencimento || (inv as any).dt_vencimento || (inv as any).dt_venc;
@@ -549,17 +623,21 @@ export const MeuCrediario: React.FC = () => {
                             return (
                               <div
                                 key={idx}
-                                className={`flex items-center justify-between p-3.5 rounded-2xl transition-all ${
+                                className={`flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-2xl gap-3 transition-all ${
                                   isPaid
                                     ? isDark ? 'bg-emerald-950/20 border border-emerald-500/20' : 'bg-emerald-50/60 border border-emerald-200'
                                     : isOverdue
                                       ? isDark ? 'bg-rose-950/20 border border-rose-500/30' : 'bg-rose-50/70 border border-rose-200'
-                                      : isDark ? 'bg-slate-800/50 border border-slate-700/60' : 'bg-slate-50 border border-slate-200/80'
+                                      : amountInfo.discountApplied
+                                        ? isOutubroRosa
+                                          ? isDark ? 'bg-pink-950/20 border border-pink-500/30 shadow-xs' : 'bg-gradient-to-r from-pink-50/70 via-white to-pink-50/30 border border-pink-200 shadow-2xs'
+                                          : isDark ? 'bg-[#00224D]/25 border border-blue-500/35 shadow-xs' : 'bg-gradient-to-r from-blue-50/60 via-white to-amber-50/20 border border-blue-200/90 shadow-2xs'
+                                        : isDark ? 'bg-slate-800/50 border border-slate-700/60' : 'bg-slate-50 border border-slate-200/80'
                                 } text-xs`}
                               >
-                                <div>
-                                  <div className="flex items-center gap-2">
-                                    <p className="font-bold text-slate-900 dark:text-white">Parcela {parcNum}</p>
+                                <div className="space-y-1">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <p className="font-bold text-slate-900 dark:text-white text-sm">Parcela {parcNum}</p>
                                     {isPaid ? (
                                       <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-500">
                                         Pago
@@ -568,21 +646,70 @@ export const MeuCrediario: React.FC = () => {
                                       <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/15 text-rose-500">
                                         Vencida
                                       </span>
+                                    ) : amountInfo.discountApplied ? (
+                                      <>
+                                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black text-white flex items-center gap-1 shadow-2xs ${
+                                          isOutubroRosa ? 'bg-[#BE185D]' : 'bg-[#0071E3]'
+                                        }`}>
+                                          <Percent className="w-2.5 h-2.5" />
+                                          <span>-{amountInfo.discountPercentage}% PONTUALIDADE</span>
+                                        </span>
+                                        {amountInfo.isDueToday && (
+                                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-400 text-slate-950 flex items-center gap-1 animate-pulse shadow-2xs">
+                                            <Sparkles className="w-2.5 h-2.5" />
+                                            <span>VENCE HOJE • PAGUE COM DESCONTO</span>
+                                          </span>
+                                        )}
+                                      </>
                                     ) : null}
                                   </div>
-                                  <p className={`text-[11px] mt-0.5 ${isOverdue ? 'text-rose-500 font-semibold' : 'text-slate-400'}`}>
-                                    Vencimento: {formatDate(dueDate)}
-                                  </p>
+
+                                  <div className="flex items-center gap-2 flex-wrap text-[11px]">
+                                    <span className={isOverdue ? 'text-rose-500 font-semibold' : 'text-slate-400'}>
+                                      Vencimento: <strong>{formatDate(dueDate)}</strong>
+                                    </span>
+                                    {amountInfo.discountApplied && (
+                                      <>
+                                        <span className="text-slate-300 dark:text-slate-700">•</span>
+                                        <span className={`font-bold flex items-center gap-1 ${
+                                          isOutubroRosa ? 'text-[#BE185D] dark:text-pink-300' : 'text-[#006EDB] dark:text-blue-400'
+                                        }`}>
+                                          <Sparkles className="w-3 h-3" />
+                                          <span>Economize {formatCurrency(amountInfo.discountAmount)} pagando em dia</span>
+                                        </span>
+                                      </>
+                                    )}
+                                  </div>
+
+                                  {amountInfo.isPastCutoffToday && (
+                                    <p className="text-[10.5px] text-amber-500 font-medium flex items-center gap-1 mt-0.5">
+                                      <span>Desconto de pontualidade expirado para esta parcela.</span>
+                                    </p>
+                                  )}
                                 </div>
 
-                                <div className="flex items-center gap-3">
-                                  <span className="font-bold text-sm text-slate-900 dark:text-white">
-                                    {formatCurrency(amountInfo.displayAmount)}
-                                  </span>
+                                <div className="flex items-center justify-between sm:justify-end gap-3.5 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-200 dark:border-slate-700/60">
+                                  <div className="text-left sm:text-right">
+                                    {amountInfo.discountApplied && (
+                                      <span className="text-xs text-slate-400 line-through block font-medium">
+                                        {formatCurrency(amountInfo.originalAmount)}
+                                      </span>
+                                    )}
+                                    <span className={`font-black text-base ${
+                                      amountInfo.discountApplied 
+                                        ? isOutubroRosa 
+                                          ? 'text-[#BE185D] dark:text-pink-400' 
+                                          : 'text-[#003B73] dark:text-blue-300'
+                                        : 'text-slate-900 dark:text-white'
+                                    }`}>
+                                      {formatCurrency(amountInfo.displayAmount)}
+                                    </span>
+                                  </div>
 
                                   {isPaid ? (
-                                    <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-500">
-                                      Pago
+                                    <span className="px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-500/10 text-emerald-500 flex items-center gap-1">
+                                      <CheckCircle2 className="w-4 h-4" />
+                                      <span>Quitada</span>
                                     </span>
                                   ) : (
                                     <button
@@ -593,14 +720,20 @@ export const MeuCrediario: React.FC = () => {
                                           saleKey: group.saleKey,
                                           parcNum: String(parcNum),
                                           value: amountInfo.displayAmount,
-                                          description: `Parcela ${parcNum} - Carnê #${group.saleKey}`,
+                                          description: amountInfo.discountApplied
+                                            ? `Parcela ${parcNum} - Carnê #${group.saleKey} (${amountInfo.discountPercentage}% desconto pontualidade)`
+                                            : `Parcela ${parcNum} - Carnê #${group.saleKey}`,
                                         });
                                         setPixModalOpen(true);
                                       }}
-                                      className="px-3 py-1.5 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-1 shadow-sm transition-all cursor-pointer"
+                                      className={`px-3.5 py-2 rounded-xl text-xs font-bold text-white flex items-center gap-1.5 shadow-sm transition-all cursor-pointer ${
+                                        isOutubroRosa
+                                          ? 'bg-gradient-to-r from-[#DB2777] to-[#BE185D] hover:from-[#BE185D] hover:to-[#9D174D] shadow-md shadow-pink-900/20'
+                                          : 'bg-[#0071E3] hover:bg-[#005bb5] shadow-md shadow-blue-500/25'
+                                      }`}
                                     >
                                       <Smartphone className="w-3.5 h-3.5" />
-                                      Pagar Pix
+                                      <span>Pagar Pix {amountInfo.discountApplied ? 'com Desconto' : ''}</span>
                                     </button>
                                   )}
                                 </div>
@@ -630,6 +763,7 @@ export const MeuCrediario: React.FC = () => {
           externalReference={pixSelectedParcel ? `venda_${pixSelectedParcel.saleKey}_parcela_${pixSelectedParcel.parcelId}` : undefined}
           idVenda={pixSelectedParcel?.saleKey}
           idParcela={pixSelectedParcel?.parcelId}
+          financeWhatsApp={installmentDiscountConfig?.financeWhatsApp || '5599984125572'}
           onPaymentSuccess={handlePaymentSuccess}
         />
       </div>
