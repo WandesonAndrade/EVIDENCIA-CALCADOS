@@ -424,6 +424,7 @@ Este arquivo é a memória persistente do projeto (AG Kit), consolidando decisõ
     - **Checagem Fiel de URL e Precedência do Banco (`existingDb`)**:
       * Na tabela e no filtro de fotos, as fotos enriquecidas do banco têm precedência absoluta sobre dados brutos do ERP.
       * A foto só é tratada como quebrada se a URL registrada com erro for exatamente idêntica à URL ativa do produto. Se a foto foi alterada, o produto sai imediatamente da lista de erros.
-    - **Contador Dinâmico `activeBrokenPhotosCount`**:
-      * O botão "Fotos com Erro (N)" e o dropdown de filtro agora exibem a contagem exata e dinâmica dos produtos que ainda possuem erro real ativo.
-
+54. **Remoção de Tags Redundantes no Topo dos Detalhes do Produto (`ProductDetail.tsx`) (Implementado):**
+    - Removidas as pílulas/badges superiores de *Categoria* (`ACESSÓRIOS`), *Marca* (`MARCA: ...`) e *Gênero/Público* (`FEMININO` / `MASCULINO` / `INFANTIL`) que ficavam sobre o título na tela de detalhes do produto.
+    - Layout higienizado e mais moderno: o cabeçalho agora exibe diretamente a avaliação (`⭐ 5.0 (novo)`) e o título do produto em destaque.
+    - As informações de Marca, Público, Código de Referência e Vendedor continuam organizadas de forma limpa na linha de metadados imediatamente abaixo do título e na Ficha Técnica.

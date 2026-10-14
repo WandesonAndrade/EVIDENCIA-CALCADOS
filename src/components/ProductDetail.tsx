@@ -625,40 +625,10 @@ export const ProductDetail: React.FC = () => {
         <div className={`lg:col-span-7 p-4 sm:p-6 rounded-3xl border space-y-4 shadow-md backdrop-blur-md ${
           isDark ? 'bg-slate-900/90 border-slate-800 text-white' : 'bg-white border-blue-900/10 text-[#003B73]'
         }`}>
-          {/* Cabeçalho do Produto: Categoria + Marca + Gênero/Público + Avaliação + Título */}
+          {/* Cabeçalho do Produto: Avaliação + Título */}
           <div className="space-y-1.5">
-            <div className="flex items-center justify-between gap-2 flex-wrap">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className={`px-3 py-1 rounded-full text-[10px] font-extrabold tracking-wider uppercase border ${
-                  isOutubroRosa
-                    ? 'bg-pink-100 text-[#9D174D] dark:bg-pink-950/40 dark:text-pink-200 border-pink-300/40'
-                    : isDark ? 'bg-blue-900/30 text-blue-200 border-blue-800' : 'bg-[#DDF1FF] text-[#003B73] border-[#006EDB]/20'
-                }`}>
-                  {(p.category && p.category.toUpperCase() !== 'GERAL')
-                    ? normalizeCategoryName(p.category)
-                    : (inferCategoryFromProductName(p.name || '').category || 'Calçados')}
-                </span>
-
-                {resolveProductBrand(p) && (
-                  <span className="px-3 py-1 rounded-full text-[10px] font-black tracking-wider uppercase bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-500/25">
-                    Marca: {resolveProductBrand(p)}
-                  </span>
-                )}
-
-                {resolveProductGender(p) && (
-                  <span className={`px-3 py-1 rounded-full text-[10px] font-black tracking-wider uppercase border ${
-                    resolveProductGender(p).includes('Infantil')
-                      ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/25'
-                      : resolveProductGender(p) === 'Masculino'
-                        ? 'bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-500/25'
-                        : 'bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/25'
-                  }`}>
-                    {resolveProductGender(p)}
-                  </span>
-                )}
-              </div>
-
-              {/* Avaliação Estilo Magalu (⭐ 5.0 (novo)) */}
+            {/* Avaliação Estilo Magalu (⭐ 5.0 (novo)) */}
+            <div className="flex items-center gap-2">
               <div className="flex items-center space-x-1 text-xs font-bold text-amber-500 bg-amber-50 dark:bg-amber-950/40 px-2.5 py-0.5 rounded-full border border-amber-200 dark:border-amber-900/30">
                 <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
                 <span className="font-extrabold text-slate-800 dark:text-slate-200">5.0</span>
