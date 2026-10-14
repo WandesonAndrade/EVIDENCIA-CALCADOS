@@ -388,8 +388,22 @@ export function getInstallmentAmount(inv: MoblinkContaReceber): {
     statusRaw.includes("PAG") ||
     statusRaw.includes("BAIX") ||
     statusRaw === "L";
+
+  const rawDueDate = inv.data_vencimento || inv.vencimento;
+  let isDatePast = false;
+  if (rawDueDate && !isPaid) {
+    const cleanDate = String(rawDueDate).trim().split('T')[0].split(' ')[0];
+    const match = cleanDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (match) {
+      const dueObj = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      isDatePast = dueObj.getTime() < today.getTime();
+    }
+  }
+
   const isOverdue =
-    !isPaid && (statusRaw.includes("VENC") || statusRaw.includes("ATRAS"));
+    !isPaid && (statusRaw.includes("VENC") || statusRaw.includes("ATRAS") || isDatePast);
 
   const originalAmount = parseValor(inv.valor_parcela ?? inv.valor ?? inv.saldo);
   const valorPago = parseValor(inv.valor_pago);

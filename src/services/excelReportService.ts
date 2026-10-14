@@ -26,7 +26,8 @@ function escapeCsvCell(cell: any): string {
 export function generateProductsExcelReport(
   filteredProducts: any[],
   dbProductsMap: Map<string, Product>,
-  resolveSubcategory?: (item: any, existingDb?: Product | null) => string
+  resolveSubcategory?: (item: any, existingDb?: Product | null) => string,
+  brokenPhotoMap?: Record<string, string>
 ): void {
   const headers = [
     'Ref MobLink ID',
@@ -48,6 +49,7 @@ export function generateProductsExcelReport(
 
   const rows: string[][] = filteredProducts.map((item) => {
     const mobId = String(item.id || item.moblinkId || 'MOB-000').trim();
+    const cleanId = mobId.replace(/^MOB-/i, '');
     const existingDb = dbProductsMap.get(mobId) || dbProductsMap.get(mobId.toLowerCase());
     
     const name = String(item.nome || item.name || item.descricao || existingDb?.name || 'Sem nome').trim();
@@ -74,12 +76,26 @@ export function generateProductsExcelReport(
     const itemHasGrade = hasProductValidGrade(item);
     const statusGrade = itemHasGrade ? '✓ Grade Ativa' : 'Grade Livre / Única';
 
+    const isBroken = Boolean(
+      brokenPhotoMap && (
+        brokenPhotoMap[mobId] || 
+        brokenPhotoMap[cleanId] || 
+        (existingDb?.id && brokenPhotoMap[String(existingDb.id)])
+      )
+    );
+
     const hasEnrichedMedia = Boolean(existingDb && existingDb.images && existingDb.images.length > 0);
     const hasMedia = hasEnrichedMedia || Boolean(item.foto_uri || item.foto_url || item.foto || item.imagem || item.image);
-    const statusMidia = hasMedia ? `Com Fotos (${existingDb?.images?.length || 1})` : 'Pendente (Sem Foto)';
+    
+    let statusMidia = 'Pendente (Sem Foto)';
+    if (isBroken) {
+      statusMidia = '⚠️ Erro 404 (Foto Quebrada)';
+    } else if (hasMedia) {
+      statusMidia = `Com Fotos (${existingDb?.images?.length || 1})`;
+    }
 
     const isManuallyActive = existingDb ? existingDb.visible !== false : (item.visible !== false);
-    const isVisibleOnSite = !isUnclassified && isManuallyActive && estoqueAtual > 0 && hasMedia;
+    const isVisibleOnSite = !isUnclassified && isManuallyActive && estoqueAtual > 0 && hasMedia && !isBroken;
     
     let statusSite = '';
     if (isUnclassified) {
@@ -88,6 +104,8 @@ export function generateProductsExcelReport(
       statusSite = 'Oculto (Desativado no cadastro)';
     } else if (estoqueAtual <= 0) {
       statusSite = 'Oculto (Sem estoque)';
+    } else if (isBroken) {
+      statusSite = 'Oculto (Foto com erro 404)';
     } else if (!hasMedia) {
       statusSite = 'Oculto (Sem foto cadastrada)';
     } else {

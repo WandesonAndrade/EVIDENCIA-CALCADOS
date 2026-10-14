@@ -4,6 +4,8 @@ import { ShoppingCart, ShoppingBag, MapPin, Star, ChevronRight, ArrowLeft, Shiel
 import { getGradeProdutoById, getProdutoGradesFromApi } from '../services/moblinkGradesService';
 import { getSingleProdutoMoblinkFromApi, sanitizeProductForFirestore, mergeErpSyncWithExistingDbProduct, inferCategoryFromProductName, hasProductValidPhoto, hasProductChanged } from '../services/moblinkProductsService';
 import { normalizeCategoryName, normalizeSubcategoryName } from '../services/moblinkCategoriesService';
+import { resolveProductBrand } from '../utils/brandUtils';
+import { resolveProductGender } from '../utils/genderUtils';
 import { isSaldaoProduct, getSaldaoProductPrice } from '../services/saldaoService';
 import { getApplicablePromotion } from '../services/promotionsService';
 import { db } from '../lib/firebase';
@@ -623,18 +625,38 @@ export const ProductDetail: React.FC = () => {
         <div className={`lg:col-span-7 p-4 sm:p-6 rounded-3xl border space-y-4 shadow-md backdrop-blur-md ${
           isDark ? 'bg-slate-900/90 border-slate-800 text-white' : 'bg-white border-blue-900/10 text-[#003B73]'
         }`}>
-          {/* Cabeçalho do Produto: Categoria + Avaliação + Título */}
+          {/* Cabeçalho do Produto: Categoria + Marca + Gênero/Público + Avaliação + Título */}
           <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <span className={`px-3 py-1 rounded-full text-[10px] font-extrabold tracking-wider uppercase border ${
-                isOutubroRosa
-                  ? 'bg-pink-100 text-[#9D174D] dark:bg-pink-950/40 dark:text-pink-200 border-pink-300/40'
-                  : isDark ? 'bg-blue-900/30 text-blue-200 border-blue-800' : 'bg-[#DDF1FF] text-[#003B73] border-[#006EDB]/20'
-              }`}>
-                {(p.category && p.category.toUpperCase() !== 'GERAL')
-                  ? normalizeCategoryName(p.category)
-                  : (inferCategoryFromProductName(p.name || '').category || 'Calçados')}
-              </span>
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className={`px-3 py-1 rounded-full text-[10px] font-extrabold tracking-wider uppercase border ${
+                  isOutubroRosa
+                    ? 'bg-pink-100 text-[#9D174D] dark:bg-pink-950/40 dark:text-pink-200 border-pink-300/40'
+                    : isDark ? 'bg-blue-900/30 text-blue-200 border-blue-800' : 'bg-[#DDF1FF] text-[#003B73] border-[#006EDB]/20'
+                }`}>
+                  {(p.category && p.category.toUpperCase() !== 'GERAL')
+                    ? normalizeCategoryName(p.category)
+                    : (inferCategoryFromProductName(p.name || '').category || 'Calçados')}
+                </span>
+
+                {resolveProductBrand(p) && (
+                  <span className="px-3 py-1 rounded-full text-[10px] font-black tracking-wider uppercase bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-500/25">
+                    Marca: {resolveProductBrand(p)}
+                  </span>
+                )}
+
+                {resolveProductGender(p) && (
+                  <span className={`px-3 py-1 rounded-full text-[10px] font-black tracking-wider uppercase border ${
+                    resolveProductGender(p).includes('Infantil')
+                      ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/25'
+                      : resolveProductGender(p) === 'Masculino'
+                        ? 'bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-500/25'
+                        : 'bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/25'
+                  }`}>
+                    {resolveProductGender(p)}
+                  </span>
+                )}
+              </div>
 
               {/* Avaliação Estilo Magalu (⭐ 5.0 (novo)) */}
               <div className="flex items-center space-x-1 text-xs font-bold text-amber-500 bg-amber-50 dark:bg-amber-950/40 px-2.5 py-0.5 rounded-full border border-amber-200 dark:border-amber-900/30">
@@ -650,12 +672,26 @@ export const ProductDetail: React.FC = () => {
               {p.name}
             </h1>
 
-            {/* Código de Referência e Vendedor */}
+            {/* Código de Referência, Marca, Gênero e Vendedor */}
             <div className="flex flex-wrap items-center gap-2 text-[11px] text-[#52708F]">
-              {(p.referencia || p.referenceCode) && (
-                <span>Ref: <strong className="font-mono text-[#003B73] dark:text-slate-200 font-black">{p.referencia || p.referenceCode}</strong></span>
+              {resolveProductBrand(p) && (
+                <>
+                  <span>Marca: <strong className="font-extrabold text-[#003B73] dark:text-purple-300">{resolveProductBrand(p)}</strong></span>
+                  <span>•</span>
+                </>
               )}
-              <span>•</span>
+              {resolveProductGender(p) && (
+                <>
+                  <span>Público: <strong className="font-extrabold text-[#003B73] dark:text-slate-200">{resolveProductGender(p)}</strong></span>
+                  <span>•</span>
+                </>
+              )}
+              {(p.referencia || p.referenceCode) && (
+                <>
+                  <span>Ref: <strong className="font-mono text-[#003B73] dark:text-slate-200 font-black">{p.referencia || p.referenceCode}</strong></span>
+                  <span>•</span>
+                </>
+              )}
               <span>Vendido e entregue por <strong className={`${isOutubroRosa ? 'text-[#EC4899]' : 'text-[#006EDB]'} font-extrabold`}>Evidência Calçados</strong></span>
             </div>
           </div>
@@ -857,6 +893,30 @@ export const ProductDetail: React.FC = () => {
             }`}>
               Detalhes & Especificações do Modelo
             </h4>
+
+            {/* Ficha Técnica Básica */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-700/60 text-xs">
+              <div>
+                <span className="text-[10px] uppercase font-bold text-[#52708F] block">Marca</span>
+                <span className="font-extrabold text-[#003B73] dark:text-slate-100">
+                  {resolveProductBrand(p) || 'Evidência Calçados'}
+                </span>
+              </div>
+              <div>
+                <span className="text-[10px] uppercase font-bold text-[#52708F] block">Gênero / Público</span>
+                <span className="font-extrabold text-[#003B73] dark:text-slate-100">
+                  {resolveProductGender(p)}
+                </span>
+              </div>
+              {(p.referencia || p.referenceCode) && (
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-[#52708F] block">Referência</span>
+                  <span className="font-mono font-bold text-[#003B73] dark:text-slate-100">
+                    {p.referencia || p.referenceCode}
+                  </span>
+                </div>
+              )}
+            </div>
             {(() => {
               const rawDesc = p.description || p.descricao || p.descricao_completa || '';
               const hasHtml = /<[a-z][\s\S]*>/i.test(rawDesc);

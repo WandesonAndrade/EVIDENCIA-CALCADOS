@@ -28,6 +28,8 @@ import {
 } from '../../../services/moblinkProductsService';
 import { isPlaceholderUrl } from '../../../utils/placeholder';
 import { normalizeCategoryName, normalizeSubcategoryName } from '../../../services/moblinkCategoriesService';
+import { resolveProductBrand } from '../../../utils/brandUtils';
+import { resolveProductGender, GENDER_OPTIONS, ProductGender } from '../../../utils/genderUtils';
 import { ProductAiDescriptionButton, ProductAiSearchPhotoButton, ProductAiAssistantModals } from './ai';
 
 export interface ProductEditModalProps {
@@ -37,6 +39,10 @@ export interface ProductEditModalProps {
   isSingleRefreshing: boolean;
   editName: string;
   setEditName: (val: string) => void;
+  editBrand?: string;
+  setEditBrand?: (val: string) => void;
+  editGender?: string;
+  setEditGender?: (val: string) => void;
   editColor?: string;
   setEditColor?: (val: string) => void;
   editVisible: boolean;
@@ -79,6 +85,10 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   isSingleRefreshing,
   editName,
   setEditName,
+  editBrand,
+  setEditBrand,
+  editGender,
+  setEditGender,
   editColor: _editColor,
   setEditColor: _setEditColor,
   editVisible,
@@ -184,6 +194,9 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
     });
   };
 
+  const currentBrand = (editBrand !== undefined && editBrand !== null ? editBrand : '') || resolveProductBrand(selectedProduct) || '';
+  const currentGender = (editGender !== undefined && editGender !== null ? editGender : '') || resolveProductGender(selectedProduct) || '';
+
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto shadow-2xl p-6 space-y-6 animate-scale-in">
@@ -195,6 +208,16 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
               <span className="px-2.5 py-0.5 rounded-md bg-amber-500 text-slate-950 text-xs font-black font-mono">
                 ID Ref: {selectedProduct.id || selectedProduct.moblinkId}
               </span>
+              {currentBrand && (
+                <span className="px-2.5 py-0.5 rounded-md bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-500/30 text-xs font-black uppercase font-mono">
+                  Marca: {currentBrand}
+                </span>
+              )}
+              {currentGender && (
+                <span className="px-2.5 py-0.5 rounded-md bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 text-xs font-black uppercase font-mono">
+                  Público: {currentGender}
+                </span>
+              )}
               {(() => {
                 const catInfo = extractClassificacaoCategoria(selectedProduct);
                 const classCode = catInfo.classificacao || String(selectedProduct.classificacao || (selectedProduct as any).id_grupo || '').trim();
@@ -242,7 +265,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
 
         {/* READ-ONLY ERP DATA SUMMARY */}
         <div className="space-y-3">
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 bg-slate-50 dark:bg-slate-800/60 p-3.5 rounded-xl border border-slate-200/80 dark:border-slate-700 text-xs">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2 bg-slate-50 dark:bg-slate-800/60 p-3.5 rounded-xl border border-slate-200/80 dark:border-slate-700 text-xs">
             {/* Preço Tabela */}
             <div className="space-y-0.5">
               <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">Preço Tabela (Carnê)</span>
@@ -279,6 +302,22 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                   : 'text-rose-500 dark:text-rose-400'
               }`}>
                 {extractSaldoLojaMoblink(selectedProduct)} un
+              </span>
+            </div>
+
+            {/* Marca do Produto */}
+            <div className="space-y-0.5">
+              <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">Marca</span>
+              <span className="font-black text-sm text-purple-700 dark:text-purple-300 truncate block" title={currentBrand || 'Sem Marca'}>
+                {currentBrand || <span className="text-slate-400 italic font-normal text-xs">Não informada</span>}
+              </span>
+            </div>
+
+            {/* Público / Gênero */}
+            <div className="space-y-0.5">
+              <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">Público / Gênero</span>
+              <span className="font-black text-sm text-emerald-700 dark:text-emerald-300 truncate block" title={currentGender || 'Geral'}>
+                {currentGender || <span className="text-slate-400 italic font-normal text-xs">Feminino</span>}
               </span>
             </div>
 
@@ -424,17 +463,49 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
             </h4>
 
             <div className="space-y-4">
-              <div className="space-y-1">
-                <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 block">
-                  Nome Comercial do Produto (Exibido na Loja Virtual)
-                </label>
-                <input
-                  type="text"
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
-                  placeholder="Ex: Sapato Social, Bolsa Transversal Couro, Cinto Social..."
-                  className="w-full p-2.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-xs font-semibold focus:outline-none focus:border-amber-500"
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+                <div className="sm:col-span-6 space-y-1">
+                  <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 block">
+                    Nome Comercial do Produto (Exibido na Loja Virtual)
+                  </label>
+                  <input
+                    type="text"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    placeholder="Ex: Sapato Social, Bolsa Transversal Couro, Cinto Social..."
+                    className="w-full p-2.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-xs font-semibold focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                <div className="sm:col-span-3 space-y-1">
+                  <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 block">
+                    Marca do Produto
+                  </label>
+                  <input
+                    type="text"
+                    value={editBrand !== undefined && editBrand !== null ? editBrand : ''}
+                    onChange={(e) => setEditBrand && setEditBrand(e.target.value)}
+                    placeholder="Ex: Marvel, Moleca, Dakota..."
+                    className="w-full p-2.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-xs font-semibold focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                <div className="sm:col-span-3 space-y-1">
+                  <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 block">
+                    Público / Gênero
+                  </label>
+                  <select
+                    value={editGender !== undefined && editGender !== null ? editGender : currentGender}
+                    onChange={(e) => setEditGender && setEditGender(e.target.value)}
+                    className="w-full p-2.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-xs font-semibold focus:outline-none focus:border-amber-500 cursor-pointer"
+                  >
+                    {GENDER_OPTIONS.map((gOpt) => (
+                      <option key={gOpt} value={gOpt}>
+                        {gOpt}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               <div className="space-y-2 pt-1">

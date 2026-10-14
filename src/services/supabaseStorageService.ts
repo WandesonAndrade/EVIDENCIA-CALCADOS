@@ -564,28 +564,54 @@ export async function auditSupabaseVsFirebasePhotos(
     });
   });
 
-  // 2. Lista os arquivos do bucket no Supabase (pastas 'produtos' e raiz)
-  const foldersToScan = ['produtos', 'banners', 'sobre', ''];
+  // 2. Lista os arquivos do bucket no Supabase (pastas 'produtos', 'banners', 'sobre', subpastas de produtos e raiz)
+  const baseFoldersToScan = ['produtos', 'banners', 'sobre', ''];
   const allBucketFiles: Array<{ name: string; folder: string; createdAt?: string }> = [];
 
-  for (const folder of foldersToScan) {
+  for (const folder of baseFoldersToScan) {
     try {
       const { data, error } = await supabase.storage.from(targetBucket).list(folder, {
-        limit: 500,
+        limit: 1000,
         offset: 0,
         sortBy: { column: 'name', order: 'asc' },
       });
 
       if (!error && Array.isArray(data)) {
-        data.forEach(item => {
-          if (item.name && item.id) {
+        for (const item of data) {
+          if (!item.name || item.name.startsWith('.')) continue;
+
+          // Se for uma subpasta (item.id === null ou metadata nulo) dentro de 'produtos'
+          if (item.id === null && folder === 'produtos') {
+            if (item.name === 'thumbnails') continue;
+            const subfolder = `produtos/${item.name}`;
+            try {
+              const { data: subData, error: subError } = await supabase.storage.from(targetBucket).list(subfolder, {
+                limit: 100,
+                sortBy: { column: 'name', order: 'asc' },
+              });
+              if (!subError && Array.isArray(subData)) {
+                subData.forEach(subItem => {
+                  if (subItem.name && !subItem.name.startsWith('.') && subItem.id !== null) {
+                    allBucketFiles.push({
+                      name: subItem.name,
+                      folder: subfolder,
+                      createdAt: subItem.created_at,
+                    });
+                  }
+                });
+              }
+            } catch (subErr) {
+              console.warn(`[SupabaseAudit] Erro ao listar subpasta "${subfolder}":`, subErr);
+            }
+          } else if (item.id !== null) {
+            // Arquivo na pasta / raiz
             allBucketFiles.push({
               name: item.name,
               folder,
               createdAt: item.created_at,
             });
           }
-        });
+        }
       }
     } catch (err) {
       console.warn(`[SupabaseAudit] Erro ao listar pasta "${folder}":`, err);
@@ -933,7 +959,27 @@ export async function fetchSupabaseStoragePhotosMap(): Promise<Map<string, strin
   const config = getSupabaseConfig();
   const photoMap = new Map<string, string[]>();
 
-  // 1. Incorpora fotos do arquivo JSON de backup do Supabase e da tabela products_media
+  // Helper para registrar uma foto para um ID
+  const registerPhoto = (id: string, url: string, prepend = false) => {
+    if (!id || !url || !isValidWebPhotoUrl(url)) return;
+    const cleanId = id.trim().replace(/^MOB-/i, '');
+    const mobKey = `MOB-${cleanId}`;
+
+    [cleanId, mobKey, id.trim()].forEach(k => {
+      if (!k) return;
+      const list = photoMap.get(k) || [];
+      if (!list.includes(url)) {
+        if (prepend) {
+          list.unshift(url);
+        } else {
+          list.push(url);
+        }
+        photoMap.set(k, list);
+      }
+    });
+  };
+
+  // 1. Incorpora fotos do arquivo JSON de backup do Supabase e da tabela products_media (como base inicial)
   try {
     const backup = await fetchSupabasePhotosBackup();
     if (backup && backup.products) {
@@ -941,17 +987,7 @@ export async function fetchSupabaseStoragePhotosMap(): Promise<Map<string, strin
         if (!key || !item) return;
         const validImages = preserveExistingImages(item.images, [item.imageUrl, item.foto_uri]);
         if (validImages.length > 0) {
-          const cleanKey = key.replace(/^MOB-/i, '');
-          const mobKey = `MOB-${cleanKey}`;
-
-          [key, cleanKey, mobKey].forEach(k => {
-            if (!k) return;
-            const list = photoMap.get(k) || [];
-            validImages.forEach(u => {
-              if (!list.includes(u)) list.push(u);
-            });
-            photoMap.set(k, list);
-          });
+          validImages.forEach(u => registerPhoto(key, u, false));
         }
       });
     }
@@ -960,9 +996,10 @@ export async function fetchSupabaseStoragePhotosMap(): Promise<Map<string, strin
   if (!supabase) return photoMap;
 
   // 2. Varre os buckets do Supabase Storage para arquivos enviados diretamente
+  // Suporta tanto arquivos soltos na raiz de 'produtos' quanto arquivos organizados dentro de pastas por ID de produto (ex: produtos/1750/foto.webp)
   const configuredBucket = config.bucket || 'products';
-  const bucketsToScan = Array.from(new Set([configuredBucket, 'products', 'produtos', 'evidenciacalcados', 'evidencia-calcados', 'evidencia']));
-  const foldersToScan = ['', 'produtos', 'produtos_moblink', 'fotos', 'images', 'public'];
+  const bucketsToScan = Array.from(new Set([configuredBucket, 'evidenciacalcados', 'products', 'produtos', 'evidencia-calcados', 'evidencia']));
+  const foldersToScan = ['produtos', 'produtos_moblink', 'fotos', 'images', 'public', ''];
 
   for (const bucketName of bucketsToScan) {
     for (const folder of foldersToScan) {
@@ -974,40 +1011,66 @@ export async function fetchSupabaseStoragePhotosMap(): Promise<Map<string, strin
         });
 
         if (!error && Array.isArray(data)) {
-          data.forEach(item => {
-            if (!item.name || item.name.startsWith('.')) return;
+          for (const item of data) {
+            if (!item.name || item.name.startsWith('.')) continue;
 
-            const filePath = folder ? `${folder}/${item.name}` : item.name;
-            const { data: publicUrlData } = supabase.storage.from(bucketName).getPublicUrl(filePath);
-            const publicUrl = publicUrlData?.publicUrl;
-            if (!publicUrl || !isValidWebPhotoUrl(publicUrl)) return;
+            // CASO A: Subpasta (item.id === null) dentro de 'produtos' (ex: 'produtos/1750')
+            if (item.id === null && folder === 'produtos') {
+              if (item.name === 'thumbnails') continue;
+              const folderProdId = item.name.trim(); // ex: "1750"
+              const subFolderPath = `produtos/${item.name}`;
 
-            // Extrai o ID entre os underline (_): ex: produto_1998_1787273728 -> 1998
-            let extractedId = '';
-            const matchNamed = item.name.match(/(?:produto|foto|img|image)_([a-zA-Z0-9-]+)(?:_|\.|$)/i);
-            if (matchNamed && matchNamed[1]) {
-              extractedId = matchNamed[1].trim();
-            } else {
-              const matchDirect = item.name.match(/^([a-zA-Z0-9-]+)_/);
-              if (matchDirect && matchDirect[1]) {
-                extractedId = matchDirect[1].trim();
+              try {
+                const { data: subItems, error: subErr } = await supabase.storage.from(bucketName).list(subFolderPath, {
+                  limit: 100,
+                  sortBy: { column: 'name', order: 'asc' },
+                });
+
+                if (!subErr && Array.isArray(subItems)) {
+                  for (const sub of subItems) {
+                    if (!sub.name || sub.name.startsWith('.') || sub.id === null) continue;
+                    const subFilePath = `${subFolderPath}/${sub.name}`;
+                    const { data: pubData } = supabase.storage.from(bucketName).getPublicUrl(subFilePath);
+                    const publicUrl = pubData?.publicUrl;
+
+                    if (publicUrl && isValidWebPhotoUrl(publicUrl)) {
+                      // Dá prioridade (prepend) para a foto real encontrada dentro da pasta do produto
+                      registerPhoto(folderProdId, publicUrl, true);
+
+                      // Se o nome do arquivo também contiver ID, mapeia também
+                      const matchInName = sub.name.match(/(?:produto|foto|img|image)_([a-zA-Z0-9-]+)(?:_|\.|$)/i);
+                      if (matchInName && matchInName[1]) {
+                        registerPhoto(matchInName[1], publicUrl, true);
+                      }
+                    }
+                  }
+                }
+              } catch (subScanErr) {
+                // Silently continue
+              }
+            } else if (item.id !== null) {
+              // CASO B: Arquivo solto (ex: 'produtos/produto_1998_...bmp' ou 'foto_1750_...webp')
+              const filePath = folder ? `${folder}/${item.name}` : item.name;
+              const { data: publicUrlData } = supabase.storage.from(bucketName).getPublicUrl(filePath);
+              const publicUrl = publicUrlData?.publicUrl;
+              if (!publicUrl || !isValidWebPhotoUrl(publicUrl)) continue;
+
+              let extractedId = '';
+              const matchNamed = item.name.match(/(?:produto|foto|img|image)_([a-zA-Z0-9-]+)(?:_|\.|$)/i);
+              if (matchNamed && matchNamed[1]) {
+                extractedId = matchNamed[1].trim();
+              } else {
+                const matchDirect = item.name.match(/^([a-zA-Z0-9-]+)_/);
+                if (matchDirect && matchDirect[1]) {
+                  extractedId = matchDirect[1].trim();
+                }
+              }
+
+              if (extractedId) {
+                registerPhoto(extractedId, publicUrl, true);
               }
             }
-
-            if (extractedId) {
-              const cleanId = extractedId.replace(/^MOB-/i, '');
-              const mobIdKey = `MOB-${cleanId}`;
-
-              [cleanId, mobIdKey, extractedId].forEach(key => {
-                if (!key) return;
-                const list = photoMap.get(key) || [];
-                if (!list.includes(publicUrl)) {
-                  list.push(publicUrl);
-                  photoMap.set(key, list);
-                }
-              });
-            }
-          });
+          }
         }
       } catch (err) {
         // Silently scan next bucket/folder combination

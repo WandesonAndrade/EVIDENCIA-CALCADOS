@@ -19,7 +19,8 @@ import {
   Layers, 
   Tag,
   Eye,
-  EyeOff
+  EyeOff,
+  AlertTriangle
 } from 'lucide-react';
 
 export interface AdminProductRowProps {
@@ -31,6 +32,8 @@ export interface AdminProductRowProps {
   onDelete: (mobId: string) => void;
   resolveSubcategory?: (item: any, existingDb?: Product | null) => string;
   onToggleVisibility?: (mobId: string, currentVisible: boolean) => void;
+  isPhotoBroken?: boolean;
+  onImageError?: (mobId: string, url: string) => void;
 }
 
 export const AdminProductRow: React.FC<AdminProductRowProps> = ({
@@ -42,6 +45,8 @@ export const AdminProductRow: React.FC<AdminProductRowProps> = ({
   onDelete,
   resolveSubcategory,
   onToggleVisibility,
+  isPhotoBroken,
+  onImageError,
 }) => {
   const mobId = String(item.id || item.moblinkId || 'MOB-000');
   const isErpSynced = !item.isManual && (item.moblinkId || String(item.id).startsWith('MOB-') || true);
@@ -57,7 +62,8 @@ export const AdminProductRow: React.FC<AdminProductRowProps> = ({
 
   const isManuallyActive = existingDb ? existingDb.visible !== false : (item.visible !== false);
   const hasStock = estoqueAtual > 0;
-  const isVisibleOnSite = !isUnclassified && isManuallyActive && hasStock && hasMedia;
+  const isBroken = Boolean(isPhotoBroken);
+  const isVisibleOnSite = !isUnclassified && isManuallyActive && hasStock && hasMedia && !isBroken;
 
   let visibilityReason = '';
   if (isUnclassified) {
@@ -66,6 +72,8 @@ export const AdminProductRow: React.FC<AdminProductRowProps> = ({
     visibilityReason = 'Desativado no cadastro';
   } else if (!hasStock) {
     visibilityReason = 'Sem estoque';
+  } else if (isBroken) {
+    visibilityReason = 'Foto com erro (404 / NoSuchKey)';
   } else if (!hasMedia) {
     visibilityReason = 'Sem foto cadastrada';
   } else {
@@ -113,11 +121,22 @@ export const AdminProductRow: React.FC<AdminProductRowProps> = ({
       {/* PRODUCT THUMBNAIL, NAME, SKU & CATEGORY */}
       <td className="p-4">
         <div className="flex items-center gap-3">
-          <ProductImage
-            product={existingDb || item}
-            variant="thumb"
-            containerClassName="w-11 h-11"
-          />
+          <div className="relative">
+            <ProductImage
+              product={existingDb || item}
+              variant="thumb"
+              containerClassName="w-11 h-11"
+              onImageError={(failedUrl) => onImageError?.(mobId, failedUrl)}
+            />
+            {isBroken && (
+              <span 
+                className="absolute -top-1.5 -right-1.5 bg-rose-600 text-white p-0.5 rounded-full shadow-md animate-bounce ring-2 ring-white dark:ring-slate-900"
+                title="Foto com erro 404 / NoSuchKey"
+              >
+                <AlertTriangle className="h-3 w-3" />
+              </span>
+            )}
+          </div>
           <div className="space-y-0.5">
             <p className="font-bold text-slate-900 dark:text-slate-100 text-xs group-hover:text-[#0071E3] dark:group-hover:text-blue-400 transition-colors">
               {item.nome || item.name || item.descricao}
@@ -233,7 +252,15 @@ export const AdminProductRow: React.FC<AdminProductRowProps> = ({
 
       {/* MEDIA STATUS BADGE */}
       <td className="p-4">
-        {hasMedia ? (
+        {isBroken ? (
+          <span
+            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-extrabold bg-rose-500/10 text-rose-700 dark:text-rose-300 border border-rose-500/30"
+            title="Esta foto não existe no Supabase Storage (404 / NoSuchKey)"
+          >
+            <AlertTriangle className="h-3.5 w-3.5 text-rose-600 dark:text-rose-400 shrink-0" />
+            <span>Erro 404 (Quebrada)</span>
+          </span>
+        ) : hasMedia ? (
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-extrabold bg-[#DDF1FF] text-[#003B73] dark:bg-blue-950/70 dark:text-blue-200 border border-[#006EDB]/20">
             <CheckCircle2 className="h-3.5 w-3.5 text-[#006EDB]" />
             <span>Com Fotos ({existingDb?.images?.length || 1})</span>

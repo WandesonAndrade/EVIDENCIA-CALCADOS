@@ -1,6 +1,7 @@
 import React from 'react';
 import { Product } from '../../../types';
 import { AdminProductRow } from './AdminProductRow';
+import { extractProductPhotoUrl } from '../atomic/ProductImage';
 import { CheckSquare, Square, Package } from 'lucide-react';
 
 export interface AdminProductsTableProps {
@@ -13,6 +14,8 @@ export interface AdminProductsTableProps {
   getExistingDbProduct: (mobId: string) => Product | null | undefined;
   resolveSubcategory?: (item: any, existingDb?: Product | null) => string;
   onToggleVisibility?: (mobId: string, currentVisible: boolean) => void;
+  brokenPhotoMap?: Record<string, string>;
+  onImageError?: (mobId: string, url: string) => void;
 }
 
 export const AdminProductsTable: React.FC<AdminProductsTableProps> = ({
@@ -25,6 +28,8 @@ export const AdminProductsTable: React.FC<AdminProductsTableProps> = ({
   getExistingDbProduct,
   resolveSubcategory,
   onToggleVisibility,
+  brokenPhotoMap,
+  onImageError,
 }) => {
   const allSelected =
     products.length > 0 &&
@@ -76,8 +81,21 @@ export const AdminProductsTable: React.FC<AdminProductsTableProps> = ({
         <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
           {products.map((item) => {
             const mobId = String(item.id || item.moblinkId || 'MOB-000');
+            const cleanId = mobId.replace(/^MOB-/i, '');
             const existingDb = getExistingDbProduct(mobId);
             const isItemSelected = Boolean(selectedMobIds[mobId]);
+
+            const currentPhoto = extractProductPhotoUrl(existingDb || item);
+            const recordedBrokenUrl = brokenPhotoMap ? (
+              brokenPhotoMap[mobId] || 
+              brokenPhotoMap[cleanId] || 
+              (existingDb?.id && brokenPhotoMap[String(existingDb.id)]) ||
+              ''
+            ) : '';
+
+            const isBroken = Boolean(
+              recordedBrokenUrl && (!currentPhoto || recordedBrokenUrl === currentPhoto)
+            );
 
             return (
               <AdminProductRow
@@ -90,6 +108,8 @@ export const AdminProductsTable: React.FC<AdminProductsTableProps> = ({
                 onDelete={onDeleteProduct}
                 resolveSubcategory={resolveSubcategory}
                 onToggleVisibility={onToggleVisibility}
+                isPhotoBroken={isBroken}
+                onImageError={onImageError}
               />
             );
           })}

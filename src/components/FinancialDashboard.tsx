@@ -65,7 +65,18 @@ const formatCurrency = (val: number) =>
 const formatDate = (dateStr?: string) => {
   if (!dateStr) return 'N/A';
   try {
-    const d = new Date(dateStr);
+    const trimmed = String(dateStr).trim();
+    if (/^\d{2}\/\d{2}\/\d{4}/.test(trimmed)) {
+      return trimmed.slice(0, 10);
+    }
+    const clean = trimmed.split('T')[0].split(' ')[0];
+    if (clean.includes('-')) {
+      const parts = clean.split('-');
+      if (parts.length === 3 && parts[0].length === 4) {
+        return `${parts[2]}/${parts[1]}/${parts[0]}`;
+      }
+    }
+    const d = new Date(trimmed);
     if (isNaN(d.getTime())) return dateStr;
     return d.toLocaleDateString('pt-BR');
   } catch {

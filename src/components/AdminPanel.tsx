@@ -959,7 +959,7 @@ export const AdminPanel: React.FC = () => {
 
   return (
 
-    <div className={`min-h-screen flex flex-col md:flex-row transition-colors duration-300 font-sans ${
+    <div className={`h-screen overflow-hidden flex flex-col md:flex-row transition-colors duration-300 font-sans ${
       isDark ? 'bg-[#0B0F19] text-slate-100' : 'bg-slate-50 text-slate-800'
     }`}>
       
@@ -1015,26 +1015,25 @@ export const AdminPanel: React.FC = () => {
         ${isSidebarCollapsed ? 'md:hidden' : 'md:flex'}
         ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
         fixed md:sticky top-0 bottom-0 left-0 z-50 md:z-30
-        w-72 shrink-0 border-r backdrop-blur-2xl flex flex-col justify-between
+        w-72 lg:w-80 shrink-0 border-r backdrop-blur-2xl flex flex-col
         transition-all duration-300 ease-in-out
-        h-screen overflow-y-auto
-        ${isDark ? 'bg-slate-900/95 border-slate-800' : 'bg-white/95 border-slate-200 shadow-sm'}
+        h-screen overflow-hidden
+        ${isDark ? 'bg-slate-900/95 border-slate-800' : 'bg-white/95 border-slate-200/80 shadow-sm'}
       `}>
-        <div className="p-5 space-y-6">
-          
-          {/* Logo, Botão Sanduíche & Retorno à Loja */}
-          <div className="flex items-center justify-between pb-4 border-b border-slate-800/40">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-400 to-amber-500 text-slate-950 flex items-center justify-center font-black text-lg shadow-lg">
+        {/* Header: Logo & Botões Fixos */}
+        <div className={`p-4 sm:p-5 border-b shrink-0 ${isDark ? 'border-slate-800/80' : 'border-slate-100'}`}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3 min-w-0">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-400 to-amber-500 text-slate-950 flex items-center justify-center font-black text-lg shadow-sm shrink-0">
                 EC
               </div>
-              <div>
-                <h1 className="text-sm font-black tracking-tight leading-none">EVIDÊNCIA CMS</h1>
-                <span className="text-[10px] text-amber-400 font-bold uppercase tracking-wider">Painel Gestor</span>
+              <div className="min-w-0">
+                <h1 className="text-sm font-black tracking-tight leading-none truncate">EVIDÊNCIA CMS</h1>
+                <span className="text-[10px] text-amber-500 dark:text-amber-400 font-bold uppercase tracking-wider block mt-1">Painel Gestor</span>
               </div>
             </div>
 
-            <div className="flex items-center space-x-1">
+            <div className="flex items-center space-x-1 shrink-0">
               <button
                 onClick={() => setCurrentView('home')}
                 className={`p-2 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
@@ -1068,347 +1067,353 @@ export const AdminPanel: React.FC = () => {
               </button>
             </div>
           </div>
-
-          {/* Navigation Groups Reorganizados */}
-          <nav className="space-y-6">
-            
-            {/* GRUPO 1: DASHBOARD & VENDAS */}
-            <div className="space-y-1">
-              <span className="text-[10px] font-black tracking-widest text-slate-400 uppercase px-3">DASHBOARD & VENDAS</span>
-              
-              {/* 1. Visão Geral & Métricas */}
-              <button
-                onClick={() => handleSelectTab('overview')}
-                className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  activeTab === 'overview'
-                    ? isDark ? 'bg-amber-400/10 text-amber-400 border border-amber-400/30' : 'bg-slate-900 text-white shadow-sm'
-                    : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                <BarChart className="h-4 w-4" />
-                <span>Visão Geral & Métricas</span>
-              </button>
-
-              {/* 2. Vendas & Pedidos */}
-              <button
-                onClick={() => handleSelectTab('sales')}
-                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  activeTab === 'sales'
-                    ? isDark ? 'bg-amber-400/10 text-amber-400 border border-amber-400/30' : 'bg-slate-900 text-white shadow-sm'
-                    : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                <div className="flex items-center space-x-3">
-                  <ShoppingBag className="h-4 w-4" />
-                  <span>Vendas & Pedidos</span>
-                </div>
-                {orders.length > 0 && (
-                  <span className="bg-amber-400 text-slate-950 px-2 py-0.5 rounded-full text-[10px] font-black">
-                    {orders.length}
-                  </span>
-                )}
-              </button>
-
-              {/* 3. Dashboard Financeiro */}
-              <button
-                onClick={() => handleSelectTab('financeiro')}
-                className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  activeTab === 'financeiro'
-                    ? isDark ? 'bg-[#007aff]/15 text-[#007aff] border border-[#007aff]/30' : 'bg-[#007aff] text-white shadow-sm'
-                    : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                <DollarSign className="h-4 w-4 text-[#007aff]" />
-                <span>Dashboard Financeiro</span>
-              </button>
-
-              {/* 4. Crediário Próprio */}
-              <button
-                onClick={() => handleSelectTab('crediario')}
-                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  activeTab === 'crediario'
-                    ? isDark ? 'bg-amber-400/10 text-amber-400 border border-amber-400/30' : 'bg-slate-900 text-white shadow-sm'
-                    : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                <div className="flex items-center space-x-3">
-                  <CreditCard className="h-4 w-4 text-amber-500" />
-                  <span>Crediário Próprio</span>
-                </div>
-                {users.filter(u => u.crediarioStatus === 'EmAnalise').length > 0 && (
-                  <span className="bg-amber-400 text-slate-950 px-2 py-0.5 rounded-full text-[10px] font-black animate-pulse" title="Análises de crediário pendentes">
-                    {users.filter(u => u.crediarioStatus === 'EmAnalise').length} pendente(s)
-                  </span>
-                )}
-              </button>
-
-              {/* 5. Base de Clientes & CRM */}
-              <button
-                onClick={() => handleSelectTab('customers')}
-                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  activeTab === 'customers'
-                    ? isDark ? 'bg-amber-400/10 text-amber-400 border border-amber-400/30' : 'bg-slate-900 text-white shadow-sm'
-                    : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                <div className="flex items-center space-x-3">
-                  <Users className="h-4 w-4" />
-                  <span>Base de Clientes & CRM</span>
-                </div>
-              </button>
-
-              {/* 6. Vendedores (Cadastros) */}
-              <button
-                onClick={() => handleSelectTab('vendedores')}
-                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  activeTab === 'vendedores'
-                    ? isDark ? 'bg-amber-400/10 text-amber-400 border border-amber-400/30' : 'bg-slate-900 text-white shadow-sm'
-                    : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                <div className="flex items-center space-x-3">
-                  <UserCheck className="h-4 w-4 text-emerald-500" />
-                  <span>Vendedores (Cadastros)</span>
-                </div>
-              </button>
-            </div>
-
-            {/* GRUPO 2: CATÁLOGO & ESTOQUE */}
-            <div className="space-y-1">
-              <span className="text-[10px] font-black tracking-widest text-slate-400 uppercase px-3">CATÁLOGO & ESTOQUE</span>
-              
-              {/* 1. Integrador MobLink ERP (Destaque Principal de Origem) */}
-              <button
-                onClick={() => handleSelectTab('moblink')}
-                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  activeTab === 'moblink'
-                    ? isDark ? 'bg-amber-400/10 text-amber-400 border border-amber-400/30' : 'bg-slate-900 text-white shadow-sm'
-                    : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                <div className="flex items-center space-x-3">
-                  <Zap className="h-4 w-4 text-amber-400" />
-                  <span>Integrador MobLink ERP</span>
-                </div>
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              </button>
-
-              {/* 2. Gestão de Estoque */}
-              <button
-                onClick={() => handleSelectTab('inventory')}
-                className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  activeTab === 'inventory'
-                    ? isDark ? 'bg-amber-400/10 text-amber-400 border border-amber-400/30' : 'bg-slate-900 text-white shadow-sm'
-                    : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                <Package className="h-4 w-4" />
-                <span>Gestão de Estoque</span>
-              </button>
-
-              {/* 3. Categorias da Loja */}
-              <button
-                onClick={() => handleSelectTab('categories')}
-                className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  activeTab === 'categories'
-                    ? isDark ? 'bg-amber-400/10 text-amber-400 border border-amber-400/30' : 'bg-slate-900 text-white shadow-sm'
-                    : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                <Layers className="h-4 w-4" />
-                <span>Categorias da Loja</span>
-              </button>
-
-              {/* 4. Caixas & Frete (Melhor Envio) */}
-              <button
-                onClick={() => handleSelectTab('shipping-boxes')}
-                className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  activeTab === 'shipping-boxes'
-                    ? isDark ? 'bg-amber-400/10 text-amber-400 border border-amber-400/30' : 'bg-slate-900 text-white shadow-sm'
-                    : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                <Package className="h-4 w-4 text-blue-400" />
-                <span>Caixas & Frete (Melhor Envio)</span>
-              </button>
-            </div>
-
-            {/* GRUPO 3: CMS & VITRINE */}
-            {isAdmin && (
-              <div className="space-y-1">
-                <span className="text-[10px] font-black tracking-widest text-amber-400 uppercase px-3 flex items-center space-x-1">
-                  <Sparkles className="h-3 w-3" />
-                  <span>CMS & VITRINE</span>
-                </span>
-
-                {/* 1. Banners Principais (Hero) */}
-                <button
-                  onClick={() => handleSelectTab('banners')}
-                  className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                    activeTab === 'banners'
-                      ? isDark ? 'bg-amber-400/10 text-amber-400 border border-amber-400/30' : 'bg-slate-900 text-white shadow-sm'
-                      : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
-                  }`}
-                >
-                  <Image className="h-4 w-4" />
-                  <span>Banners Principais (Hero)</span>
-                </button>
-
-                {/* 1.5. Cards da Vitrine (3 Banners) */}
-                <button
-                  onClick={() => handleSelectTab('promo-cards')}
-                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                    activeTab === 'promo-cards'
-                      ? isDark ? 'bg-amber-400/10 text-amber-400 border border-amber-400/30' : 'bg-slate-900 text-white shadow-sm'
-                      : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
-                  }`}
-                >
-                  <div className="flex items-center space-x-3">
-                    <LayoutGrid className="h-4 w-4 text-amber-400" />
-                    <span>Cards da Vitrine (3 Banners)</span>
-                  </div>
-                  <span className="px-1.5 py-0.5 text-[9px] font-black rounded-md bg-amber-400/20 text-amber-400 uppercase">
-                    Novo
-                  </span>
-                </button>
-
-                {/* 2. Ofertas & Promoções */}
-                <button
-                  onClick={() => handleSelectTab('promotions')}
-                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                    activeTab === 'promotions'
-                      ? isDark ? 'bg-amber-400/10 text-amber-400 border border-amber-400/30' : 'bg-slate-900 text-white shadow-sm'
-                      : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
-                  }`}
-                >
-                  <div className="flex items-center space-x-3">
-                    <Gift className="h-4 w-4 text-amber-500" />
-                    <span>Ofertas & Promoções</span>
-                  </div>
-                  {promotions.filter(p => isCampaignActive(p)).length > 0 && (
-                    <span className="px-1.5 py-0.5 text-[9px] font-black rounded-md bg-amber-500 text-slate-950 uppercase">
-                      {promotions.filter(p => isCampaignActive(p)).length}
-                    </span>
-                  )}
-                </button>
-
-                {/* 3. Saldão de Calçados */}
-                <button
-                  onClick={() => handleSelectTab('saldao')}
-                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                    activeTab === 'saldao'
-                      ? isDark ? 'bg-rose-500/10 text-rose-400 border border-rose-500/30' : 'bg-slate-900 text-white shadow-sm'
-                      : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
-                  }`}
-                >
-                  <div className="flex items-center space-x-3">
-                    <Tag className="h-4 w-4 text-rose-500" />
-                    <span>Saldão de Calçados</span>
-                  </div>
-                  {saldaoConfig?.enabled && (
-                    <span className="px-1.5 py-0.5 text-[9px] font-black rounded-md bg-rose-500 text-white uppercase">
-                      Ativo
-                    </span>
-                  )}
-                </button>
-
-                {/* 4. Temas & Campanhas Sazonais */}
-                <button
-                  onClick={() => handleSelectTab('themes')}
-                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                    activeTab === 'themes'
-                      ? isDark ? 'bg-pink-500/10 text-pink-400 border border-pink-500/30' : 'bg-slate-900 text-white shadow-sm'
-                      : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
-                  }`}
-                >
-                  <div className="flex items-center space-x-3">
-                    <Palette className="h-4 w-4 text-pink-400" />
-                    <span>Temas & Campanhas</span>
-                  </div>
-                  <span className={`px-1.5 py-0.5 text-[9px] font-black rounded-md uppercase ${
-                    storeTheme === 'outubro-rosa'
-                      ? 'bg-pink-500 text-white'
-                      : 'bg-slate-700 text-slate-300'
-                  }`}>
-                    {storeTheme === 'outubro-rosa' ? 'Rosa' : 'Padrão'}
-                  </span>
-                </button>
-
-                {/* 5. Editor "Sobre Nós" */}
-                <button
-                  onClick={() => handleSelectTab('about-editor')}
-                  className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                    activeTab === 'about-editor'
-                      ? isDark ? 'bg-amber-400/10 text-amber-400 border border-amber-400/30' : 'bg-slate-900 text-white shadow-sm'
-                      : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
-                  }`}
-                >
-                  <BookOpen className="h-4 w-4" />
-                  <span>Editor "Sobre Nós"</span>
-                </button>
-
-                {/* 5. Suporte & Contatos */}
-                <button
-                  onClick={() => handleSelectTab('support-contact')}
-                  className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                    activeTab === 'support-contact'
-                      ? isDark ? 'bg-amber-400/10 text-amber-400 border border-amber-400/30' : 'bg-slate-900 text-white shadow-sm'
-                      : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
-                  }`}
-                >
-                  <PhoneCall className="h-4 w-4" />
-                  <span>Suporte & Contatos</span>
-                </button>
-              </div>
-            )}
-
-            {/* GRUPO 4: SISTEMA */}
-            {isAdmin && (
-              <div className="space-y-1">
-                <span className="text-[10px] font-black tracking-widest text-slate-400 uppercase px-3">SISTEMA</span>
-                
-                {/* 1. Gestão de Equipe & Colaboradores */}
-                <button
-                  onClick={() => handleSelectTab('team')}
-                  className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                    activeTab === 'team'
-                      ? isDark ? 'bg-amber-400/10 text-amber-400 border border-amber-400/30' : 'bg-slate-900 text-white shadow-sm'
-                      : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
-                  }`}
-                >
-                  <Shield className="h-4 w-4 text-amber-400" />
-                  <span>Gestão de Equipe & Colaboradores</span>
-                </button>
-
-                {/* 2. Configurações Gerais */}
-                <button
-                  onClick={() => handleSelectTab('settings')}
-                  className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                    activeTab === 'settings'
-                      ? isDark ? 'bg-amber-400/10 text-amber-400 border border-amber-400/30' : 'bg-slate-900 text-white shadow-sm'
-                      : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
-                  }`}
-                >
-                  <Settings className="h-4 w-4" />
-                  <span>Configurações Gerais</span>
-                </button>
-              </div>
-            )}
-
-          </nav>
         </div>
 
-        {/* User Info & Admin Logout Button */}
-        <div className="p-4 border-t border-slate-800/40">
+        {/* Scrollable Navigation Groups */}
+        <nav className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-6 custom-scrollbar overscroll-contain">
+          
+          {/* GRUPO 1: DASHBOARD & VENDAS */}
+          <div className="space-y-1">
+            <span className="text-[10px] font-black tracking-widest text-slate-400 uppercase px-3 block mb-1">DASHBOARD & VENDAS</span>
+            
+            {/* 1. Visão Geral & Métricas */}
+            <button
+              onClick={() => handleSelectTab('overview')}
+              className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'overview'
+                  ? isDark ? 'bg-amber-400/15 text-amber-400 border border-amber-400/30 shadow-xs' : 'bg-[#0071E3] text-white shadow-xs font-bold'
+                  : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              <BarChart className="h-4 w-4 shrink-0" />
+              <span className="truncate whitespace-nowrap">Visão Geral & Métricas</span>
+            </button>
+
+            {/* 2. Vendas & Pedidos */}
+            <button
+              onClick={() => handleSelectTab('sales')}
+              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'sales'
+                  ? isDark ? 'bg-amber-400/15 text-amber-400 border border-amber-400/30 shadow-xs' : 'bg-[#0071E3] text-white shadow-xs font-bold'
+                  : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              <div className="flex items-center space-x-3 min-w-0 flex-1">
+                <ShoppingBag className="h-4 w-4 shrink-0" />
+                <span className="truncate whitespace-nowrap">Vendas & Pedidos</span>
+              </div>
+              {orders.length > 0 && (
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-black shrink-0 ml-2 ${
+                  activeTab === 'sales' && !isDark ? 'bg-white/20 text-white' : 'bg-amber-400 text-slate-950'
+                }`}>
+                  {orders.length}
+                </span>
+              )}
+            </button>
+
+            {/* 3. Dashboard Financeiro */}
+            <button
+              onClick={() => handleSelectTab('financeiro')}
+              className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'financeiro'
+                  ? isDark ? 'bg-[#007aff]/15 text-[#007aff] border border-[#007aff]/30 shadow-xs' : 'bg-[#0071E3] text-white shadow-xs font-bold'
+                  : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              <DollarSign className={`h-4 w-4 shrink-0 ${activeTab === 'financeiro' && !isDark ? 'text-white' : 'text-[#007aff]'}`} />
+              <span className="truncate whitespace-nowrap">Dashboard Financeiro</span>
+            </button>
+
+            {/* 4. Crediário Próprio */}
+            <button
+              onClick={() => handleSelectTab('crediario')}
+              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'crediario'
+                  ? isDark ? 'bg-amber-400/15 text-amber-400 border border-amber-400/30 shadow-xs' : 'bg-[#0071E3] text-white shadow-xs font-bold'
+                  : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              <div className="flex items-center space-x-3 min-w-0 flex-1">
+                <CreditCard className={`h-4 w-4 shrink-0 ${activeTab === 'crediario' && !isDark ? 'text-white' : 'text-amber-500'}`} />
+                <span className="truncate whitespace-nowrap">Crediário Próprio</span>
+              </div>
+              {users.filter(u => u.crediarioStatus === 'EmAnalise').length > 0 && (
+                <span className="bg-amber-400 text-slate-950 px-2 py-0.5 rounded-full text-[10px] font-black animate-pulse shrink-0 ml-2" title="Análises de crediário pendentes">
+                  {users.filter(u => u.crediarioStatus === 'EmAnalise').length} pendente(s)
+                </span>
+              )}
+            </button>
+
+            {/* 5. Base de Clientes & CRM */}
+            <button
+              onClick={() => handleSelectTab('customers')}
+              className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'customers'
+                  ? isDark ? 'bg-amber-400/15 text-amber-400 border border-amber-400/30 shadow-xs' : 'bg-[#0071E3] text-white shadow-xs font-bold'
+                  : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              <Users className="h-4 w-4 shrink-0" />
+              <span className="truncate whitespace-nowrap">Base de Clientes & CRM</span>
+            </button>
+
+            {/* 6. Vendedores (Cadastros) */}
+            <button
+              onClick={() => handleSelectTab('vendedores')}
+              className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'vendedores'
+                  ? isDark ? 'bg-amber-400/15 text-amber-400 border border-amber-400/30 shadow-xs' : 'bg-[#0071E3] text-white shadow-xs font-bold'
+                  : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              <UserCheck className={`h-4 w-4 shrink-0 ${activeTab === 'vendedores' && !isDark ? 'text-white' : 'text-emerald-500'}`} />
+              <span className="truncate whitespace-nowrap">Vendedores (Cadastros)</span>
+            </button>
+          </div>
+
+          {/* GRUPO 2: CATÁLOGO & ESTOQUE */}
+          <div className="space-y-1">
+            <span className="text-[10px] font-black tracking-widest text-slate-400 uppercase px-3 block mb-1">CATÁLOGO & ESTOQUE</span>
+            
+            {/* 1. Integrador MobLink ERP */}
+            <button
+              onClick={() => handleSelectTab('moblink')}
+              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'moblink'
+                  ? isDark ? 'bg-amber-400/15 text-amber-400 border border-amber-400/30 shadow-xs' : 'bg-[#0071E3] text-white shadow-xs font-bold'
+                  : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              <div className="flex items-center space-x-3 min-w-0 flex-1">
+                <Zap className={`h-4 w-4 shrink-0 ${activeTab === 'moblink' && !isDark ? 'text-white' : 'text-amber-400'}`} />
+                <span className="truncate whitespace-nowrap">Integrador MobLink ERP</span>
+              </div>
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0 ml-2" />
+            </button>
+
+            {/* 2. Gestão de Estoque */}
+            <button
+              onClick={() => handleSelectTab('inventory')}
+              className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'inventory'
+                  ? isDark ? 'bg-amber-400/15 text-amber-400 border border-amber-400/30 shadow-xs' : 'bg-[#0071E3] text-white shadow-xs font-bold'
+                  : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              <Package className="h-4 w-4 shrink-0" />
+              <span className="truncate whitespace-nowrap">Gestão de Estoque</span>
+            </button>
+
+            {/* 3. Categorias da Loja */}
+            <button
+              onClick={() => handleSelectTab('categories')}
+              className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'categories'
+                  ? isDark ? 'bg-amber-400/15 text-amber-400 border border-amber-400/30 shadow-xs' : 'bg-[#0071E3] text-white shadow-xs font-bold'
+                  : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              <Layers className="h-4 w-4 shrink-0" />
+              <span className="truncate whitespace-nowrap">Categorias da Loja</span>
+            </button>
+
+            {/* 4. Caixas & Frete (Melhor Envio) */}
+            <button
+              onClick={() => handleSelectTab('shipping-boxes')}
+              className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'shipping-boxes'
+                  ? isDark ? 'bg-amber-400/15 text-amber-400 border border-amber-400/30 shadow-xs' : 'bg-[#0071E3] text-white shadow-xs font-bold'
+                  : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              <Package className={`h-4 w-4 shrink-0 ${activeTab === 'shipping-boxes' && !isDark ? 'text-white' : 'text-blue-400'}`} />
+              <span className="truncate whitespace-nowrap">Caixas & Frete (Melhor Envio)</span>
+            </button>
+          </div>
+
+          {/* GRUPO 3: CMS & VITRINE */}
+          {isAdmin && (
+            <div className="space-y-1">
+              <span className="text-[10px] font-black tracking-widest text-amber-500 dark:text-amber-400 uppercase px-3 flex items-center space-x-1 mb-1">
+                <Sparkles className="h-3 w-3" />
+                <span>CMS & VITRINE</span>
+              </span>
+
+              {/* 1. Banners Principais (Hero) */}
+              <button
+                onClick={() => handleSelectTab('banners')}
+                className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  activeTab === 'banners'
+                    ? isDark ? 'bg-amber-400/15 text-amber-400 border border-amber-400/30 shadow-xs' : 'bg-[#0071E3] text-white shadow-xs font-bold'
+                    : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <Image className="h-4 w-4 shrink-0" />
+                <span className="truncate whitespace-nowrap">Banners Principais (Hero)</span>
+              </button>
+
+              {/* 1.5. Cards da Vitrine (3 Banners) */}
+              <button
+                onClick={() => handleSelectTab('promo-cards')}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  activeTab === 'promo-cards'
+                    ? isDark ? 'bg-amber-400/15 text-amber-400 border border-amber-400/30 shadow-xs' : 'bg-[#0071E3] text-white shadow-xs font-bold'
+                    : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <div className="flex items-center space-x-3 min-w-0 flex-1">
+                  <LayoutGrid className={`h-4 w-4 shrink-0 ${activeTab === 'promo-cards' && !isDark ? 'text-white' : 'text-amber-400'}`} />
+                  <span className="truncate whitespace-nowrap">Cards da Vitrine (3 Banners)</span>
+                </div>
+                <span className={`px-1.5 py-0.5 text-[9px] font-black rounded-md uppercase shrink-0 ml-2 ${
+                  activeTab === 'promo-cards' && !isDark ? 'bg-white/20 text-white' : 'bg-amber-400/20 text-amber-400'
+                }`}>
+                  Novo
+                </span>
+              </button>
+
+              {/* 2. Ofertas & Promoções */}
+              <button
+                onClick={() => handleSelectTab('promotions')}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  activeTab === 'promotions'
+                    ? isDark ? 'bg-amber-400/15 text-amber-400 border border-amber-400/30 shadow-xs' : 'bg-[#0071E3] text-white shadow-xs font-bold'
+                    : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <div className="flex items-center space-x-3 min-w-0 flex-1">
+                  <Gift className={`h-4 w-4 shrink-0 ${activeTab === 'promotions' && !isDark ? 'text-white' : 'text-amber-500'}`} />
+                  <span className="truncate whitespace-nowrap">Ofertas & Promoções</span>
+                </div>
+                {promotions.filter(p => isCampaignActive(p)).length > 0 && (
+                  <span className={`px-1.5 py-0.5 text-[9px] font-black rounded-md uppercase shrink-0 ml-2 ${
+                    activeTab === 'promotions' && !isDark ? 'bg-white/20 text-white' : 'bg-amber-500 text-slate-950'
+                  }`}>
+                    {promotions.filter(p => isCampaignActive(p)).length}
+                  </span>
+                )}
+              </button>
+
+              {/* 3. Saldão de Calçados */}
+              <button
+                onClick={() => handleSelectTab('saldao')}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  activeTab === 'saldao'
+                    ? isDark ? 'bg-rose-500/15 text-rose-400 border border-rose-500/30 shadow-xs' : 'bg-[#0071E3] text-white shadow-xs font-bold'
+                    : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <div className="flex items-center space-x-3 min-w-0 flex-1">
+                  <Tag className={`h-4 w-4 shrink-0 ${activeTab === 'saldao' && !isDark ? 'text-white' : 'text-rose-500'}`} />
+                  <span className="truncate whitespace-nowrap">Saldão de Calçados</span>
+                </div>
+                {saldaoConfig?.enabled && (
+                  <span className={`px-1.5 py-0.5 text-[9px] font-black rounded-md uppercase shrink-0 ml-2 ${
+                    activeTab === 'saldao' && !isDark ? 'bg-white/20 text-white' : 'bg-rose-500 text-white'
+                  }`}>
+                    Ativo
+                  </span>
+                )}
+              </button>
+
+              {/* 4. Temas & Campanhas Sazonais */}
+              <button
+                onClick={() => handleSelectTab('themes')}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  activeTab === 'themes'
+                    ? isDark ? 'bg-pink-500/15 text-pink-400 border border-pink-500/30 shadow-xs' : 'bg-[#0071E3] text-white shadow-xs font-bold'
+                    : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <div className="flex items-center space-x-3 min-w-0 flex-1">
+                  <Palette className={`h-4 w-4 shrink-0 ${activeTab === 'themes' && !isDark ? 'text-white' : 'text-pink-400'}`} />
+                  <span className="truncate whitespace-nowrap">Temas & Campanhas</span>
+                </div>
+                <span className={`px-1.5 py-0.5 text-[9px] font-black rounded-md uppercase shrink-0 ml-2 ${
+                  activeTab === 'themes' && !isDark
+                    ? 'bg-white/20 text-white'
+                    : storeTheme === 'outubro-rosa'
+                    ? 'bg-pink-500 text-white'
+                    : 'bg-slate-700 text-slate-300'
+                }`}>
+                  {storeTheme === 'outubro-rosa' ? 'Rosa' : 'Padrão'}
+                </span>
+              </button>
+
+              {/* 5. Editor "Sobre Nós" */}
+              <button
+                onClick={() => handleSelectTab('about-editor')}
+                className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  activeTab === 'about-editor'
+                    ? isDark ? 'bg-amber-400/15 text-amber-400 border border-amber-400/30 shadow-xs' : 'bg-[#0071E3] text-white shadow-xs font-bold'
+                    : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <BookOpen className="h-4 w-4 shrink-0" />
+                <span className="truncate whitespace-nowrap">Editor "Sobre Nós"</span>
+              </button>
+
+              {/* 6. Suporte & Contatos */}
+              <button
+                onClick={() => handleSelectTab('support-contact')}
+                className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  activeTab === 'support-contact'
+                    ? isDark ? 'bg-amber-400/15 text-amber-400 border border-amber-400/30 shadow-xs' : 'bg-[#0071E3] text-white shadow-xs font-bold'
+                    : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <PhoneCall className="h-4 w-4 shrink-0" />
+                <span className="truncate whitespace-nowrap">Suporte & Contatos</span>
+              </button>
+            </div>
+          )}
+
+          {/* GRUPO 4: SISTEMA */}
+          {isAdmin && (
+            <div className="space-y-1">
+              <span className="text-[10px] font-black tracking-widest text-slate-400 uppercase px-3 block mb-1">SISTEMA</span>
+              
+              {/* 1. Gestão de Equipe & Colaboradores */}
+              <button
+                onClick={() => handleSelectTab('team')}
+                className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  activeTab === 'team'
+                    ? isDark ? 'bg-amber-400/15 text-amber-400 border border-amber-400/30 shadow-xs' : 'bg-[#0071E3] text-white shadow-xs font-bold'
+                    : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <Shield className={`h-4 w-4 shrink-0 ${activeTab === 'team' && !isDark ? 'text-white' : 'text-amber-400'}`} />
+                <span className="truncate whitespace-nowrap">Gestão de Equipe & Colaboradores</span>
+              </button>
+
+              {/* 2. Configurações Gerais */}
+              <button
+                onClick={() => handleSelectTab('settings')}
+                className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  activeTab === 'settings'
+                    ? isDark ? 'bg-amber-400/15 text-amber-400 border border-amber-400/30 shadow-xs' : 'bg-[#0071E3] text-white shadow-xs font-bold'
+                    : isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <Settings className="h-4 w-4 shrink-0" />
+                <span className="truncate whitespace-nowrap">Configurações Gerais</span>
+              </button>
+            </div>
+          )}
+
+        </nav>
+
+        {/* User Info & Admin Logout Button (Fixed Footer) */}
+        <div className={`p-4 border-t shrink-0 ${isDark ? 'border-slate-800/80 bg-slate-900/60' : 'border-slate-100 bg-slate-50/70'}`}>
           {activeAdminUser && (
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3 px-1 truncate">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center space-x-3 px-1 min-w-0 flex-1">
                 <div className={`w-8 h-8 rounded-full font-black flex items-center justify-center text-xs shrink-0 ${
                   isAdmin ? 'bg-amber-400 text-slate-950' : 'bg-sky-400 text-slate-950'
                 }`}>
                   {activeAdminUser.name.charAt(0).toUpperCase()}
                 </div>
-                <div className="flex-1 truncate">
+                <div className="min-w-0 flex-1">
                   <p className="text-xs font-bold truncate">{activeAdminUser.name}</p>
                   <span className={`text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full inline-block ${
                     isAdmin ? 'bg-amber-400/20 text-amber-400 border border-amber-400/30' : 'bg-sky-400/20 text-sky-400 border border-sky-400/30'
@@ -1423,7 +1428,11 @@ export const AdminPanel: React.FC = () => {
                   logoutAdmin();
                   setCurrentView('home');
                 }}
-                className="p-2 rounded-xl border border-slate-800 text-slate-400 hover:text-rose-400 hover:border-rose-500/30 transition-colors cursor-pointer shrink-0"
+                className={`p-2 rounded-xl border transition-colors cursor-pointer shrink-0 ${
+                  isDark
+                    ? 'border-slate-800 text-slate-400 hover:text-rose-400 hover:border-rose-500/30'
+                    : 'border-slate-200 text-slate-500 hover:text-rose-600 hover:bg-rose-50 hover:border-rose-200'
+                }`}
                 title="Encerrar Sessão da Gestão"
               >
                 <LogOut className="h-4 w-4" />
@@ -1435,7 +1444,7 @@ export const AdminPanel: React.FC = () => {
       </aside>
 
       {/* MAIN CONTENT AREA */}
-      <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto space-y-6">
+      <main className="flex-1 h-full p-4 sm:p-6 lg:p-8 overflow-y-auto space-y-6 custom-scrollbar overscroll-contain">
         
         {/* BARRA SUPERIOR INTEGRADA QUANDO A SIDEBAR ESTIVER RECOLHIDA NO DESKTOP */}
         {isSidebarCollapsed && (
@@ -2343,7 +2352,7 @@ export const AdminPanel: React.FC = () => {
         {/* TAB 7: INVENTORY MANAGEMENT */}
         {activeTab === 'inventory' && (
           <ErrorBoundary fallbackTitle="Gestão de Produtos & Estoque (MobLink ERP)">
-            <MoblinkProductsManager />
+            <MoblinkProductsManager onBack={() => setActiveTab('overview')} />
           </ErrorBoundary>
         )}
 

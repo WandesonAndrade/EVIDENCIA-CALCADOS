@@ -30,6 +30,7 @@ import {
   ProductAiDescriptionButton, 
   ProductAiAssistantModals,
   ProductEditModal,
+  ProductEditPage,
 } from './products';
 import { db } from '../lib/firebase';
 import { doc, setDoc } from 'firebase/firestore';
@@ -50,6 +51,18 @@ import {
 import { validateImageFile } from '../services/imageOptimizationService';
 import { NO_PHOTO_SVG, isPlaceholderUrl, isValidWebPhotoUrl } from '../utils/placeholder';
 import { 
+  getBrokenPhotosMap, 
+  subscribeToBrokenPhotos, 
+  auditProductsPhotos, 
+  recordBrokenPhoto, 
+  clearBrokenPhoto,
+  resetBrokenPhotos, 
+  PhotoAuditProgress 
+} from '../services/brokenPhotoService';
+import { resolveProductBrand } from '../utils/brandUtils';
+import { resolveProductGender } from '../utils/genderUtils';
+import { ProductImage } from './products/atomic/ProductImage';
+import { 
   Package, 
   Search, 
   FileSpreadsheet,
@@ -57,6 +70,7 @@ import {
   FileText, 
   CheckCircle2, 
   AlertCircle, 
+  AlertTriangle,
   Plus, 
   Trash2, 
   Upload, 
@@ -80,6 +94,12 @@ import {
   Filter,
   ChevronDown,
   ChevronRight,
+  ChevronUp,
+  ChevronLeft,
+  Boxes,
+  Database,
+  Wifi,
+  LayoutGrid,
   Hash,
   FolderTree,
   CheckSquare,
@@ -281,8 +301,12 @@ const extractBestRealPhoto = (prod: any): string => {
   return '';
 };
 
-export const MoblinkProductsManager: React.FC = () => {
-  const { products, addProduct, updateProduct, deleteProduct, deleteProductsBatch, categories, theme } = useApp();
+export interface MoblinkProductsManagerProps {
+  onBack?: () => void;
+}
+
+export const MoblinkProductsManager: React.FC<MoblinkProductsManagerProps> = ({ onBack }) => {
+  const { products, addProduct, updateProduct, deleteProduct, deleteProductsBatch, categories, theme, goBack } = useApp();
 
   const [syncProgress, setSyncProgress] = useState<{ current: number; total: number; phase: string } | null>(null);
 
@@ -349,9 +373,55 @@ export const MoblinkProductsManager: React.FC = () => {
   const [hideNoGrade, setHideNoGrade] = useState(false);
   const [gradeFilter, setGradeFilter] = useState<'todos' | 'com_grade' | 'sem_grade'>('todos');
   const [visibilityFilter, setVisibilityFilter] = useState<'todos' | 'visivel' | 'oculto'>('todos');
-  const [photoFilter, setPhotoFilter] = useState<'todos' | 'com_foto' | 'sem_foto'>('todos');
+  const [photoFilter, setPhotoFilter] = useState<'todos' | 'com_foto' | 'sem_foto' | 'com_erro'>('todos');
+  const [brokenPhotoMap, setBrokenPhotoMap] = useState<Record<string, string>>(getBrokenPhotosMap());
+  const [isCheckingBrokenPhotos, setIsCheckingBrokenPhotos] = useState<boolean>(false);
+  const [brokenAuditProgress, setBrokenAuditProgress] = useState<PhotoAuditProgress | null>(null);
   const [sortBy, setSortBy] = useState<'nameSku' | 'refMoblink' | 'stockAsc' | 'stockDesc'>('nameSku');
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [isQuickActionsOpen, setIsQuickActionsOpen] = useState(true);
+  const [lastSyncTime, setLastSyncTime] = useState<string>(() => {
+    try {
+      const cacheStr = localStorage.getItem("moblink_products_cache");
+      if (cacheStr) {
+        const data = JSON.parse(cacheStr);
+        if (data?.cachedAt) {
+          const d = new Date(data.cachedAt);
+          const day = String(d.getDate()).padStart(2, '0');
+          const month = String(d.getMonth() + 1).padStart(2, '0');
+          const year = d.getFullYear();
+          const hours = String(d.getHours()).padStart(2, '0');
+          const minutes = String(d.getMinutes()).padStart(2, '0');
+          return `${day}/${month}/${year} • ${hours}:${minutes}`;
+        }
+      }
+    } catch (e) {}
+    const now = new Date();
+    const day = String(now.getDate()).padStart(2, '0');
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const year = now.getFullYear();
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    return `${day}/${month}/${year} • ${hours}:${minutes}`;
+  });
+
+  const updateLastSyncTimestamp = useCallback(() => {
+    const now = new Date();
+    const day = String(now.getDate()).padStart(2, '0');
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const year = now.getFullYear();
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    setLastSyncTime(`${day}/${month}/${year} • ${hours}:${minutes}`);
+  }, []);
+
+  // Inscreve para atualizações em tempo real do mapa de fotos com erro (404)
+  useEffect(() => {
+    const unsubscribe = subscribeToBrokenPhotos((map) => {
+      setBrokenPhotoMap(map);
+    });
+    return unsubscribe;
+  }, []);
 
   // Paginação da tabela (50 itens por página para suportar 1.800+ itens)
   const PAGE_SIZE = 50;
@@ -367,6 +437,8 @@ export const MoblinkProductsManager: React.FC = () => {
 
   // Editable Product Fields State
   const [editName, setEditName] = useState('');
+  const [editBrand, setEditBrand] = useState('');
+  const [editGender, setEditGender] = useState('');
   const [editSku, setEditSku] = useState('');
   const [editModelCode, setEditModelCode] = useState('');
   const [editPrice, setEditPrice] = useState<number | string>('');
@@ -593,6 +665,48 @@ export const MoblinkProductsManager: React.FC = () => {
       handleAutoSetVisibleForProductsWithPhotos(true).catch(() => {});
     }
   }, [products]);
+
+  // Auditoria em lote de fotos quebradas (404 / NoSuchKey no Supabase Storage)
+  const handleAuditBrokenPhotos = async () => {
+    setIsCheckingBrokenPhotos(true);
+    const catalogToAudit = combinedCatalog && combinedCatalog.length > 0 ? combinedCatalog : moblinkList;
+    setBrokenAuditProgress({ checked: 0, total: catalogToAudit.length, brokenCount: 0 });
+
+    try {
+      setFeedback({
+        success: true,
+        message: `🔍 Iniciando auditoria de fotos em lote... Testando integridade das imagens contra erros 404...`,
+      });
+
+      const result = await auditProductsPhotos(catalogToAudit, (prog) => {
+        setBrokenAuditProgress(prog);
+      });
+
+      setBrokenPhotoMap(result.brokenMap);
+
+      if (result.brokenCount > 0) {
+        setPhotoFilter('com_erro');
+        setFeedback({
+          success: false,
+          message: `⚠️ Auditoria concluída! Encontrados ${result.brokenCount} produto(s) com fotos quebradas (404 / NoSuchKey). O filtro foi ativado!`,
+        });
+      } else {
+        setFeedback({
+          success: true,
+          message: `✅ Perfeito! Todas as ${result.totalAudited} fotos auditadas estão íntegras e funcionando!`,
+        });
+      }
+      setTimeout(() => setFeedback(null), 8000);
+    } catch (err: any) {
+      setFeedback({
+        success: false,
+        message: `Falha ao auditar fotos: ${err.message || 'Erro inesperado'}`,
+      });
+    } finally {
+      setIsCheckingBrokenPhotos(false);
+      setBrokenAuditProgress(null);
+    }
+  };
 
   // Sincronização de UM ÚNICO produto por ID (Solicitado pelo Administrador)
   const [singleSyncId, setSingleSyncId] = useState('');
@@ -1015,6 +1129,7 @@ export const MoblinkProductsManager: React.FC = () => {
 
         // 4. Salva a lista inteira no cache local de 30min
         saveMoblinkCache(items);
+        updateLastSyncTimestamp();
 
         setFeedback({
           success: true,
@@ -1317,8 +1432,12 @@ export const MoblinkProductsManager: React.FC = () => {
     }
 
     const initialNewArrival = Boolean(existing?.newArrival || (currentItem as any)?.newArrival || false);
+    const initialBrand = existing?.brand || (existing as any)?.marca || (currentItem as any)?.brand || (currentItem as any)?.marca || resolveProductBrand(currentItem) || '';
+    const initialGender = existing?.gender || (existing as any)?.genero || (currentItem as any)?.gender || (currentItem as any)?.genero || resolveProductGender(currentItem) || '';
 
     setEditName(initialName);
+    setEditBrand(initialBrand);
+    setEditGender(initialGender);
     setEditSku(initialSku);
     setEditModelCode(initialModelCode);
     setEditPrice(initialPrice);
@@ -1418,6 +1537,8 @@ export const MoblinkProductsManager: React.FC = () => {
     setRichDescription('');
     setNewImageUrl('');
     setEditName('');
+    setEditBrand('');
+    setEditGender('');
     setEditSku('');
     setEditModelCode('');
     setEditPrice('');
@@ -1571,7 +1692,22 @@ export const MoblinkProductsManager: React.FC = () => {
     // 1. Atualiza no contexto da aplicação
     updateProduct(targetId, updatedProd);
 
-    // 2. Salva no Firestore instantaneamente no momento em que a foto é carregada/adicionada
+    // 2. Se adicionou foto válida, limpa o status de foto quebrada imediatamente
+    if (finalImagesList.length > 0) {
+      clearBrokenPhoto(targetId);
+      const cleanId = targetId.replace(/^MOB-/i, '');
+      clearBrokenPhoto(cleanId);
+      clearBrokenPhoto(`MOB-${cleanId}`);
+      setBrokenPhotoMap(prev => {
+        const copy = { ...prev };
+        delete copy[targetId];
+        delete copy[cleanId];
+        delete copy[`MOB-${cleanId}`];
+        return copy;
+      });
+    }
+
+    // 3. Salva no Firestore instantaneamente no momento em que a foto é carregada/adicionada
     try {
       const docRef = doc(db, 'products', targetId);
       await setDoc(docRef, updatedProd, { merge: true });
@@ -1842,13 +1978,15 @@ export const MoblinkProductsManager: React.FC = () => {
       saldo_loja: productStock,
       saldos_lojas: selectedProduct.saldos_lojas,
       barcode: selectedProduct.codigoBarras || selectedProduct.barcode || undefined,
-      brand: selectedProduct.marca || selectedProduct.brand || undefined,
+      brand: editBrand.trim() || selectedProduct.marca || selectedProduct.brand || resolveProductBrand(selectedProduct) || undefined,
+      ...( (editBrand.trim() || selectedProduct.marca || selectedProduct.brand) ? { marca: editBrand.trim() || selectedProduct.marca || selectedProduct.brand } : {} ) as any,
       material: selectedProduct.material || undefined,
       color: savedColor,
       cor: savedColor,
       colorImages: finalColorImages,
       colorImageMap: finalColorImageMap,
-      gender: selectedProduct.genero || selectedProduct.gender || undefined,
+      gender: editGender.trim() || selectedProduct.genero || selectedProduct.gender || resolveProductGender(selectedProduct) || undefined,
+      genero: editGender.trim() || selectedProduct.genero || selectedProduct.gender || resolveProductGender(selectedProduct) || undefined,
       lastMoblinkSync: new Date().toISOString(),
       moblinkSyncStatus: 'synced',
       referencia: refCode,
@@ -1908,6 +2046,21 @@ export const MoblinkProductsManager: React.FC = () => {
         }
         return item;
       }));
+
+      // Se o produto foi salvo e possui fotos válidas, remove do mapa de fotos com erro
+      if (finalImages.length > 0) {
+        clearBrokenPhoto(mobId);
+        const cleanId = mobId.replace(/^MOB-/i, '');
+        clearBrokenPhoto(cleanId);
+        clearBrokenPhoto(`MOB-${cleanId}`);
+        setBrokenPhotoMap(prev => {
+          const copy = { ...prev };
+          delete copy[mobId];
+          delete copy[cleanId];
+          delete copy[`MOB-${cleanId}`];
+          return copy;
+        });
+      }
 
       setFeedback({
         success: true,
@@ -2439,15 +2592,27 @@ export const MoblinkProductsManager: React.FC = () => {
         }
       }
 
-      // Filtro Seletivo de Fotos (Com Foto vs Sem Foto)
+      // Filtro Seletivo de Fotos (Com Foto vs Sem Foto vs Com Erro 404)
       let matchesPhoto = true;
-      const photoUrl = extractBestRealPhoto(item) || extractBestRealPhoto(existingDb);
+      // Dá precedência absoluta às fotos enriquecidas/gerenciadas no banco de dados (existingDb) sobre os dados brutos da lista Moblink
+      const photoUrl = extractBestRealPhoto(existingDb) || extractBestRealPhoto(item);
       const hasRealPhoto = Boolean(photoUrl && !isPlaceholderUrl(photoUrl));
+      const cleanMobId = mobId.replace(/^MOB-/i, '');
+      const recordedBrokenUrl = brokenPhotoMap[mobId] || 
+                                brokenPhotoMap[cleanMobId] || 
+                                (existingDb?.id && brokenPhotoMap[String(existingDb.id)]) ||
+                                '';
+      // O produto só é considerado com foto quebrada se houver registro de erro E a foto atual for a mesma que quebrou
+      const isPhotoBroken = Boolean(
+        recordedBrokenUrl && (!photoUrl || recordedBrokenUrl === photoUrl)
+      );
 
       if (photoFilter === 'com_foto') {
-        matchesPhoto = hasRealPhoto;
+        matchesPhoto = hasRealPhoto && !isPhotoBroken;
       } else if (photoFilter === 'sem_foto') {
         matchesPhoto = !hasRealPhoto;
+      } else if (photoFilter === 'com_erro') {
+        matchesPhoto = hasRealPhoto && isPhotoBroken;
       }
 
       // Filtro Seletivo de Status no Site (Visível vs Oculto)
@@ -2455,7 +2620,7 @@ export const MoblinkProductsManager: React.FC = () => {
       const catInfoVis = extractClassificacaoCategoria(existingDb || item);
       const isUnclassifiedVis = catInfoVis.category === 'Sem Classificação Definida' || !catInfoVis.isDefined;
       const isManuallyActiveVis = existingDb ? existingDb.visible !== false : ((item as any).visible !== false);
-      const isVisibleOnSite = !isUnclassifiedVis && isManuallyActiveVis && estoque > 0 && hasRealPhoto;
+      const isVisibleOnSite = !isUnclassifiedVis && isManuallyActiveVis && estoque > 0 && hasRealPhoto && !isPhotoBroken;
 
       if (visibilityFilter === 'visivel') {
         matchesVisibility = isVisibleOnSite;
@@ -2492,7 +2657,7 @@ export const MoblinkProductsManager: React.FC = () => {
     });
 
     return filtered;
-  }, [combinedCatalog, searchQuery, categoryFilter, subcategoryFilter, classificacaoGrupoFilter, classificacaoSubgrupoFilter, baseNameFilter, syncFilter, photoFilter, visibilityFilter, hideOutOfStock, hideNoGrade, gradeFilter, sortBy, dbProductsMap]);
+  }, [combinedCatalog, searchQuery, categoryFilter, subcategoryFilter, classificacaoGrupoFilter, classificacaoSubgrupoFilter, baseNameFilter, syncFilter, photoFilter, brokenPhotoMap, visibilityFilter, hideOutOfStock, hideNoGrade, gradeFilter, sortBy, dbProductsMap]);
 
   // Taxonomia oficial lida diretamente da coleção 'categories' do Firebase Firestore
   const storeCategoryTree = useMemo(() => {
@@ -2691,6 +2856,37 @@ export const MoblinkProductsManager: React.FC = () => {
     return (moblinkList || []).reduce((acc, item) => acc + (extractSaldoLojaMoblink(item) || 0), 0);
   }, [moblinkList]);
 
+  const zeroStockCount = useMemo(() => {
+    return (combinedCatalog || []).filter(item => {
+      const mobId = String(item.id || item.moblinkId || '');
+      const existingDb = dbProductsMap.get(mobId);
+      const estoque = existingDb?.stock ?? extractSaldoLojaMoblink(item) ?? 0;
+      return estoque <= 0;
+    }).length;
+  }, [combinedCatalog, dbProductsMap]);
+
+  // Contagem dinâmica e precisa de fotos com erro (apenas se a foto atual do produto ainda for a que quebrou)
+  const activeBrokenPhotosCount = useMemo(() => {
+    if (!brokenPhotoMap || Object.keys(brokenPhotoMap).length === 0) return 0;
+    const brokenIds = new Set<string>();
+
+    (combinedCatalog || []).forEach(item => {
+      const mobId = String(item.id || item.moblinkId || '');
+      const cleanId = mobId.replace(/^MOB-/i, '');
+      const existingDb = dbProductsMap.get(mobId);
+      const photoUrl = extractBestRealPhoto(existingDb) || extractBestRealPhoto(item);
+      const recorded = brokenPhotoMap[mobId] || 
+                       brokenPhotoMap[cleanId] || 
+                       (existingDb?.id && brokenPhotoMap[String(existingDb.id)]) ||
+                       '';
+      if (recorded && (!photoUrl || recorded === photoUrl)) {
+        brokenIds.add(mobId);
+      }
+    });
+
+    return brokenIds.size;
+  }, [combinedCatalog, dbProductsMap, brokenPhotoMap]);
+
   // Exportar Relatório em Excel com base nos produtos filtrados
   const handleExportExcelReport = useCallback(() => {
     if (!filteredMoblinkList || filteredMoblinkList.length === 0) {
@@ -2703,7 +2899,7 @@ export const MoblinkProductsManager: React.FC = () => {
     }
 
     try {
-      generateProductsExcelReport(filteredMoblinkList, dbProductsMap, resolveProductSubcategory);
+      generateProductsExcelReport(filteredMoblinkList, dbProductsMap, resolveProductSubcategory, brokenPhotoMap);
       setFeedback({
         success: true,
         message: `Relatório em Excel gerado com sucesso para ${filteredMoblinkList.length} produtos filtrados!`,
@@ -2719,159 +2915,429 @@ export const MoblinkProductsManager: React.FC = () => {
     }
   }, [filteredMoblinkList, dbProductsMap]);
 
+  // SE HOUVER PRODUTO SELECIONADO PARA EDIÇÃO, EXIBE EM PÁGINA INTEIRA COM VISÃO EXPANDIDA
+  if (selectedProduct) {
+    return (
+      <ProductEditPage
+        selectedProduct={selectedProduct}
+        selectedProductGrade={selectedProductGrade}
+        isLoadingProductGrade={isLoadingProductGrade}
+        isSingleRefreshing={isSingleRefreshing}
+        editName={editName}
+        setEditName={setEditName}
+        editBrand={editBrand}
+        setEditBrand={setEditBrand}
+        editGender={editGender}
+        setEditGender={setEditGender}
+        editColor={editColor}
+        setEditColor={setEditColor}
+        editVisible={editVisible}
+        setEditVisible={setEditVisible}
+        editNewArrival={editNewArrival}
+        setEditNewArrival={setEditNewArrival}
+        images={images}
+        setImages={setImages}
+        newImageUrl={newImageUrl}
+        setNewImageUrl={setNewImageUrl}
+        isUploading={isUploading}
+        richDescription={richDescription}
+        setRichDescription={setRichDescription}
+        editColorImageMap={editColorImageMap}
+        setEditColorImageMap={setEditColorImageMap}
+        editColorImages={editColorImages}
+        setEditColorImages={setEditColorImages}
+        feedback={feedback}
+        setFeedback={setFeedback}
+        showWebSearchModal={showWebSearchModal}
+        setShowWebSearchModal={setShowWebSearchModal}
+        showAiDescriptionModal={showAiDescriptionModal}
+        setShowAiDescriptionModal={setShowAiDescriptionModal}
+        handleCloseEnrichmentForm={handleCloseEnrichmentForm}
+        handleSaveProductEnrichment={handleSaveProductEnrichment}
+        handleRefreshSingleProduct={handleRefreshSingleProduct}
+        handleAddImageUrl={handleAddImageUrl}
+        handleFileUpload={handleFileUpload}
+        handleSetMainImage={handleSetMainImage}
+        handleRemoveImage={handleRemoveImage}
+        handleInsertTemplate={handleInsertTemplate}
+        preserveExistingImages={preserveExistingImages}
+        syncImageUpdateToFirestore={syncImageUpdateToFirestore}
+      />
+    );
+  }
+
   return (
     <div className="space-y-6 text-left animate-fade-in font-sans">
-      {/* APPLE STUDIO HEADER CONSOLE & STAT CARDS */}
-      <div className={`p-6 sm:p-8 rounded-3xl border backdrop-blur-2xl transition-all shadow-md space-y-6 ${
-        theme === 'dark' 
-          ? 'bg-slate-900/90 border-slate-800 text-white' 
-          : 'bg-white/90 border-slate-200/80 text-slate-900 shadow-xs'
-      }`}>
-        {/* TOP SECTION: TITLE & SUBTITLE & ACTIONS */}
-        <div className="space-y-4 pb-6 border-b border-slate-200/60 dark:border-slate-800/80">
-          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
-            <div className="flex items-center gap-3 flex-wrap min-w-0">
-              <span className="p-2.5 rounded-2xl bg-[#0071E3]/10 text-[#0071E3] dark:bg-[#0071E3]/20 dark:text-blue-400 shrink-0">
-                <Zap className="h-6 w-6 stroke-[2.5]" />
-              </span>
-              <h2 className={`text-xl sm:text-2xl font-black tracking-tight whitespace-normal ${
-                theme === 'dark' ? 'text-white' : 'text-[#003B73]'
-              }`}>
-                Gestão de Produtos &amp; Estoque (MobLink ERP)
-              </h2>
-              <span className="text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full bg-[#0071E3]/10 text-[#0071E3] dark:bg-blue-400/20 dark:text-blue-300 border border-[#0071E3]/20 shrink-0">
+      {/* BREADCRUMB */}
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => {
+            if (onBack) onBack();
+            else if (goBack) goBack();
+          }}
+          className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-[#0071E3] transition-colors cursor-pointer group"
+        >
+          <ChevronLeft className="h-4 w-4 group-hover:-translate-x-0.5 transition-transform" />
+          <span>Produtos</span>
+        </button>
+      </div>
+
+      {/* TOP HEADER: ICON, TITLE, SUBTITLE & MOBLINK STATUS CONSOLE */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        {/* LEFT: ICON + TITLE + BADGE + DESCRIPTION */}
+        <div className="flex items-start sm:items-center gap-3.5">
+          <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/60 border border-blue-100 dark:border-blue-900/60 flex items-center justify-center text-[#0071E3] shadow-xs shrink-0">
+            <Boxes className="h-6 w-6 stroke-[2.2]" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+                Gestão de Produtos &amp; Estoque
+              </h1>
+              <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-blue-50 text-[#0071E3] dark:bg-blue-950/70 dark:text-blue-300 border border-blue-200/60 dark:border-blue-800/60">
                 Apple Studio
               </span>
             </div>
-
-            {/* ACTION BUTTONS ROW (UNIFIED ACTION CONSOLE) */}
-            <div className="flex items-center gap-3 flex-wrap">
-              <button
-                onClick={() => setShowSingleSyncModal(true)}
-                disabled={isLoading || isSyncingSingle}
-                className="px-5 py-3 bg-[#0071E3] hover:bg-[#00509E] text-white font-extrabold rounded-2xl text-xs transition-all flex items-center gap-2.5 cursor-pointer shadow-md active:scale-95 disabled:opacity-50 shrink-0"
-                title="Sincroniza apenas 1 produto específico digitando o ID cadastrado no MobLink ERP"
-              >
-                <Zap className={`h-4.5 w-4.5 text-white ${isSyncingSingle ? 'animate-spin' : ''}`} />
-                <span>{isSyncingSingle ? 'Sincronizando Produto...' : '🎯 Sincronizar 1 Produto (por ID)'}</span>
-              </button>
-
-              <button
-                onClick={handleUnifiedSupabaseSync}
-                disabled={isAuditingPhotos || isLinkingSupabase}
-                className="px-5 py-3 bg-purple-600 hover:bg-purple-700 text-white font-extrabold rounded-2xl text-xs transition-all flex items-center gap-2.5 cursor-pointer shadow-md active:scale-95 disabled:opacity-50 shadow-purple-500/20 shrink-0"
-                title="Vincula fotos salvas no Supabase Storage pelo ID e abre a auditoria completa de mídias"
-              >
-                <ImageIcon className={`h-4.5 w-4.5 text-purple-200 ${isAuditingPhotos || isLinkingSupabase ? 'animate-spin' : ''}`} />
-                <span>{isAuditingPhotos || isLinkingSupabase ? 'Sincronizando Fotos...' : '📸 Sincronizar & Auditar Fotos (Supabase)'}</span>
-              </button>
-
-              <button
-                onClick={handleBackupPhotosToSupabase}
-                disabled={isBackingUpPhotos || isLoading}
-                className="px-5 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold rounded-2xl text-xs transition-all flex items-center gap-2.5 cursor-pointer shadow-md active:scale-95 disabled:opacity-50 shadow-indigo-500/20 shrink-0"
-                title="Salva um backup completo de todas as fotos e links de produtos no Supabase Storage e Supabase DB"
-              >
-                <Save className={`h-4.5 w-4.5 text-indigo-200 ${isBackingUpPhotos ? 'animate-spin' : ''}`} />
-                <span>{isBackingUpPhotos ? 'Salvando Backup...' : '🛡️ Fazer Backup Fotos (Supabase)'}</span>
-              </button>
-
-              <button
-                onClick={handleRestorePhotosFromSupabase}
-                disabled={isRestoringPhotos || isLoading}
-                className="px-5 py-3 bg-cyan-600 hover:bg-cyan-700 text-white font-extrabold rounded-2xl text-xs transition-all flex items-center gap-2.5 cursor-pointer shadow-md active:scale-95 disabled:opacity-50 shadow-cyan-500/20 shrink-0"
-                title="Restaura todas as fotos de produtos a partir do backup salvo no Supabase"
-              >
-                <Upload className={`h-4.5 w-4.5 text-cyan-200 ${isRestoringPhotos ? 'animate-spin' : ''}`} />
-                <span>{isRestoringPhotos ? 'Restaurando...' : '📥 Restaurar Fotos (Supabase)'}</span>
-              </button>
-
-              <button
-                onClick={() => handleAutoSetVisibleForProductsWithPhotos(false)}
-                disabled={isAutoActivatingVisible || isLoading}
-                className="px-5 py-3 bg-amber-500 hover:bg-amber-600 text-white font-extrabold rounded-2xl text-xs transition-all flex items-center gap-2.5 cursor-pointer shadow-md active:scale-95 disabled:opacity-50 shadow-amber-500/20 shrink-0"
-                title="Varre automaticamente todo o catálogo e salva visible: true no banco de dados para todos os produtos com foto real"
-              >
-                <CheckCircle2 className={`h-4.5 w-4.5 text-amber-100 ${isAutoActivatingVisible ? 'animate-spin' : ''}`} />
-                <span>{isAutoActivatingVisible ? 'Salvando Visíveis no Banco...' : '⚡ Salvar Visível (Todos com Foto)'}</span>
-              </button>
-
-              <button
-                onClick={handleExportExcelReport}
-                disabled={isLoading || filteredMoblinkList.length === 0}
-                className="px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-2xl text-xs transition-all flex items-center gap-2.5 cursor-pointer shadow-md active:scale-95 disabled:opacity-50 shadow-emerald-500/20 shrink-0"
-                title="Gera um relatório em Excel (.csv UTF-8) com todos os produtos resultantes dos filtros ativos em tempo real"
-              >
-                <FileSpreadsheet className="h-4.5 w-4.5 text-emerald-100" />
-                <span>📊 Exportar Excel ({filteredMoblinkList.length})</span>
-              </button>
-            </div>
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1 max-w-2xl leading-relaxed">
+              Central oficial de sincronização em tempo real do MobLink ERP. Enriqueça fotos, altere descrições de modelos e gerencie a visibilidade da vitrine.
+            </p>
           </div>
-
-          <p className="text-xs sm:text-sm font-medium text-slate-500 dark:text-slate-400 max-w-4xl leading-relaxed">
-            Central oficial de sincronização em tempo real do MobLink ERP. Enriqueça fotos, altere descrições de modelos e gerencie a visibilidade da vitrine.
-          </p>
         </div>
 
-        {/* APPLE KPI STATS GRID */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className={`p-4 sm:p-5 rounded-2xl border transition-all ${
-            theme === 'dark' ? 'bg-slate-800/50 border-slate-700/60' : 'bg-slate-50/80 border-slate-200/70'
-          }`}>
-            <div className="flex items-center justify-between text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
-              <span>Catálogo Integrado</span>
-              <Package className="h-4 w-4 text-[#0071E3]" />
+        {/* RIGHT: MOBLINK ERP STATUS PILL / CONSOLE */}
+        <div className="flex items-center gap-4 bg-white/90 dark:bg-slate-900/90 border border-slate-200/80 dark:border-slate-800 rounded-2xl px-4 py-2.5 shadow-xs shrink-0 self-start lg:self-auto">
+          <div className="space-y-0.5">
+            <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-500 dark:text-slate-400">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse inline-block" />
+              <span>MobLink ERP</span>
             </div>
-            <div className="flex items-baseline space-x-2">
-              <span className={`text-2xl font-black ${theme === 'dark' ? 'text-white' : 'text-[#003B73]'}`}>
-                {combinedCatalog.length}
-              </span>
-              <span className="text-xs text-slate-500 font-medium">SKUs cadastrados</span>
-            </div>
-          </div>
-
-          <div className={`p-4 sm:p-5 rounded-2xl border transition-all ${
-            theme === 'dark' ? 'bg-slate-800/50 border-slate-700/60' : 'bg-slate-50/80 border-slate-200/70'
-          }`}>
-            <div className="flex items-center justify-between text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
-              <span>Unidades em Estoque</span>
-              <Layers className="h-4 w-4 text-emerald-500" />
-            </div>
-            <div className="flex items-baseline space-x-2">
-              <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
-                {totalUnitsInStock}
-              </span>
-              <span className="text-xs text-slate-500 font-medium">pares / produtos</span>
-            </div>
-          </div>
-
-          <div className={`p-4 sm:p-5 rounded-2xl border transition-all ${
-            theme === 'dark' ? 'bg-slate-800/50 border-slate-700/60' : 'bg-slate-50/80 border-slate-200/70'
-          }`}>
-            <div className="flex items-center justify-between text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
-              <span>Modelos Agrupados</span>
-              <FolderTree className="h-4 w-4 text-purple-500" />
-            </div>
-            <div className="flex items-baseline space-x-2">
-              <span className={`text-2xl font-black ${theme === 'dark' ? 'text-white' : 'text-[#003B73]'}`}>
-                {groupedList.length}
-              </span>
-              <span className="text-xs text-slate-500 font-medium">referências pai</span>
-            </div>
-          </div>
-
-          <div className={`p-4 sm:p-5 rounded-2xl border transition-all ${
-            theme === 'dark' ? 'bg-slate-800/50 border-slate-700/60' : 'bg-slate-50/80 border-slate-200/70'
-          }`}>
-            <div className="flex items-center justify-between text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
-              <span>Status MobLink ERP</span>
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-            </div>
-            <div className="flex items-baseline space-x-2">
-              <span className="text-sm font-extrabold text-emerald-600 dark:text-emerald-400">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-black text-emerald-600 dark:text-emerald-400">
                 Conectado &amp; Ativo
               </span>
+              <button
+                type="button"
+                onClick={fetchMoblinkProducts}
+                disabled={isLoading}
+                className="p-1 text-slate-400 hover:text-emerald-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+                title="Atualizar conexão com MobLink ERP"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin text-emerald-600' : ''}`} />
+              </button>
             </div>
+          </div>
+
+          <div className="h-8 w-px bg-slate-200 dark:bg-slate-800" />
+
+          <div className="space-y-0.5 text-right">
+            <div className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+              Última sincronização
+            </div>
+            <div className="text-xs font-mono font-bold text-slate-700 dark:text-slate-300">
+              {lastSyncTime}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* SEÇÃO: AÇÕES DE SINCRONIZAÇÃO */}
+      <div className={`p-4 sm:p-5 rounded-2xl border transition-all shadow-xs space-y-3 ${
+        theme === 'dark' ? 'bg-slate-900/90 border-slate-800 text-white' : 'bg-white/95 border-slate-200/80 text-slate-900'
+      }`}>
+        {/* HEADER DA SEÇÃO */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-[#0071E3] dark:text-blue-400 shrink-0">
+              <RefreshCw className="h-4 w-4 stroke-[2.5]" />
+            </div>
+            <div>
+              <h2 className={`text-sm sm:text-base font-black tracking-tight ${
+                theme === 'dark' ? 'text-white' : 'text-slate-900'
+              }`}>
+                Ações de Sincronização
+              </h2>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+                Mantenha seus produtos sempre atualizados e sincronizados com o MobLink ERP.
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setIsQuickActionsOpen(!isQuickActionsOpen)}
+            className="px-3 py-1 rounded-full bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/60 dark:hover:bg-blue-900/60 text-[#0071E3] dark:text-blue-300 font-bold text-[11px] flex items-center gap-1.5 self-start sm:self-center transition-all cursor-pointer border border-blue-200/50 dark:border-blue-800/50 shrink-0"
+          >
+            <Zap className="h-3 w-3" />
+            <span>Ações rápidas</span>
+            {isQuickActionsOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+          </button>
+        </div>
+
+        {/* CONTEÚDO DOS CARDS DE AÇÃO */}
+        {isQuickActionsOpen && (
+          <div className="space-y-2.5 pt-0.5 animate-fade-in">
+            {/* ROW 1: 4 CARDS COLORIDOS PRINCIPAIS */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+              {/* CARD 1: Sincronizar 1 Produto (por ID) */}
+              <button
+                type="button"
+                onClick={() => setShowSingleSyncModal(true)}
+                disabled={isLoading || isSyncingSingle}
+                className="p-3 rounded-xl bg-[#0071E3] hover:bg-[#005bb5] text-white flex items-center justify-between text-left transition-all group shadow-xs active:scale-[0.99] disabled:opacity-50 cursor-pointer"
+                title="Sincroniza apenas 1 produto específico digitando o ID cadastrado no MobLink ERP"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center shrink-0">
+                    <RefreshCw className={`h-4 w-4 text-white ${isSyncingSingle ? 'animate-spin' : ''}`} />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-black text-white truncate">
+                      Sincronizar 1 Produto
+                    </div>
+                    <div className="text-[10px] text-blue-100 font-medium truncate">
+                      Atualiza apenas o ID informado
+                    </div>
+                  </div>
+                </div>
+                <ChevronRight className="h-4 w-4 text-white/70 group-hover:text-white group-hover:translate-x-0.5 transition-transform shrink-0 ml-1.5" />
+              </button>
+
+              {/* CARD 2: Sincronizar & Auditar Fotos (Supabase) */}
+              <button
+                type="button"
+                onClick={handleUnifiedSupabaseSync}
+                disabled={isAuditingPhotos || isLinkingSupabase}
+                className="p-3 rounded-xl bg-[#7C3AED] hover:bg-[#6D28D9] text-white flex items-center justify-between text-left transition-all group shadow-xs active:scale-[0.99] disabled:opacity-50 cursor-pointer"
+                title="Vincula fotos salvas no Supabase Storage pelo ID e abre a auditoria completa de mídias"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center shrink-0">
+                    <ImageIcon className={`h-4 w-4 text-white ${isAuditingPhotos || isLinkingSupabase ? 'animate-spin' : ''}`} />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-black text-white truncate">
+                      Sincronizar &amp; Auditar Fotos
+                    </div>
+                    <div className="text-[10px] text-purple-100 font-medium truncate">
+                      Verifica e corrige fotos no Supabase
+                    </div>
+                  </div>
+                </div>
+                <ChevronRight className="h-4 w-4 text-white/70 group-hover:text-white group-hover:translate-x-0.5 transition-transform shrink-0 ml-1.5" />
+              </button>
+
+              {/* CARD 3: Fazer Backup Fotos (Supabase) */}
+              <button
+                type="button"
+                onClick={handleBackupPhotosToSupabase}
+                disabled={isBackingUpPhotos || isLoading}
+                className="p-3 rounded-xl bg-[#0284C7] hover:bg-[#0369A1] text-white flex items-center justify-between text-left transition-all group shadow-xs active:scale-[0.99] disabled:opacity-50 cursor-pointer"
+                title="Salva um backup completo de todas as fotos e links de produtos no Supabase Storage e Supabase DB"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center shrink-0">
+                    <Save className={`h-4 w-4 text-white ${isBackingUpPhotos ? 'animate-spin' : ''}`} />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-black text-white truncate">
+                      Fazer Backup Fotos
+                    </div>
+                    <div className="text-[10px] text-sky-100 font-medium truncate">
+                      Cria backup das fotos no Supabase
+                    </div>
+                  </div>
+                </div>
+                <ChevronRight className="h-4 w-4 text-white/70 group-hover:text-white group-hover:translate-x-0.5 transition-transform shrink-0 ml-1.5" />
+              </button>
+
+              {/* CARD 4: Restaurar Fotos (Supabase) */}
+              <button
+                type="button"
+                onClick={handleRestorePhotosFromSupabase}
+                disabled={isRestoringPhotos || isLoading}
+                className="p-3 rounded-xl bg-[#059669] hover:bg-[#047857] text-white flex items-center justify-between text-left transition-all group shadow-xs active:scale-[0.99] disabled:opacity-50 cursor-pointer"
+                title="Restaura todas as fotos de produtos a partir do backup salvo no Supabase"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center shrink-0">
+                    <Upload className={`h-4 w-4 text-white ${isRestoringPhotos ? 'animate-spin' : ''}`} />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-black text-white truncate">
+                      Restaurar Fotos
+                    </div>
+                    <div className="text-[10px] text-emerald-100 font-medium truncate">
+                      Restaura fotos de backup anterior
+                    </div>
+                  </div>
+                </div>
+                <ChevronRight className="h-4 w-4 text-white/70 group-hover:text-white group-hover:translate-x-0.5 transition-transform shrink-0 ml-1.5" />
+              </button>
+            </div>
+
+            {/* ROW 2: 3 CARDS SECUNDÁRIOS / OUTLINE */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+              {/* CARD 5: Fotos com Erro (N) */}
+              <button
+                type="button"
+                onClick={() => {
+                  setPhotoFilter('com_erro');
+                  if (Object.keys(brokenPhotoMap).length === 0 && !isCheckingBrokenPhotos) {
+                    handleAuditBrokenPhotos();
+                  }
+                }}
+                className="p-3 rounded-xl bg-rose-50/70 dark:bg-rose-950/20 border border-rose-200/90 dark:border-rose-900/50 hover:bg-rose-100/70 text-left flex items-center justify-between transition-all group active:scale-[0.99] cursor-pointer"
+                title="Visualize e corrija os produtos com fotos com problemas"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-lg bg-rose-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+                    <AlertTriangle className={`h-4 w-4 ${isCheckingBrokenPhotos ? 'animate-spin' : ''}`} />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-black text-rose-600 dark:text-rose-400 truncate">
+                      Fotos com Erro ({activeBrokenPhotosCount})
+                    </div>
+                    <div className="text-[10px] text-rose-600/75 dark:text-rose-400/80 font-medium truncate">
+                      Visualize e corrija fotos com problemas
+                    </div>
+                  </div>
+                </div>
+                <ChevronRight className="h-4 w-4 text-rose-400 group-hover:text-rose-600 group-hover:translate-x-0.5 transition-transform shrink-0 ml-1.5" />
+              </button>
+
+              {/* CARD 6: Salvar Visível (Todos com Foto) */}
+              <button
+                type="button"
+                onClick={() => handleAutoSetVisibleForProductsWithPhotos(false)}
+                disabled={isAutoActivatingVisible || isLoading}
+                className="p-3 rounded-xl bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200/90 dark:border-amber-900/50 hover:bg-amber-100/70 text-left flex items-center justify-between transition-all group active:scale-[0.99] disabled:opacity-50 cursor-pointer"
+                title="Deixa todos os produtos visíveis com foto"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-lg bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+                    <Eye className={`h-4 w-4 ${isAutoActivatingVisible ? 'animate-spin' : ''}`} />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-black text-amber-600 dark:text-amber-400 truncate">
+                      Salvar Visível (Com Foto)
+                    </div>
+                    <div className="text-[10px] text-amber-600/75 dark:text-amber-400/80 font-medium truncate">
+                      Ativa todos os produtos com foto no site
+                    </div>
+                  </div>
+                </div>
+                <ChevronRight className="h-4 w-4 text-amber-400 group-hover:text-amber-600 group-hover:translate-x-0.5 transition-transform shrink-0 ml-1.5" />
+              </button>
+
+              {/* CARD 7: Exportar Excel (N) */}
+              <button
+                type="button"
+                onClick={handleExportExcelReport}
+                disabled={isLoading || filteredMoblinkList.length === 0}
+                className="p-3 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/20 border border-emerald-200/90 dark:border-emerald-900/50 hover:bg-emerald-100/70 text-left flex items-center justify-between transition-all group active:scale-[0.99] disabled:opacity-50 cursor-pointer"
+                title="Baixe a listagem completa dos produtos em Excel"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                    <FileSpreadsheet className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-black text-emerald-700 dark:text-emerald-400 truncate">
+                      Exportar Excel ({filteredMoblinkList.length})
+                    </div>
+                    <div className="text-[10px] text-emerald-700/75 dark:text-emerald-400/80 font-medium truncate">
+                      Baixe a listagem completa dos produtos
+                    </div>
+                  </div>
+                </div>
+                <ChevronRight className="h-4 w-4 text-emerald-400 group-hover:text-emerald-600 group-hover:translate-x-0.5 transition-transform shrink-0 ml-1.5" />
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* KPI STAT CARDS */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        {/* KPI 1: Catálogo Integrado */}
+        <div className={`p-3.5 sm:p-4 rounded-2xl border transition-all shadow-xs flex items-center justify-between ${
+          theme === 'dark' ? 'bg-slate-900/90 border-slate-800 text-white' : 'bg-white/95 border-slate-200/80 text-slate-900'
+        }`}>
+          <div>
+            <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500">
+              CATÁLOGO INTEGRADO
+            </div>
+            <div className={`text-2xl font-black mt-0.5 ${theme === 'dark' ? 'text-white' : 'text-[#003B73]'}`}>
+              {combinedCatalog.length}
+            </div>
+            <div className="text-[11px] font-semibold text-slate-400">
+              SKUs cadastrados
+            </div>
+          </div>
+          <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-[#0071E3] dark:text-blue-400 flex items-center justify-center shrink-0 border border-blue-100 dark:border-blue-900/50">
+            <Package className="h-4 w-4" />
+          </div>
+        </div>
+
+        {/* KPI 2: Unidades em Estoque */}
+        <div className={`p-3.5 sm:p-4 rounded-2xl border transition-all shadow-xs flex items-center justify-between ${
+          theme === 'dark' ? 'bg-slate-900/90 border-slate-800 text-white' : 'bg-white/95 border-slate-200/80 text-slate-900'
+        }`}>
+          <div>
+            <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500">
+              UNIDADES EM ESTOQUE
+            </div>
+            <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-0.5">
+              {totalUnitsInStock}
+            </div>
+            <div className="text-[11px] font-semibold text-slate-400">
+              pares / produtos
+            </div>
+          </div>
+          <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-100 dark:border-emerald-900/50">
+            <Layers className="h-4 w-4" />
+          </div>
+        </div>
+
+        {/* KPI 3: Modelos Agrupados */}
+        <div className={`p-3.5 sm:p-4 rounded-2xl border transition-all shadow-xs flex items-center justify-between ${
+          theme === 'dark' ? 'bg-slate-900/90 border-slate-800 text-white' : 'bg-white/95 border-slate-200/80 text-slate-900'
+        }`}>
+          <div>
+            <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500">
+              MODELOS AGRUPADOS
+            </div>
+            <div className={`text-2xl font-black mt-0.5 ${theme === 'dark' ? 'text-white' : 'text-[#003B73]'}`}>
+              {groupedList.length}
+            </div>
+            <div className="text-[11px] font-semibold text-slate-400">
+              referências pai
+            </div>
+          </div>
+          <div className="w-9 h-9 rounded-xl bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0 border border-purple-100 dark:border-purple-900/50">
+            <LayoutGrid className="h-4 w-4" />
+          </div>
+        </div>
+
+        {/* KPI 4: Status MobLink ERP */}
+        <div className={`p-3.5 sm:p-4 rounded-2xl border transition-all shadow-xs flex items-center justify-between ${
+          theme === 'dark' ? 'bg-slate-900/90 border-slate-800 text-white' : 'bg-white/95 border-slate-200/80 text-slate-900'
+        }`}>
+          <div>
+            <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500">
+              STATUS MOBLINK ERP
+            </div>
+            <div className="text-base sm:text-lg font-black text-emerald-600 dark:text-emerald-400 mt-1 flex items-center gap-1.5">
+              <span>Conectado &amp; Ativo</span>
+            </div>
+            <div className="text-[11px] font-semibold text-slate-400">
+              Sincronização em tempo real
+            </div>
+          </div>
+          <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-100 dark:border-emerald-900/50 relative">
+            <Wifi className="h-4 w-4" />
+            <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
           </div>
         </div>
       </div>
@@ -2914,60 +3380,312 @@ export const MoblinkProductsManager: React.FC = () => {
         </div>
       )}
 
-      {/* SEARCH AND FILTERS CONSOLE (APPLE STUDIO STYLE) */}
-      <div className={`p-5 rounded-3xl border flex flex-col space-y-4 backdrop-blur-xl transition-all shadow-sm ${
-        theme === 'dark' ? 'bg-slate-900/90 border-slate-800' : 'bg-white/90 border-slate-200/80 shadow-xs'
+      {/* SEÇÃO: FILTROS E PESQUISA */}
+      <div className={`p-4 sm:p-5 rounded-2xl border transition-all shadow-xs space-y-3.5 ${
+        theme === 'dark' ? 'bg-slate-900/90 border-slate-800 text-white' : 'bg-white/95 border-slate-200/80 text-slate-900'
       }`}>
-        {/* APPLE SEGMENTED CONTROL: VIEW MODE SWITCHER & SEARCH */}
-        <div className="flex flex-col md:flex-row items-center justify-between gap-3 pb-3 border-b border-slate-200/60 dark:border-slate-800/80">
-          <div className="flex items-center space-x-1 p-1 bg-slate-100 dark:bg-slate-800/80 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 select-none w-full md:w-auto">
+        {/* HEADER DA SEÇÃO */}
+        <div className="flex items-center gap-2.5">
+          <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-[#0071E3] dark:text-blue-400 shrink-0">
+            <Filter className="h-4 w-4 stroke-[2.5]" />
+          </div>
+          <div>
+            <h2 className={`text-sm sm:text-base font-black tracking-tight ${
+              theme === 'dark' ? 'text-white' : 'text-slate-900'
+            }`}>
+              Filtros e Pesquisa
+            </h2>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+              Encontre e gerencie seus produtos de forma rápida e eficiente.
+            </p>
+          </div>
+        </div>
+
+        {/* TOP ROW: VIEW MODE SWITCHER + SEARCH + EXCEL BUTTON */}
+        <div className="flex flex-col lg:flex-row items-center justify-between gap-2.5 pt-0.5">
+          {/* VIEW MODE SWITCHER */}
+          <div className="flex items-center space-x-1 p-1 bg-slate-100 dark:bg-slate-800/80 rounded-xl border border-slate-200/60 dark:border-slate-700/60 select-none w-full lg:w-auto">
             <button
               type="button"
               onClick={() => { setViewMode('list'); setBaseNameFilter(''); }}
-              className={`flex-1 md:flex-none px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center justify-center space-x-1.5 ${
+              className={`flex-1 lg:flex-none px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center space-x-1.5 ${
                 !isGroupedViewActive
-                  ? 'bg-white dark:bg-slate-900 text-[#0071E3] dark:text-blue-400 shadow-xs'
+                  ? 'bg-[#0071E3] text-white shadow-xs'
                   : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'
               }`}
             >
-              <List className="h-4 w-4" />
+              <List className="h-3.5 w-3.5" />
               <span>Modo Lista ({filteredMoblinkList.length})</span>
             </button>
             <button
               type="button"
               onClick={() => setViewMode('grouped')}
-              className={`flex-1 md:flex-none px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center justify-center space-x-1.5 ${
+              className={`flex-1 lg:flex-none px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center space-x-1.5 ${
                 isGroupedViewActive
-                  ? 'bg-white dark:bg-slate-900 text-[#0071E3] dark:text-blue-400 shadow-xs'
+                  ? 'bg-[#0071E3] text-white shadow-xs'
                   : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'
               }`}
             >
-              <FolderTree className="h-4 w-4" />
-              <span>Agrupado por Classificação ({groupedList.length})</span>
+              <LayoutGrid className="h-3.5 w-3.5" />
+              <span>Agrupado ({groupedList.length})</span>
             </button>
           </div>
 
-          {/* SEARCH INPUT & RESET ALL */}
-          <div className="flex items-center gap-2 w-full md:w-auto flex-1 max-w-lg">
-            <div className="relative flex-1">
-              <input
-                type="text"
-                placeholder="Buscar por Modelo (ex: Sound Kids), ID MobLink ou SKU..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-2xl bg-white dark:bg-slate-800/90 text-slate-900 dark:text-slate-100 font-medium text-xs focus:outline-none focus:ring-2 focus:ring-[#0071E3] transition-all shadow-xs"
-              />
-              <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-3 top-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+          {/* SEARCH INPUT */}
+          <div className="relative w-full lg:flex-1 lg:max-w-xl">
+            <input
+              type="text"
+              placeholder="Buscar por Modelo (ex: Sound Kids), ID MobLink..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-9 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800/90 text-slate-900 dark:text-slate-100 font-medium text-xs focus:outline-none focus:ring-2 focus:ring-[#0071E3] transition-all shadow-xs"
+            />
+            <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* EXPORTAR EXCEL BUTTON */}
+          <button
+            type="button"
+            onClick={handleExportExcelReport}
+            disabled={isLoading || filteredMoblinkList.length === 0}
+            className="w-full lg:w-auto px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs active:scale-95 disabled:opacity-50 shrink-0"
+          >
+            <FileSpreadsheet className="h-3.5 w-3.5" />
+            <span>Exportar Excel ({filteredMoblinkList.length})</span>
+          </button>
+        </div>
+
+        {/* FILTER FIELDS GRID */}
+        <div className="space-y-2.5 pt-2 border-t border-slate-100 dark:border-slate-800">
+          {/* ROW 1: Categoria, Subcategoria, Classificação, Ordenar por */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Categoria */}
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300">
+                Categoria
+              </label>
+              <div className="relative">
+                <select
+                  value={categoryFilter}
+                  onChange={(e) => {
+                    setCategoryFilter(e.target.value);
+                    setSubcategoryFilter('Todas');
+                  }}
+                  className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#0071E3] transition-all cursor-pointer appearance-none pr-8"
                 >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              )}
+                  <option value="Todos">Todas ({uniqueCategories.length})</option>
+                  {uniqueCategories.map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-3 top-2.5 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+              </div>
             </div>
+
+            {/* Subcategoria */}
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300">
+                Subcategoria
+              </label>
+              <div className="relative">
+                <select
+                  value={subcategoryFilter}
+                  onChange={(e) => setSubcategoryFilter(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#0071E3] transition-all cursor-pointer appearance-none pr-8"
+                >
+                  <option value="Todas">Todas ({uniqueSubcategories.length})</option>
+                  {uniqueSubcategories.map(sub => (
+                    <option key={sub} value={sub}>{sub}</option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-3 top-2.5 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+              </div>
+            </div>
+
+            {/* Classificação */}
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300">
+                Classificação
+              </label>
+              <div className="flex items-center space-x-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-1.5">
+                <input
+                  type="text"
+                  placeholder="002"
+                  value={classificacaoGrupoFilter}
+                  onChange={(e) => {
+                    const val = e.target.value.trim();
+                    if (val.includes('.')) {
+                      const [g, s] = val.split('.');
+                      setClassificacaoGrupoFilter(g);
+                      setClassificacaoSubgrupoFilter(s || '');
+                    } else {
+                      setClassificacaoGrupoFilter(val);
+                    }
+                  }}
+                  className="w-14 px-1 text-xs font-mono font-bold bg-transparent border-0 outline-none text-slate-800 dark:text-blue-400 placeholder:text-slate-400 text-center"
+                  title="Código do Grupo (número antes do ponto '.')"
+                />
+                <span className="text-xs font-black text-[#0071E3] font-mono">.</span>
+                <input
+                  type="text"
+                  placeholder="001"
+                  value={classificacaoSubgrupoFilter}
+                  onChange={(e) => setClassificacaoSubgrupoFilter(e.target.value.trim())}
+                  className="w-14 px-1 text-xs font-mono font-bold bg-transparent border-0 outline-none text-slate-800 dark:text-blue-400 placeholder:text-slate-400 text-center"
+                  title="Código do Subgrupo (número depois do ponto '.')"
+                />
+                {(classificacaoGrupoFilter || classificacaoSubgrupoFilter) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setClassificacaoGrupoFilter('');
+                      setClassificacaoSubgrupoFilter('');
+                    }}
+                    className="p-0.5 text-slate-400 hover:text-rose-500 rounded cursor-pointer"
+                    title="Limpar classificação"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Ordenar por */}
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300">
+                Ordenar por
+              </label>
+              <div className="relative">
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as any)}
+                  className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#0071E3] transition-all cursor-pointer appearance-none pr-8"
+                >
+                  <option value="nameSku">Produto &amp; SKU (A-Z)</option>
+                  <option value="refMoblink">Ref MobLink (ID Numérico)</option>
+                  <option value="stockDesc">Estoque (Maior → Menor)</option>
+                  <option value="stockAsc">Estoque (Menor → Maior)</option>
+                </select>
+                <ChevronDown className="absolute right-3 top-2.5 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+              </div>
+            </div>
+          </div>
+
+          {/* ROW 2: Fotos + Botão Erro, Grade, Status */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+            {/* Fotos */}
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300">
+                Fotos
+              </label>
+              <div className="relative">
+                <select
+                  value={photoFilter}
+                  onChange={(e) => {
+                    const val = e.target.value as any;
+                    setPhotoFilter(val);
+                    if (val === 'com_erro' && Object.keys(brokenPhotoMap).length === 0 && !isCheckingBrokenPhotos) {
+                      handleAuditBrokenPhotos();
+                    }
+                  }}
+                  className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#0071E3] transition-all cursor-pointer appearance-none pr-8"
+                >
+                  <option value="todos">Todos (Com &amp; Sem Foto)</option>
+                  <option value="com_foto">📸 Apenas Com Foto Válida</option>
+                  <option value="sem_foto">🚫 Apenas Sem Foto</option>
+                  <option value="com_erro">
+                    ⚠️ Fotos com Erro / 404 {activeBrokenPhotosCount > 0 ? `(${activeBrokenPhotosCount})` : ''}
+                  </option>
+                </select>
+                <ChevronDown className="absolute right-3 top-2.5 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+              </div>
+            </div>
+
+            {/* Botão Fotos com Erro */}
+            <div>
+              <button
+                type="button"
+                onClick={() => {
+                  setPhotoFilter('com_erro');
+                  if (activeBrokenPhotosCount === 0 && !isCheckingBrokenPhotos) {
+                    handleAuditBrokenPhotos();
+                  }
+                }}
+                disabled={isCheckingBrokenPhotos}
+                className={`w-full py-2 px-3 rounded-xl border text-xs font-extrabold transition-all cursor-pointer flex items-center justify-center gap-2 ${
+                  activeBrokenPhotosCount > 0
+                    ? 'bg-rose-50 text-rose-600 border-rose-200 hover:bg-rose-100 dark:bg-rose-950/30 dark:border-rose-900/60 dark:text-rose-400'
+                    : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300'
+                }`}
+              >
+                <AlertTriangle className={`h-4 w-4 ${isCheckingBrokenPhotos ? 'animate-spin' : activeBrokenPhotosCount > 0 ? 'text-rose-600 animate-pulse' : 'text-slate-400'}`} />
+                <span>
+                  {isCheckingBrokenPhotos ? 'Auditando...' : `${activeBrokenPhotosCount} com Erro`}
+                </span>
+              </button>
+            </div>
+
+            {/* Grade */}
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300">
+                Grade
+              </label>
+              <div className="relative">
+                <select
+                  value={gradeFilter}
+                  onChange={(e) => setGradeFilter(e.target.value as any)}
+                  className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#0071E3] transition-all cursor-pointer appearance-none pr-8"
+                >
+                  <option value="todos">Todas (Com &amp; Sem Grade)</option>
+                  <option value="com_grade">✓ Com Grade</option>
+                  <option value="sem_grade">⚠️ Sem Grade</option>
+                </select>
+                <ChevronDown className="absolute right-3 top-2.5 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+              </div>
+            </div>
+
+            {/* Status */}
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300">
+                Status
+              </label>
+              <div className="relative">
+                <select
+                  value={visibilityFilter}
+                  onChange={(e) => setVisibilityFilter(e.target.value as any)}
+                  className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#0071E3] transition-all cursor-pointer appearance-none pr-8"
+                >
+                  <option value="todos">Todos (Visíveis &amp; Ocultos)</option>
+                  <option value="visivel">🟢 Apenas Visíveis no Site</option>
+                  <option value="oculto">🔴 Apenas Ocultos no Site</option>
+                </select>
+                <ChevronDown className="absolute right-3 top-2.5 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+              </div>
+            </div>
+          </div>
+
+          {/* ROW 3: Checkbox Estoque Zerado + Limpar Filtros */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
+            <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={hideOutOfStock}
+                onChange={(e) => setHideOutOfStock(e.target.checked)}
+                className="w-4 h-4 rounded text-[#0071E3] border-slate-300 focus:ring-[#0071E3] cursor-pointer"
+              />
+              <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                Ocultar Estoque Zerado ({zeroStockCount})
+              </span>
+            </label>
 
             {(categoryFilter !== 'Todos' || subcategoryFilter !== 'Todas' || photoFilter !== 'todos' || gradeFilter !== 'todos' || visibilityFilter !== 'todos' || hideOutOfStock || hideNoGrade || classificacaoGrupoFilter || classificacaoSubgrupoFilter || searchQuery) && (
               <button
@@ -2985,181 +3703,13 @@ export const MoblinkProductsManager: React.FC = () => {
                   setSearchQuery('');
                   setBaseNameFilter('');
                 }}
-                className="px-3 py-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 font-bold rounded-2xl text-xs border border-rose-500/20 transition-all cursor-pointer flex items-center gap-1.5 shrink-0"
-                title="Limpar todos os filtros ativos"
+                className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400 text-xs font-extrabold rounded-xl border border-rose-200 dark:border-rose-900/60 flex items-center gap-1.5 self-start sm:self-auto cursor-pointer transition-all"
               >
                 <X className="h-3.5 w-3.5" />
                 <span>Limpar Filtros</span>
               </button>
             )}
-
-            <button
-              type="button"
-              onClick={handleExportExcelReport}
-              disabled={isLoading || filteredMoblinkList.length === 0}
-              className="px-3.5 py-2.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-extrabold rounded-2xl text-xs border border-emerald-500/30 transition-all cursor-pointer flex items-center gap-1.5 shrink-0 shadow-xs active:scale-95 disabled:opacity-40"
-              title="Baixar planilha Excel (.csv UTF-8) contendo os produtos filtrados no momento"
-            >
-              <FileSpreadsheet className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-              <span>Exportar Excel ({filteredMoblinkList.length})</span>
-            </button>
           </div>
-        </div>
-
-        {/* SELECTS E FILTROS ORGANIZADOS */}
-        <div className="flex flex-wrap items-center gap-3">
-          {/* FILTRO DE CATEGORIA */}
-          <div className="flex items-center space-x-1.5">
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider shrink-0">Categoria:</span>
-            <select
-              value={categoryFilter}
-              onChange={(e) => {
-                setCategoryFilter(e.target.value);
-                setSubcategoryFilter('Todas');
-              }}
-              className="px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50/80 dark:bg-slate-800/90 text-slate-800 dark:text-slate-100 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-[#0071E3] transition-all cursor-pointer"
-            >
-              <option value="Todos">Todas ({uniqueCategories.length})</option>
-              {uniqueCategories.map(cat => (
-                <option key={cat} value={cat}>{cat}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* FILTRO DE SUBCATEGORIA */}
-          <div className="flex items-center space-x-1.5">
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider shrink-0">Subcategoria:</span>
-            <select
-              value={subcategoryFilter}
-              onChange={(e) => setSubcategoryFilter(e.target.value)}
-              className="px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50/80 dark:bg-slate-800/90 text-slate-800 dark:text-slate-100 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-[#0071E3] transition-all cursor-pointer"
-            >
-              <option value="Todas">Todas ({uniqueSubcategories.length})</option>
-              {uniqueSubcategories.map(sub => (
-                <option key={sub} value={sub}>{sub}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* FILTRO POR CLASSIFICAÇÃO ERP (GRUPO . SUBGRUPO) */}
-          <div className="flex items-center space-x-1.5 shrink-0">
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider shrink-0">Classificação:</span>
-            <div className="flex items-center space-x-1 bg-slate-50 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 rounded-xl p-1">
-              <input
-                type="text"
-                placeholder="002"
-                value={classificacaoGrupoFilter}
-                onChange={(e) => {
-                  const val = e.target.value.trim();
-                  if (val.includes('.')) {
-                    const [g, s] = val.split('.');
-                    setClassificacaoGrupoFilter(g);
-                    setClassificacaoSubgrupoFilter(s || '');
-                  } else {
-                    setClassificacaoGrupoFilter(val);
-                  }
-                }}
-                className="w-12 px-1 py-0.5 text-xs font-mono font-bold bg-transparent border-0 outline-none text-slate-800 dark:text-blue-400 placeholder:text-slate-400 placeholder:font-normal text-center"
-                title="Código do Grupo (número antes do ponto '.')"
-              />
-              <span className="text-xs font-black text-[#0071E3] font-mono">.</span>
-              <input
-                type="text"
-                placeholder="001"
-                value={classificacaoSubgrupoFilter}
-                onChange={(e) => setClassificacaoSubgrupoFilter(e.target.value.trim())}
-                className="w-12 px-1 py-0.5 text-xs font-mono font-bold bg-transparent border-0 outline-none text-slate-800 dark:text-blue-400 placeholder:text-slate-400 placeholder:font-normal text-center"
-                title="Código do Subgrupo (número depois do ponto '.')"
-              />
-              {(classificacaoGrupoFilter || classificacaoSubgrupoFilter) && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setClassificacaoGrupoFilter('');
-                    setClassificacaoSubgrupoFilter('');
-                  }}
-                  className="p-1 text-slate-400 hover:text-rose-500 rounded cursor-pointer transition-colors"
-                  title="Limpar filtro de classificação"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* ORDENAÇÃO DE PRODUTOS */}
-          <div className="flex items-center space-x-1.5">
-            <Filter className="h-3.5 w-3.5 text-[#0071E3] shrink-0" />
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider shrink-0">Ordenar:</span>
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as any)}
-              className="px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50/80 dark:bg-slate-800/90 text-slate-800 dark:text-blue-400 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-[#0071E3] transition-all cursor-pointer"
-            >
-              <option value="nameSku">Produto &amp; SKU (A-Z)</option>
-              <option value="refMoblink">Ref MobLink (ID Numérico)</option>
-              <option value="stockDesc">Estoque (Maior → Menor)</option>
-              <option value="stockAsc">Estoque (Menor → Maior)</option>
-            </select>
-          </div>
-
-          {/* FILTRO SELETIVO DE FOTOS */}
-          <div className="flex items-center space-x-1.5">
-            <ImageIcon className="h-3.5 w-3.5 text-purple-500 shrink-0" />
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider shrink-0">Fotos:</span>
-            <select
-              value={photoFilter}
-              onChange={(e) => setPhotoFilter(e.target.value as any)}
-              className="px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50/80 dark:bg-slate-800/90 text-slate-800 dark:text-purple-400 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all cursor-pointer"
-            >
-              <option value="todos">Todos (Com &amp; Sem Foto)</option>
-              <option value="com_foto">📸 Apenas Com Foto</option>
-              <option value="sem_foto">🚫 Apenas Sem Foto</option>
-            </select>
-          </div>
-
-          {/* FILTRO SELETIVO DE GRADE */}
-          <div className="flex items-center space-x-1.5">
-            <Layers className="h-3.5 w-3.5 text-[#0071E3] shrink-0" />
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider shrink-0">Grade:</span>
-            <select
-              value={gradeFilter}
-              onChange={(e) => setGradeFilter(e.target.value as any)}
-              className="px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50/80 dark:bg-slate-800/90 text-slate-800 dark:text-blue-400 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-[#0071E3] transition-all cursor-pointer"
-            >
-              <option value="todos">Todas (Com &amp; Sem Grade)</option>
-              <option value="com_grade">✓ Com Grade</option>
-              <option value="sem_grade">⚠️ Sem Grade</option>
-            </select>
-          </div>
-
-          {/* FILTRO SELETIVO DE VISIBILIDADE / STATUS NO SITE */}
-          <div className="flex items-center space-x-1.5">
-            <Eye className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider shrink-0">Status:</span>
-            <select
-              value={visibilityFilter}
-              onChange={(e) => setVisibilityFilter(e.target.value as any)}
-              className="px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50/80 dark:bg-slate-800/90 text-slate-800 dark:text-emerald-400 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all cursor-pointer"
-            >
-              <option value="todos">Todos (Visíveis &amp; Ocultos)</option>
-              <option value="visivel">🟢 Apenas Visíveis no Site</option>
-              <option value="oculto">🔴 Apenas Ocultos no Site</option>
-            </select>
-          </div>
-
-          {/* TOGGLE OCULTAR ESTOQUE ZERADO */}
-          <label className="inline-flex items-center gap-2 px-3 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl cursor-pointer select-none shrink-0 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
-            <input
-              type="checkbox"
-              checked={hideOutOfStock}
-              onChange={(e) => setHideOutOfStock(e.target.checked)}
-              className="w-4 h-4 rounded text-[#0071E3] border-slate-300 focus:ring-[#0071E3] cursor-pointer"
-            />
-            <span className="text-xs font-extrabold text-slate-700 dark:text-slate-200">
-              Ocultar Estoque Zerado (0)
-            </span>
-          </label>
         </div>
       </div>
 
@@ -3289,6 +3839,15 @@ export const MoblinkProductsManager: React.FC = () => {
                               ? item.tamanhos.join(', ')
                               : (Array.isArray(existingDb?.sizes) ? existingDb.sizes.join(', ') : undefined);
                             const isItemSelected = Boolean(selectedMobIds[mobId]);
+                            const cleanMobId = mobId.replace(/^MOB-/i, '');
+                            const currentPhotoUrl = extractBestRealPhoto(existingDb) || extractBestRealPhoto(item);
+                            const recBrokenUrl = brokenPhotoMap[mobId] || 
+                                                brokenPhotoMap[cleanMobId] || 
+                                                (existingDb?.id && brokenPhotoMap[String(existingDb.id)]) ||
+                                                '';
+                            const isBroken = Boolean(
+                              recBrokenUrl && (!currentPhotoUrl || recBrokenUrl === currentPhotoUrl)
+                            );
 
                             return (
                               <tr 
@@ -3312,15 +3871,20 @@ export const MoblinkProductsManager: React.FC = () => {
 
                                 {/* THUMBNAIL DA FOTO DA COR */}
                                 <td className="py-3 px-4">
-                                  <div className="w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-800 overflow-hidden shrink-0 border border-slate-200 dark:border-slate-700 flex items-center justify-center">
-                                    {(existingDb?.images?.[0] || item.foto_uri || item.foto_url || item.imagem || item.image) ? (
-                                      <img 
-                                        src={existingDb?.images?.[0] || item.foto_uri || item.foto_url || item.imagem || item.image} 
-                                        alt={variant} 
-                                        className="w-full h-full object-cover"
-                                      />
-                                    ) : (
-                                      <ImageIcon className="h-4 w-4 text-slate-400" />
+                                  <div className="relative w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-800 overflow-hidden shrink-0 border border-slate-200 dark:border-slate-700 flex items-center justify-center">
+                                    <ProductImage
+                                      product={existingDb || item}
+                                      variant="thumb"
+                                      containerClassName="w-10 h-10"
+                                      onImageError={(failedUrl) => recordBrokenPhoto(mobId, failedUrl)}
+                                    />
+                                    {isBroken && (
+                                      <span 
+                                        className="absolute -top-1 -right-1 bg-rose-600 text-white p-0.5 rounded-full shadow-md animate-bounce ring-1 ring-white dark:ring-slate-900"
+                                        title="Foto com erro 404 / NoSuchKey"
+                                      >
+                                        <AlertTriangle className="h-2.5 w-2.5" />
+                                      </span>
                                     )}
                                   </div>
                                 </td>
@@ -3423,7 +3987,12 @@ export const MoblinkProductsManager: React.FC = () => {
 
                                 {/* STATUS DE MÍDIA */}
                                 <td className="py-3 px-4">
-                                  {hasMedia ? (
+                                  {isBroken ? (
+                                    <span className="inline-flex items-center gap-1 text-[9px] font-bold text-rose-600 dark:text-rose-400">
+                                      <AlertTriangle className="h-3 w-3 text-rose-500" />
+                                      Erro 404
+                                    </span>
+                                  ) : hasMedia ? (
                                     <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-600 dark:text-emerald-400">
                                       <CheckCircle2 className="h-3 w-3 text-emerald-500" />
                                       Com Fotos
@@ -3511,6 +4080,8 @@ export const MoblinkProductsManager: React.FC = () => {
               getExistingDbProduct={getExistingDbProduct}
               resolveSubcategory={resolveProductSubcategory}
               onToggleVisibility={handleToggleVisibility}
+              brokenPhotoMap={brokenPhotoMap}
+              onImageError={(mobId, url) => recordBrokenPhoto(mobId, url)}
             />
 
             {/* CONTROLES DE PAGINAÇÃO DA TABELA */}
@@ -3543,48 +4114,7 @@ export const MoblinkProductsManager: React.FC = () => {
         )}
       </div>
 
-      {/* FORM MODAL DE EDIÇÃO E ENRIQUECIMENTO DO PRODUTO */}
-      <ProductEditModal
-        selectedProduct={selectedProduct}
-        selectedProductGrade={selectedProductGrade}
-        isLoadingProductGrade={isLoadingProductGrade}
-        isSingleRefreshing={isSingleRefreshing}
-        editName={editName}
-        setEditName={setEditName}
-        editColor={editColor}
-        setEditColor={setEditColor}
-        editVisible={editVisible}
-        setEditVisible={setEditVisible}
-        editNewArrival={editNewArrival}
-        setEditNewArrival={setEditNewArrival}
-        images={images}
-        setImages={setImages}
-        newImageUrl={newImageUrl}
-        setNewImageUrl={setNewImageUrl}
-        isUploading={isUploading}
-        richDescription={richDescription}
-        setRichDescription={setRichDescription}
-        editColorImageMap={editColorImageMap}
-        setEditColorImageMap={setEditColorImageMap}
-        editColorImages={editColorImages}
-        setEditColorImages={setEditColorImages}
-        feedback={feedback}
-        setFeedback={setFeedback}
-        showWebSearchModal={showWebSearchModal}
-        setShowWebSearchModal={setShowWebSearchModal}
-        showAiDescriptionModal={showAiDescriptionModal}
-        setShowAiDescriptionModal={setShowAiDescriptionModal}
-        handleCloseEnrichmentForm={handleCloseEnrichmentForm}
-        handleSaveProductEnrichment={handleSaveProductEnrichment}
-        handleRefreshSingleProduct={handleRefreshSingleProduct}
-        handleAddImageUrl={handleAddImageUrl}
-        handleFileUpload={handleFileUpload}
-        handleSetMainImage={handleSetMainImage}
-        handleRemoveImage={handleRemoveImage}
-        handleInsertTemplate={handleInsertTemplate}
-        preserveExistingImages={preserveExistingImages}
-        syncImageUpdateToFirestore={syncImageUpdateToFirestore}
-      />
+
 
       {/* BARRA FLUTUANTE DE AÇÕES EM LOTE (ESTILO APPLE FLOATING DOCK) */}
       {selectedIdsList.length > 0 && (

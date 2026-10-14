@@ -34,11 +34,22 @@ function formatCurrency(value: number | null | undefined): string {
 function formatDate(raw: string | null | undefined): string {
   if (!raw) return '—';
   try {
-    const d = new Date(raw);
+    const trimmed = String(raw).trim();
+    if (/^\d{2}\/\d{2}\/\d{4}/.test(trimmed)) {
+      return trimmed.slice(0, 10);
+    }
+    const clean = trimmed.split('T')[0].split(' ')[0];
+    if (clean.includes('-')) {
+      const parts = clean.split('-');
+      if (parts.length === 3 && parts[0].length === 4) {
+        return `${parts[2]}/${parts[1]}/${parts[0]}`;
+      }
+    }
+    const d = new Date(trimmed);
     if (isNaN(d.getTime())) return raw;
     return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
   } catch {
-    return raw;
+    return String(raw);
   }
 }
 
@@ -532,15 +543,36 @@ export const MeuCrediario: React.FC = () => {
                             const amountInfo = getInstallmentAmount(inv);
                             const parcelUniqueKey = String(inv.id || `${group.saleKey}_${parcNum}`);
                             const isPaid = amountInfo.isPaid || paidParcelKeys.has(parcelUniqueKey) || paidParcelKeys.has(String(inv.id));
+                            const dueDate = inv.data_vencimento || inv.vencimento || (inv as any).dt_vencimento || (inv as any).dt_venc;
+                            const isOverdue = !isPaid && amountInfo.isOverdue;
 
                             return (
                               <div
                                 key={idx}
-                                className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 text-xs"
+                                className={`flex items-center justify-between p-3.5 rounded-2xl transition-all ${
+                                  isPaid
+                                    ? isDark ? 'bg-emerald-950/20 border border-emerald-500/20' : 'bg-emerald-50/60 border border-emerald-200'
+                                    : isOverdue
+                                      ? isDark ? 'bg-rose-950/20 border border-rose-500/30' : 'bg-rose-50/70 border border-rose-200'
+                                      : isDark ? 'bg-slate-800/50 border border-slate-700/60' : 'bg-slate-50 border border-slate-200/80'
+                                } text-xs`}
                               >
                                 <div>
-                                  <p className="font-bold text-slate-900 dark:text-white">Parcela {parcNum}</p>
-                                  <p className="text-[11px] text-slate-400">Vencimento: {formatDate(inv.vencimento)}</p>
+                                  <div className="flex items-center gap-2">
+                                    <p className="font-bold text-slate-900 dark:text-white">Parcela {parcNum}</p>
+                                    {isPaid ? (
+                                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-500">
+                                        Pago
+                                      </span>
+                                    ) : isOverdue ? (
+                                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/15 text-rose-500">
+                                        Vencida
+                                      </span>
+                                    ) : null}
+                                  </div>
+                                  <p className={`text-[11px] mt-0.5 ${isOverdue ? 'text-rose-500 font-semibold' : 'text-slate-400'}`}>
+                                    Vencimento: {formatDate(dueDate)}
+                                  </p>
                                 </div>
 
                                 <div className="flex items-center gap-3">
