@@ -1206,3 +1206,64 @@ O Dashboard Financeiro (`FinancialDashboard.tsx`) no `AdminPanel.tsx` (aba `fina
    - Armazenamento no documento `storeConfig/layout` com o array `featuredPromoCards: FeaturedPromoCard[]`.
    - Reatividade em tempo real na vitrine via `useApp().featuredPromoCards` e fallback seguro para `DEFAULT_FEATURED_PROMO_CARDS`.
    - Botão para restaurar configurações originais de fábrica a qualquer momento.
+
+---
+
+## 47. Suporte a Fotos em Subpastas & Mapeamento Inteligente no Supabase Storage
+
+### A. Diagnóstico do Problema (Produto 1750 e similares)
+- No bucket do Supabase Storage (`evidenciacalcados`), existem dois padrões de armazenamento:
+  1. **Fotos fora de pastas (Flat files)**: Arquivos na raiz de `produtos/` com padrão `produto_<id>_<timestamp>.bmp`.
+  2. **Fotos dentro de pastas**: Subpastas criadas por ID do produto (ex: `produtos/1750/web_foto_1790181943003_duz3vw.webp`).
+- A lógica anterior listava apenas o nível raiz de `produtos/`. Ao encontrar uma subpasta, o Supabase Storage retornava `{ name: '1750', id: null }`. O código tratava esse item como arquivo e montava URLs inválidas como `https://.../produtos/1750` (que retornam erro HTTP 400 Bad Request) ou dependia de arquivos `.bmp` obsoletos presentes no backup.
+
+### B. Correção Implementada (`src/services/supabaseStorageService.ts`)
+1. **Varredura Híbrida e Recursiva (`fetchSupabaseStoragePhotosMap`)**:
+   - Detecta subpastas de produtos (`item.id === null` dentro de `produtos/`), ignorando pastas auxiliares como `thumbnails/`.
+   - Executa `.list('produtos/<subpasta>')` e extrai os arquivos WebP e imagens contidos nela.
+   - Vincula imediatamente a URL pública gerada ao ID do produto (e à chave `MOB-<id>`).
+   - Mantém 100% da compatibilidade com arquivos planos fora de pastas (`produto_<id>_...`).
+2. **Priorização de Arquivos Recentes no Bucket**:
+   - Fotos reais ativas no Supabase Storage recebem precedência máxima (`unshift`/prepend) sobre links legados do backup (`photos_backup_latest.json`), garantindo que URLs válidas `.webp` substituam arquivos antigos e corrompidos `.bmp`.
+3. **Auditoria de Mídias Completa (`auditSupabaseVsFirebasePhotos`)**:
+   - Atualizada para inspecionar tanto a raiz quanto as subpastas de produtos, evitando falsos positivos de arquivos órfãos ou contagens distorcidas de arquivos de catálogo.
+
+---
+
+## 48. Grade de Numerações e Vinculação de Cores das Fotos (`ProductEditPage.tsx`)
+
+### A. Contexto e Motivação
+A tela de edição de produtos em página inteira (`ProductEditPage.tsx`) precisava exibir a estrutura de grade completa do ERP MobLink (numerações com estoque e cores ativas) e oferecer a funcionalidade de vincular as fotos do produto a cada cor da grade, permitindo ao cliente na loja virtual alternar as fotos ao selecionar uma cor.
+
+### B. Implementação
+1. **Painel de Grade & Variações do ERP**:
+   - Card estilizado localizado entre a barra de métricas (KPIs) e a Seção 1 (Apresentação).
+   - Exibe a lista de *Numerações Disponíveis* com saldo (`34`, `35`, `36`...), os badges de *Cores Cadastradas na Grade* (com ponto indicador de foto vinculada) e uma tabela completa com Tamanho, Cor, Saldo em Loja e Código de Barras / Posição na grade.
+   - Produtos de estoque global/único sem grade no ERP são sinalizados com aviso elegante de *Estoque Único*.
+2. **Seletor de Vínculo de Cor na Galeria de Fotos**:
+   - Em cada card de foto da Seção 2, foi adicionado o seletor `Vincular à cor da grade:`.
+   - As opções são estritamente limitadas às cores oficiais da grade do ERP (`availableColors`).
+   - A foto vinculada exibe uma badge no topo com o nome da cor e estrela `★` caso seja a capa daquela cor.
+   - Sincroniza perfeitamente com os estados `colorImages` e `colorImageMap` persistidos no Firestore.
+
+---
+
+## 49. Invalidação e Limpeza Automática do Filtro de Fotos com Erro (`brokenPhotoService.ts`)
+
+### A. Diagnóstico do Problema
+Ao corrigir a foto de um produto que estava marcado com erro (404 / NoSuchKey), o produto continuava aparecendo na lista filtrada de "Fotos com Erro". Os motivos identificados foram:
+1. O `brokenPhotoService` persistia os erros no `localStorage` e na memória, mas não havia limpeza das chaves do produto quando novas fotos eram salvas.
+2. A filtragem no `MoblinkProductsManager` priorizava a foto do `item` (bruta da API) antes de checar `existingDb` (fotos salvas pelo lojista).
+3. A checagem do filtro era cega: se o ID constava no mapa de erros, o produto era considerado quebrado mesmo que a foto atual fosse uma foto nova completamente funcional.
+
+### B. Correção Implementada
+1. **Limpeza Reativa (`clearBrokenPhoto`)**:
+   - `clearBrokenPhoto(productId, newUrl)` remove as entradas do produto em todas as suas variações de ID (`normId`, `cleanId`, `mobKey`), limpa o cache de teste da URL antiga (`testedUrlCache`) e atualiza reativamente os ouvintes.
+   - Disparado automaticamente em `syncImageUpdateToFirestore` (durante upload e busca web) e em `handleSaveProductEnrichment`.
+2. **Precedência de Banco & Checagem Fiel de URL**:
+   - O filtro e as tabelas agora dão precedência absoluta às fotos gerenciadas do banco (`existingDb`).
+   - O produto só é considerado com erro se houver registro no mapa E a URL gravada como erro for exatamente idêntica à URL ativa do produto. Se a foto foi alterada, o produto é imediatamente desmarcado.
+3. **Contador Dinâmico `activeBrokenPhotosCount`**:
+   - Os botões "Fotos com Erro (N)" e a opção no dropdown agora refletem dinamicamente a quantidade real de produtos com falha ativa.
+
+

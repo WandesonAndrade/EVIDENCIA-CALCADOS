@@ -306,3 +306,124 @@ Este arquivo é a memória persistente do projeto (AG Kit), consolidando decisõ
     - **Largura e Peek Affordance**: Cada card ocupa `w-[86vw] min-[390px]:w-[84vw] sm:w-[380px]` com `snap-center`, permitindo que o próximo card fique sutilmente visível na borda direita, convidando o usuário ao deslize horizontal natural.
     - **Indicador Interativo de Paginação**: Adicionada barra com 3 pílulas/pontos indicadores na base do carrossel (`md:hidden`) sincronizados com o scroll e clicáveis para transição direta entre os banners.
     - **Preservação Desktop**: Em telas médias e grandes (`md:`), a exibição mantém rigorosamente o grid de 3 colunas lado a lado (`md:grid md:grid-cols-3`).
+
+46. **Varredura Híbrida de Armazenamento no Supabase (Fotos em Pastas & Arquivos Soltos) (Implementado):**
+    - **Detecção de Subpastas (`fetchSupabaseStoragePhotosMap` & `auditSupabaseVsFirebasePhotos`)**: O Supabase Storage organiza muitas fotos dentro de pastas por ID de produto (ex: `produtos/1750/web_foto_1790181943003_duz3vw.webp`) enquanto outras ficam soltas na raiz de `produtos/` (ex: `produtos/produto_1998_...bmp`).
+    - **Correção da Falha**: A listagem anterior tratava subpastas (`item.id === null`) como se fossem arquivos, gerando URLs inválidas como `.../produtos/1750` e ignorando os arquivos reais contidos nelas.
+    - **Varredura Recursiva e Mapeamento Inteligente**: O scanner agora identifica pastas de produtos pelo ID, entra em cada subpasta (ignorando `thumbnails/`), extrai as fotos e as mapeia com precedência máxima (`unshift`/prepend) para o ID e `MOB-<id>`.
+    - **Precedência de Mídia Atualizada**: Fotos reais ativas no bucket têm precedência sobre URLs antigas do backup (como arquivos `.bmp` que foram deletados ou corrompidos), garantindo que produtos como o 1750 peguem imediatamente o arquivo `.webp` funcional.
+
+47. **Filtro e Auditoria de Fotos com Erro 404 / NoSuchKey (`brokenPhotoService.ts`) (Implementado):**
+    - **Detecção Híbrida (Tempo Real & Em Lote)**:
+      * `ProductImage.tsx` com `onError` intercepta falhas de carregamento no navegador, dispara fallback para `NO_PHOTO_SVG` e grava no mapa de erros `brokenPhotoService`.
+      * `auditProductsPhotos`: Rotina de alta performance com concorrência paralela que testa URLs contra erros 404/NoSuchKey sem travar a interface.
+    - **Filtro no Painel Admin (`MoblinkProductsManager.tsx`)**:
+      * Nova opção no dropdown **`FOTOS:`**: `⚠️ Fotos com Erro / 404 (N)`.
+      * Botão de ação rápida `🔍 Auditar Fotos 404` no cabeçalho e na barra de filtros para varrer e identificar instantaneamente todos os produtos com links quebrados no catálogo.
+    - **Feedback Visual e Exportação**:
+      * Badge de alerta vermelho `⚠️ Erro 404 (Quebrada)` na coluna de mídia e ícone pulsante no thumbnail das tabelas (individual e agrupada).
+      * Desativação automática de visibilidade para produtos com fotos quebradas (`isVisibleOnSite = false`).
+      * Relatórios Excel via `excelReportService.ts` integrados com o status `⚠️ Erro 404 (Foto Quebrada)`.
+
+48. **Exibição e Edição da Marca do Produto no Detalhe e no Painel Admin (`brandUtils.ts`) (Implementado):**
+    - **Resolução Inteligente de Marca (`resolveProductBrand`)**:
+      * Módulo utilitário `src/utils/brandUtils.ts` com dicionário das principais marcas de calçados do mercado brasileiro (ex: *Marvel, Moleca, Dakota, Vizzano, Beira Rio, Modare, Havaianas, Pegada, Usaflex, Olympikus, Nike, Adidas*, etc.).
+      * Prioriza campos explícitos de marca do banco/ERP (`brand`, `marca`, `fabricante`), descartando termos genéricos (*OUTRAS MARCAS*, *GERAL*, etc.). Se ausente, infere a marca automaticamente a partir do nome ou descrição do modelo (ex: `BABUCH MARVEL NEW STEP 23235` -> `Marvel`).
+      * Respeita rigorosamente a Regra 13: nunca atribui artificialmente "Evidência Calçados" como marca quando o calçado não possui fabricante declarado.
+    - **Página de Detalhes do Cliente (`ProductDetail.tsx`)**:
+      * **Badge no Topo**: Exibido badge estilizado de marca ao lado do badge de categoria (`Marca: Marvel`).
+      * **Linha de Referência**: Exibe `Marca: Marvel • Ref: 23235 • Vendido e entregue por Evidência Calçados`.
+      * **Especificações Técnicas**: Bloco dedicado com ficha técnica básica exibindo a marca do calçado.
+    - **Modal de Edição do Administrador (`ProductEditModal.tsx` & `MoblinkProductsManager.tsx`)**:
+      * **Badge no Cabeçalho**: Badge roxo `Marca: Marvel` ao lado do `ID Ref` e `Ref ERP`.
+      * **Painel de Métricas / KPI**: Coluna dedicada `Marca` no grid de resumo superior.
+      * **Seção 1 (Apresentação & Vitrine)**: Campo editável `Marca do Produto`, permitindo ao lojista visualizar a marca inferida e alterá-la livremente, com persistência no Firestore (`brand` e `marca`).
+
+50. **Redesign da Página de Edição de Produto no Padrão do Mockup (`ProductEditPage.tsx`) (Implementado):**
+    - **Fidelidade Visual ao Mockup do Usuário**:
+      * **Barra de Navegação**: Botões em formato pílula elegante: `← Voltar para Produtos` e `🔄 Atualizar dados do ERP`.
+      * **Hero Card do Produto**:
+        - Thumbnail do calçado/produto em card arredondado à esquerda.
+        - Badges pill coloridos: `ID Ref: XXXX` (âmbar), `MARCA: XXXXX` (roxo suave) e `PÚBLICO: XXXXX` (verde esmeralda ou azul/âmbar conforme gênero).
+        - Título principal em caixa alta e negrito (`uppercase font-black`).
+        - Linha descritiva de categoria e código de classificação ERP: `📦 Perfumes / Classificação: 010.002`.
+        - Box lateral direito de status com carimbo: `Última atualização: DD/MM/AAAA • HH:MM` e ícone de refresh.
+      * **Fileira de KPIs em 5 Colunas com Ícones Circulares**:
+        - `🏷️ PREÇO TABELA` (R$ XX,XX)
+        - `💲 PREÇO PIX` (em verde esmeralda)
+        - `💳 PREÇO CARTÃO` (R$ XX,XX)
+        - `📦 ESTOQUE` (X un em verde esmeralda)
+        - `📁 CATEGORIA` (nome da categoria + código de classificação ERP)
+      * **Seção ❶: Apresentação & Visibilidade na Vitrine**:
+        - Título com numeração circular azul `❶` e subtítulo à direita: *"Configure as informações principais do produto."*
+        - Grid de 3 campos: *Nome Comercial do Produto*, *Marca do Produto* (com sugestões) e *Público / Gênero* (dropdown nativo).
+        - Dois checkboxes estilizados: `Exibir produto visível nas vitrines da loja virtual` e `Destacar como Lançamento / Novidade`.
+      * **Seção ❷: Galeria de Fotos em Alta Resolução**:
+        - Numeração circular `❷` + link `ⓘ Dicas para boas fotos`.
+        - Box pontilhado de Drag & Drop para arrastar imagens (PNG, JPG, WebP) com input de URL direta + botão `Adicionar`.
+        - Card ao lado: `Buscar Foto na Web` com botão `Abrir busca na web`.
+        - Grid de Fotos Ativas com badge `CAPA`, menu 3 pontinhos `⋮`, tamanho do arquivo em WebP, botão `Definir como capa` e lixeira.
+        - Card pontilhado `+ Adicionar foto`.
+      * **Seção ❸: Descrição Comercial & Ficha Técnica (HTML Rico)**:
+        - Numeração circular `❸` + menu dropdown âmbar `Templates de Descrição ▾`.
+        - 4 botões pill rápidos: `Descrição Padrão`, `Benefícios`, `Modo de Uso` e `Dicas de Conservação`.
+        - Alternância de abas `Editar HTML` / `Prévia Visual`.
+        - Barra de ferramentas WYSIWYG (`B`, `I`, `U`, `S`, listas, links, código) e contador de caracteres `XX / 2000`.
+      * **Rodapé Fixo**:
+        - Botão `← Cancelar e voltar` à esquerda e botão verde esmeralda `💾 Salvar alterações` à direita.
+
+51. **Redesign da Tela de Gestão de Produtos & Estoque no Padrão do Mockup (`MoblinkProductsManager.tsx`) (Implementado):**
+    - **Header & Breadcrumb**:
+      * Breadcrumb superior `< Produtos` com navegação contextual segura (`onBack` retornando à visão geral do painel ou `goBack()`).
+      * Card limpo de cabeçalho com ícone 3D em container azul (`Boxes`), título `Gestão de Produtos & Estoque`, badge `APPLE STUDIO` e descrição.
+      * Console lateral de status MobLink ERP com dot verde pulsante, status `Conectado & Ativo`, botão de refresh e carimbo dinâmico `Última sincronização` (`DD/MM/AAAA • HH:mm`).
+    - **Seção "Ações de Sincronização" com Acordeão e Cards Coloridos**:
+      * Cabeçalho com ícone de sincronização, título descritivo e botão pill `⚡ Ações rápidas ^` para alternar colapsar/expandir.
+      * **Fileira 1 (4 Cards Principais com Gradiente/Cores Sólidas e Chevron `>`)**:
+        - 🎯 *Sincronizar 1 Produto (por ID)* em azul `#0071E3`
+        - 📸 *Sincronizar & Auditar Fotos (Supabase)* em roxo `#7C3AED`
+        - 🛡️ *Fazer Backup Fotos (Supabase)* em azul royal `#0284C7`
+        - 📥 *Restaurar Fotos (Supabase)* em esmeralda `#059669`
+      * **Fileira 2 (3 Cards Secundários com Borda e Fundo Pastel)**:
+        - ⚠️ *Fotos com Erro (N)* com badge e borda em tom rose
+        - ⚡ *Salvar Visível (Todos com Foto)* com ícone de olho em tom âmbar
+        - 📊 *Exportar Excel (N)* com planilha em tom esmeralda
+    - **Fileira de KPIs em 4 Cards de Destaque**:
+      * *Catálogo Integrado* (Total de SKUs cadastrados com ícone de caixa)
+      * *Unidades em Estoque* (Total de pares em estoque com ícone de camadas)
+      * *Modelos Agrupados* (Total de referências pai com ícone de grid/pastas)
+      * *Status MobLink ERP* (Status `Conectado & Ativo` com sinal de rede/wifi em tempo real)
+    - **Seção "Filtros e Pesquisa" Reorganizada**:
+      * Alternador segmentado: `Modo Lista (N)` (azul sólido quando ativo) e `Agrupado por Classificação (N)`.
+      * Campo de busca amplo com placeholder: `Buscar por Modelo (ex: Sound Kids), ID MobLink...` e botão de limpar `X`.
+      * Botão de exportação em verde sólido `Exportar Excel (N)`.
+      * Grid alinhado de filtros:
+        - Linha 1: *Categoria*, *Subcategoria*, *Classificação* (caixas separadas `002 . 001`), *Ordenar por*.
+        - Linha 2: *Fotos*, botão de atalho `⚠️ N com Erro`, *Grade*, *Status*.
+        - Rodapé: Checkbox `Ocultar Estoque Zerado (N)` com contador real dinâmico e botão `Limpar Filtros`.
+51. **Correção do Vencimento das Parcelas em Aberto no Crediário Próprio (`MeuCrediario.tsx`) (Implementado):**
+    - **Identificação do Campo no MobLink ERP**: A API oficial do ERP retorna o vencimento no campo `data_vencimento` (ex: `2026-11-12`). O componente `MeuCrediario.tsx` lia apenas `inv.vencimento`, resultando em valor indefinido e exibição de `Vencimento: —`.
+    - **Suporte Abrangente a Vencimentos**: Atualizada a extração para priorizar `inv.data_vencimento || inv.vencimento || inv.dt_vencimento`, cobrindo tanto carnês (`CN`) quanto duplicatas (`DP`) e lançamentos manuais.
+    - **Eliminação de Bug de Timezone UTC no `formatDate`**: O `new Date("YYYY-MM-DD")` no fuso horário brasileiro (UTC-3) subtraía 3 horas e recuava o dia (ex: 12/11 virava 11/11). A formatação agora faz o parse sem fuso horário, preservando com precisão o dia, mês e ano exatos informados pelo ERP.
+    - **Badge e Destaque Visual para Parcelas Vencidas**: Parcelas não pagas com data de vencimento anterior a hoje recebem badge visual `Vencida` em vermelho e texto destacado, auxiliando na clareza para o cliente.
+
+52. **Grade de Numerações e Vinculação de Cores das Fotos no Redesign (`ProductEditPage.tsx`) (Implementado):**
+    - **Painel de Grade & Variações do ERP MobLink**:
+      * Inserido card dedicado com badge MobLink ERP entre os KPIs e a Seção 1.
+      * Exibe chips de *Numerações Disponíveis* com saldo em estoque (`34`, `35`, `36`...), badges de *Cores Cadastradas na Grade* (com indicador de foto vinculada) e tabela detalhada de saldos por variação com código de barras/posição.
+      * Suporte a produtos de *Estoque Global / Único* (cosméticos e sem grade) com aviso elegante.
+    - **Vinculação de Fotos às Cores da Grade**:
+      * Em cada card de foto da galeria, adicionado o seletor `Vincular à cor da grade:` com opções restritas às cores oficiais do ERP.
+      * Foto vinculada recebe badge com nome da cor e estrela `★` quando for a capa daquela cor, integrando-se perfeitamente com a troca dinâmica de foto por cor na vitrine e no `ProductDetail.tsx`.
+
+53. **Invalidação e Limpeza Automática do Filtro de Fotos com Erro 404 (`brokenPhotoService.ts` & `MoblinkProductsManager.tsx`) (Implementado):**
+    - **Diagnóstico do Bug**: O `brokenPhotoService` persistia URLs com erro no `localStorage`. Ao corrigir a foto por upload ou busca web, o mapa local de erros não era limpo, e a filtragem checava cegamente se o ID existia no mapa sem comparar se a foto atual ainda era a URL que havia falhado.
+    - **Correção da Invalidação (`clearBrokenPhoto`)**:
+      * `clearBrokenPhoto(productId, newUrl)` agora apaga os registros do produto (`normId`, `cleanId`, `mobKey`), remove a URL quebrada anterior do cache de testes (`testedUrlCache`) e atualiza reativamente os listeners.
+      * Acionado imediatamente em `syncImageUpdateToFirestore` (upload/web search) e em `handleSaveProductEnrichment`.
+    - **Checagem Fiel de URL e Precedência do Banco (`existingDb`)**:
+      * Na tabela e no filtro de fotos, as fotos enriquecidas do banco têm precedência absoluta sobre dados brutos do ERP.
+      * A foto só é tratada como quebrada se a URL registrada com erro for exatamente idêntica à URL ativa do produto. Se a foto foi alterada, o produto sai imediatamente da lista de erros.
+    - **Contador Dinâmico `activeBrokenPhotosCount`**:
+      * O botão "Fotos com Erro (N)" e o dropdown de filtro agora exibem a contagem exata e dinâmica dos produtos que ainda possuem erro real ativo.
+
