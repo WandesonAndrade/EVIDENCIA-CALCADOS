@@ -428,3 +428,37 @@ Este arquivo é a memória persistente do projeto (AG Kit), consolidando decisõ
     - Removidas as pílulas/badges superiores de *Categoria* (`ACESSÓRIOS`), *Marca* (`MARCA: ...`) e *Gênero/Público* (`FEMININO` / `MASCULINO` / `INFANTIL`) que ficavam sobre o título na tela de detalhes do produto.
     - Layout higienizado e mais moderno: o cabeçalho agora exibe diretamente a avaliação (`⭐ 5.0 (novo)`) e o título do produto em destaque.
     - As informações de Marca, Público, Código de Referência e Vendedor continuam organizadas de forma limpa na linha de metadados imediatamente abaixo do título e na Ficha Técnica.
+
+55. **Desconto de Pontualidade nas Parcelas do Crediário Próprio & Aba Independente de Descontos (Implementado):**
+    - **Aba Independente "Descontos & Benefícios" no Painel Admin (`DiscountsManager.tsx` & `AdminPanel.tsx`)**:
+      * Localizada no menu lateral (grupo Financeiro) com ícone `<Percent />`.
+      * Controle em tempo real do Desconto de Pontualidade no Crediário Próprio: toggle Ativar/Pausar, seletor de percentual (%) com presets rápidos (5%, 8%, 10%, 12%, 15%, 20%) e campo de corte de horário (padrão estrito às `22:00`).
+      * Simulador ao vivo com visão do cliente, permitindo testar qualquer valor de parcela e ver a economia em reais e o botão de Pix simulado.
+      * Estrutura modular preparada para receber futuras políticas comerciais (cupons, descontos no Pix à vista e cashback).
+    - **Motor de Cálculo com Trava Temporal às 22:00 (`installmentDiscountService.ts` & `moblinkClientesService.ts`)**:
+      * Função `getInstallmentAmount` atualizada para receber a configuração de desconto reativa.
+      * O desconto é estritamente concedido se a transação for realizada até às 22:00:00 da data de vencimento da parcela.
+      * Após às 22h do dia do vencimento ou para parcelas vencidas, o desconto expira compulsoriamente e o sistema cobra o saldo devedor/encargos originais do ERP.
+    - **Apresentação Visual Motivadora para o Cliente (`MeuCrediario.tsx`)**:
+      * Banner superior luminoso de Pontualidade Premiada comunicando o desconto de pontualidade.
+      * Cards de parcelas elegíveis com badge verde `-% PONTUALIDADE`, alerta pulsante `VENCE HOJE ATÉ ÀS 22:00`, valor original riscado, valor líquido em destaque e tag com o valor exato economizado em reais.
+      * Botão `Pagar Pix com Desconto` gera a cobrança via Mercado Pago diretamente pelo valor abatido, com auditoria no Firestore.
+
+56. **Redirecionamento de Comprovantes do Crediário para o WhatsApp do Financeiro (Implementado):**
+    - **Número Exclusivo do Financeiro (`5599984125572` - 99 98412-5572)**:
+      * Diferenciação de canais: enquanto o Checkout do e-commerce direciona o pedido para o WhatsApp geral da loja (`5599984684867`), o pagamento de parcelas do Crediário Próprio (`/meu-crediario`) agora direciona o comprovante diretamente para o WhatsApp do Financeiro (`5599984125572`).
+    - **Abertura do WhatsApp com Mensagem Formatada (`PixPaymentModal.tsx`)**:
+      * Ao aprovar o Pix da parcela, o modal exibe o botão destacado *"Enviar Comprovante ao Financeiro"* com ícone do WhatsApp.
+      * Monta mensagem automática com Nome do Cliente, CPF, Descrição da Parcela, Valor Pago e ID da Transação Pix do Mercado Pago.
+      * Ao clicar, abre o WhatsApp do financeiro via `window.open` e dá baixa no modal e na tela.
+      * Botão secundário *"Concluir sem enviar WhatsApp"* disponível para flexibilidade do cliente.
+    - **Gestão no Painel Admin (`DiscountsManager.tsx`)**:
+      * Adicionado campo configurável para o WhatsApp do Financeiro na aba "Descontos & Benefícios", permitindo alterar o telefone pelo painel sem alterar código.
+
+57. **Otimização Visual da Gestão de Descontos & Benefícios (`DiscountsManager.tsx`) (Implementado):**
+    - **Eliminação de Poluição Visual e Textos Redundantes**:
+      * Removidos parágrafos óbvios de explicação repetitiva (cálculo de R$ 100 com o simulador ao lado, explicações de vencimento duplicadas).
+      * Agrupados os controles essenciais em layout enxuto e balanceado: Percentual com presets rápidos, Horário Limite e WhatsApp do Financeiro em grade de 2 colunas.
+      * Campos opcionais de personalização de texto do banner recolhidos em acordeão colapsável discreto (`Settings2`), mantendo o foco nos controles operacionais.
+      * Painel lateral de simulação compacto e limpo, sem ruído de textos longos.
+      * Rodapé enxugado: substituídos 3 cards gigantes de placeholder por uma barra horizontal elegante com badges minimalistas de status.

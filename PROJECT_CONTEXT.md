@@ -1266,4 +1266,75 @@ Ao corrigir a foto de um produto que estava marcado com erro (404 / NoSuchKey), 
 3. **Contador Dinâmico `activeBrokenPhotosCount`**:
    - Os botões "Fotos com Erro (N)" e a opção no dropdown agora refletem dinamicamente a quantidade real de produtos com falha ativa.
 
+---
+
+## 50. Correção de Vencimento e Timezone das Parcelas do Crediário (`MeuCrediario.tsx`)
+
+### A. Diagnóstico de Extração do ERP MobLink
+- A API oficial do ERP MobLink retorna a data de vencimento no campo `data_vencimento` (ex: `2026-11-12`). O componente `MeuCrediario.tsx` lia apenas `inv.vencimento`, resultando em valores indefinidos e exibição de traço (`Vencimento: —`).
+- **Resolução**: Extração atualizada para priorizar `inv.data_vencimento || inv.vencimento || inv.dt_vencimento`, cobrindo tanto carnês (`CN`) quanto duplicatas (`DP`) e lançamentos manuais.
+
+### B. Eliminação de Bug de Timezone UTC no Parse
+- O `new Date("YYYY-MM-DD")` no fuso horário do Brasil (UTC-3) subtraía 3 horas e recuava o dia (ex: 12/11 virava 11/11).
+- A formatação em `formatDate` agora faz o split e parse direto sem fuso horário (`ano`, `mes`, `dia`), preservando com exatidão a data informada pelo ERP.
+- Parcelas com vencimento anterior a hoje recebem badge visual `Vencida` em vermelho e destaque de atenção.
+
+---
+
+## 51. Higienização Visual do Topo da Página de Produto (`ProductDetail.tsx`)
+- **Remoção de Tags Redundantes**: Removidas as pílulas/badges superiores de *Categoria* (`ACESSÓRIOS`), *Marca* (`MARCA: ...`) e *Gênero/Público* (`FEMININO` / `MASCULINO` / `INFANTIL`) que ficavam amontoadas sobre o título.
+- **Layout Limpo e Focado**: O cabeçalho agora exibe diretamente a avaliação (`⭐ 5.0 (novo)`) e o nome do produto em destaque.
+- Metadados essenciais (Marca, Público, Código de Referência e Vendedor) continuam perfeitamente organizados na linha de detalhes abaixo do título e na Ficha Técnica.
+
+---
+
+## 52. Desconto de Pontualidade no Crediário Próprio com Trava Temporal às 22h
+
+### A. Regra de Negócio e Cálculo Automático
+- Para incentivar o pagamento em dia de carnês e boletos, foi implementado um desconto percentual configurável (padrão: 10%) nas parcelas do Crediário Próprio (`/meu-crediario`).
+- **Critério Temporal Estrito**: O desconto é concedido automaticamente para pagamentos realizados **até as 22:00:00 da data de vencimento da parcela** (ou parcelas antecipadas).
+- **Corte Compulsório**: Após às 22h do dia do vencimento ou se a parcela estiver vencida, o sistema desativa o desconto compulsoriamente e exige o valor integral / encargos do ERP.
+- **Comunicação Positiva na Interface**: A interface foca no apelo de pontualidade ("Pontualidade Premiada", "Vence hoje • Pague com desconto", economia calculada em reais), preservando o horário das 22h como regra de corte técnico no backend e simulador sem expor "22h" repetidamente no marketing do cliente.
+
+### B. Integração com Mercado Pago Pix & Auditoria Firestore
+- A função `getInstallmentAmount` calcula o valor abatido (`displayAmount`), valor do desconto (`discountAmount`) e porcentagem (`discountPercentage`).
+- Ao clicar em `Pagar Pix com Desconto`, o modal `PixPaymentModal.tsx` gera a cobrança Pix no Mercado Pago com o valor líquido já descontado.
+- A transação é auditada e persistida na coleção `pix_transacoes` do Firestore com idempotência e valor abatido.
+
+---
+
+## 53. Roteamento de Comprovantes para o WhatsApp Exclusivo do Financeiro (`PixPaymentModal.tsx`)
+
+### A. Diferenciação de Canais de Atendimento
+- Enquanto o **Checkout da vitrine/carrinho** direciona o pedido para o WhatsApp geral da loja (`5599984684867`), o pagamento de parcelas do Crediário Próprio (`/meu-crediario`) é direcionado diretamente para o **WhatsApp do Financeiro / Cobrança**:
+  👉 **`+55 (99) 98412-5572`** (99 98412-5572).
+
+### B. Fluxo de Confirmação e Envio de Mensagem Estruturada
+- Ao aprovar o Pix da parcela via polling, o modal exibe a tela de confirmação ("Pix Recebido!") com os botões:
+  1. **`[ Enviar Comprovante ao Financeiro ]`** (Botão verde principal com ícone do WhatsApp).
+  2. **`[ Concluir sem enviar WhatsApp ]`** (Botão discreto para fechar sem disparar mensagem).
+- A mensagem enviada via WhatsApp inclui:
+  - Identificação da Equipe Financeira da Evidência Calçados.
+  - Nome do Cliente e CPF formatado.
+  - Descrição da Parcela e Venda MobLink.
+  - Valor Pago com desconto de pontualidade.
+  - ID da Transação Pix do Mercado Pago para auditoria e conferência.
+- O link `wa.me/5599984125572?text=...` é aberto via `window.open` e a tela dá baixa imediata no título.
+
+---
+
+## 54. Gestão de Descontos & Benefícios no Painel Admin (`DiscountsManager.tsx`)
+
+### A. Painel Centralizado & Desacoplado
+- Nova aba independente **"Descontos & Benefícios"** integrada no `AdminPanel.tsx` (Menu Financeiro, ícone `<Percent />` com badge dinâmico da % ativa).
+- Sincronização em tempo real via Firestore (`settings/installmentDiscount`) com listener `onSnapshot` no `AppContext.tsx` e persistência em `localStorage`.
+
+### B. Design Otimizado e Anti-Poluição Visual
+- **Controles Essenciais Unificados**: Toggle Ativar/Pausar, campo numérico de porcentagem com presets de 1 clique (`5%`, `8%`, `10%`, `12%`, `15%`, `20%`).
+- **Grid de Regras Operacionais**: Horário Limite (`cutoffHour`, padrão 22:00) e WhatsApp do Financeiro (`financeWhatsApp`, padrão `5599984125572`) dispostos em 2 colunas com ícones claros.
+- **Acordeão Discreto de Textos**: Campos de título e subtítulo do banner ficam recolhidos em acordeão opcional (`Settings2`), evitando excesso de inputs desnecessários no dia a dia.
+- **Simulador ao Vivo**: Prévia fiel da parcela refletindo os padrões de cores da frente de loja (Azul Real `#0071E3` no tema clássico e Rosa/Vinho no Outubro Rosa), com campo de teste de valor e cálculo instantâneo da economia em reais.
+- **Rodapé Minimalista**: Substituição de cards pesados de placeholder por uma barra de status horizontal discreta apontando para Cupons (Ofertas), Pix à Vista (MobLink) e Cashback (CRM).
+
+
 
