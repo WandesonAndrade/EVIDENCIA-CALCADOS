@@ -152,9 +152,7 @@ const AppContent: React.FC = () => {
 
   if (isBioView) {
     return (
-      <div className={`min-h-screen transition-colors duration-300 font-sans ${
-        theme === 'dark' ? 'bg-[#0B0F19] text-slate-100 dark' : 'bg-[#EAF5FF] text-slate-900'
-      }`}>
+      <div className="min-h-screen transition-colors duration-300 font-sans bg-[#EAF5FF] text-slate-900">
         <BioLinksPage />
       </div>
     );
@@ -162,11 +160,7 @@ const AppContent: React.FC = () => {
 
   if (isAdminView && hasAdminAccess) {
     return (
-      <div className={`min-h-screen transition-colors duration-300 font-sans ${
-        theme === 'dark' 
-          ? 'bg-[#0d0d0e] text-slate-100 dark' 
-          : 'bg-slate-50 text-slate-800'
-      }`}>
+      <div className="min-h-screen transition-colors duration-300 font-sans bg-slate-50 text-slate-800">
         <Suspense fallback={<LoadingSpinner fullScreen message="Carregando Painel Administrativo..." />}>
           <AdminPanel />
         </Suspense>
@@ -176,13 +170,9 @@ const AppContent: React.FC = () => {
 
 
   return (
-    <div className={`min-h-screen w-full max-w-full overflow-x-hidden transition-colors duration-300 font-sans flex flex-col justify-between selection:bg-[#0071e3] selection:text-white relative ${
-      theme === 'dark' 
-        ? 'bg-[#050b18] text-slate-100 dark' 
-        : 'bg-transparent text-slate-900 antialiased'
-    }`}>
+    <div className="min-h-screen w-full max-w-full overflow-x-hidden transition-colors duration-300 font-sans flex flex-col justify-between selection:bg-[#0071e3] selection:text-white relative bg-transparent text-slate-900 antialiased">
       {/* Luz ambiente de estúdio sutil para o topo do projeto */}
-      {theme !== 'dark' && !isAdminView && (
+      {!isAdminView && (
         <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden max-w-full">
           <div className="absolute -top-40 left-1/2 -translate-x-1/2 w-[1400px] max-w-[1400px] h-[700px] bg-gradient-to-b from-[#0056b3]/15 via-[#003e92]/5 to-transparent rounded-full blur-3xl pointer-events-none" />
         </div>

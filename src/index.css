@@ -52,44 +52,20 @@ body {
   min-height: 100vh;
 }
 
-html.dark body {
-  background-color: #050b18;
-  background-image: linear-gradient(180deg, #020610 0px, #003B73 250px, #00509E 700px, #050b18 1400px);
-  background-repeat: no-repeat;
-  color: #f1f5f9;
-}
-
 /* Impede que o sistema operacional / navegador sobrescreva as cores do tema da aplicação */
-:root {
+:root, html {
   color-scheme: light;
 }
 
-html.dark {
-  color-scheme: dark;
-}
-
-/* Sincroniza form controls para obedecer estritamente a classe da aplicação e não o SO */
+/* Sincroniza form controls para obedecer estritamente o modo claro */
 select, option, input, textarea, button {
   color-scheme: light;
-}
-
-html.dark select, 
-html.dark option, 
-html.dark input, 
-html.dark textarea, 
-html.dark button {
-  color-scheme: dark;
 }
 
 /* Estilização explícita de opções dos dropdowns para evitar fundo escuro do SO em modo claro */
 option {
   background-color: #ffffff;
   color: #0f172a;
-}
-
-html.dark option {
-  background-color: #0f172a;
-  color: #f8fafc;
 }
 
 /* Evita que o autocomplete de navegadores aplique cores amarelas/azuis indesejadas */

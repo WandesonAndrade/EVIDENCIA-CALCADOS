@@ -81,7 +81,6 @@ export const AdminPanel: React.FC = () => {
     assignOrderSeller,
     deleteOrder,
     theme,
-    toggleTheme,
     categories,
     addCategory,
     deleteCategory,

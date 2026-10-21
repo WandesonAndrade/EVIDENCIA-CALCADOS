@@ -24,7 +24,8 @@ import {
   backupAllProductPhotosToSupabase,
   restoreAllProductPhotosFromSupabase,
   fetchSupabasePhotosBackup,
-  deleteProductsFromSupabaseMedia
+  deleteProductsFromSupabaseMedia,
+  isPhotoUrlDeleted
 } from '../services/supabaseStorageService';
 import { NO_PHOTO_SVG, isPlaceholderUrl, isValidWebPhotoUrl } from '../utils/placeholder';
 import { getCachedCatalog, setCachedCatalog, safeSetLocalStorage, mergeStockIntoCachedProducts } from '../services/catalogCacheService';
@@ -329,20 +330,31 @@ const saveLocalProducts = (updatedProducts: Product[]) => {
         existingList.forEach(p => { if (p.id) existingMap.set(String(p.id), p); });
       }
 
-      // Preserva fotos de produtos anteriores se a nova sincronização vier sem foto (mas apenas se forem fotos reais, NÃO placeholders)
+      // Preserva fotos de produtos anteriores APENAS se o produto vier sem array images definido (ex: payload parcial do ERP).
+      // Se p.images já é um array definido (mesmo vazio, quando o lojista excluiu fotos), respeita p.images e filtra URLs deletadas.
       const mergedToSave = updatedProducts.map(p => {
         const id = String(p.id);
         const old = existingMap.get(id);
+        const currentPhotos = (p.images || []).filter(u => u && isValidWebPhotoUrl(u) && !isPhotoUrlDeleted(u));
+
+        if (Array.isArray(p.images)) {
+          return {
+            ...p,
+            images: currentPhotos,
+            imageUrl: currentPhotos[0] || (p.imageUrl && isValidWebPhotoUrl(p.imageUrl) && !isPhotoUrlDeleted(p.imageUrl) ? p.imageUrl : ''),
+            foto_uri: currentPhotos[0] || (p.foto_uri && isValidWebPhotoUrl(p.foto_uri) && !isPhotoUrlDeleted(p.foto_uri) ? p.foto_uri : ''),
+          };
+        }
+
         if (old) {
-          const oldPhotos = (old.images || []).filter(u => u && isValidWebPhotoUrl(u));
-          const currentPhotos = (p.images || []).filter(u => u && isValidWebPhotoUrl(u));
+          const oldPhotos = (old.images || []).filter(u => u && isValidWebPhotoUrl(u) && !isPhotoUrlDeleted(u));
           
           const oldColorImages = old.colorImages;
           const oldColorImageMap = old.colorImageMap;
 
           if (currentPhotos.length === 0 && oldPhotos.length > 0) {
-            const oldCover = (isValidWebPhotoUrl(old.imageUrl) ? old.imageUrl : null) 
-              || (isValidWebPhotoUrl(old.foto_uri) ? old.foto_uri : null) 
+            const oldCover = (isValidWebPhotoUrl(old.imageUrl) && !isPhotoUrlDeleted(old.imageUrl) ? old.imageUrl : null) 
+              || (isValidWebPhotoUrl(old.foto_uri) && !isPhotoUrlDeleted(old.foto_uri) ? old.foto_uri : null) 
               || oldPhotos[0];
             return {
               ...p,
@@ -402,6 +414,10 @@ const saveLocalUser = (uid: string, profile: UserProfile) => {
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [products, setProducts] = useState<Product[]>(() => getLocalProducts());
+  const productsRef = useRef<Product[]>(products);
+  useEffect(() => {
+    productsRef.current = products;
+  }, [products]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(true);
   const [categories, setCategories] = useState<Category[]>(() => getLocalCategories());
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
@@ -425,6 +441,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     return null;
   });
+
+  useEffect(() => {
+    if (currentAdminUser && !auth.currentUser) {
+      firebaseAuthService.ensureAdminFirebaseSession().catch(() => {});
+    }
+  }, [currentAdminUser]);
 
   const [orders, setOrders] = useState<Order[]>(() => getLocalOrders());
   const [isLoadingOrders, setIsLoadingOrders] = useState(true);
@@ -788,10 +810,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);
 
-  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
-    const saved = localStorage.getItem('evidencia_theme');
-    return (saved === 'dark' || saved === 'light') ? saved : 'light';
-  });
+  // Tema fixo no Modo Claro (Light Mode)
+  const [theme] = useState<'light' | 'dark'>('light');
 
   // Moblink State
   const [moblinkConfig, setMoblinkConfig] = useState<MoblinkConfig>(() => {
@@ -1168,20 +1188,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [favorites, currentUser?.uid]);
 
 
-  // Sync theme to LocalStorage and update body class & colorScheme (bloqueia override do SO/dispositivo)
+  // Força permanentemente o Modo Claro (remove classe .dark e bloqueia override do SO)
   useEffect(() => {
-    localStorage.setItem('evidencia_theme', theme);
-    if (theme === 'dark') {
-      document.documentElement.classList.add('dark');
-      document.documentElement.style.colorScheme = 'dark';
-    } else {
-      document.documentElement.classList.remove('dark');
-      document.documentElement.style.colorScheme = 'light';
-    }
-  }, [theme]);
+    localStorage.removeItem('evidencia_theme');
+    document.documentElement.classList.remove('dark');
+    document.documentElement.style.colorScheme = 'light';
+  }, []);
 
   const toggleTheme = () => {
-    setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
+    // Tema escuro removido; aplicação opera exclusivamente no modo claro
   };
 
   const toggleFavorite = (productId: string) => {
@@ -1314,6 +1329,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const addValidPhoto = (url: any) => {
         if (url && typeof url === 'string' && isValidWebPhotoUrl(url)) {
           const clean = url.trim();
+          if (isPhotoUrlDeleted(clean)) return;
           if (!combinedImages.includes(clean)) combinedImages.push(clean);
         }
       };
@@ -1338,8 +1354,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         Object.values(colorImageMap).forEach(addValidPhoto);
       }
 
-      // Fotos do Supabase Storage mapeadas por ID
-      if (supabasePhotoMap && supabasePhotoMap.size > 0) {
+      // Fotos do Supabase Storage mapeadas por ID (apenas quando o produto ainda NÃO tem galeria gerenciada no Firestore)
+      if (supabasePhotoMap && supabasePhotoMap.size > 0 && combinedImages.length === 0 && !dbRecord?.managedPhotos) {
         const cleanMobId = mobId.replace(/^MOB-/i, '');
         const supabasePhotos = supabasePhotoMap.get(cleanMobId) || supabasePhotoMap.get(mobId) || supabasePhotoMap.get(`MOB-${cleanMobId}`);
         if (Array.isArray(supabasePhotos)) {
@@ -1347,7 +1363,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       }
 
-      const primaryCoverUrl = combinedImages[0] || (dbRecord?.imageUrl && isValidWebPhotoUrl(dbRecord.imageUrl) ? dbRecord.imageUrl : '') || (dbRecord?.foto_uri && isValidWebPhotoUrl(dbRecord.foto_uri) ? dbRecord.foto_uri : '');
+      const primaryCoverUrl = combinedImages[0] || (dbRecord?.imageUrl && isValidWebPhotoUrl(dbRecord.imageUrl) && !isPhotoUrlDeleted(dbRecord.imageUrl) ? dbRecord.imageUrl : '') || (dbRecord?.foto_uri && isValidWebPhotoUrl(dbRecord.foto_uri) && !isPhotoUrlDeleted(dbRecord.foto_uri) ? dbRecord.foto_uri : '');
 
       // Preserva a descrição do lojista
       let adaptedFullDescription = '';
@@ -1437,8 +1453,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // Busca fotos salvas no Supabase Storage vinculadas pelo ID no nome do arquivo (ex: produto_1998_...)
       const supabasePhotoMap = await fetchSupabaseStoragePhotosMap().catch(() => new Map());
 
-      // Get current database products to merge
-      const currentDbProducts = products.length > 0 ? products : getLocalProducts();
+      // Get latest database products from ref (preserving any user edits/deletions made while MobLink API was loading)
+      const currentDbProducts = productsRef.current.length > 0 ? productsRef.current : getLocalProducts();
       const crossedCatalog = mergeMoblinkWithLocalDb(moblinkRawList, currentDbProducts, supabasePhotoMap);
 
       // Incremental Sync: Salva no Firestore apenas os produtos com saldo > 0 que sofreram alterações reais
@@ -1479,9 +1495,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
 
       setProducts(crossedCatalog);
+      productsRef.current = crossedCatalog;
       saveLocalProducts(crossedCatalog);
       setCachedCatalog(crossedCatalog);
-      autoLinkSupabasePhotosToFirestore(crossedCatalog).catch(() => {});
+      autoLinkSupabasePhotosToFirestore(crossedCatalog, { onlyMissingPhotos: true }).catch(() => {});
     } catch (err) {
       console.warn("Auto-sync & crossing from Moblink API skipped:", err);
     }
@@ -2711,24 +2728,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateProduct = async (productId: string, updatedFields: Partial<Product>) => {
-    const existing = products.find(p => p.id === productId);
+    const currentList = productsRef.current.length > 0 ? productsRef.current : products;
+    const existing = currentList.find(p => p.id === productId);
     const merged = { ...(existing || {}), ...updatedFields } as Product;
 
-    // Update state & local storage
-    const updated = products.map(p => p.id === productId ? merged : p);
+    // Update state, ref & local storage synchronously
+    const updated = currentList.map(p => p.id === productId ? merged : p);
+    productsRef.current = updated;
     setProducts(updated);
     saveLocalProducts(updated);
 
     // 1. Salva no Supabase (Backup contínuo de fotos e metadados)
     syncProductMediaToSupabase(merged).catch(() => {});
 
-    // Se o produto já existe e não sofreu alteração real em seus campos, pula gravação no Firestore
-    if (existing && !hasProductChanged(existing, merged)) {
+    // Se o produto já existe e não sofreu alteração real em seus campos (e não é edição explícita de fotos), pula gravação no Firestore
+    const isExplicitPhotoUpdate = updatedFields.managedPhotos === true || Array.isArray(updatedFields.images);
+    if (existing && !isExplicitPhotoUpdate && !hasProductChanged(existing, merged)) {
       return;
     }
 
     // 2. Tenta Firestore com garantia de persistência no Supabase em caso de cota/erro
     try {
+      if (!auth.currentUser) {
+        await firebaseAuthService.ensureAdminFirebaseSession();
+      }
       const sanitized = cleanUndefinedFields(updatedFields);
       await setDoc(doc(db, 'products', productId), sanitized, { merge: true });
     } catch (error: any) {
