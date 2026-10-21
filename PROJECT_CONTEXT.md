@@ -1336,5 +1336,46 @@ Ao corrigir a foto de um produto que estava marcado com erro (404 / NoSuchKey), 
 - **Simulador ao Vivo**: Prévia fiel da parcela refletindo os padrões de cores da frente de loja (Azul Real `#0071E3` no tema clássico e Rosa/Vinho no Outubro Rosa), com campo de teste de valor e cálculo instantâneo da economia em reais.
 - **Rodapé Minimalista**: Substituição de cards pesados de placeholder por uma barra de status horizontal discreta apontando para Cupons (Ofertas), Pix à Vista (MobLink) e Cashback (CRM).
 
+---
+
+## 55. Refinamento dos Filtros da Vitrine & Remoção Definitiva do Tema Dark (`AppContext.tsx`, `Header.tsx`, `AdminPanel.tsx`, `CategoryPage.tsx`, `ProductList.tsx`)
+
+### A. Modo Claro Exclusivo (Remoção do Tema Dark)
+- `theme` fixado permanentemente em `'light'` no `AppContext.tsx`, classe `'dark'` removida do `document.documentElement`, `colorScheme = 'light'` e botões Sol/Lua (`#theme-toggle-button`) removidos do `Header.tsx` e do `AdminPanel.tsx`.
+- Mantido suporte integral ao Tema Padrão (**Azul Evidência**) e às campanhas sazonais (**Outubro Rosa**).
+
+### B. Sincronização de Filtros Laterais, Tamanhos Reais e Preço Efetivo (`CategoryPage.tsx`)
+- **Reset Automático de Filtros Laterais**: Ao alternar de categoria ou público principal, os filtros laterais (`selectedBrands`, `selectedSizes`, `priceRange`, `onlySale`, `brandSearch`) são reiniciados automaticamente.
+- **Marcas e Numerações Unificadas**:
+  - Filtro lateral de marcas unificado com `resolveProductBrand` (`brandUtils.ts`).
+  - Filtro lateral de numeração/grade unificado com `extractAvailableSizes` (`StorefrontProductCard.tsx`), ignorando tamanhos cujo saldo em `stockBySize`/`sizeStockMap`/`saldos_lojas_grade` seja `<= 0`.
+- **Preço Efetivo e Ordenação**:
+  - Filtros de **Faixa de Preço** e **Apenas em Promoção** baseados no preço efetivo via `calculateProductPriceDetails` (contemplando **Saldão** e **Campanhas Promocionais Ativas**).
+  - Seletor de **Ordenação** (*Mais Relevantes, Menor Preço, Maior Preço, Lançamentos*) adicionado no cabeçalho da `CategoryPage.tsx`.
+
+---
+
+## 56. Desacoplamento Estrito de Categorias e Condicionamento da Navbar às 5 Opções de Público / Gênero (`genderUtils.ts`, `categoryNavigationUtils.ts`, `Header.tsx`, `CategoryPage.tsx`)
+
+### A. Isolamento Estrito em "Todos os Calçados" (`matchesCategoryTab` e `CategoryPage.tsx`)
+- Ao selecionar **"Todos os Calçados"** (`selectedCategory = 'CALÇADOS'` e `selectedSubcategory = 'TODAS'`), a função `matchesCategoryTab` na `CategoryPage.tsx` e na `ProductList.tsx` exige obrigatoriamente que o produto pertença à categoria `Calçados` (`isProductInCategoryTab(p, 'Calçados')`).
+- As pílulas de subcategoria (`availableSubcategories` na `CategoryPage.tsx`) filtram previamente os produtos pelo filtro da categoria pai antes de extrair subcategorias, impedindo que itens de outras categorias (como *Capilar* `009.005`, *Skincare* `009.004`, *Perfumes* ou *Confecções*) apareçam em Calçados.
+
+### B. Padronização das 5 Opções de Público / Gênero (Remoção do "Infantil" Genérico)
+- Tanto o modal de edição de produto no Painel Administrativo (`GENDER_OPTIONS` em `src/utils/genderUtils.ts` e `ProductEditModal.tsx`) quanto a barra de navegação da Frente de Loja (`src/components/Header.tsx`) utilizam exclusivamente as **5 opções**:
+  1. `Feminino`
+  2. `Masculino`
+  3. `Infantil Feminino`
+  4. `Infantil Masculino`
+  5. `Unissex`
+- A opção genérica `"Infantil"` foi removida para evitar triplicidade no menu. Qualquer produto infantil é classificado entre `Infantil Feminino` e `Infantil Masculino`.
+
+### C. Condicionamento Estrito ao Público / Gênero do Produto & Exibição Condicional na Vitrine
+- `isProductInAudience` (`categoryNavigationUtils.ts`) utiliza o campo **Público / Gênero** (`gender` / `genero` / `resolveProductGender`) como fonte única de verdade.
+- **Exibição Condicional**: Na navbar (`Header.tsx`), no Mega-Menu (`AudienceMegaMenu.tsx`), na `CategorySubcategoryView.tsx` e no `CategorySandwichMenu.tsx`, cada público/gênero **só é exibido na frente de loja quando possui pelo menos 1 produto ativo relacionado** (visível, estoque `> 0`, foto válida e classificação definida).
+- **Correção do Filtro `Unissex`**: Removido o fallback antigo que classificava `013.` (Bolsas `013.002`), `011.` (Nécessaires `011.003`), `007.` (Confecções Femininas `007.003..011`) e `009` (Cosméticos) como `'Unissex'`. Códigos ERP e termos femininos sem `'UNISSEX'` explícito resolvem estritamente para `'Feminino'`.
+- **Persistência no Firestore**: `hasProductChanged`, `sanitizeProductForFirestore` e `mergeErpSyncWithExistingDbProduct` (`moblinkProductsService.ts`) garantem que alterações de `gender` / `genero` e `brand` / `marca` feitas no painel administrativo sejam salvas e protegidas contra sobrescrita do ERP.
+
+
 
 

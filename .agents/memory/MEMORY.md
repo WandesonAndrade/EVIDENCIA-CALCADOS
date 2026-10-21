@@ -462,3 +462,52 @@ Este arquivo é a memória persistente do projeto (AG Kit), consolidando decisõ
       * Campos opcionais de personalização de texto do banner recolhidos em acordeão colapsável discreto (`Settings2`), mantendo o foco nos controles operacionais.
       * Painel lateral de simulação compacto e limpo, sem ruído de textos longos.
       * Rodapé enxugado: substituídos 3 cards gigantes de placeholder por uma barra horizontal elegante com badges minimalistas de status.
+
+58. **Eliminação Definitiva do Reaparecimento de Fotos Deletadas (Ex: Produto 1858) (`supabaseStorageService.ts`, `AppContext.tsx`, `MoblinkProductsManager.tsx`, `firebaseAuthService.ts`) (Implementado):**
+    - **Causas Raiz Identificadas**:
+      * `backups/photos_backup_latest.json` no Supabase Storage mantinha URLs antigas de arquivos `.bmp` já deletados fisicamente do bucket, e `fetchSupabaseStoragePhotosMap()` lia o JSON de backup antes do bucket sem validar se os arquivos ainda existiam.
+      * `syncProductsFromMoblinkApi()` no `AppContext.tsx` rodava em background lendo `products` de uma closure antiga e chamando `autoLinkSupabasePhotosToFirestore(..., { onlyMissingPhotos: false })`, sobrescrevendo no Firestore qualquer exclusão feita pelo administrador poucos segundos depois.
+      * Sessões administrativas de fallback (`admin@evidencia.com` ou restauradas do `localStorage`) sem `auth.currentUser` ativo no Firebase Auth sofriam rollback de escrita no Firestore (`PERMISSION_DENIED` em `allow write: if isAuth()`) alguns segundos após a atualização otimista local.
+    - **Solução Implementada**:
+      * `fetchSupabaseStoragePhotosMap` agora escaneia primeiro os arquivos físicos reais no bucket do Supabase Storage e descarta do `photos_backup_latest.json` qualquer URL do bucket cujo arquivo físico não exista mais.
+      * Criadas `markPhotoUrlAsDeleted`, `isPhotoUrlDeleted` e `removePhotoFromBackupStore` para registrar URLs excluídas e purgá-las imediatamente do `photos_backup_latest.json` no Supabase e dos caches locais (`localStorage`).
+      * `AppContext.tsx` agora utiliza `productsRef.current` sempre atualizado nas sincronizações em background, respeita `managedPhotos: true` e passa `{ onlyMissingPhotos: true }` em `autoLinkSupabasePhotosToFirestore`.
+      * `firebaseAuthService.ensureAdminFirebaseSession()` garante sessão autenticada no Firebase Auth para o painel admin, evitando rollbacks de permissão no Firestore.
+
+
+59. **Refinamento dos Filtros da Vitrine & Remoção Definitiva do Tema Dark (`AppContext.tsx`, `Header.tsx`, `AdminPanel.tsx`, `CategoryPage.tsx`, `ProductList.tsx`, `categoryNavigationUtils.ts`, `genderUtils.ts`, `HeaderLiveSearch.tsx`, `CategorySandwichMenu.tsx`) (Implementado):**
+    - **Remoção do Tema Dark (Modo Claro Exclusivo)**:
+      * `theme` fixado permanentemente em `'light'` no `AppContext.tsx`, classe `'dark'` removida do `document.documentElement`, `colorScheme = 'light'` e botões Sol/Lua (`#theme-toggle-button`) removidos do `Header.tsx` e do `AdminPanel.tsx`.
+      * Mantido suporte integral ao Tema Padrão (**Azul Evidência**) e às campanhas sazonais (**Outubro Rosa**).
+    - **Qualificação Estrita de Público (`isProductInAudience` & `resolveProductGender`)**:
+      * Código `013.008` (*Cueca*) classificado estritamente como Masculino.
+      * Grupos neutros não-calçados (`011 Viagens`, `012 Escolar`, `013 Acessórios`, `014 Esportivo`, `007.001/002/004/005`) sem marcadores femininos explícitos não caem por fallback cego na coleção Feminina.
+    - **Sincronização Atômica de Navegação & Reset de Filtros Laterais**:
+      * `ProductList.tsx`: Botão *"Ver todas as novidades →"* e cliques em cards promocionais (`promo:ID`) sincronizam simultaneamente `selectedCategory` e `selectedMenuTab`.
+      * `CategoryPage.tsx`: Reset automático dos filtros laterais (`selectedBrands`, `selectedSizes`, `priceRange`, `onlySale`, `brandSearch`) ao alternar de categoria/aba principal.
+    - **Unificação de Marcas, Tamanhos com Estoque, Preço Efetivo e Ordenação na `CategoryPage.tsx`**:
+      * Filtro lateral de marcas unificado com `resolveProductBrand` (`brandUtils.ts`).
+      * Filtro lateral de numeração/grade unificado com `extractAvailableSizes` (`StorefrontProductCard.tsx`), ignorando tamanhos cujo saldo em `stockBySize`/`sizeStockMap`/`saldos_lojas_grade` seja `<= 0`.
+      * Filtros de **Faixa de Preço** e **Apenas em Promoção** baseados no preço efetivo via `calculateProductPriceDetails` (contemplando **Saldão** e **Campanhas Promocionais Ativas**).
+      * Seletor de **Ordenação** (*Mais Relevantes, Menor Preço, Maior Preço, Lançamentos*) adicionado no cabeçalho da `CategoryPage.tsx` e estados ativos da sidebar harmonizados com o tema **Outubro Rosa**.
+    - **Blindagem na Busca Instantânea e Menu Sanduíche**:
+      * `HeaderLiveSearch.tsx`, `ProductList.tsx` e `CategorySandwichMenu.tsx` filtram estritamente produtos visíveis, com estoque `> 0`, foto válida, sem `001.001` (`isIgnoredClassification`) e sem `"Sem Classificação Definida"`, utilizando `resolveProductSubcategoryName` no menu sanduíche.
+
+60. **Desacoplamento Estrito de Categorias e Condicionamento da Navbar às 5 Opções de Público / Gênero (`genderUtils.ts`, `categoryNavigationUtils.ts`, `Header.tsx`, `AudienceMegaMenu.tsx`, `CategoryPage.tsx`, `CategorySubcategoryView.tsx`, `CategorySandwichMenu.tsx`, `moblinkProductsService.ts`) (Implementado):**
+    - **Isolamento Estrito de "Todos os Calçados" (`matchesCategoryTab` e `CategoryPage.tsx`)**:
+      * Ao selecionar **"Todos os Calçados"** (`selectedCategory = 'CALÇADOS'` e `selectedSubcategory = 'TODAS'`), o filtro exige pertencimento à categoria `Calçados` (`isProductInCategoryTab(p, 'Calçados')`), impedindo que subcategorias de outros grupos (como *Capilar* `009.005`, *Skincare* `009.004`, *Perfumes* ou *Confecções*) vazem para a listagem ou para as pílulas de subcategoria.
+    - **Padronização das 5 Opções de Público / Gênero (Remoção do "Infantil" Genérico)**:
+      * Tanto o Painel Administrativo (`GENDER_OPTIONS` em `genderUtils.ts` / `ProductEditModal.tsx`) quanto a Navbar da Frente de Loja (`Header.tsx`) utilizam exclusivamente as **5 opções**:
+        1. `Feminino`
+        2. `Masculino`
+        3. `Infantil Feminino`
+        4. `Infantil Masculino`
+        5. `Unissex`
+    - **Condicionamento Estrito ao Público / Gênero do Produto & Exibição Dinâmica**:
+      * `isProductInAudience` (`categoryNavigationUtils.ts`) tem como fonte única de verdade o campo **Público / Gênero** (`gender` / `genero` / `resolveProductGender`).
+      * Na barra de navegação (`Header.tsx`) e nos seletores de público (`CategorySubcategoryView.tsx`, `CategorySandwichMenu.tsx`), um item de menu **só é exibido na frente de loja quando possui pelo menos 1 produto ativo relacionado** (visível, estoque `> 0`, foto válida e classificação oficial).
+    - **Eliminação de Produtos Femininos no Filtro `Unissex` (`genderUtils.ts`)**:
+      * Removido o fallback antigo que classificava `013.` (Bolsas `013.002`), `011.` (Nécessaires `011.003`), `007.` (Confecções Femininas `007.003..011`) e `009` (Cosméticos) como `'Unissex'`.
+      * Códigos ERP femininos (`002.002`, `010.002`, `013.002`, `011.003`, `007.003..011`) e palavras-chave femininas sem `'UNISSEX'` explícito no nome/subgrupo resolvem estritamente para `'Feminino'`.
+    - **Persistência Completa de `gender` / `genero` e `brand` / `marca` no Firestore (`moblinkProductsService.ts` & `MoblinkProductsManager.tsx`)**:
+      * `hasProductChanged`, `sanitizeProductForFirestore` e `mergeErpSyncWithExistingDbProduct` preservam e gravam alterações de público/gênero e marca sem sobrescrita pelo ERP.
