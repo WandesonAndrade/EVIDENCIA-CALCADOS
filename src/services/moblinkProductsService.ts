@@ -9,6 +9,7 @@ import { API_ENDPOINTS } from './api';
 import { parseValor } from '../utils/numberUtils';
 import { isPlaceholderUrl, isValidWebPhotoUrl } from '../utils/placeholder';
 import { hasProductValidPhotos } from '../utils/photoUtils';
+import { isPhotoUrlDeleted } from './supabaseStorageService';
 
 export const MOBLINK_OFFICIAL_API_URL = API_ENDPOINTS.PRODUTOS;
 export { parseValor, hasProductValidPhotos };
@@ -743,7 +744,7 @@ export const mergeErpSyncWithExistingDbProduct = (
   let validDbImages: string[] = [];
 
   const addValidPhoto = (url: any) => {
-    if (url && typeof url === 'string' && isValidWebPhotoUrl(url)) {
+    if (url && typeof url === 'string' && isValidWebPhotoUrl(url) && !isPhotoUrlDeleted(url)) {
       const clean = url.trim();
       if (!validDbImages.includes(clean)) validDbImages.push(clean);
     }
@@ -752,45 +753,53 @@ export const mergeErpSyncWithExistingDbProduct = (
   if (Array.isArray(existingDbProd.images)) {
     existingDbProd.images.forEach(addValidPhoto);
   }
-  addValidPhoto(existingDbProd.foto_uri);
-  addValidPhoto(existingDbProd.imageUrl);
+  if (!existingDbProd.managedPhotos || validDbImages.length === 0) {
+    if (!Array.isArray(existingDbProd.images)) {
+      addValidPhoto(existingDbProd.foto_uri);
+      addValidPhoto(existingDbProd.imageUrl);
+    }
+  }
 
   const protectedColorImageMap = existingDbProd.colorImageMap || updatedErpProd?.colorImageMap;
   const protectedColorImages = existingDbProd.colorImages || updatedErpProd?.colorImages;
 
-  if (protectedColorImages && typeof protectedColorImages === 'object') {
-    Object.values(protectedColorImages).forEach(urls => {
-      if (Array.isArray(urls)) {
-        urls.forEach(addValidPhoto);
-      }
-    });
-  }
-  if (protectedColorImageMap && typeof protectedColorImageMap === 'object') {
-    Object.values(protectedColorImageMap).forEach(addValidPhoto);
+  if (!Array.isArray(existingDbProd.images)) {
+    if (protectedColorImages && typeof protectedColorImages === 'object') {
+      Object.values(protectedColorImages).forEach(urls => {
+        if (Array.isArray(urls)) {
+          urls.forEach(addValidPhoto);
+        }
+      });
+    }
+    if (protectedColorImageMap && typeof protectedColorImageMap === 'object') {
+      Object.values(protectedColorImageMap).forEach(addValidPhoto);
+    }
   }
 
-  // Coleta fotos válidas do ERP apenas se forem URLs web válidas (HTTP/HTTPS)
+  // Coleta fotos válidas do ERP apenas se forem URLs web válidas (HTTP/HTTPS) e não deletadas
   const validErpImages: string[] = [];
-  if (Array.isArray(updatedErpProd.images)) {
-    updatedErpProd.images.forEach((u: any) => {
-      if (u && typeof u === 'string' && isValidWebPhotoUrl(u)) {
-        const clean = u.trim();
-        if (!validErpImages.includes(clean)) validErpImages.push(clean);
-      }
-    });
-  }
-  if (updatedErpProd.foto_uri && isValidWebPhotoUrl(updatedErpProd.foto_uri)) {
-    const clean = updatedErpProd.foto_uri.trim();
-    if (!validErpImages.includes(clean)) validErpImages.push(clean);
-  }
-  if (updatedErpProd.imageUrl && isValidWebPhotoUrl(updatedErpProd.imageUrl)) {
-    const clean = updatedErpProd.imageUrl.trim();
-    if (!validErpImages.includes(clean)) validErpImages.push(clean);
+  if (!existingDbProd.managedPhotos) {
+    if (Array.isArray(updatedErpProd.images)) {
+      updatedErpProd.images.forEach((u: any) => {
+        if (u && typeof u === 'string' && isValidWebPhotoUrl(u) && !isPhotoUrlDeleted(u)) {
+          const clean = u.trim();
+          if (!validErpImages.includes(clean)) validErpImages.push(clean);
+        }
+      });
+    }
+    if (updatedErpProd.foto_uri && isValidWebPhotoUrl(updatedErpProd.foto_uri) && !isPhotoUrlDeleted(updatedErpProd.foto_uri)) {
+      const clean = updatedErpProd.foto_uri.trim();
+      if (!validErpImages.includes(clean)) validErpImages.push(clean);
+    }
+    if (updatedErpProd.imageUrl && isValidWebPhotoUrl(updatedErpProd.imageUrl) && !isPhotoUrlDeleted(updatedErpProd.imageUrl)) {
+      const clean = updatedErpProd.imageUrl.trim();
+      if (!validErpImages.includes(clean)) validErpImages.push(clean);
+    }
   }
 
-  const protectedImages = validDbImages.length > 0
+  const protectedImages = existingDbProd.managedPhotos
     ? validDbImages
-    : validErpImages;
+    : (validDbImages.length > 0 ? validDbImages : validErpImages);
 
   const protectedFotoUri = validDbImages[0] || protectedImages[0] || '';
 
@@ -848,6 +857,18 @@ export const mergeErpSyncWithExistingDbProduct = (
     ...safeErpData
   } = (updatedErpProd || {});
 
+  const protectedGender = (existingDbProd.gender && String(existingDbProd.gender).trim() !== '')
+    ? String(existingDbProd.gender).trim()
+    : (existingDbProd.genero && String(existingDbProd.genero).trim() !== '')
+    ? String(existingDbProd.genero).trim()
+    : (updatedErpProd.gender || updatedErpProd.genero || undefined);
+
+  const protectedBrand = (existingDbProd.brand && String(existingDbProd.brand).trim() !== '')
+    ? String(existingDbProd.brand).trim()
+    : (existingDbProd.marca && String(existingDbProd.marca).trim() !== '')
+    ? String(existingDbProd.marca).trim()
+    : (updatedErpProd.brand || updatedErpProd.marca || undefined);
+
   return {
     ...existingDbProd,
     ...safeErpData,
@@ -868,6 +889,10 @@ export const mergeErpSyncWithExistingDbProduct = (
     descricao: protectedName,
     description: protectedDescription,
     descricao_completa: protectedDescription,
+    gender: protectedGender,
+    genero: protectedGender,
+    brand: protectedBrand,
+    marca: protectedBrand,
     images: protectedImages,
     imageUrl: protectedFotoUri,
     foto_uri: protectedFotoUri,
@@ -927,7 +952,7 @@ export const sanitizeProductForFirestore = (
   ).trim();
   const description = descriptionRaw.length > 0 ? descriptionRaw : name;
 
-  const isInvalidPhotoUrl = (url?: string | null) => !url || typeof url !== 'string' || !isValidWebPhotoUrl(url);
+  const isInvalidPhotoUrl = (url?: string | null) => !url || typeof url !== 'string' || !isValidWebPhotoUrl(url) || isPhotoUrlDeleted(url);
 
   let imageUrl = "";
   if (product.imageUrl && typeof product.imageUrl === "string" && !isInvalidPhotoUrl(product.imageUrl)) {
@@ -1053,7 +1078,7 @@ export const sanitizeProductForFirestore = (
     cleanPayload.images = [];
     cleanPayload.imageUrl = "";
     cleanPayload.foto_uri = "";
-    cleanPayload.managedPhotos = false;
+    cleanPayload.managedPhotos = true;
   }
 
   const validPhotosCount = finalImagesList.filter(u => isValidWebPhotoUrl(u)).length;
@@ -1089,8 +1114,13 @@ export const sanitizeProductForFirestore = (
   }
   if (product.id_grade) cleanPayload.id_grade = product.id_grade;
   if (product.barcode) cleanPayload.barcode = product.barcode;
-  if (product.brand && product.brand.trim() !== "")
-    cleanPayload.brand = product.brand.trim();
+  if (product.brand || (product as any).marca) {
+    const cleanBrand = String(product.brand || (product as any).marca || "").trim();
+    if (cleanBrand) {
+      cleanPayload.brand = cleanBrand;
+      cleanPayload.marca = cleanBrand;
+    }
+  }
   if (product.material && product.material.trim() !== "")
     cleanPayload.material = product.material.trim();
   if (product.color || product.cor) {
@@ -1100,8 +1130,13 @@ export const sanitizeProductForFirestore = (
       cleanPayload.cor = cleanColor;
     }
   }
-  if (product.gender && product.gender.trim() !== "")
-    cleanPayload.gender = product.gender.trim();
+  if (product.gender || (product as any).genero) {
+    const cleanGender = String(product.gender || (product as any).genero || "").trim();
+    if (cleanGender) {
+      cleanPayload.gender = cleanGender;
+      cleanPayload.genero = cleanGender;
+    }
+  }
   if (product.stockBySize || product.sizeStockMap) {
     cleanPayload.stockBySize = product.stockBySize || product.sizeStockMap;
   }
@@ -1631,10 +1666,22 @@ export const hasProductChanged = (
   const existingClass = String((existing as any).classificacao || "").trim();
   if (freshClass && existingClass && freshClass !== existingClass) return true;
 
-  // 8. Cor / Marca / Modelo / Referência
+  // 8. Cor / Marca / Público (Gênero) / Descrição / Modelo / Referência
   const freshColor = String((fresh as any).color ?? (fresh as any).cor ?? "").trim();
   const existingColor = String(existing.color ?? existing.cor ?? "").trim();
   if (freshColor !== existingColor) return true;
+
+  const freshBrand = String((fresh as any).brand ?? (fresh as any).marca ?? "").trim();
+  const existingBrand = String(existing.brand ?? (existing as any).marca ?? "").trim();
+  if (freshBrand && freshBrand !== existingBrand) return true;
+
+  const freshGender = String((fresh as any).gender ?? (fresh as any).genero ?? "").trim();
+  const existingGender = String(existing.gender ?? (existing as any).genero ?? "").trim();
+  if (freshGender && freshGender !== existingGender) return true;
+
+  const freshDesc = String((fresh as any).description ?? (fresh as any).descricao_completa ?? "").trim();
+  const existingDesc = String(existing.description ?? existing.descricao_completa ?? "").trim();
+  if (freshDesc && freshDesc !== existingDesc) return true;
 
   const freshModel = String((fresh as any).modelCode ?? (fresh as any).referenceCode ?? "").trim();
   const existingModel = String(existing.modelCode ?? existing.referenceCode ?? "").trim();

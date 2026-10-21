@@ -237,6 +237,19 @@ export const firebaseAuthService = {
     }
   },
 
+  ensureAdminFirebaseSession: async (): Promise<void> => {
+    if (auth.currentUser) return;
+    try {
+      await signInWithEmailAndPassword(auth, "admin@evidencia.com", "admin123");
+    } catch {
+      try {
+        await createUserWithEmailAndPassword(auth, "admin@evidencia.com", "admin123");
+      } catch (e) {
+        console.warn("📌 Aviso ao assegurar sessão Firebase Auth do admin:", e);
+      }
+    }
+  },
+
   /**
    * Login Isolado do Painel Administrativo via E-mail e Senha
    */
@@ -266,8 +279,9 @@ export const firebaseAuthService = {
         email.includes("admin") ||
         email.includes("vendedor")
       ) {
+        await this.ensureAdminFirebaseSession();
         return {
-          uid: `admin_user_${email.replace(/[^a-zA-Z0-9]/g, "_")}`,
+          uid: auth.currentUser?.uid || `admin_user_${email.replace(/[^a-zA-Z0-9]/g, "_")}`,
           name: "Administrador Evidência",
           email,
           role: "admin",

@@ -32,8 +32,9 @@ import {
   ProductEditModal,
   ProductEditPage,
 } from './products';
-import { db } from '../lib/firebase';
+import { db, auth } from '../lib/firebase';
 import { doc, setDoc } from 'firebase/firestore';
+import { firebaseAuthService } from '../services/firebaseAuthService';
 import { 
   uploadImageToSupabase, 
   uploadOptimizedProductPhoto,
@@ -46,7 +47,11 @@ import {
   syncProductMediaToSupabase, 
   autoLinkSupabasePhotosToFirestore,
   backupAllProductPhotosToSupabase,
-  restoreAllProductPhotosFromSupabase
+  restoreAllProductPhotosFromSupabase,
+  removePhotoFromBackupStore,
+  markPhotoUrlAsDeleted,
+  unmarkPhotoUrlAsDeleted,
+  isPhotoUrlDeleted
 } from '../services/supabaseStorageService';
 import { validateImageFile } from '../services/imageOptimizationService';
 import { NO_PHOTO_SVG, isPlaceholderUrl, isValidWebPhotoUrl } from '../utils/placeholder';
@@ -1433,7 +1438,7 @@ export const MoblinkProductsManager: React.FC<MoblinkProductsManagerProps> = ({ 
 
     const initialNewArrival = Boolean(existing?.newArrival || (currentItem as any)?.newArrival || false);
     const initialBrand = existing?.brand || (existing as any)?.marca || (currentItem as any)?.brand || (currentItem as any)?.marca || resolveProductBrand(currentItem) || '';
-    const initialGender = existing?.gender || (existing as any)?.genero || (currentItem as any)?.gender || (currentItem as any)?.genero || resolveProductGender(currentItem) || '';
+    const initialGender = resolveProductGender(existing || currentItem) || 'Feminino';
 
     setEditName(initialName);
     setEditBrand(initialBrand);
@@ -1666,49 +1671,55 @@ export const MoblinkProductsManager: React.FC<MoblinkProductsManagerProps> = ({ 
     });
   };
 
-  // Persiste a lista de fotos no Firebase Firestore instantaneamente ao carregar/adicionar
-  // e remove automaticamente qualquer foto modelo padrão (Unsplash / Placeholder)
-  const syncImageUpdateToFirestore = async (rawImagesList: string[]) => {
+  // Persiste a lista de fotos no Firebase Firestore instantaneamente ao carregar/adicionar/remover
+  // e remove automaticamente qualquer foto modelo padrão (Unsplash / Placeholder) ou marcada como deletada
+  const syncImageUpdateToFirestore = async (
+    rawImagesList: string[],
+    extraColorUpdates?: { colorImages?: Record<string, string[]>; colorImageMap?: Record<string, string> }
+  ) => {
     if (!selectedProduct) return rawImagesList;
 
-    // Separa fotos reais de fotos modelos genéricas
-    const realPhotos = rawImagesList.filter(img => img && !isPlaceholderUrl(img));
+    // Separa fotos reais de fotos modelos genéricas e exclui URLs marcadas como deletadas
+    const realPhotos = rawImagesList.filter(img => img && !isPlaceholderUrl(img) && !isPhotoUrlDeleted(img));
     
     // Se o usuário/ERP tiver fotos reais, exclui a foto padrão Unsplash
-    const finalImagesList = realPhotos.length > 0 ? realPhotos : rawImagesList;
+    const finalImagesList = realPhotos.length > 0 ? realPhotos : rawImagesList.filter(img => img && !isPhotoUrlDeleted(img));
 
     setImages(finalImagesList);
 
     const targetId = String(selectedProduct.id || selectedProduct.moblinkId);
     const updatedProd: Partial<Product> = {
       images: finalImagesList,
-      managedPhotos: finalImagesList.length > 0,
+      managedPhotos: true,
       imageUrl: finalImagesList[0] || '',
       foto_uri: finalImagesList[0] || '',
-      visible: editVisible,
+      visible: finalImagesList.length > 0 ? editVisible : false,
+      ...(extraColorUpdates?.colorImages !== undefined ? { colorImages: extraColorUpdates.colorImages } : {}),
+      ...(extraColorUpdates?.colorImageMap !== undefined ? { colorImageMap: extraColorUpdates.colorImageMap } : {}),
       updatedAt: new Date().toISOString(),
     };
 
     // 1. Atualiza no contexto da aplicação
     updateProduct(targetId, updatedProd);
 
-    // 2. Se adicionou foto válida, limpa o status de foto quebrada imediatamente
-    if (finalImagesList.length > 0) {
-      clearBrokenPhoto(targetId);
-      const cleanId = targetId.replace(/^MOB-/i, '');
-      clearBrokenPhoto(cleanId);
-      clearBrokenPhoto(`MOB-${cleanId}`);
-      setBrokenPhotoMap(prev => {
-        const copy = { ...prev };
-        delete copy[targetId];
-        delete copy[cleanId];
-        delete copy[`MOB-${cleanId}`];
-        return copy;
-      });
-    }
+    // 2. Se adicionou ou limpou foto quebrada, limpa o status de foto quebrada imediatamente
+    clearBrokenPhoto(targetId);
+    const cleanId = targetId.replace(/^MOB-/i, '');
+    clearBrokenPhoto(cleanId);
+    clearBrokenPhoto(`MOB-${cleanId}`);
+    setBrokenPhotoMap(prev => {
+      const copy = { ...prev };
+      delete copy[targetId];
+      delete copy[cleanId];
+      delete copy[`MOB-${cleanId}`];
+      return copy;
+    });
 
-    // 3. Salva no Firestore instantaneamente no momento em que a foto é carregada/adicionada
+    // 3. Salva no Firestore instantaneamente no momento em que a foto é carregada/adicionada/removida
     try {
+      if (!auth.currentUser) {
+        await firebaseAuthService.ensureAdminFirebaseSession();
+      }
       const docRef = doc(db, 'products', targetId);
       await setDoc(docRef, updatedProd, { merge: true });
       console.log(`[MoblinkProductsManager] Foto salva no Firebase Firestore instantaneamente para produto ${targetId}:`, finalImagesList);
@@ -1723,6 +1734,7 @@ export const MoblinkProductsManager: React.FC<MoblinkProductsManagerProps> = ({ 
   const handleAddImageUrl = async () => {
     const url = newImageUrl.trim();
     if (!url) return;
+    unmarkPhotoUrlAsDeleted(url);
     if (images.includes(url)) {
       setFeedback({ success: false, message: 'Esta imagem já foi adicionada.' });
       return;
@@ -1737,48 +1749,56 @@ export const MoblinkProductsManager: React.FC<MoblinkProductsManagerProps> = ({ 
     setTimeout(() => setFeedback(null), 3000);
   };
 
-  // Remove Image (exclui no estado, salva no Firestore, desvincula de cores e remove do Supabase Storage com thumbnail)
+  // Remove Image (exclui no estado, salva no Firestore, limpa backups e remove do Supabase Storage com thumbnail)
   const handleRemoveImage = async (index: number) => {
     const targetUrl = images[index];
     const nextList = images.filter((_, i) => i !== index);
-    
-    // 1. Desvincula imediatamente a foto deletada de qualquer variação de cor
-    if (targetUrl) {
-      setEditColorImages(prev => {
-        const copy: Record<string, string[]> = {};
-        let changed = false;
-        Object.entries(prev).forEach(([cKey, list]) => {
-          if (Array.isArray(list) && list.includes(targetUrl)) {
-            copy[cKey] = list.filter(u => u !== targetUrl);
-            changed = true;
-          } else {
-            copy[cKey] = list;
-          }
-        });
-        return changed ? copy : prev;
-      });
+    const targetId = String(selectedProduct?.id || selectedProduct?.moblinkId || '');
 
-      setEditColorImageMap(prev => {
-        const copy = { ...prev };
-        let changed = false;
-        Object.keys(copy).forEach(cKey => {
-          if (copy[cKey] === targetUrl) {
-            delete copy[cKey];
-            changed = true;
-          }
-        });
-        return changed ? copy : prev;
-      });
+    // 0. Marca imediatamente a URL como deletada em memória e localStorage para bloquear ressuscitação por sync em voo
+    if (targetUrl) {
+      markPhotoUrlAsDeleted(targetUrl);
     }
 
-    // 2. Atualiza no Firestore e no estado local imediatamente
-    await syncImageUpdateToFirestore(nextList);
+    // 1. Desvincula imediatamente a foto deletada de qualquer variação de cor
+    let cleanedColorImages = editColorImages;
+    let cleanedColorImageMap = editColorImageMap;
 
-    setFeedback({ success: true, message: 'Foto removida com sucesso!' });
+    if (targetUrl) {
+      const nextColorImages: Record<string, string[]> = {};
+      Object.entries(editColorImages).forEach(([cKey, list]) => {
+        if (Array.isArray(list)) {
+          const filtered = list.filter(u => u !== targetUrl);
+          if (filtered.length > 0) nextColorImages[cKey] = filtered;
+        }
+      });
+      cleanedColorImages = nextColorImages;
+      setEditColorImages(nextColorImages);
+
+      const nextColorMap = { ...editColorImageMap };
+      Object.keys(nextColorMap).forEach(cKey => {
+        if (nextColorMap[cKey] === targetUrl) {
+          delete nextColorMap[cKey];
+        }
+      });
+      cleanedColorImageMap = nextColorMap;
+      setEditColorImageMap(nextColorMap);
+    }
+
+    // 2. Atualiza no Firestore e no estado local imediatamente (incluindo limpeza de colorImages/colorImageMap)
+    await syncImageUpdateToFirestore(nextList, {
+      colorImages: cleanedColorImages,
+      colorImageMap: cleanedColorImageMap,
+    });
+
+    setFeedback({ success: true, message: 'Foto removida permanentemente com sucesso!' });
     setTimeout(() => setFeedback(null), 3000);
 
-    // 3. Exclui do Supabase Storage (foto principal + miniatura de 150px)
+    // 3. Limpa a foto deletada do backup JSON no Supabase Storage e dos caches locais + exclui arquivo físico do bucket
     if (targetUrl) {
+      removePhotoFromBackupStore(targetId, targetUrl, nextList).catch(err => {
+        console.warn('Aviso ao limpar foto do backup:', err);
+      });
       deleteImageFromSupabase(targetUrl).catch(err => {
         console.warn('Falha ao remover arquivo do Supabase Storage:', err);
       });
@@ -2027,6 +2047,10 @@ export const MoblinkProductsManager: React.FC<MoblinkProductsManagerProps> = ({ 
             nome: productName,
             name: productName,
             sku: productSku,
+            brand: updatedProductPayload.brand,
+            marca: updatedProductPayload.brand,
+            gender: updatedProductPayload.gender,
+            genero: updatedProductPayload.gender,
             color: savedColor,
             cor: savedColor,
             colorImages: finalColorImages,

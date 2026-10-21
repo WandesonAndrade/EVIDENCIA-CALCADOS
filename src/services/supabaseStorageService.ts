@@ -13,9 +13,66 @@ import {
   DEFAULT_THUMBNAIL_SIZE
 } from './imageOptimizationService';
 
+const DELETED_PHOTOS_STORAGE_KEY = 'evidencia_deleted_photo_urls';
+const deletedPhotoUrlsMemory = new Set<string>();
+
+function loadDeletedPhotoUrls(): Set<string> {
+  if (typeof localStorage !== 'undefined') {
+    try {
+      const raw = localStorage.getItem(DELETED_PHOTOS_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          parsed.forEach(u => {
+            if (typeof u === 'string' && u.trim()) deletedPhotoUrlsMemory.add(u.trim());
+          });
+        }
+      }
+    } catch {}
+  }
+  return deletedPhotoUrlsMemory;
+}
+
+export function isPhotoUrlDeleted(url: any): boolean {
+  if (!url || typeof url !== 'string') return false;
+  const clean = url.trim();
+  if (!clean) return false;
+  const set = loadDeletedPhotoUrls();
+  return set.has(clean);
+}
+
+export function markPhotoUrlAsDeleted(url: string): void {
+  if (!url || typeof url !== 'string') return;
+  const clean = url.trim();
+  if (!clean) return;
+  const set = loadDeletedPhotoUrls();
+  set.add(clean);
+  if (typeof localStorage !== 'undefined') {
+    try {
+      localStorage.setItem(DELETED_PHOTOS_STORAGE_KEY, JSON.stringify(Array.from(set).slice(-500)));
+    } catch {}
+  }
+}
+
+export function unmarkPhotoUrlAsDeleted(url: string): void {
+  if (!url || typeof url !== 'string') return;
+  const clean = url.trim();
+  if (!clean) return;
+  const set = loadDeletedPhotoUrls();
+  if (set.has(clean)) {
+    set.delete(clean);
+    if (typeof localStorage !== 'undefined') {
+      try {
+        localStorage.setItem(DELETED_PHOTOS_STORAGE_KEY, JSON.stringify(Array.from(set)));
+      } catch {}
+    }
+  }
+}
+
 /**
  * Garante a preservação total de fotos existentes no banco de dados e links externos anexados.
  * Nenhuma foto válida existente é descartada, e novas URLs são mescladas sem duplicatas.
+ * Fotos explicitamente excluídas pelo administrador nunca são reinseridas.
  */
 export function preserveExistingImages(existingImages: any[], newUrls: (string | null | undefined)[]): string[] {
   const result: string[] = [];
@@ -23,6 +80,7 @@ export function preserveExistingImages(existingImages: any[], newUrls: (string |
   const addUrl = (url: any) => {
     if (typeof url === 'string' && isValidWebPhotoUrl(url)) {
       const clean = url.trim();
+      if (isPhotoUrlDeleted(clean)) return;
       if (!result.includes(clean)) {
         result.push(clean);
       }
@@ -413,6 +471,9 @@ export function extractSupabaseFilePath(publicUrl: string): { bucket: string; fi
  */
 export async function deleteImageFromSupabase(publicUrl: string): Promise<boolean> {
   if (!publicUrl || typeof publicUrl !== 'string') return false;
+
+  // Registra imediatamente a URL como deletada para impedir ressuscitação por rotinas de background/backup
+  markPhotoUrlAsDeleted(publicUrl);
 
   const parsed = extractSupabaseFilePath(publicUrl);
   if (!parsed) {
@@ -951,8 +1012,176 @@ export async function fetchSupabasePhotosBackup(): Promise<ProductPhotosBackupPa
 }
 
 /**
- * Mapeia automaticamente todas as fotos do Supabase Storage e do Backup no Supabase:
- * Exemplo: produto_1998_1787273728 -> liga ao produto ID 1998 e MOB-1998
+ * Remove definitivamente uma URL de foto excluída dos caches locais e do arquivo de backup JSON no Supabase Storage,
+ * impedindo que rotinas em segundo plano ressuscitem fotos deletadas pelo administrador.
+ */
+export async function removePhotoFromBackupStore(
+  productId: string,
+  deletedUrl: string,
+  remainingImages?: string[]
+): Promise<void> {
+  if (deletedUrl) {
+    markPhotoUrlAsDeleted(deletedUrl);
+  }
+
+  const rawId = String(productId || '').trim();
+  const cleanId = rawId.replace(/^MOB-/i, '');
+  const mobId = `MOB-${cleanId}`;
+  const cleanDeleted = (deletedUrl || '').trim();
+
+  // 1. Limpa dos caches locais no navegador (localStorage)
+  if (typeof localStorage !== 'undefined') {
+    try {
+      const backupRaw = localStorage.getItem('evidencia_supabase_photos_backup');
+      if (backupRaw) {
+        const parsedBackup = JSON.parse(backupRaw) as ProductPhotosBackupPayload;
+        if (parsedBackup && parsedBackup.products) {
+          [rawId, cleanId, mobId].forEach(k => {
+            const entry = parsedBackup.products[k];
+            if (entry) {
+              const nextImgs = Array.isArray(remainingImages)
+                ? remainingImages.filter(u => u && u.trim() !== cleanDeleted)
+                : (entry.images || []).filter(u => u && u.trim() !== cleanDeleted);
+              entry.images = nextImgs;
+              entry.imageUrl = nextImgs[0] || '';
+              entry.foto_uri = nextImgs[0] || '';
+              if (entry.colorImages && typeof entry.colorImages === 'object') {
+                Object.keys(entry.colorImages).forEach(cKey => {
+                  entry.colorImages![cKey] = (entry.colorImages![cKey] || []).filter(u => u !== cleanDeleted);
+                  if (entry.colorImages![cKey].length === 0) delete entry.colorImages![cKey];
+                });
+              }
+              if (entry.colorImageMap && typeof entry.colorImageMap === 'object') {
+                Object.keys(entry.colorImageMap).forEach(cKey => {
+                  if (entry.colorImageMap![cKey] === cleanDeleted) delete entry.colorImageMap![cKey];
+                });
+              }
+            }
+          });
+          localStorage.setItem('evidencia_supabase_photos_backup', JSON.stringify(parsedBackup));
+        }
+      }
+    } catch {}
+
+    ['evidencia_firestore_products_backup', 'evidencia_local_products'].forEach(storageKey => {
+      try {
+        const str = localStorage.getItem(storageKey);
+        if (!str) return;
+        const list = JSON.parse(str);
+        if (Array.isArray(list)) {
+          let changed = false;
+          const updatedList = list.map((p: any) => {
+            const pId = String(p?.id || p?.moblinkId || '').trim();
+            if (pId === rawId || pId === cleanId || pId === mobId) {
+              const nextImgs = Array.isArray(remainingImages)
+                ? remainingImages.filter(u => u && u.trim() !== cleanDeleted)
+                : (Array.isArray(p.images) ? p.images.filter((u: string) => u && u.trim() !== cleanDeleted) : []);
+              changed = true;
+              return {
+                ...p,
+                images: nextImgs,
+                imageUrl: nextImgs[0] || '',
+                foto_uri: nextImgs[0] || '',
+                managedPhotos: true,
+              };
+            }
+            return p;
+          });
+          if (changed) {
+            localStorage.setItem(storageKey, JSON.stringify(updatedList));
+          }
+        }
+      } catch {}
+    });
+  }
+
+  // 2. Atualiza o arquivo backups/photos_backup_latest.json no Supabase Storage
+  const supabase = getSupabaseClient();
+  const config = getSupabaseConfig();
+  const targetBucket = config.bucket || 'products';
+  if (!supabase) return;
+
+  try {
+    const { data, error } = await supabase.storage.from(targetBucket).download('backups/photos_backup_latest.json');
+    if (!error && data) {
+      const text = await data.text();
+      const parsed = JSON.parse(text) as ProductPhotosBackupPayload;
+      if (parsed && parsed.products) {
+        let modified = false;
+        [rawId, cleanId, mobId].forEach(k => {
+          const entry = parsed.products[k];
+          if (entry) {
+            const prevLen = Array.isArray(entry.images) ? entry.images.length : 0;
+            const nextImgs = Array.isArray(remainingImages)
+              ? remainingImages.filter(u => u && u.trim() !== cleanDeleted && !isPhotoUrlDeleted(u))
+              : (entry.images || []).filter(u => u && u.trim() !== cleanDeleted && !isPhotoUrlDeleted(u));
+            if (nextImgs.length !== prevLen || entry.imageUrl === cleanDeleted || entry.foto_uri === cleanDeleted) {
+              entry.images = nextImgs;
+              entry.imageUrl = nextImgs[0] || '';
+              entry.foto_uri = nextImgs[0] || '';
+              entry.updatedAt = new Date().toISOString();
+              modified = true;
+            }
+            if (entry.colorImages && typeof entry.colorImages === 'object') {
+              Object.keys(entry.colorImages).forEach(cKey => {
+                const prevArr = entry.colorImages![cKey] || [];
+                const filteredArr = prevArr.filter(u => u && u.trim() !== cleanDeleted && !isPhotoUrlDeleted(u));
+                if (filteredArr.length !== prevArr.length) {
+                  modified = true;
+                  if (filteredArr.length > 0) entry.colorImages![cKey] = filteredArr;
+                  else delete entry.colorImages![cKey];
+                }
+              });
+            }
+            if (entry.colorImageMap && typeof entry.colorImageMap === 'object') {
+              Object.keys(entry.colorImageMap).forEach(cKey => {
+                if (entry.colorImageMap![cKey] === cleanDeleted) {
+                  delete entry.colorImageMap![cKey];
+                  modified = true;
+                }
+              });
+            }
+          }
+        });
+
+        if (modified) {
+          const blob = new Blob([JSON.stringify(parsed, null, 2)], { type: 'application/json' });
+          await supabase.storage.from(targetBucket).upload('backups/photos_backup_latest.json', blob, {
+            contentType: 'application/json',
+            cacheControl: '0',
+            upsert: true,
+          });
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[SupabaseStorageService] Aviso ao limpar foto do backup JSON:', err);
+  }
+
+  // 3. Limpa também da tabela de contingência products_media no Supabase DB (se existir)
+  try {
+    const { data: rows } = await supabase.from('products_media').select('*').in('id', [rawId, cleanId, mobId]);
+    if (Array.isArray(rows) && rows.length > 0) {
+      for (const r of rows) {
+        const imgs = Array.isArray(r.images) ? r.images.filter((u: string) => u && u.trim() !== cleanDeleted && !isPhotoUrlDeleted(u)) : [];
+        const nextCover = imgs[0] || (r.imageUrl && r.imageUrl !== cleanDeleted ? r.imageUrl : '');
+        await supabase.from('products_media').update({
+          images: imgs,
+          imageUrl: nextCover,
+          foto_uri: nextCover,
+          updated_at: new Date().toISOString()
+        }).eq('id', r.id);
+      }
+    }
+  } catch {}
+}
+
+/**
+ * Mapeia automaticamente todas as fotos REAIS existentes no Supabase Storage:
+ * Exemplo: produto_1998_1787273728 -> liga ao produto ID 1998 e MOB-1998.
+ *
+ * IMPORTANTE: Varre os arquivos físicos do bucket PRIMEIRO e descarta qualquer URL do backup JSON
+ * cujo arquivo físico já tenha sido deletado do bucket (evitando ressuscitar fotos .bmp/.webp apagadas).
  */
 export async function fetchSupabaseStoragePhotosMap(): Promise<Map<string, string[]>> {
   const supabase = getSupabaseClient();
@@ -962,121 +1191,143 @@ export async function fetchSupabaseStoragePhotosMap(): Promise<Map<string, strin
   // Helper para registrar uma foto para um ID
   const registerPhoto = (id: string, url: string, prepend = false) => {
     if (!id || !url || !isValidWebPhotoUrl(url)) return;
+    const cleanUrl = url.trim();
+    if (isPhotoUrlDeleted(cleanUrl)) return;
+
     const cleanId = id.trim().replace(/^MOB-/i, '');
     const mobKey = `MOB-${cleanId}`;
 
     [cleanId, mobKey, id.trim()].forEach(k => {
       if (!k) return;
       const list = photoMap.get(k) || [];
-      if (!list.includes(url)) {
+      if (!list.includes(cleanUrl)) {
         if (prepend) {
-          list.unshift(url);
+          list.unshift(cleanUrl);
         } else {
-          list.push(url);
+          list.push(cleanUrl);
         }
         photoMap.set(k, list);
       }
     });
   };
 
-  // 1. Incorpora fotos do arquivo JSON de backup do Supabase e da tabela products_media (como base inicial)
+  const existingBucketUrls = new Set<string>();
+  const existingBucketFilePaths = new Set<string>();
+  let bucketScanSucceeded = false;
+
+  // 1. Varre os buckets do Supabase Storage PRIMEIRO para descobrir quais arquivos realmente existem hoje
+  if (supabase) {
+    const configuredBucket = config.bucket || 'products';
+    const bucketsToScan = Array.from(new Set([configuredBucket, 'evidenciacalcados', 'products']));
+    const foldersToScan = ['produtos', ''];
+
+    for (const bucketName of bucketsToScan) {
+      for (const folder of foldersToScan) {
+        try {
+          const { data, error } = await supabase.storage.from(bucketName).list(folder, {
+            limit: 1000,
+            offset: 0,
+            sortBy: { column: 'name', order: 'asc' },
+          });
+
+          if (!error && Array.isArray(data)) {
+            if (data.length > 0) bucketScanSucceeded = true;
+
+            for (const item of data) {
+              if (!item.name || item.name.startsWith('.')) continue;
+
+              // CASO A: Subpasta (item.id === null) dentro de 'produtos' (ex: 'produtos/1750')
+              if (item.id === null && folder === 'produtos') {
+                if (item.name === 'thumbnails') continue;
+                const folderProdId = item.name.trim(); // ex: "1750"
+                const subFolderPath = `produtos/${item.name}`;
+
+                try {
+                  const { data: subItems, error: subErr } = await supabase.storage.from(bucketName).list(subFolderPath, {
+                    limit: 100,
+                    sortBy: { column: 'name', order: 'asc' },
+                  });
+
+                  if (!subErr && Array.isArray(subItems)) {
+                    for (const sub of subItems) {
+                      if (!sub.name || sub.name.startsWith('.') || sub.id === null) continue;
+                      const subFilePath = `${subFolderPath}/${sub.name}`;
+                      const { data: pubData } = supabase.storage.from(bucketName).getPublicUrl(subFilePath);
+                      const publicUrl = pubData?.publicUrl;
+
+                      if (publicUrl && isValidWebPhotoUrl(publicUrl)) {
+                        existingBucketUrls.add(publicUrl.trim());
+                        existingBucketFilePaths.add(subFilePath);
+                        // Dá prioridade (prepend) para a foto real encontrada dentro da pasta do produto
+                        registerPhoto(folderProdId, publicUrl, true);
+
+                        // Se o nome do arquivo também contiver ID, mapeia também
+                        const matchInName = sub.name.match(/(?:produto|foto|img|image)_([a-zA-Z0-9-]+)(?:_|\.|$)/i);
+                        if (matchInName && matchInName[1]) {
+                          registerPhoto(matchInName[1], publicUrl, true);
+                        }
+                      }
+                    }
+                  }
+                } catch {
+                  // Silently continue
+                }
+              } else if (item.id !== null) {
+                // CASO B: Arquivo solto (ex: 'produtos/produto_1998_...bmp' ou 'foto_1750_...webp')
+                const filePath = folder ? `${folder}/${item.name}` : item.name;
+                const { data: publicUrlData } = supabase.storage.from(bucketName).getPublicUrl(filePath);
+                const publicUrl = publicUrlData?.publicUrl;
+                if (!publicUrl || !isValidWebPhotoUrl(publicUrl)) continue;
+
+                existingBucketUrls.add(publicUrl.trim());
+                existingBucketFilePaths.add(filePath);
+
+                let extractedId = '';
+                const matchNamed = item.name.match(/(?:produto|foto|img|image)_([a-zA-Z0-9-]+)(?:_|\.|$)/i);
+                if (matchNamed && matchNamed[1]) {
+                  extractedId = matchNamed[1].trim();
+                } else {
+                  const matchDirect = item.name.match(/^([a-zA-Z0-9-]+)_/);
+                  if (matchDirect && matchDirect[1]) {
+                    extractedId = matchDirect[1].trim();
+                  }
+                }
+
+                if (extractedId) {
+                  registerPhoto(extractedId, publicUrl, true);
+                }
+              }
+            }
+          }
+        } catch {
+          // Silently scan next bucket/folder combination
+        }
+      }
+    }
+  }
+
+  // 2. Incorpora fotos do backup JSON APENAS se não tiverem sido deletadas e, caso sejam do bucket do Supabase,
+  //    apenas se o arquivo físico realmente existir no bucket (evitando ressuscitar links 404 apagados)
   try {
     const backup = await fetchSupabasePhotosBackup();
     if (backup && backup.products) {
       Object.entries(backup.products).forEach(([key, item]) => {
         if (!key || !item) return;
         const validImages = preserveExistingImages(item.images, [item.imageUrl, item.foto_uri]);
-        if (validImages.length > 0) {
-          validImages.forEach(u => registerPhoto(key, u, false));
-        }
+        validImages.forEach(u => {
+          if (isPhotoUrlDeleted(u)) return;
+          const parsedSupa = extractSupabaseFilePath(u);
+          if (parsedSupa && bucketScanSucceeded) {
+            // É uma URL do Supabase Storage: só aceita se o arquivo físico ainda existir no bucket!
+            if (!existingBucketUrls.has(u.trim()) && !existingBucketFilePaths.has(parsedSupa.filePath)) {
+              return;
+            }
+          }
+          registerPhoto(key, u, false);
+        });
       });
     }
   } catch {}
-
-  if (!supabase) return photoMap;
-
-  // 2. Varre os buckets do Supabase Storage para arquivos enviados diretamente
-  // Suporta tanto arquivos soltos na raiz de 'produtos' quanto arquivos organizados dentro de pastas por ID de produto (ex: produtos/1750/foto.webp)
-  const configuredBucket = config.bucket || 'products';
-  const bucketsToScan = Array.from(new Set([configuredBucket, 'evidenciacalcados', 'products', 'produtos', 'evidencia-calcados', 'evidencia']));
-  const foldersToScan = ['produtos', 'produtos_moblink', 'fotos', 'images', 'public', ''];
-
-  for (const bucketName of bucketsToScan) {
-    for (const folder of foldersToScan) {
-      try {
-        const { data, error } = await supabase.storage.from(bucketName).list(folder, {
-          limit: 1000,
-          offset: 0,
-          sortBy: { column: 'name', order: 'asc' },
-        });
-
-        if (!error && Array.isArray(data)) {
-          for (const item of data) {
-            if (!item.name || item.name.startsWith('.')) continue;
-
-            // CASO A: Subpasta (item.id === null) dentro de 'produtos' (ex: 'produtos/1750')
-            if (item.id === null && folder === 'produtos') {
-              if (item.name === 'thumbnails') continue;
-              const folderProdId = item.name.trim(); // ex: "1750"
-              const subFolderPath = `produtos/${item.name}`;
-
-              try {
-                const { data: subItems, error: subErr } = await supabase.storage.from(bucketName).list(subFolderPath, {
-                  limit: 100,
-                  sortBy: { column: 'name', order: 'asc' },
-                });
-
-                if (!subErr && Array.isArray(subItems)) {
-                  for (const sub of subItems) {
-                    if (!sub.name || sub.name.startsWith('.') || sub.id === null) continue;
-                    const subFilePath = `${subFolderPath}/${sub.name}`;
-                    const { data: pubData } = supabase.storage.from(bucketName).getPublicUrl(subFilePath);
-                    const publicUrl = pubData?.publicUrl;
-
-                    if (publicUrl && isValidWebPhotoUrl(publicUrl)) {
-                      // Dá prioridade (prepend) para a foto real encontrada dentro da pasta do produto
-                      registerPhoto(folderProdId, publicUrl, true);
-
-                      // Se o nome do arquivo também contiver ID, mapeia também
-                      const matchInName = sub.name.match(/(?:produto|foto|img|image)_([a-zA-Z0-9-]+)(?:_|\.|$)/i);
-                      if (matchInName && matchInName[1]) {
-                        registerPhoto(matchInName[1], publicUrl, true);
-                      }
-                    }
-                  }
-                }
-              } catch (subScanErr) {
-                // Silently continue
-              }
-            } else if (item.id !== null) {
-              // CASO B: Arquivo solto (ex: 'produtos/produto_1998_...bmp' ou 'foto_1750_...webp')
-              const filePath = folder ? `${folder}/${item.name}` : item.name;
-              const { data: publicUrlData } = supabase.storage.from(bucketName).getPublicUrl(filePath);
-              const publicUrl = publicUrlData?.publicUrl;
-              if (!publicUrl || !isValidWebPhotoUrl(publicUrl)) continue;
-
-              let extractedId = '';
-              const matchNamed = item.name.match(/(?:produto|foto|img|image)_([a-zA-Z0-9-]+)(?:_|\.|$)/i);
-              if (matchNamed && matchNamed[1]) {
-                extractedId = matchNamed[1].trim();
-              } else {
-                const matchDirect = item.name.match(/^([a-zA-Z0-9-]+)_/);
-                if (matchDirect && matchDirect[1]) {
-                  extractedId = matchDirect[1].trim();
-                }
-              }
-
-              if (extractedId) {
-                registerPhoto(extractedId, publicUrl, true);
-              }
-            }
-          }
-        }
-      } catch (err) {
-        // Silently scan next bucket/folder combination
-      }
-    }
-  }
 
   return photoMap;
 }
@@ -1084,7 +1335,10 @@ export async function fetchSupabaseStoragePhotosMap(): Promise<Map<string, strin
 /**
  * Varre todo o Supabase Storage e o backup do Supabase e salva/atualiza as URLs no Firestore para todos os produtos correspondentes por ID
  */
-export async function autoLinkSupabasePhotosToFirestore(productsList: any[]): Promise<{ updatedCount: number; matchedMap: Map<string, string[]> }> {
+export async function autoLinkSupabasePhotosToFirestore(
+  productsList: any[],
+  options?: { onlyMissingPhotos?: boolean }
+): Promise<{ updatedCount: number; matchedMap: Map<string, string[]> }> {
   const photoMap = await fetchSupabaseStoragePhotosMap();
   let updatedCount = 0;
 
@@ -1095,6 +1349,14 @@ export async function autoLinkSupabasePhotosToFirestore(productsList: any[]): Pr
   for (const prod of productsList) {
     const rawId = String(prod.id || prod.moblinkId || '').trim();
     if (!rawId) continue;
+
+    const currentValidImages = preserveExistingImages(prod.images, [prod.imageUrl, prod.foto_uri]);
+
+    // Em sincronizações automáticas de background (onlyMissingPhotos: true),
+    // NÃO sobrescreve nem re-injeta fotos em produtos que já possuem fotos ou já são gerenciados pelo lojista
+    if (options?.onlyMissingPhotos && (prod.managedPhotos === true || currentValidImages.length > 0)) {
+      continue;
+    }
 
     const possibleKeys = Array.from(new Set([
       rawId,
@@ -1112,14 +1374,40 @@ export async function autoLinkSupabasePhotosToFirestore(productsList: any[]): Pr
       const found = photoMap.get(key);
       if (Array.isArray(found) && found.length > 0) {
         found.forEach(url => {
-          if (!supabasePhotos.includes(url)) supabasePhotos.push(url);
+          if (!isPhotoUrlDeleted(url) && !supabasePhotos.includes(url)) {
+            supabasePhotos.push(url);
+          }
         });
       }
     }
 
     if (supabasePhotos.length > 0) {
-      const existingImages = preserveExistingImages(prod.images, [prod.imageUrl, prod.foto_uri]);
-      const newImages = preserveExistingImages(existingImages, supabasePhotos);
+      // Se o produto já tem managedPhotos === true, usa apenas as fotos verificadas sem ressuscitar deletadas
+      // Além disso, filtra de currentValidImages qualquer URL do Supabase que não exista mais no photoMap deste produto
+      const verifiedExistingImages = currentValidImages.filter(u => {
+        if (isPhotoUrlDeleted(u)) return false;
+        const parsedSupa = extractSupabaseFilePath(u);
+        if (parsedSupa && supabasePhotos.length > 0 && !supabasePhotos.includes(u.trim())) {
+          // Se é uma URL do bucket que não foi encontrada na varredura real do produto (ex: .bmp antigo deletado), descarta!
+          return false;
+        }
+        return true;
+      });
+
+      const newImages = prod.managedPhotos === true && verifiedExistingImages.length > 0
+        ? verifiedExistingImages
+        : preserveExistingImages(verifiedExistingImages, supabasePhotos);
+
+      if (newImages.length === 0) continue;
+
+      // Só grava no Firestore se houve mudança real na lista de fotos
+      const isSameList =
+        Array.isArray(prod.images) &&
+        prod.images.length === newImages.length &&
+        prod.images.every((val: string, idx: number) => val === newImages[idx]) &&
+        prod.imageUrl === newImages[0];
+
+      if (isSameList) continue;
 
       const coverUrl = newImages[0];
       const stockVal = prod.stock !== undefined ? prod.stock : (prod.saldo_loja ?? 0);
@@ -1129,7 +1417,7 @@ export async function autoLinkSupabasePhotosToFirestore(productsList: any[]): Pr
           images: newImages,
           imageUrl: coverUrl,
           foto_uri: coverUrl,
-          visible: stockVal > 0 ? true : false,
+          visible: stockVal > 0 ? (prod.visible ?? true) : false,
           hasMedia: true,
           hasCustomData: true,
           updatedAt: new Date().toISOString()
@@ -1138,7 +1426,7 @@ export async function autoLinkSupabasePhotosToFirestore(productsList: any[]): Pr
         prod.images = newImages;
         prod.imageUrl = coverUrl;
         prod.foto_uri = coverUrl;
-        prod.visible = stockVal > 0 ? true : false;
+        prod.visible = stockVal > 0 ? (prod.visible ?? true) : false;
         prod.hasMedia = true;
         updatedCount++;
       } catch (e) {
