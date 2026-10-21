@@ -21,6 +21,9 @@ export interface StorefrontProductCardProps {
 export const extractAvailableSizes = (product: Product | any): string[] => {
   if (!product) return [];
 
+  const stockObj = product.stockBySize || product.sizeStockMap;
+  const hasStockMap = stockObj && typeof stockObj === 'object' && Object.keys(stockObj).length > 0;
+
   const rawList: (string | number)[] = [];
 
   if (Array.isArray(product.sizes)) rawList.push(...product.sizes);
@@ -28,6 +31,8 @@ export const extractAvailableSizes = (product: Product | any): string[] => {
   if (Array.isArray(product.grade)) {
     product.grade.forEach((g: any) => {
       if (typeof g === 'string' || typeof g === 'number') rawList.push(g);
+      else if (g?.saldo !== undefined && Number(g.saldo) <= 0) return;
+      else if (g?.estoque !== undefined && Number(g.estoque) <= 0) return;
       else if (g?.tamanho) rawList.push(g.tamanho);
       else if (g?.size) rawList.push(g.size);
     });
@@ -36,40 +41,53 @@ export const extractAvailableSizes = (product: Product | any): string[] => {
   }
   if (Array.isArray(product.grades)) {
     product.grades.forEach((g: any) => {
+      if (g?.saldo !== undefined && Number(g.saldo) <= 0) return;
+      if (g?.estoque !== undefined && Number(g.estoque) <= 0) return;
       if (g?.tamanho) rawList.push(g.tamanho);
       else if (g?.size) rawList.push(g.size);
     });
   }
   if (Array.isArray(product.variacoes)) {
     product.variacoes.forEach((v: any) => {
+      if (v?.saldo !== undefined && Number(v.saldo) <= 0) return;
+      if (v?.estoque !== undefined && Number(v.estoque) <= 0) return;
       if (v?.tamanho) rawList.push(v.tamanho);
       else if (v?.size) rawList.push(v.size);
     });
   }
   if (Array.isArray(product.saldos_lojas_grade)) {
     product.saldos_lojas_grade.forEach((s: any) => {
+      if (s?.saldo !== undefined && Number(s.saldo) <= 0) return;
+      if (s?.estoque !== undefined && Number(s.estoque) <= 0) return;
       if (s?.tamanho) rawList.push(s.tamanho);
       else if (s?.tam) rawList.push(s.tam);
     });
   }
-  const stockObj = product.stockBySize || product.sizeStockMap;
-  if (stockObj && typeof stockObj === 'object') {
+  if (hasStockMap) {
     Object.keys(stockObj).forEach((k) => {
-      if ((stockObj[k] ?? 0) > 0) rawList.push(k);
+      if (Number(stockObj[k] ?? 0) > 0) rawList.push(k);
     });
   }
 
   const cleaned = rawList
     .map((val) => String(val ?? '').trim())
-    .filter(
-      (val) =>
-        val !== '' &&
-        val !== '0' &&
-        val !== 'null' &&
-        val !== 'undefined' &&
-        val !== 'UN' &&
-        val !== 'ÚNICO'
-    );
+    .filter((val) => {
+      if (
+        val === '' ||
+        val === '0' ||
+        val === 'null' ||
+        val === 'undefined' ||
+        val === 'UN' ||
+        val === 'ÚNICO'
+      ) {
+        return false;
+      }
+      // Se o mapa de saldo por tamanho existe e registra explicitamente saldo <= 0 para este tamanho, ignora
+      if (hasStockMap && val in stockObj && Number(stockObj[val] ?? 0) <= 0) {
+        return false;
+      }
+      return true;
+    });
 
   const unique = Array.from(new Set(cleaned));
   return unique.sort((a, b) => {

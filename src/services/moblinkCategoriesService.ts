@@ -105,42 +105,98 @@ export function normalizeSubcategoryName(raw: string): string {
   return raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase();
 }
 
+const stripAccentsUpper = (str: string = ''): string =>
+  String(str || '')
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .trim();
+
 export function isProductInCategory(prod: Product, targetCategory: string): boolean {
   if (!prod || !targetCategory) return false;
   const targetNorm = normalizeCategoryName(targetCategory).toUpperCase();
   const targetClean = targetCategory.trim().toUpperCase();
+  const targetNoAccents = stripAccentsUpper(targetCategory);
+  const targetNormNoAccents = stripAccentsUpper(targetNorm);
 
   if (targetClean === "DIVERSOS" || targetClean === "TODOS" || targetClean === "ALL") {
     return true;
   }
 
-  const cat = normalizeCategoryName(prod.category || "").toUpperCase();
-  const categoria = normalizeCategoryName((prod as any).categoria || "").toUpperCase();
-  const grupo = normalizeCategoryName(prod.nome_grupo || "").toUpperCase();
-  const subgrupo = normalizeSubcategoryName(prod.nome_subgrupo || "").toUpperCase();
-  const productType = (prod.productType || "").toUpperCase();
-  const name = (prod.name || "").toUpperCase();
+  const classCode = String(
+    prod.classificacao ||
+    (prod as any).cod_classificacao ||
+    (prod.id_grupo ? `${prod.id_grupo}.${prod.id_subgrupo || ''}` : '')
+  ).trim();
 
-  const rawCat = (prod.category || "").toUpperCase();
-  const rawGrupo = (prod.nome_grupo || "").toUpperCase();
-  const rawSubgrupo = (prod.nome_subgrupo || "").toUpperCase();
+  const cat = stripAccentsUpper(normalizeCategoryName(prod.category || ""));
+  const categoria = stripAccentsUpper(normalizeCategoryName((prod as any).categoria || ""));
+  const grupo = stripAccentsUpper(normalizeCategoryName(prod.nome_grupo || ""));
+  const subgrupo = stripAccentsUpper(normalizeSubcategoryName(prod.nome_subgrupo || prod.subcategory || ""));
+  const productType = stripAccentsUpper(prod.productType || "");
+  const name = stripAccentsUpper(prod.name || "");
 
-  if (cat === targetNorm || categoria === targetNorm || grupo === targetNorm) {
-    return true;
-  }
+  const rawCat = stripAccentsUpper(prod.category || "");
+  const rawGrupo = stripAccentsUpper(prod.nome_grupo || "");
+  const rawSubgrupo = stripAccentsUpper(prod.nome_subgrupo || prod.subcategory || "");
 
-  if (targetNorm === "PERFUMES" || targetClean.includes("PERFUM") || targetClean.includes("COSMET") || targetClean.includes("COLONIA")) {
+  // 1. Cosméticos (Grupo 009 ERP)
+  if (targetNormNoAccents === "COSMETICOS" || targetNoAccents.includes("COSMET")) {
+    if (classCode.startsWith("009") || classCode === "9" || classCode.startsWith("9.")) return true;
+    if (
+      classCode.startsWith("002") || classCode.startsWith("2.") ||
+      classCode.startsWith("007") || classCode.startsWith("7.") ||
+      classCode.startsWith("010") || classCode.startsWith("10.") ||
+      classCode.startsWith("011") || classCode.startsWith("11.") ||
+      classCode.startsWith("012") || classCode.startsWith("12.") ||
+      classCode.startsWith("013") || classCode.startsWith("13.") ||
+      classCode.startsWith("014") || classCode.startsWith("14.")
+    ) {
+      return false;
+    }
     return (
-      cat.includes("PERFUM") || cat.includes("COSMET") ||
-      grupo.includes("PERFUM") || grupo.includes("COSMET") ||
-      rawCat.includes("PERFUM") || rawGrupo.includes("PERFUM") || rawSubgrupo.includes("PERFUM") ||
+      cat.includes("COSMET") || grupo.includes("COSMET") ||
       rawCat.includes("COSMET") || rawGrupo.includes("COSMET") || rawSubgrupo.includes("COSMET") ||
-      rawCat.includes("COLONIA") || rawGrupo.includes("COLONIA") ||
-      name.includes("PERFUME") || name.includes("COLONIA") || name.includes("COLÔNIA") || name.includes("FRAGRANC") || name.includes("BODY SPLASH")
+      subgrupo.includes("CAPILAR") || subgrupo.includes("SKINCARE") || subgrupo.includes("HIDRATANTE") || subgrupo.includes("SHAMPOO") || subgrupo.includes("MASCARA")
     );
   }
 
-  if (targetNorm === "CONFECÇÕES" || targetClean.includes("CONFEC") || targetClean.includes("ROUPA") || targetClean.includes("VESTU")) {
+  // 2. Perfumes / Perfumaria (Grupo 010 ERP)
+  if (targetNormNoAccents === "PERFUMES" || targetNoAccents.includes("PERFUM") || targetNoAccents.includes("COLONIA")) {
+    if (classCode.startsWith("010") || classCode === "10" || classCode.startsWith("10.")) return true;
+    if (
+      classCode.startsWith("002") || classCode.startsWith("2.") ||
+      classCode.startsWith("007") || classCode.startsWith("7.") ||
+      classCode.startsWith("009") || classCode.startsWith("9.") ||
+      classCode.startsWith("011") || classCode.startsWith("11.") ||
+      classCode.startsWith("012") || classCode.startsWith("12.") ||
+      classCode.startsWith("013") || classCode.startsWith("13.") ||
+      classCode.startsWith("014") || classCode.startsWith("14.")
+    ) {
+      return false;
+    }
+    return (
+      cat.includes("PERFUM") || grupo.includes("PERFUM") ||
+      rawCat.includes("PERFUM") || rawGrupo.includes("PERFUM") || rawSubgrupo.includes("PERFUM") ||
+      rawCat.includes("COLONIA") || rawGrupo.includes("COLONIA") ||
+      name.includes("PERFUME") || name.includes("COLONIA") || name.includes("FRAGRANC") || name.includes("BODY SPLASH")
+    );
+  }
+
+  // 3. Confecções (Grupo 007 ERP)
+  if (targetNormNoAccents === "CONFECCOES" || targetNoAccents.includes("CONFEC") || targetNoAccents.includes("ROUPA") || targetNoAccents.includes("VESTU")) {
+    if (classCode.startsWith("007") || classCode === "7" || classCode.startsWith("7.")) return true;
+    if (
+      classCode.startsWith("002") || classCode.startsWith("2.") ||
+      classCode.startsWith("009") || classCode.startsWith("9.") ||
+      classCode.startsWith("010") || classCode.startsWith("10.") ||
+      classCode.startsWith("011") || classCode.startsWith("11.") ||
+      classCode.startsWith("012") || classCode.startsWith("12.") ||
+      classCode.startsWith("013") || classCode.startsWith("13.") ||
+      classCode.startsWith("014") || classCode.startsWith("14.")
+    ) {
+      return false;
+    }
     return (
       cat.includes("CONFEC") ||
       cat.includes("ROUPA") ||
@@ -156,30 +212,67 @@ export function isProductInCategory(prod: Product, targetCategory: string): bool
     );
   }
 
-  if (targetNorm === "CALÇADOS" || targetClean.includes("CALCAD")) {
+  // 4. Calçados (Grupo 002 ERP) — Exclusão estrita de Cosméticos (009), Perfumaria (010), Confecções (007), Viagens (011), Escolar (012), Acessórios (013) e Esportivo (014)
+  if (targetNormNoAccents === "CALCADOS" || targetNoAccents.includes("CALCAD")) {
+    // Se possui código oficial de outro grupo do ERP, NUNCA é calçado
+    if (
+      classCode.startsWith("007") || classCode === "7" || classCode.startsWith("7.") ||
+      classCode.startsWith("009") || classCode === "9" || classCode.startsWith("9.") ||
+      classCode.startsWith("010") || classCode === "10" || classCode.startsWith("10.") ||
+      classCode.startsWith("011") || classCode === "11" || classCode.startsWith("11.") ||
+      classCode.startsWith("012") || classCode === "12" || classCode.startsWith("12.") ||
+      classCode.startsWith("013") || classCode === "13" || classCode.startsWith("13.") ||
+      classCode.startsWith("014") || classCode === "14" || classCode.startsWith("14.")
+    ) {
+      return false;
+    }
+
+    // Se possui código oficial do grupo 002 (Calçados), é calçado
+    if (classCode.startsWith("002") || classCode === "2" || classCode.startsWith("2.")) {
+      return true;
+    }
+
     const isNonFootwear =
-      cat.includes("ACESSÓRIO") || cat.includes("ACESSORIO") ||
-      cat.includes("BOLSA") || cat.includes("VIAGEM") || cat.includes("MALA") ||
+      cat.includes("ACESSORIO") ||
+      cat.includes("BOLSA") || cat.includes("VIAGEM") || cat.includes("VIAGENS") || cat.includes("MALA") ||
       cat.includes("CONFEC") || cat.includes("ROUPA") || cat.includes("VESTU") ||
-      cat.includes("COSMET") || cat.includes("PERFUM") || cat.includes("ESCOLAR") ||
-      grupo.includes("ACESSÓRIO") || grupo.includes("ACESSORIO") ||
-      grupo.includes("BOLSA") || grupo.includes("VIAGEM") || grupo.includes("MALA") ||
+      cat.includes("COSMET") || cat.includes("PERFUM") || cat.includes("ESCOLAR") || cat.includes("ESPORTIV") ||
+      categoria.includes("COSMET") || categoria.includes("PERFUM") || categoria.includes("ACESSORIO") || categoria.includes("CONFEC") ||
+      grupo.includes("ACESSORIO") ||
+      grupo.includes("BOLSA") || grupo.includes("VIAGEM") || grupo.includes("VIAGENS") || grupo.includes("MALA") ||
       grupo.includes("CONFEC") || grupo.includes("ROUPA") || grupo.includes("VESTU") ||
-      grupo.includes("COSMET") || grupo.includes("PERFUM") || grupo.includes("ESCOLAR") ||
-      productType.includes("BOLSA") || productType.includes("ROUPA") || productType.includes("VIAGEM") ||
+      grupo.includes("COSMET") || grupo.includes("PERFUM") || grupo.includes("ESCOLAR") || grupo.includes("ESPORTIV") ||
+      subgrupo.includes("CAPILAR") || subgrupo.includes("SKINCARE") || subgrupo.includes("HIDRATANTE") || subgrupo.includes("SHAMPOO") || subgrupo.includes("MASCARA") ||
+      subgrupo.includes("PERFUM") || subgrupo.includes("BOLSA") || subgrupo.includes("CARTEIRA") || subgrupo.includes("CINTO") || subgrupo.includes("RELOGIO") || subgrupo.includes("CUECA") ||
+      productType.includes("BOLSA") || productType.includes("ROUPA") || productType.includes("VIAGEM") || productType.includes("COSMET") ||
+      rawCat.includes("COSMET") || rawGrupo.includes("COSMET") || rawSubgrupo.includes("COSMET") ||
+      rawCat.includes("PERFUM") || rawGrupo.includes("PERFUM") || rawSubgrupo.includes("PERFUM") ||
       rawCat.includes("VIAGEM") || rawGrupo.includes("VIAGEM") || rawSubgrupo.includes("VIAGEM") ||
       rawCat.includes("MALA") || rawGrupo.includes("MALA") || rawSubgrupo.includes("MALA") ||
-      name.includes("MALA ") || name.startsWith("MALA ") || name.includes("FRASQUEIRA");
+      name.includes("MALA ") || name.startsWith("MALA ") || name.includes("FRASQUEIRA") ||
+      name.includes("OLEO CAPILAR") || name.includes("PORE PAD") || name.includes("SHAMPOO") || name.includes("HIDRATANTE");
     return !isNonFootwear;
   }
 
-  if (targetNorm === "ACESSÓRIOS" || targetClean.includes("ACESSOR") || targetClean.includes("BOLSA") || targetClean.includes("VIAGEM") || targetClean.includes("MALA")) {
+  // 5. Acessórios (Grupo 013 e 011 ERP)
+  if (targetNormNoAccents === "ACESSORIOS" || targetNoAccents.includes("ACESSOR") || targetNoAccents.includes("BOLSA") || targetNoAccents.includes("VIAGEM") || targetNoAccents.includes("MALA")) {
+    if (classCode.startsWith("013") || classCode === "13" || classCode.startsWith("13.") || classCode.startsWith("011") || classCode === "11" || classCode.startsWith("11.")) {
+      return true;
+    }
+    if (
+      classCode.startsWith("002") || classCode.startsWith("2.") ||
+      classCode.startsWith("007") || classCode.startsWith("7.") ||
+      classCode.startsWith("009") || classCode.startsWith("9.") ||
+      classCode.startsWith("010") || classCode.startsWith("10.")
+    ) {
+      return false;
+    }
     return (
-      cat.includes("ACESSÓRIO") || cat.includes("ACESSORIO") ||
+      cat.includes("ACESSORIO") ||
       cat.includes("BOLSA") || cat.includes("VIAGEM") || cat.includes("MALA") ||
-      grupo.includes("ACESSÓRIO") || grupo.includes("ACESSORIO") ||
+      grupo.includes("ACESSORIO") ||
       grupo.includes("BOLSA") || grupo.includes("VIAGEM") || grupo.includes("MALA") ||
-      subgrupo.includes("BOLSA") || subgrupo.includes("CINTO") || subgrupo.includes("CARTEIRA") || subgrupo.includes("VIAGEM") || subgrupo.includes("MALA") ||
+      subgrupo.includes("BOLSA") || subgrupo.includes("CINTO") || subgrupo.includes("CARTEIRA") || subgrupo.includes("VIAGEM") || subgrupo.includes("MALA") || subgrupo.includes("RELOGIO") || subgrupo.includes("BONE") ||
       rawCat.includes("ACESSOR") || rawGrupo.includes("ACESSOR") ||
       rawCat.includes("BOLSA") || rawGrupo.includes("BOLSA") ||
       rawCat.includes("VIAGEM") || rawGrupo.includes("VIAGEM") ||
@@ -187,16 +280,15 @@ export function isProductInCategory(prod: Product, targetCategory: string): bool
     );
   }
 
-  const cleanTargetNoAccents = targetClean.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-  const rawCatNoAccents = rawCat.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-  const rawGrupoNoAccents = rawGrupo.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-  const rawSubNoAccents = rawSubgrupo.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  if (cat === targetNormNoAccents || categoria === targetNormNoAccents || grupo === targetNormNoAccents) {
+    return true;
+  }
 
   return (
-    rawCatNoAccents.includes(cleanTargetNoAccents) ||
-    rawGrupoNoAccents.includes(cleanTargetNoAccents) ||
-    rawSubNoAccents.includes(cleanTargetNoAccents) ||
-    name.includes(targetClean)
+    rawCat.includes(targetNoAccents) ||
+    rawGrupo.includes(targetNoAccents) ||
+    rawSubgrupo.includes(targetNoAccents) ||
+    name.includes(targetNoAccents)
   );
 }
 

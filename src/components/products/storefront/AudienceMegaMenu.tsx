@@ -407,19 +407,29 @@ export const AudienceMegaMenu: React.FC<AudienceMegaMenuProps> = ({
                 isOutubroRosa ? 'bg-pink-500/30 border border-pink-400/30' : 'bg-blue-500/30 border border-blue-400/30'
               } text-white text-[11px] font-black tracking-wider uppercase backdrop-blur-md mb-2 shadow-xs`}>
                 <span className="w-4 h-4 rounded-full bg-white/20 flex items-center justify-center text-[10px] font-bold">
-                  {activeAudience === 'feminino' ? '♀' : activeAudience === 'masculino' ? '♂' : '★'}
+                  {activeAudience === 'feminino' || activeAudience === 'infantil-feminino'
+                    ? '♀'
+                    : activeAudience === 'masculino' || activeAudience === 'infantil-masculino'
+                    ? '♂'
+                    : '★'}
                 </span>
                 <span>{audienceConfig.collectionBadge}</span>
               </div>
 
               {/* Título Principal */}
-              <h2 className="text-2xl sm:text-3xl md:text-4xl font-black tracking-tight text-white flex items-center gap-2">
+              <h2 className="text-2xl sm:text-3xl md:text-4xl font-black tracking-tight text-white flex items-center gap-2 flex-wrap">
                 <span>Subcategorias</span>
                 <span className={isOutubroRosa ? 'text-pink-300' : 'text-sky-300'}>
                   {activeAudience === 'feminino'
                     ? 'Femininas'
                     : activeAudience === 'masculino'
                     ? 'Masculinas'
+                    : activeAudience === 'infantil-feminino'
+                    ? 'Infantil Feminino'
+                    : activeAudience === 'infantil-masculino'
+                    ? 'Infantil Masculino'
+                    : activeAudience === 'unissex'
+                    ? 'Unissex'
                     : 'Infantis'}
                 </span>
               </h2>

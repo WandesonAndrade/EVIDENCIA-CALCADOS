@@ -49,7 +49,10 @@ export const CategorySubcategoryView: React.FC<CategorySubcategoryViewProps> = (
     const totals: Record<AudienceKey, number> = {
       feminino: 0,
       masculino: 0,
+      'infantil-feminino': 0,
+      'infantil-masculino': 0,
       infantil: 0,
+      unissex: 0,
     };
 
     products.forEach((p) => {
@@ -61,7 +64,10 @@ export const CategorySubcategoryView: React.FC<CategorySubcategoryViewProps> = (
 
       if (isProductInAudience(p, 'feminino')) totals.feminino += 1;
       if (isProductInAudience(p, 'masculino')) totals.masculino += 1;
+      if (isProductInAudience(p, 'infantil-feminino')) totals['infantil-feminino'] += 1;
+      if (isProductInAudience(p, 'infantil-masculino')) totals['infantil-masculino'] += 1;
       if (isProductInAudience(p, 'infantil')) totals.infantil += 1;
+      if (isProductInAudience(p, 'unissex')) totals.unissex += 1;
     });
 
     return totals;
@@ -110,7 +116,9 @@ export const CategorySubcategoryView: React.FC<CategorySubcategoryViewProps> = (
           <div className={`inline-flex p-1.5 rounded-2xl border ${
             isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-slate-100/90 border-slate-200/70'
           }`}>
-            {(['feminino', 'masculino', 'infantil'] as AudienceKey[]).map((key) => {
+            {(['feminino', 'masculino', 'infantil-feminino', 'infantil-masculino', 'unissex'] as AudienceKey[])
+              .filter((key) => audienceTotals[key] > 0)
+              .map((key) => {
               const cfg = AUDIENCE_CONFIGS[key];
               const isActive = activeAudience === key;
               const totalCount = audienceTotals[key];

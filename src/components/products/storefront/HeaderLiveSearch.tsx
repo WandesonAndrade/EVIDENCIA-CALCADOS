@@ -8,7 +8,7 @@ import { hasProductValidPhoto } from '../../../utils/photoUtils';
 import { calculateProductPriceDetails } from '../atomic/ProductPriceDisplay';
 import { ProductImage } from '../atomic/ProductImage';
 import { scrollToSectionWithOffset } from '../../../lib/scrollUtils';
-import { extractBaseNameAndVariant } from '../../../services/moblinkProductsService';
+import { extractBaseNameAndVariant, isIgnoredClassification, extractClassificacaoCategoria } from '../../../services/moblinkProductsService';
 
 interface HeaderLiveSearchProps {
   isMobile?: boolean;
@@ -65,8 +65,12 @@ export const HeaderLiveSearch: React.FC<HeaderLiveSearchProps> = ({ isMobile = f
     }
 
     const filtered = products.filter((prod) => {
+      if (isIgnoredClassification(prod)) return false;
       const isAvailable = prod.stock !== undefined ? prod.stock > 0 : (prod.saldo_loja ?? 0) > 0;
-      return prod.visible && isAvailable && hasProductValidPhoto(prod) && matchProductSearch(prod, query);
+      if (!prod.visible || !isAvailable || !hasProductValidPhoto(prod)) return false;
+      const catInfo = extractClassificacaoCategoria(prod);
+      if (catInfo.category === 'Sem Classificação Definida' || !catInfo.isDefined) return false;
+      return matchProductSearch(prod, query);
     });
 
     const maxItems = isMobile ? 5 : 6;

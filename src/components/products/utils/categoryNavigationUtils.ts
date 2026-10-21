@@ -2,8 +2,15 @@ import { Product } from '../../../types';
 import { normalizeSubcategoryName } from '../../../services/moblinkCategoriesService';
 import { hasProductValidPhoto, getProductCoverPhoto } from '../../../utils/photoUtils';
 import { extractClassificacaoCategoria, isIgnoredClassification } from '../../../services/moblinkProductsService';
+import { resolveProductGender, normalizeProductGender } from '../../../utils/genderUtils';
 
-export type AudienceKey = 'feminino' | 'masculino' | 'infantil';
+export type AudienceKey =
+  | 'feminino'
+  | 'masculino'
+  | 'infantil-feminino'
+  | 'infantil-masculino'
+  | 'infantil'
+  | 'unissex';
 
 export interface AudienceSubcategoryItem {
   name: string;
@@ -42,14 +49,41 @@ export const AUDIENCE_CONFIGS: Record<AudienceKey, AudienceMetadata> = {
     ctaText: 'Explorar Tudo Masculino',
     bannerGradient: 'from-[#001E3D] via-[#003366] to-[#004C99]',
   },
+  'infantil-feminino': {
+    key: 'infantil-feminino',
+    label: 'Infantil Feminino',
+    title: 'Subcategorias Infantil Feminino',
+    collectionBadge: 'COLEÇÃO INFANTIL FEMININO',
+    subtitle: 'Delicadeza, conforto e charme para acompanhar cada passo das meninas.',
+    ctaText: 'Explorar Tudo Infantil Feminino',
+    bannerGradient: 'from-[#00224D] via-[#003875] to-[#0059B3]',
+  },
+  'infantil-masculino': {
+    key: 'infantil-masculino',
+    label: 'Infantil Masculino',
+    title: 'Subcategorias Infantil Masculino',
+    collectionBadge: 'COLEÇÃO INFANTIL MASCULINO',
+    subtitle: 'Aventura, resistência e estilo para acompanhar cada passo dos meninos.',
+    ctaText: 'Explorar Tudo Infantil Masculino',
+    bannerGradient: 'from-[#001E3D] via-[#003366] to-[#004C99]',
+  },
   infantil: {
     key: 'infantil',
-    label: 'Infantil & Bebê',
+    label: 'Infantil',
     title: 'Subcategorias Infantis',
     collectionBadge: 'COLEÇÃO INFANTIL & BEBÊ',
     subtitle: 'Conforto, diversão e estilo para acompanhar cada passo dos pequenos.',
     ctaText: 'Explorar Tudo Infantil',
     bannerGradient: 'from-[#00224D] via-[#003875] to-[#0059B3]',
+  },
+  unissex: {
+    key: 'unissex',
+    label: 'Unissex',
+    title: 'Subcategorias Unissex',
+    collectionBadge: 'COLEÇÃO UNISSEX',
+    subtitle: 'Versatilidade, praticidade e estilo pensados para todos os públicos.',
+    ctaText: 'Explorar Tudo Unissex',
+    bannerGradient: 'from-[#001E3D] via-[#003B73] to-[#0055A5]',
   },
 };
 
@@ -78,7 +112,8 @@ export function matchSubcategorySlug(candidate: string = '', slug: string = ''):
 
 /**
  * Verifica se o produto pertence estritamente ao público-alvo (Feminino, Masculino, Infantil)
- * Utiliza códigos de classificação oficial ERP MobLink, metadados e taxonomia.
+ * condicionado diretamente ao campo "Público / Gênero" definido no detalhe do produto no Painel Administrativo
+ * (via `resolveProductGender(prod)` / `prod.gender` / `prod.genero`).
  */
 export function isProductInAudience(prod: Product | any, audience: AudienceKey): boolean {
   if (!prod) return false;
@@ -86,161 +121,61 @@ export function isProductInAudience(prod: Product | any, audience: AudienceKey):
   // Regra do E-commerce: Produtos com classificação 001.001 NUNCA entram no e-commerce
   if (isIgnoredClassification(prod)) return false;
 
-  const pClass = String(prod.classificacao || '').trim();
-  const pCat = (prod.category || '').toUpperCase();
-  const pGrupo = (prod.nome_grupo || '').toUpperCase();
-  const pSub = (prod.nome_subgrupo || prod.subcategory || '').toUpperCase();
-  const pName = (prod.name || '').toUpperCase();
-  const pGender = String(prod.gender || prod.genero || '').toUpperCase();
-  const normSubRaw = normalizeSubcategoryName(pSub).toUpperCase();
-
-  if (audience === 'feminino') {
-    // 1. Classificação oficial ERP MobLink
-    if (
-      pClass.startsWith('002.002') ||
-      pClass.startsWith('007.003') ||
-      pClass.startsWith('007.006') ||
-      pClass.startsWith('007.007') ||
-      pClass.startsWith('007.008') ||
-      pClass.startsWith('007.009') ||
-      pClass.startsWith('010.002') ||
-      pClass.startsWith('2.2')
-    ) {
-      return true;
-    }
-
-    if (pGender === 'FEMALE' || pGender === 'FEMININO') {
-      return true;
-    }
-
-    const isExplicitFem =
-      pSub.includes('FEMININ') ||
-      normSubRaw.includes('FEMININ') ||
-      pCat.includes('FEMININ') ||
-      pGrupo.includes('FEMININ') ||
-      pName.includes('FEMININ') ||
-      pName.includes('FEMINA') ||
-      pName.includes('FEM ') ||
-      pName.includes('SANDÁLIA') ||
-      pName.includes('SANDALIA') ||
-      pName.includes('RASTEIRA') ||
-      pName.includes('SAPATILHA') ||
-      pName.includes('SCARPIN') ||
-      pName.includes('SALTO');
-
-    if (isExplicitFem) {
-      // Exclui apenas se tiver marcação explícita de infantil
-      const isExplicitInf =
-        pSub.includes('INFANTIL') ||
-        normSubRaw.includes('INFANTIL') ||
-        pName.includes('INFANTIL') ||
-        pName.includes('KIDS') ||
-        pName.includes('BEBÊ') ||
-        pClass.startsWith('002.003') ||
-        pClass.startsWith('002.004');
-      return !isExplicitInf;
-    }
-
-    const isExplicitMasc =
-      pSub.includes('MASCULIN') ||
-      normSubRaw.includes('MASCULIN') ||
-      pCat.includes('MASCULIN') ||
-      pGrupo.includes('MASCULIN') ||
-      pName.includes('MASCULIN') ||
-      pName.includes('MASCULINO') ||
-      pName.includes('SAPATÊNIS') ||
-      pName.includes('SAPATENIS') ||
-      pClass.startsWith('002.001');
-
-    const isExplicitInf =
-      pSub.includes('INFANTIL') ||
-      normSubRaw.includes('INFANTIL') ||
-      pCat.includes('INFANTIL') ||
-      pGrupo.includes('INFANTIL') ||
-      pName.includes('INFANTIL') ||
-      pSub.includes('BEBÊ') ||
-      pName.includes('KIDS') ||
-      pName.includes('BABY') ||
-      pClass.startsWith('002.003') ||
-      pClass.startsWith('002.004');
-
-    if (isExplicitMasc || isExplicitInf) {
-      return false;
-    }
-
-    // Produtos sem classificação definida não devem ser atribuídos compulsoriamente a feminino
-    if (pCat.includes('SEM CLASSIFICA') || pGrupo.includes('SEM CLASSIFICA')) {
-      return false;
-    }
-
-    // Itens padrão neutros de calçados femininos na loja
-    return true;
-  }
-
-  if (audience === 'masculino') {
-    if (
-      pClass.startsWith('002.001') ||
-      pClass.startsWith('010.001') ||
-      pClass.startsWith('2.1') ||
-      pClass.startsWith('10.1')
-    ) {
-      return true;
-    }
-
-    if (pGender === 'MALE' || pGender === 'MASCULINO') {
-      return true;
-    }
-
-    const isExplicitMasc =
-      pSub.includes('MASCULIN') ||
-      normSubRaw.includes('MASCULIN') ||
-      pCat.includes('MASCULIN') ||
-      pGrupo.includes('MASCULIN') ||
-      pName.includes('MASCULIN') ||
-      pName.includes('MASCULINO') ||
-      pName.includes('MASC ') ||
-      pSub.includes('SAPATÊNIS') ||
-      pSub.includes('SAPATENIS') ||
-      pName.includes('SAPATÊNIS') ||
-      pName.includes('SAPATENIS');
-
-    if (isExplicitMasc) {
-      // Exclui se for explícito feminino ou infantil
-      const isFem = pSub.includes('FEMININ') || pCat.includes('FEMININ');
-      const isInf = pSub.includes('INFANTIL') || pName.includes('KIDS') || pClass.startsWith('002.003') || pClass.startsWith('002.004');
-      return !isFem && !isInf;
-    }
-
+  const pClass = String(
+    prod.classificacao ||
+    prod.cod_classificacao ||
+    (prod.id_grupo ? `${prod.id_grupo}.${prod.id_subgrupo || ''}` : '')
+  ).trim();
+  const pCat = String(prod.category || '').toUpperCase();
+  const pGrupo = String(prod.nome_grupo || '').toUpperCase();
+  if (pCat.includes('SEM CLASSIFICA') || pGrupo.includes('SEM CLASSIFICA')) {
     return false;
   }
 
+  // Gênero explícito salvo no Painel Administrativo (`gender` / `genero`)
+  const explicitGender = normalizeProductGender(prod.gender || prod.genero);
+
+  // Produtos de Cosméticos (009) só entram nos menus de público/gênero se definidos explicitamente no Painel Administrativo
+  const isCosmetics =
+    pClass.startsWith('009') ||
+    pClass === '9' ||
+    pClass.startsWith('9.') ||
+    pCat.includes('COSMET') ||
+    pCat.includes('COSMÉT') ||
+    pGrupo.includes('COSMET') ||
+    pGrupo.includes('COSMÉT');
+  if (isCosmetics && !explicitGender) {
+    return false;
+  }
+
+  // Gênero efetivo resolvido (idêntico ao exibido no detalhe do produto no Painel Administrativo)
+  const resolvedGender = resolveProductGender(prod);
+
+  if (audience === 'feminino') {
+    return resolvedGender === 'Feminino';
+  }
+
+  if (audience === 'masculino') {
+    return resolvedGender === 'Masculino';
+  }
+
+  if (audience === 'infantil-feminino') {
+    return resolvedGender === 'Infantil Feminino';
+  }
+
+  if (audience === 'infantil-masculino') {
+    return resolvedGender === 'Infantil Masculino';
+  }
+
   if (audience === 'infantil') {
-    if (
-      pClass.startsWith('002.003') ||
-      pClass.startsWith('002.004') ||
-      pClass.startsWith('010.003') ||
-      pClass.startsWith('012.') ||
-      pClass.startsWith('2.3') ||
-      pClass.startsWith('2.4')
-    ) {
-      return true;
-    }
-
-    if (pGender === 'KIDS' || pGender === 'INFANTIL') {
-      return true;
-    }
-
     return (
-      pSub.includes('INFANTIL') ||
-      normSubRaw.includes('INFANTIL') ||
-      pCat.includes('INFANTIL') ||
-      pGrupo.includes('INFANTIL') ||
-      pName.includes('INFANTIL') ||
-      pSub.includes('BEBÊ') ||
-      pSub.includes('BEBE') ||
-      pName.includes('KIDS') ||
-      pName.includes('BABY')
+      resolvedGender === 'Infantil Feminino' ||
+      resolvedGender === 'Infantil Masculino'
     );
+  }
+
+  if (audience === 'unissex') {
+    return resolvedGender === 'Unissex';
   }
 
   return false;
@@ -271,6 +206,10 @@ export function resolveProductSubcategoryName(prod: Product | any): string {
     upperNorm === 'FEMININO' ||
     upperNorm === 'MASCULINO' ||
     upperNorm === 'INFANTIL' ||
+    upperNorm === 'INFANTIL FEMININO' ||
+    upperNorm === 'INFANTIL MASCULINO' ||
+    upperNorm === 'INFANTIL FEM' ||
+    upperNorm === 'INFANTIL MASC' ||
     upperNorm === 'BEBÊ' ||
     upperNorm === 'BEBE' ||
     upperNorm === 'UNISSEX' ||
@@ -345,6 +284,10 @@ export function resolveProductSubcategoryName(prod: Product | any): string {
     finalUpper === 'FEMININO' ||
     finalUpper === 'MASCULINO' ||
     finalUpper === 'INFANTIL' ||
+    finalUpper === 'INFANTIL FEMININO' ||
+    finalUpper === 'INFANTIL MASCULINO' ||
+    finalUpper === 'INFANTIL FEM' ||
+    finalUpper === 'INFANTIL MASC' ||
     finalUpper === 'BEBÊ' ||
     finalUpper === 'BEBE' ||
     finalUpper === 'GERAL' ||
@@ -395,6 +338,13 @@ export function isSubcategoryMatch(prod: Product | any, targetSub: string): bool
   const targetUpper = cleanTarget.toUpperCase();
   const targetStem = toSingularStem(cleanTarget);
   const targetSlug = slugifyParam(cleanTarget);
+
+  // 0. Se o filtro for por subdivisão de público/gênero (ex: Infantil Feminino, Infantil Masculino, Feminino, Masculino)
+  const targetGender = normalizeProductGender(cleanTarget);
+  if (targetGender) {
+    const prodGender = resolveProductGender(prod);
+    return prodGender === targetGender;
+  }
 
   // 1. Canônica resolvida
   const resolved = resolveProductSubcategoryName(prod);

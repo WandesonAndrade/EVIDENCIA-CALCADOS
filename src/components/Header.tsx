@@ -8,8 +8,6 @@ import {
   History,
   ChevronDown,
   Heart,
-  Sun,
-  Moon,
   Shield,
   CreditCard,
   Truck,
@@ -32,10 +30,10 @@ import { CategorySandwichMenu } from "./CategorySandwichMenu";
 import { checkIsProfileComplete } from "../App";
 import { scrollToSectionWithOffset } from "../lib/scrollUtils";
 import { normalizeCategoryName, normalizeSubcategoryName, isProductInCategory } from "../services/moblinkCategoriesService";
-import { hasProductValidPhoto } from "../services/moblinkProductsService";
+import { hasProductValidPhoto, extractClassificacaoCategoria, isIgnoredClassification } from "../services/moblinkProductsService";
 import { HeaderLiveSearch } from "./products/storefront/HeaderLiveSearch";
 import { AudienceMegaMenu } from "./products/storefront/AudienceMegaMenu";
-import { extractAudienceSubcategories, buildCategoryUrl, AudienceKey } from "./products/utils/categoryNavigationUtils";
+import { extractAudienceSubcategories, buildCategoryUrl, isProductInAudience, AudienceKey } from "./products/utils/categoryNavigationUtils";
 
 export const Header: React.FC = () => {
   const {
@@ -55,7 +53,6 @@ export const Header: React.FC = () => {
     setSelectedSubcategory,
     favorites = [],
     theme,
-    toggleTheme,
     categories = [],
     products = [],
     saldaoConfig,
@@ -65,10 +62,10 @@ export const Header: React.FC = () => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isSandwichMenuOpen, setIsSandwichMenuOpen] = useState(false);
-  const [activeMegaMenu, setActiveMegaMenu] = useState<'feminino' | 'masculino' | 'infantil' | null>(null);
+  const [activeMegaMenu, setActiveMegaMenu] = useState<AudienceKey | null>(null);
   const hoverTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
 
-  const handleNavMouseEnter = (menuKey: 'feminino' | 'masculino' | 'infantil') => {
+  const handleNavMouseEnter = (menuKey: AudienceKey) => {
     if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
     setActiveMegaMenu(menuKey);
   };
@@ -111,6 +108,29 @@ export const Header: React.FC = () => {
     if (!activeMegaMenu || !products || products.length === 0) return [];
     return extractAudienceSubcategories(products, activeMegaMenu as AudienceKey);
   }, [activeMegaMenu, products]);
+
+  // Exibe na navbar apenas os menus de Público / Gênero que possuem produtos ativos relacionados na vitrine
+  const visibleAudienceNavItems = useMemo(() => {
+    const allAudienceNavs: { key: AudienceKey; label: string }[] = [
+      { key: 'feminino', label: 'Feminino' },
+      { key: 'masculino', label: 'Masculino' },
+      { key: 'infantil-feminino', label: 'Infantil Feminino' },
+      { key: 'infantil-masculino', label: 'Infantil Masculino' },
+      { key: 'unissex', label: 'Unissex' },
+    ];
+
+    const validStorefrontProducts = (products || []).filter((prod) => {
+      if (prod.visible === false || isIgnoredClassification(prod)) return false;
+      const hasStock = prod.stock !== undefined ? prod.stock > 0 : (prod.saldo_loja ?? 0) > 0;
+      if (!hasStock || !hasProductValidPhoto(prod)) return false;
+      const catInfo = extractClassificacaoCategoria(prod);
+      return Boolean(catInfo.isDefined && catInfo.category !== 'Sem Classificação Definida');
+    });
+
+    return allAudienceNavs.filter((navItem) =>
+      validStorefrontProducts.some((prod) => isProductInAudience(prod, navItem.key))
+    );
+  }, [products]);
 
   const activeUser = currentAdminUser || currentUser;
   const isAuthorizedCollaborator = Boolean(
@@ -342,24 +362,6 @@ export const Header: React.FC = () => {
                 <span className="hidden sm:inline">Carrinho</span>
               </button>
 
-              {/* Alternador de Tema Escuro/Claro */}
-              <button
-                id="theme-toggle-button"
-                onClick={toggleTheme}
-                className={`p-1 min-[390px]:p-1.5 rounded-full transition-all cursor-pointer ${
-                  isDark
-                    ? "text-amber-400 hover:bg-slate-800"
-                    : "text-white hover:bg-white/15"
-                }`}
-                title={isDark ? "Modo Claro" : "Modo Escuro"}
-              >
-                {isDark ? (
-                  <Sun className="h-4.5 w-4.5 sm:h-5 sm:w-5" />
-                ) : (
-                  <Moon className="h-4.5 w-4.5 sm:h-5 sm:w-5" />
-                )}
-              </button>
-
               {/* Entrar / Minha Conta (Garantido Visível em Telas Mobile) */}
               {activeUser ? (
                 <div className="relative">
@@ -569,8 +571,8 @@ export const Header: React.FC = () => {
                   <ChevronDown className="h-3.5 w-3.5 text-white/80" />
                 </button>
 
-                {/* Links Principais: Ofertas & Saldão, Feminino, Masculino, Infantil */}
-                <div className="flex items-center space-x-1.5 min-[390px]:space-x-2 sm:space-x-4 overflow-x-auto no-scrollbar flex-1">
+                {/* Links Principais: Ofertas & Saldão + Público / Gênero (Feminino, Masculino, Infantil Feminino, Infantil Masculino, Infantil, Unissex) */}
+                <div className="flex items-center space-x-1.5 min-[390px]:space-x-2 sm:space-x-3 overflow-x-auto no-scrollbar flex-1">
                   {/* Ofertas & Saldão */}
                   <button
                     onClick={() => handleMegaMenuCategoryClick("OFERTAS", "TODAS")}
@@ -580,83 +582,40 @@ export const Header: React.FC = () => {
                     <span>Ofertas & Saldão</span>
                   </button>
 
-                  {/* Feminino */}
-                  <div
-                    className="relative shrink-0"
-                    onMouseEnter={() => handleNavMouseEnter('feminino')}
-                    onMouseLeave={handleNavMouseLeave}
-                  >
-                    <button
-                      onClick={() => {
-                        if (activeMegaMenu === 'feminino') setActiveMegaMenu(null);
-                        else setActiveMegaMenu('feminino');
-                      }}
-                      className={`py-1.5 min-[390px]:py-2 px-2.5 min-[390px]:px-3.5 rounded-xl transition-all cursor-pointer flex items-center space-x-1 text-[11px] min-[390px]:text-xs font-bold ${
-                        activeMegaMenu === 'feminino' || (selectedSubcategory.toUpperCase() === 'FEMININO')
-                          ? "font-extrabold text-[#003e92] dark:text-amber-400 bg-[#003e92]/10 dark:bg-amber-400/10"
-                          : isDark
-                            ? "text-slate-300 hover:text-white"
-                            : "text-neutral-700 hover:text-black"
-                      }`}
-                    >
-                      <span>Feminino</span>
-                      <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${
-                        activeMegaMenu === 'feminino' ? "rotate-180 text-[#003e92] dark:text-amber-400" : "text-slate-400"
-                      }`} />
-                    </button>
-                  </div>
+                  {visibleAudienceNavItems.map((navItem) => {
+                    const isActive =
+                      activeMegaMenu === navItem.key ||
+                      selectedMenuTab.toLowerCase() === navItem.key ||
+                      selectedCategory.toLowerCase() === navItem.key;
 
-                  {/* Masculino */}
-                  <div
-                    className="relative shrink-0"
-                    onMouseEnter={() => handleNavMouseEnter('masculino')}
-                    onMouseLeave={handleNavMouseLeave}
-                  >
-                    <button
-                      onClick={() => {
-                        if (activeMegaMenu === 'masculino') setActiveMegaMenu(null);
-                        else setActiveMegaMenu('masculino');
-                      }}
-                      className={`py-1.5 min-[390px]:py-2 px-2.5 min-[390px]:px-3.5 rounded-xl transition-all cursor-pointer flex items-center space-x-1 text-[11px] min-[390px]:text-xs font-bold ${
-                        activeMegaMenu === 'masculino' || (selectedSubcategory.toUpperCase() === 'MASCULINO')
-                          ? "font-extrabold text-[#003e92] dark:text-amber-400 bg-[#003e92]/10 dark:bg-amber-400/10"
-                          : isDark
-                            ? "text-slate-300 hover:text-white"
-                            : "text-neutral-700 hover:text-black"
-                      }`}
-                    >
-                      <span>Masculino</span>
-                      <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${
-                        activeMegaMenu === 'masculino' ? "rotate-180 text-[#003e92] dark:text-amber-400" : "text-slate-400"
-                      }`} />
-                    </button>
-                  </div>
-
-                  {/* Infantil */}
-                  <div
-                    className="relative shrink-0"
-                    onMouseEnter={() => handleNavMouseEnter('infantil')}
-                    onMouseLeave={handleNavMouseLeave}
-                  >
-                    <button
-                      onClick={() => {
-                        if (activeMegaMenu === 'infantil') setActiveMegaMenu(null);
-                        else setActiveMegaMenu('infantil');
-                      }}
-                      className={`py-1.5 min-[390px]:py-2 px-2.5 min-[390px]:px-3.5 rounded-xl transition-all cursor-pointer flex items-center space-x-1 text-[11px] min-[390px]:text-xs font-bold ${
-                        activeMegaMenu === 'infantil' || (selectedSubcategory.toUpperCase().includes('INFANTIL'))
-                          ? "font-extrabold text-[#003e92] dark:text-amber-400 bg-[#003e92]/10 dark:bg-amber-400/10"
-                          : isDark
-                            ? "text-slate-300 hover:text-white"
-                            : "text-neutral-700 hover:text-black"
-                      }`}
-                    >
-                      <span>Infantil</span>
-                      <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${
-                        activeMegaMenu === 'infantil' ? "rotate-180 text-[#003e92] dark:text-amber-400" : "text-slate-400"
-                      }`} />
-                    </button>
-                  </div>
+                    return (
+                      <div
+                        key={navItem.key}
+                        className="relative shrink-0"
+                        onMouseEnter={() => handleNavMouseEnter(navItem.key)}
+                        onMouseLeave={handleNavMouseLeave}
+                      >
+                        <button
+                          onClick={() => {
+                            if (activeMegaMenu === navItem.key) setActiveMegaMenu(null);
+                            else setActiveMegaMenu(navItem.key);
+                          }}
+                          className={`py-1.5 min-[390px]:py-2 px-2.5 min-[390px]:px-3 rounded-xl transition-all cursor-pointer flex items-center space-x-1 text-[11px] min-[390px]:text-xs font-bold ${
+                            isActive
+                              ? "font-extrabold text-[#003e92] dark:text-amber-400 bg-[#003e92]/10 dark:bg-amber-400/10"
+                              : isDark
+                                ? "text-slate-300 hover:text-white"
+                                : "text-neutral-700 hover:text-black"
+                          }`}
+                        >
+                          <span>{navItem.label}</span>
+                          <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${
+                            activeMegaMenu === navItem.key ? "rotate-180 text-[#003e92] dark:text-amber-400" : "text-slate-400"
+                          }`} />
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               </nav>
             </div>

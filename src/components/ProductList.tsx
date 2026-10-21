@@ -200,8 +200,14 @@ export const ProductList: React.FC = () => {
 
   const baseFilteredProducts = useMemo(() => {
     return products.filter((prod) => {
+      if (isIgnoredClassification(prod)) return false;
       const isAvailable = (prod.stock !== undefined ? prod.stock > 0 : (prod.saldo_loja ?? 0) > 0);
-      return prod.visible && isAvailable && hasProductValidPhoto(prod) && matchProductSearch(prod, searchQuery);
+      if (!prod.visible || !isAvailable || !hasProductValidPhoto(prod)) return false;
+      const catInfo = extractClassificacaoCategoria(prod);
+      if ((catInfo.category === 'Sem Classificação Definida' || !catInfo.isDefined) && (!prod.category || prod.category === 'Geral' || prod.category === 'Sem Classificação Definida')) {
+        return false;
+      }
+      return matchProductSearch(prod, searchQuery);
     });
   }, [products, searchQuery]);
 
@@ -255,7 +261,8 @@ export const ProductList: React.FC = () => {
       handleSelectSubcategoryItem(cleanLink.replace('subcategoria:', ''));
     } else if (cleanLink.startsWith('promo:')) {
       if (setSelectedSubcategory) setSelectedSubcategory('TODAS');
-      if (setSelectedCategory) setSelectedCategory(cleanLink);
+      if (setSelectedMenuTab) setSelectedMenuTab(cleanLink);
+      if (setSelectedCategory) setSelectedCategory(cleanLink, 'TODAS');
       if (setCurrentView) setCurrentView('category-page');
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
@@ -632,8 +639,10 @@ export const ProductList: React.FC = () => {
             <button 
               onClick={() => {
                 if (setSelectedSubcategory) setSelectedSubcategory('TODAS');
-                if (setSelectedCategory) setSelectedCategory('NOVIDADES');
+                if (setSelectedMenuTab) setSelectedMenuTab('novidades');
+                if (setSelectedCategory) setSelectedCategory('NOVIDADES', 'TODAS');
                 if (setCurrentView) setCurrentView('category-page');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
               className={`text-xs font-extrabold ${
                 isOutubroRosa

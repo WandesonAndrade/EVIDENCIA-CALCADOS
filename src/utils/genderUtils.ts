@@ -4,7 +4,6 @@
  * - Masculino
  * - Infantil Feminino
  * - Infantil Masculino
- * - Infantil (ou Infantil Unissex)
  * - Unissex
  */
 
@@ -13,7 +12,6 @@ export type ProductGender =
   | 'Masculino'
   | 'Infantil Feminino'
   | 'Infantil Masculino'
-  | 'Infantil'
   | 'Unissex';
 
 export const GENDER_OPTIONS: ProductGender[] = [
@@ -21,7 +19,6 @@ export const GENDER_OPTIONS: ProductGender[] = [
   'Masculino',
   'Infantil Feminino',
   'Infantil Masculino',
-  'Infantil',
   'Unissex',
 ];
 
@@ -38,13 +35,10 @@ export function normalizeProductGender(raw: string | undefined | null): ProductG
   if (clean === 'INFANTIL MASCULINO' || clean === 'INFANTIL MASC' || clean === 'MENINO' || clean === 'MENINOS') {
     return 'Infantil Masculino';
   }
-  if (clean === 'INFANTIL' || clean === 'KIDS' || clean === 'BEBE' || clean === 'BEBÊ' || clean === 'BABY') {
-    return 'Infantil';
-  }
-  if (clean === 'FEMININO' || clean === 'FEM' || clean === 'MULHER' || clean === 'ADULTO FEMININO') {
+  if (clean === 'FEMININO' || clean === 'FEMALE' || clean === 'FEM' || clean === 'MULHER' || clean === 'ADULTO FEMININO') {
     return 'Feminino';
   }
-  if (clean === 'MASCULINO' || clean === 'MASC' || clean === 'HOMEM' || clean === 'ADULTO MASCULINO') {
+  if (clean === 'MASCULINO' || clean === 'MALE' || clean === 'MASC' || clean === 'HOMEM' || clean === 'ADULTO MASCULINO') {
     return 'Masculino';
   }
   if (clean === 'UNISSEX' || clean === 'UNISEX') {
@@ -63,17 +57,57 @@ export function normalizeProductGender(raw: string | undefined | null): ProductG
 export function resolveProductGender(product: any): ProductGender {
   if (!product) return 'Feminino';
 
-  // 1. Campo explícito já salvo
-  const explicit = normalizeProductGender(product.gender || product.genero);
-  if (explicit) return explicit;
-
-  // 2. Classificação Oficial ERP MobLink
   const rawClass = String(
     product.classificacao || 
     product.cod_classificacao || 
     (product.id_grupo ? `${product.id_grupo}.${product.id_subgrupo || ''}` : '')
   ).trim();
 
+  const subgrupo = String(product.nome_subgrupo || product.subcategoria || product.subcategory || '').toUpperCase();
+  const name = String(product.name || product.nome || product.descricao || '').toUpperCase();
+
+  // 1. Campo explícito já salvo no Painel Administrativo
+  const explicit = normalizeProductGender(product.gender || product.genero);
+  if (explicit) {
+    // Proteção contra produtos femininos/infantis/masculinos que receberam 'Unissex' por fallback antigo sem serem unissex
+    if (explicit === 'Unissex') {
+      const hasExplicitUnissexText = subgrupo.includes('UNISSEX') || subgrupo.includes('UNISEX') || name.includes('UNISSEX') || name.includes('UNISEX');
+      if (!hasExplicitUnissexText) {
+        if (
+          rawClass.startsWith('002.002') ||
+          rawClass.startsWith('2.2') ||
+          rawClass.startsWith('010.002') ||
+          rawClass.startsWith('013.002') ||
+          rawClass.startsWith('011.003') ||
+          rawClass.startsWith('007.003') ||
+          rawClass.startsWith('007.006') ||
+          rawClass.startsWith('007.007') ||
+          rawClass.startsWith('007.008') ||
+          rawClass.startsWith('007.009') ||
+          rawClass.startsWith('007.010') ||
+          rawClass.startsWith('007.011') ||
+          name.includes('FEMININ') ||
+          name.includes('BOLSA') ||
+          name.includes('NECESSAIRE') ||
+          name.includes('NÉCESSAIRE') ||
+          name.includes('RASTEIR') ||
+          name.includes('SCARPIN') ||
+          name.includes('SAPATILHA') ||
+          name.includes('VIZZANO') ||
+          name.includes('MOLECA') ||
+          name.includes('BEIRA RIO') ||
+          name.includes('DAKOTA') ||
+          name.includes('MODARE') ||
+          name.includes('CHENSON')
+        ) {
+          return 'Feminino';
+        }
+      }
+    }
+    return explicit;
+  }
+
+  // 2. Classificação Oficial ERP MobLink
   if (rawClass.startsWith('002.004') || rawClass.startsWith('2.4') || rawClass.startsWith('002.4')) {
     return 'Infantil Feminino';
   }
@@ -90,20 +124,48 @@ export function resolveProductGender(product: any): ProductGender {
   // Perfumaria Oficial ERP
   if (rawClass.startsWith('010.001')) return 'Masculino';
   if (rawClass.startsWith('010.002')) return 'Feminino';
-  if (rawClass.startsWith('010.003')) return 'Infantil';
+  if (rawClass.startsWith('010.003')) {
+    return (name.includes('MASC') || name.includes('MENINO') || name.includes('HOMEM ARANHA') || name.includes('BATMAN'))
+      ? 'Infantil Masculino'
+      : 'Infantil Feminino';
+  }
+
+  // Confecções / Acessórios e Escolar ERP
+  if (rawClass.startsWith('013.008')) return 'Masculino'; // Cueca
+  if (rawClass.startsWith('013.002')) return 'Feminino';  // Bolsa
+  if (rawClass.startsWith('011.003')) return 'Feminino';  // Nécessaire
+  if (rawClass.startsWith('012.')) {
+    return (name.includes('MASC') || name.includes('MENINO') || name.includes('HOMEM ARANHA') || name.includes('BATMAN') || name.includes('CARROS') || name.includes('NARUTO') || name.includes('SONIC'))
+      ? 'Infantil Masculino'
+      : 'Infantil Feminino';
+  }
+  if (
+    rawClass.startsWith('007.003') ||
+    rawClass.startsWith('007.006') ||
+    rawClass.startsWith('007.007') ||
+    rawClass.startsWith('007.008') ||
+    rawClass.startsWith('007.009') ||
+    rawClass.startsWith('007.010') ||
+    rawClass.startsWith('007.011')
+  ) {
+    return 'Feminino';
+  }
 
   // 3. Subgrupo ou Grupo do ERP
-  const subgrupo = String(product.nome_subgrupo || product.subcategoria || product.subcategory || '').toUpperCase();
   if (subgrupo.includes('INFANTIL FEMININO') || subgrupo.includes('MENINA')) return 'Infantil Feminino';
   if (subgrupo.includes('INFANTIL MASCULINO') || subgrupo.includes('MENINO')) return 'Infantil Masculino';
-  if (subgrupo.includes('FEMININO')) return 'Feminino';
+  if (subgrupo.includes('UNISSEX') || subgrupo.includes('UNISEX')) return 'Unissex';
+  if (subgrupo.includes('FEMININO') || subgrupo.includes('BOLSA')) return 'Feminino';
   if (subgrupo.includes('MASCULINO')) return 'Masculino';
-  if (subgrupo.includes('INFANTIL') || subgrupo.includes('KIDS')) return 'Infantil';
 
   // 4. Palavras-chave no nome do produto
-  const name = String(product.name || product.nome || product.descricao || '').toUpperCase();
+  if (name.includes('UNISSEX') || name.includes('UNISEX')) {
+    return 'Unissex';
+  }
 
   const isInfantilKeyword = 
+    subgrupo.includes('INFANTIL') ||
+    subgrupo.includes('KIDS') ||
     name.includes('INFANTIL') || 
     name.includes('BABUCH') || 
     name.includes('BABUCHE') || 
@@ -124,21 +186,48 @@ export function resolveProductGender(product: any): ProductGender {
     name.includes('HOT WHEELS');
 
   if (isInfantilKeyword) {
-    if (name.includes('FEMININ') || name.includes('MENINA') || name.includes('BARBIE') || name.includes('PRINCESA') || name.includes('FROZEN') || name.includes('ROSA')) {
-      return 'Infantil Feminino';
-    }
-    if (name.includes('MASCULIN') || name.includes('MENINO') || name.includes('MARVEL') || name.includes('HOMEM ARANHA') || name.includes('BATMAN') || name.includes('HEROIS') || name.includes('HERÓIS')) {
+    if (name.includes('MASCULIN') || name.includes('MASC') || name.includes('MENINO') || name.includes('MARVEL') || name.includes('HOMEM ARANHA') || name.includes('BATMAN') || name.includes('HEROIS') || name.includes('HERÓIS') || name.includes('HOT WHEELS') || name.includes('CARROS') || name.includes('NARUTO') || name.includes('SONIC')) {
       return 'Infantil Masculino';
     }
-    return 'Infantil';
+    return 'Infantil Feminino';
   }
 
-  // Adulto
-  if (name.includes('FEMININ') || name.includes('FEM') || name.includes('MULHER') || name.includes('MOLECA') || name.includes('VIZZANO') || name.includes('DAKOTA') || name.includes('BEIRA RIO') || name.includes('SCARPIN') || name.includes('RASTEIR')) {
+  // Adulto Feminino
+  if (
+    name.includes('FEMININ') ||
+    name.includes('FEM') ||
+    name.includes('MULHER') ||
+    name.includes('BOLSA') ||
+    name.includes('NECESSAIRE') ||
+    name.includes('NÉCESSAIRE') ||
+    name.includes('MOLECA') ||
+    name.includes('VIZZANO') ||
+    name.includes('DAKOTA') ||
+    name.includes('BEIRA RIO') ||
+    name.includes('MODARE') ||
+    name.includes('CHENSON') ||
+    name.includes('PICCADILLY') ||
+    name.includes('RAMARIM') ||
+    name.includes('VIA MARTE') ||
+    name.includes('MISSISSIPI') ||
+    name.includes('PETITE JOLIE') ||
+    name.includes('BOTTERO') ||
+    name.includes('KOLOSH') ||
+    name.includes('AZALEIA') ||
+    name.includes('GRENDHA') ||
+    name.includes('ZAXY') ||
+    name.includes('USAFLEX') ||
+    name.includes('SCARPIN') ||
+    name.includes('RASTEIR') ||
+    name.includes('SAPATILHA') ||
+    name.includes('TAMANCO') ||
+    name.includes('ANABELA')
+  ) {
     return 'Feminino';
   }
 
-  if (name.includes('MASCULIN') || name.includes('MASC') || name.includes('HOMEM') || name.includes('PEGADA') || name.includes('DEMOCRATA') || name.includes('FERRACINI') || name.includes('MOCASSIM')) {
+  // Adulto Masculino
+  if (name.includes('MASCULIN') || name.includes('MASC') || name.includes('HOMEM') || name.includes('CUECA') || name.includes('PEGADA') || name.includes('DEMOCRATA') || name.includes('FERRACINI') || name.includes('MOCASSIM') || name.includes('CARTAGO') || name.includes('RIDER')) {
     return 'Masculino';
   }
 

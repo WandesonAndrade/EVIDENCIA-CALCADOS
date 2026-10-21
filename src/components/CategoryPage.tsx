@@ -29,6 +29,9 @@ import { getApplicablePromotion, isCampaignActive } from '../services/promotions
 import { hasProductValidPhoto, extractClassificacaoCategoria, isIgnoredClassification } from '../services/moblinkProductsService';
 import { matchProductSearch } from './products/utils/productFilterUtils';
 import { isProductInAudience, resolveProductSubcategoryName, matchSubcategorySlug, isSubcategoryMatch } from './products/utils/categoryNavigationUtils';
+import { resolveProductBrand } from '../utils/brandUtils';
+import { extractAvailableSizes } from './products/storefront/StorefrontProductCard';
+import { calculateProductPriceDetails } from './products/atomic/ProductPriceDisplay';
 
 interface TabConfig {
   title: string;
@@ -80,14 +83,22 @@ const TAB_CONFIGS: Record<string, TabConfig> = {
     subtitle: 'Tênis, sandálias, sapatos, botas e papetes com o máximo conforto e elegância.',
     bannerImage: 'https://images.unsplash.com/photo-1549298916-b41d501d3772?q=80&w=1600&auto=format&fit=crop',
     badgeText: 'CALÇADOS PREMIUM',
-    filter: (prod) => isProductInCategory(prod, 'CALÇADOS')
+    filter: (prod) => {
+      const catInfo = extractClassificacaoCategoria(prod);
+      if (catInfo.isDefined && catInfo.category && catInfo.category !== 'Calçados') return false;
+      return isProductInCategory(prod, 'CALÇADOS');
+    }
   },
   'calçados': {
     title: 'Coleção de Calçados',
     subtitle: 'Tênis, sandálias, sapatos, botas e papetes com o máximo conforto e elegância.',
     bannerImage: 'https://images.unsplash.com/photo-1549298916-b41d501d3772?q=80&w=1600&auto=format&fit=crop',
     badgeText: 'CALÇADOS PREMIUM',
-    filter: (prod) => isProductInCategory(prod, 'CALÇADOS')
+    filter: (prod) => {
+      const catInfo = extractClassificacaoCategoria(prod);
+      if (catInfo.isDefined && catInfo.category && catInfo.category !== 'Calçados') return false;
+      return isProductInCategory(prod, 'CALÇADOS');
+    }
   },
   'diversos': {
     title: 'Produtos Diversos',
@@ -166,22 +177,35 @@ const TAB_CONFIGS: Record<string, TabConfig> = {
     badgeText: '✨ COLEÇÃO MASCULINA',
     filter: (prod) => isProductInAudience(prod, 'masculino')
   },
+  'infantil-feminino': {
+    title: 'Coleção Infantil Feminino',
+    subtitle: 'Sandálias, sapatilhas, tênis e calçados infantis femininos com charme, conforto e segurança.',
+    bannerImage: 'https://images.unsplash.com/photo-1503919545889-aef636e10ad4?q=80&w=1600&auto=format&fit=crop',
+    badgeText: '✨ COLEÇÃO INFANTIL FEMININO',
+    filter: (prod) => isProductInAudience(prod, 'infantil-feminino')
+  },
+  'infantil-masculino': {
+    title: 'Coleção Infantil Masculino',
+    subtitle: 'Tênis, papetes, chinelos e calçados infantis masculinos resistentes e anatômicos.',
+    bannerImage: 'https://images.unsplash.com/photo-1514989940723-e8e51635b782?q=80&w=1600&auto=format&fit=crop',
+    badgeText: '✨ COLEÇÃO INFANTIL MASCULINO',
+    filter: (prod) => isProductInAudience(prod, 'infantil-masculino')
+  },
   'infantil': {
     title: 'Coleção Infantil & Bebê',
     subtitle: 'Calçados infantis resistentes, anatômicos e divertidos para todas as idades.',
     bannerImage: 'https://images.unsplash.com/photo-1503919545889-aef636e10ad4?q=80&w=1600&auto=format&fit=crop',
     badgeText: '✨ COLEÇÃO INFANTIL & BEBÊ',
     filter: (prod) => isProductInAudience(prod, 'infantil')
+  },
+  'unissex': {
+    title: 'Coleção Unissex',
+    subtitle: 'Calçados, mochilas, malas e acessórios versáteis para todos os estilos.',
+    bannerImage: 'https://images.unsplash.com/photo-1549298916-b41d501d3772?q=80&w=1600&auto=format&fit=crop',
+    badgeText: '✨ COLEÇÃO UNISSEX',
+    filter: (prod) => isProductInAudience(prod, 'unissex')
   }
 };
-
-// Lista de marcas conhecidas para inferência caso o produto não possua marca explícita
-const KNOWN_FOOTWEAR_BRANDS = [
-  'Nike', 'Adidas', 'Moleca', 'Beira Rio', 'Dakota', 'Via Marte', 'Olympikus', 
-  'Havaianas', 'Vizzano', 'Modare', 'Pampili', 'Schutz', 'Arezzo', 'Santa Lolla', 
-  'Usaflex', 'Anacapri', 'Zaxy', 'Rider', 'Ipanema', 'Cartago', 'Mizuno', 'Puma', 
-  'Under Armour', 'Asics', 'Fila', 'Pegada', 'Democrata', 'Ferracini', 'Crocs'
-];
 
 export const CategoryPage: React.FC = () => {
   const { 
@@ -219,12 +243,13 @@ export const CategoryPage: React.FC = () => {
   // ESTADO DA ABA/SEÇÃO NA PÁGINA UNIFICADA DE OFERTAS & SALDÃO ('all' | 'saldao' | 'promotions')
   const [offersSectionTab, setOffersSectionTab] = useState<'all' | 'saldao' | 'promotions'>('all');
 
-  // ESTADOS DOS FILTROS (MARCA, GRADE/TAMANHO, PREÇO, OFERTAS)
+  // ESTADOS DOS FILTROS (MARCA, GRADE/TAMANHO, PREÇO, OFERTAS, ORDENAÇÃO)
   const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
   const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
   const [priceRange, setPriceRange] = useState<string>('all');
   const [onlySale, setOnlySale] = useState<boolean>(false);
   const [brandSearch, setBrandSearch] = useState<string>('');
+  const [sortBy, setSortBy] = useState<'relevant' | 'price-asc' | 'price-desc' | 'launches'>('relevant');
 
   // ESTADOS DOS ACCORDIONS DA BARRA LATERAL DE FILTROS
   const [isBrandOpen, setIsBrandOpen] = useState<boolean>(true);
@@ -233,6 +258,17 @@ export const CategoryPage: React.FC = () => {
 
   // MODAL / DRAWER MOBILE DE FILTROS
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState<boolean>(false);
+
+  // Reseta automaticamente os filtros laterais ao trocar de categoria/aba principal
+  useEffect(() => {
+    setSelectedBrands([]);
+    setSelectedSizes([]);
+    setPriceRange('all');
+    setOnlySale(false);
+    setBrandSearch('');
+    setOffersSectionTab('all');
+    setActiveIndex(0);
+  }, [selectedMenuTab, selectedCategory]);
 
   useEffect(() => {
     if (globalSubcategory && globalSubcategory !== 'TODAS' && globalSubcategory !== 'TODOS') {
@@ -261,18 +297,27 @@ export const CategoryPage: React.FC = () => {
     const cleanSubKey = (globalSubcategory || '').trim().toLowerCase();
     const cleanCatKey = (selectedCategory || '').trim().toLowerCase();
 
-    // Mapeamento prioritário para público-alvo (Feminino, Masculino, Infantil)
+    // Mapeamento prioritário para público-alvo e coleções especiais
     const effectiveKey = (cleanTabKey === 'feminino' || cleanCatKey === 'feminino')
       ? 'feminino'
       : (cleanTabKey === 'masculino' || cleanCatKey === 'masculino')
       ? 'masculino'
+      : (cleanTabKey === 'infantil-feminino' || cleanCatKey === 'infantil-feminino' || cleanTabKey === 'infantil feminino' || cleanCatKey === 'infantil feminino')
+      ? 'infantil-feminino'
+      : (cleanTabKey === 'infantil-masculino' || cleanCatKey === 'infantil-masculino' || cleanTabKey === 'infantil masculino' || cleanCatKey === 'infantil masculino')
+      ? 'infantil-masculino'
       : (cleanTabKey === 'infantil' || cleanCatKey === 'infantil' || cleanTabKey.includes('infantil') || cleanCatKey.includes('infantil'))
       ? 'infantil'
+      : (cleanTabKey === 'unissex' || cleanCatKey === 'unissex' || cleanTabKey === 'unisex' || cleanCatKey === 'unisex')
+      ? 'unissex'
+      : (cleanTabKey === 'novidades' || cleanCatKey === 'novidades' || cleanTabKey === 'lançamentos' || cleanCatKey === 'lançamentos')
+      ? 'novidades'
       : cleanTabKey;
 
     // 0. Verifica se é uma campanha promocional específica cadastrada (ex: promo:ID)
-    if (cleanTabKey.startsWith('promo:')) {
-      const promoId = cleanTabKey.replace('promo:', '').trim();
+    const promoKeySource = cleanTabKey.startsWith('promo:') ? cleanTabKey : (cleanCatKey.startsWith('promo:') ? cleanCatKey : '');
+    if (promoKeySource) {
+      const promoId = promoKeySource.replace('promo:', '').trim();
       const specificPromo = promotions.find(p => p.id === promoId);
       if (specificPromo) {
         return {
@@ -466,18 +511,12 @@ export const CategoryPage: React.FC = () => {
     });
   }, [products, searchQuery, config]);
 
-  // EXTRATOR DINÂMICO DE MARCAS DISPONÍVEIS
+  // EXTRATOR DINÂMICO DE MARCAS DISPONÍVEIS (UNIFICADO COM brandUtils.ts)
   const availableBrands = useMemo(() => {
     const brandMap = new Map<string, number>();
     
     baseCategoryItems.forEach(prod => {
-      let b = (prod.brand || (prod as any).marca || '').trim();
-      if (!b) {
-        const found = KNOWN_FOOTWEAR_BRANDS.find(kb => new RegExp(`\\b${kb}\\b`, 'i').test(prod.name));
-        if (found) b = found;
-      }
-      if (!b) b = 'Outras Marcas';
-
+      const b = resolveProductBrand(prod) || 'Outras Marcas';
       brandMap.set(b, (brandMap.get(b) || 0) + 1);
     });
 
@@ -486,50 +525,52 @@ export const CategoryPage: React.FC = () => {
       .sort((a, b) => b.count - a.count);
   }, [baseCategoryItems]);
 
-  // EXTRATOR DINÂMICO DE GRADES E TAMANHOS DISPONÍVEIS
+  // EXTRATOR DINÂMICO DE GRADES E TAMANHOS DISPONÍVEIS COM SALDO > 0
   const availableSizes = useMemo(() => {
     const sizeSet = new Set<string>();
 
     baseCategoryItems.forEach(prod => {
-      if (Array.isArray(prod.sizes) && prod.sizes.length > 0) {
-        prod.sizes.forEach(s => sizeSet.add(String(s).trim()));
-      }
-      if (prod.stockBySize) {
-        Object.keys(prod.stockBySize).forEach(s => {
-          if ((prod.stockBySize?.[s] ?? 0) > 0) sizeSet.add(String(s).trim());
-        });
-      }
-      if (prod.sizeStockMap) {
-        Object.keys(prod.sizeStockMap).forEach(s => {
-          if ((prod.sizeStockMap?.[s] ?? 0) > 0) sizeSet.add(String(s).trim());
-        });
-      }
+      extractAvailableSizes(prod).forEach(s => sizeSet.add(s));
     });
 
     return Array.from(sizeSet).sort((a, b) => {
-      const numA = parseFloat(a);
-      const numB = parseFloat(b);
+      const numA = parseFloat(a.replace(',', '.'));
+      const numB = parseFloat(b.replace(',', '.'));
       if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
       return a.localeCompare(b);
     });
   }, [baseCategoryItems]);
 
-  // EXTRATOR DINÂMICO DE SUBCATEGORIAS DISPONÍVEIS NA CATEGORIA ATIVA
-  const availableSubcategories = useMemo(() => {
+  // EXTRATOR DINÂMICO DE SUBCATEGORIAS DISPONÍVEIS NA CATEGORIA ATIVA E TOTAL DA CATEGORIA PAI
+  const { availableSubcategories, totalParentCategoryCount } = useMemo(() => {
     const subMap = new Map<string, number>();
+    let parentCount = 0;
     const cleanTabKey = (selectedMenuTab || '').trim().toLowerCase();
     const cleanCatKey = (selectedCategory || '').trim().toLowerCase();
     const effectiveKey = (cleanTabKey === 'feminino' || cleanCatKey === 'feminino')
       ? 'feminino'
       : (cleanTabKey === 'masculino' || cleanCatKey === 'masculino')
       ? 'masculino'
+      : (cleanTabKey === 'infantil-feminino' || cleanCatKey === 'infantil-feminino' || cleanTabKey === 'infantil feminino' || cleanCatKey === 'infantil feminino')
+      ? 'infantil-feminino'
+      : (cleanTabKey === 'infantil-masculino' || cleanCatKey === 'infantil-masculino' || cleanTabKey === 'infantil masculino' || cleanCatKey === 'infantil masculino')
+      ? 'infantil-masculino'
       : (cleanTabKey === 'infantil' || cleanCatKey === 'infantil' || cleanTabKey.includes('infantil') || cleanCatKey.includes('infantil'))
       ? 'infantil'
+      : (cleanTabKey === 'unissex' || cleanCatKey === 'unissex' || cleanTabKey === 'unisex' || cleanCatKey === 'unisex')
+      ? 'unissex'
+      : (cleanTabKey === 'novidades' || cleanCatKey === 'novidades' || cleanTabKey === 'lançamentos' || cleanCatKey === 'lançamentos')
+      ? 'novidades'
+      : (cleanTabKey === 'calcados' || cleanTabKey === 'calçados' || cleanCatKey === 'calcados' || cleanCatKey === 'calçados')
+      ? 'calçados'
       : cleanTabKey;
 
+    const isFootwearScope = effectiveKey === 'calçados' || effectiveKey === 'calcados' || cleanTabKey.includes('calcad') || cleanTabKey.includes('calçad') || cleanCatKey.includes('calcad') || cleanCatKey.includes('calçad');
+
     let parentCheck: (prod: Product) => boolean = () => true;
-    if (cleanTabKey.startsWith('promo:')) {
-      const pId = cleanTabKey.replace('promo:', '').trim();
+    const promoKeySource = cleanTabKey.startsWith('promo:') ? cleanTabKey : (cleanCatKey.startsWith('promo:') ? cleanCatKey : '');
+    if (promoKeySource) {
+      const pId = promoKeySource.replace('promo:', '').trim();
       const p = promotions.find(item => item.id === pId);
       parentCheck = (prod: Product) => (p?.productIds || []).includes(prod.id);
     } else if (cleanTabKey.startsWith('categoria:')) {
@@ -555,81 +596,104 @@ export const CategoryPage: React.FC = () => {
       }
     }
 
+    const NON_FOOTWEAR_SUBS = new Set([
+      'CAPILAR', 'SKINCARE', 'HIDRATANTE', 'SHAMPOO', 'MÁSCARA', 'MASCARA',
+      'PERFUMES', 'PERFUME MASCULINO', 'PERFUME FEMININO', 'COLÔNIAS', 'COLONIAS', 'BODY SPLASH',
+      'CONFECÇÕES & MODA', 'CAMISETA GOLA O', 'CAMISA Gola POLO', 'CALÇA JEANS', 'BERMUDA',
+      'SHORT FEMININO', 'BLUSA FEMININA', 'MACAQUINHO', 'CUECA'
+    ]);
+
     products.forEach(prod => {
       if (isIgnoredClassification(prod)) return;
       const isAvailable = (prod.stock !== undefined ? prod.stock > 0 : (prod.saldo_loja ?? 0) > 0);
       const catInfo = extractClassificacaoCategoria(prod);
       const isUnclassified = catInfo.category === 'Sem Classificação Definida' || !catInfo.isDefined;
       if (!prod.visible || !isAvailable || !hasProductValidPhoto(prod) || isUnclassified) return;
+      if (isFootwearScope && catInfo.category && catInfo.category !== 'Calçados') return;
+      if (!matchProductSearch(prod, searchQuery)) return;
       if (!parentCheck(prod)) return;
+
+      parentCount += 1;
 
       const resolvedSub = resolveProductSubcategoryName(prod);
       if (resolvedSub && !resolvedSub.toUpperCase().includes('SEM CLASSIFICA')) {
+        if (isFootwearScope && NON_FOOTWEAR_SUBS.has(resolvedSub.toUpperCase())) return;
         subMap.set(resolvedSub, (subMap.get(resolvedSub) || 0) + 1);
       }
     });
 
-    return Array.from(subMap.entries())
-      .map(([name, count]) => ({ name, count }))
-      .sort((a, b) => b.count - a.count);
-  }, [products, categories, selectedMenuTab, selectedCategory]);
+    return {
+      availableSubcategories: Array.from(subMap.entries())
+        .map(([name, count]) => ({ name, count }))
+        .sort((a, b) => b.count - a.count),
+      totalParentCategoryCount: parentCount,
+    };
+  }, [products, categories, selectedMenuTab, selectedCategory, promotions, searchQuery]);
 
-  // PRODUTOS FILTRADOS PELOS CRITÉRIOS SELECIONADOS (MARCA, TAMANHO, PREÇO, OFERTA)
+  // PRODUTOS FILTRADOS PELOS CRITÉRIOS SELECIONADOS (MARCA, TAMANHO, PREÇO EFETIVO, OFERTA E ORDENAÇÃO)
   const filteredItems = useMemo(() => {
-    return baseCategoryItems.filter(prod => {
-      // 1. Filtro por Marca
+    const items = baseCategoryItems.filter(prod => {
+      // 1. Filtro por Marca (unificado com resolveProductBrand)
       if (selectedBrands.length > 0) {
-        let prodBrand = (prod.brand || (prod as any).marca || '').trim();
-        if (!prodBrand) {
-          const found = KNOWN_FOOTWEAR_BRANDS.find(kb => new RegExp(`\\b${kb}\\b`, 'i').test(prod.name));
-          if (found) prodBrand = found;
-        }
-        if (!prodBrand) prodBrand = 'Outras Marcas';
-
+        const prodBrand = resolveProductBrand(prod) || 'Outras Marcas';
         if (!selectedBrands.includes(prodBrand)) {
           return false;
         }
       }
 
-      // 2. Filtro por Grade / Tamanho
+      // 2. Filtro por Grade / Tamanho (unificado com extractAvailableSizes considerando saldo > 0)
       if (selectedSizes.length > 0) {
-        let prodSizes: string[] = [];
-        if (Array.isArray(prod.sizes)) prodSizes.push(...prod.sizes.map(String));
-        if (prod.stockBySize) {
-          Object.entries(prod.stockBySize).forEach(([sz, st]) => {
-            if (st > 0) prodSizes.push(String(sz));
-          });
-        }
-        if (prod.sizeStockMap) {
-          Object.entries(prod.sizeStockMap).forEach(([sz, st]) => {
-            if (st > 0) prodSizes.push(String(sz));
-          });
-        }
-
+        const prodSizes = extractAvailableSizes(prod);
         const hasMatchingSize = selectedSizes.some(sz => prodSizes.includes(sz));
         if (!hasMatchingSize) {
           return false;
         }
       }
 
-      // 3. Filtro por Faixa de Preço
+      // Calcula preço efetivo e status promocional (Saldão + Campanhas Ativas + Promoção Direta)
+      const priceDetails = calculateProductPriceDetails(prod, saldaoConfig, promotions);
+      const isPromoProduct =
+        priceDetails.isSaldao ||
+        Boolean(priceDetails.applicablePromo) ||
+        Boolean(prod.onSale) ||
+        priceDetails.discountPercent > 0;
+
+      // 3. Filtro por Faixa de Preço (baseado no preço efetivo de venda)
       if (priceRange !== 'all') {
-        const price = prod.price;
-        if (priceRange === 'under100' && price > 100) return false;
-        if (priceRange === '100to200' && (price < 100 || price > 200)) return false;
-        if (priceRange === '200to300' && (price < 200 || price > 300)) return false;
-        if (priceRange === 'above300' && price < 300) return false;
+        const effectivePrice = priceDetails.mainPrice;
+        if (priceRange === 'under100' && effectivePrice > 100) return false;
+        if (priceRange === '100to200' && (effectivePrice < 100 || effectivePrice > 200)) return false;
+        if (priceRange === '200to300' && (effectivePrice < 200 || effectivePrice > 300)) return false;
+        if (priceRange === 'above300' && effectivePrice < 300) return false;
       }
 
-      // 4. Filtro por Apenas Promoções
+      // 4. Filtro por Apenas Promoções (contempla Saldão, Campanhas Ativas e onSale)
       if (onlySale) {
-        const isSale = !!prod.onSale || (prod.originalPrice && prod.originalPrice > prod.price);
-        if (!isSale) return false;
+        if (!isPromoProduct) return false;
       }
 
       return true;
     });
-  }, [baseCategoryItems, selectedBrands, selectedSizes, priceRange, onlySale]);
+
+    if (sortBy === 'price-asc') {
+      return [...items].sort(
+        (a, b) =>
+          calculateProductPriceDetails(a, saldaoConfig, promotions).mainPrice -
+          calculateProductPriceDetails(b, saldaoConfig, promotions).mainPrice
+      );
+    }
+    if (sortBy === 'price-desc') {
+      return [...items].sort(
+        (a, b) =>
+          calculateProductPriceDetails(b, saldaoConfig, promotions).mainPrice -
+          calculateProductPriceDetails(a, saldaoConfig, promotions).mainPrice
+      );
+    }
+    if (sortBy === 'launches') {
+      return [...items].sort((a, b) => (b.newArrival ? 1 : 0) - (a.newArrival ? 1 : 0));
+    }
+    return items;
+  }, [baseCategoryItems, selectedBrands, selectedSizes, priceRange, onlySale, sortBy, saldaoConfig, promotions]);
 
   const saldaoItems = useMemo(() => {
     return filteredItems.filter(prod => isSaldaoProduct(prod, saldaoConfig));
@@ -660,7 +724,14 @@ export const CategoryPage: React.FC = () => {
     }).filter(group => group.products.length > 0);
   }, [promotions, filteredItems]);
 
-  const offersItems = baseCategoryItems.filter(prod => !!prod.onSale || (prod.originalPrice && prod.originalPrice > prod.price));
+  const offersItems = useMemo(
+    () =>
+      baseCategoryItems.filter(prod => {
+        const details = calculateProductPriceDetails(prod, saldaoConfig, promotions);
+        return details.isSaldao || Boolean(details.applicablePromo) || Boolean(prod.onSale) || details.discountPercent > 0;
+      }),
+    [baseCategoryItems, saldaoConfig, promotions]
+  );
   const maxIndex = Math.max(0, offersItems.length - cardsPerPage);
   const finalActiveIndex = Math.min(activeIndex, maxIndex);
 
@@ -748,14 +819,22 @@ export const CategoryPage: React.FC = () => {
                       onClick={() => toggleBrandFilter(name)}
                       className={`flex items-center justify-between text-xs py-1 px-1.5 rounded-lg cursor-pointer transition-all select-none ${
                         isChecked 
-                          ? 'bg-[#DDF1FF] text-[#003B73] font-bold' 
+                          ? isOutubroRosa
+                            ? 'bg-pink-50 text-[#9D174D] font-bold'
+                            : 'bg-[#DDF1FF] text-[#003B73] font-bold' 
+                          : isOutubroRosa
+                          ? 'text-[#003B73] hover:bg-pink-50/60'
                           : 'text-[#00509E] hover:bg-blue-50/60'
                       }`}
                     >
                       <div className="flex items-center space-x-2.5">
                         <div className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${
                           isChecked 
-                            ? 'bg-[#003B73] border-[#003B73] text-white' 
+                            ? isOutubroRosa
+                              ? 'bg-[#EC4899] border-[#EC4899] text-white'
+                              : 'bg-[#003B73] border-[#003B73] text-white' 
+                            : isOutubroRosa
+                            ? 'border-pink-900/20 bg-white hover:border-[#EC4899]'
                             : 'border-blue-900/20 bg-white hover:border-[#006EDB]'
                         }`}>
                           {isChecked && <Check className="h-3 w-3 stroke-[3]" />}
@@ -821,7 +900,9 @@ export const CategoryPage: React.FC = () => {
       <div className="border-b border-blue-900/10 pb-5">
         <button
           onClick={() => setIsPriceOpen(!isPriceOpen)}
-          className="w-full flex items-center justify-between font-extrabold text-sm text-[#003B73] py-1 cursor-pointer transition-colors hover:text-[#006EDB]"
+          className={`w-full flex items-center justify-between font-extrabold text-sm text-[#003B73] py-1 cursor-pointer transition-colors ${
+            isOutubroRosa ? 'hover:text-[#EC4899]' : 'hover:text-[#006EDB]'
+          }`}
         >
           <span>Faixa de Preço</span>
           {isPriceOpen ? <ChevronUp className="h-4 w-4 text-[#003B73]" /> : <ChevronDown className="h-4 w-4 text-[#003B73]" />}
@@ -841,7 +922,11 @@ export const CategoryPage: React.FC = () => {
                 onClick={() => setPriceRange(option.id)}
                 className={`flex items-center space-x-2.5 py-1 px-1.5 rounded-lg cursor-pointer transition-colors ${
                   priceRange === option.id 
-                    ? 'bg-[#DDF1FF] text-[#003B73] font-bold' 
+                    ? isOutubroRosa
+                      ? 'bg-pink-50 text-[#9D174D] font-bold'
+                      : 'bg-[#DDF1FF] text-[#003B73] font-bold' 
+                    : isOutubroRosa
+                    ? 'text-[#003B73] hover:bg-pink-50/60'
                     : 'text-[#00509E] hover:bg-blue-50/60'
                 }`}
               >
@@ -850,7 +935,7 @@ export const CategoryPage: React.FC = () => {
                   name="priceRange"
                   checked={priceRange === option.id}
                   onChange={() => setPriceRange(option.id)}
-                  className="accent-[#003B73] h-3.5 w-3.5"
+                  className={`${isOutubroRosa ? 'accent-[#EC4899]' : 'accent-[#003B73]'} h-3.5 w-3.5`}
                 />
                 <span>{option.label}</span>
               </label>
@@ -865,7 +950,11 @@ export const CategoryPage: React.FC = () => {
           onClick={() => setOnlySale(!onlySale)}
           className={`flex items-center justify-between p-3 rounded-2xl border cursor-pointer transition-all ${
             onlySale 
-              ? 'bg-[#003B73] text-white border-[#003B73] shadow-xs' 
+              ? isOutubroRosa
+                ? 'bg-gradient-to-r from-[#EC4899] to-[#F472B6] text-white border-[#EC4899] shadow-xs'
+                : 'bg-[#003B73] text-white border-[#003B73] shadow-xs' 
+              : isOutubroRosa
+              ? 'bg-white text-[#003B73] border-pink-900/15 hover:border-[#EC4899]'
               : 'bg-white text-[#003B73] border-blue-900/15 hover:border-[#006EDB]'
           }`}
         >
@@ -874,7 +963,7 @@ export const CategoryPage: React.FC = () => {
             <span className="text-xs font-bold">Apenas em Promoção</span>
           </div>
           <div className={`w-4 h-4 rounded border flex items-center justify-center ${
-            onlySale ? 'bg-white text-[#003B73]' : 'border-blue-900/30'
+            onlySale ? (isOutubroRosa ? 'bg-white text-[#EC4899]' : 'bg-white text-[#003B73]') : 'border-blue-900/30'
           }`}>
             {onlySale && <Check className="h-3 w-3 stroke-[3]" />}
           </div>
@@ -1047,6 +1136,21 @@ export const CategoryPage: React.FC = () => {
             <span className="text-xs font-extrabold px-3.5 py-1.5 rounded-full border bg-white border-blue-900/15 text-[#003B73] shadow-xs">
               {filteredItems.length} {filteredItems.length === 1 ? 'modelo encontrado' : 'modelos encontrados'}
             </span>
+
+            {/* Seletor de Ordenação */}
+            <div className="flex items-center space-x-2 bg-white px-3 py-1.5 rounded-full border border-blue-900/15 shadow-xs">
+              <span className="text-[11px] font-bold text-[#52708F]">Ordenar:</span>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as any)}
+                className="text-xs font-extrabold text-[#003B73] bg-transparent focus:outline-none cursor-pointer"
+              >
+                <option value="relevant">Mais Relevantes</option>
+                <option value="price-asc">Menor Preço</option>
+                <option value="price-desc">Maior Preço</option>
+                <option value="launches">Lançamentos</option>
+              </select>
+            </div>
           </div>
         </div>
 
@@ -1069,7 +1173,7 @@ export const CategoryPage: React.FC = () => {
                   : 'bg-white text-[#003B73] border-blue-900/15 hover:border-[#006EDB] hover:bg-blue-50'
               }`}
             >
-              Todas ({baseCategoryItems.length})
+              Todas ({totalParentCategoryCount})
             </button>
 
             {availableSubcategories.map(sub => {

@@ -22,7 +22,8 @@ import {
   PackageCheck
 } from 'lucide-react';
 import { normalizeCategoryName, normalizeSubcategoryName } from '../services/moblinkCategoriesService';
-import { extractClassificacaoCategoria } from '../services/moblinkProductsService';
+import { extractClassificacaoCategoria, hasProductValidPhoto, isIgnoredClassification } from '../services/moblinkProductsService';
+import { resolveProductSubcategoryName } from './products/utils/categoryNavigationUtils';
 import { scrollToSectionWithOffset } from '../lib/scrollUtils';
 
 interface CategorySandwichMenuProps {
@@ -81,7 +82,11 @@ export const CategorySandwichMenu: React.FC<CategorySandwichMenuProps> = ({ isOp
 
   // Mapeamento dinâmico de categorias e suas subcategorias do catálogo
   const menuCategories: CategoryMenuItem[] = useMemo(() => {
-    const activeProducts = (products || []).filter(p => p.visible !== false);
+    const activeProducts = (products || []).filter(p => {
+      if (p.visible === false || isIgnoredClassification(p)) return false;
+      const isAvailable = p.stock !== undefined ? p.stock > 0 : (p.saldo_loja ?? 0) > 0;
+      return isAvailable && hasProductValidPhoto(p);
+    });
     const categoryMap = new Map<string, { name: string; key: string; isPromo?: boolean; subs: Set<string> }>();
 
     // 1. Categorias Padrão Essenciais
@@ -124,7 +129,12 @@ export const CategorySandwichMenu: React.FC<CategorySandwichMenuProps> = ({ isOp
       }
     });
 
-    // 3. Extrai subcategorias dos produtos visíveis no Firestore
+    // 3. Extrai apenas categorias e subcategorias que possuem produtos ativos visíveis na vitrine
+    const categoriesWithActiveProducts = new Set<string>(['OFERTAS']);
+    if (activeProducts.some(p => Boolean(p.newArrival))) {
+      categoriesWithActiveProducts.add('NOVIDADES');
+    }
+
     activeProducts.forEach(p => {
       const catInfo = extractClassificacaoCategoria(p);
       if (catInfo.category === 'Sem Classificação Definida' || !catInfo.isDefined) return;
@@ -134,12 +144,16 @@ export const CategorySandwichMenu: React.FC<CategorySandwichMenuProps> = ({ isOp
       if (!rawCatName || rawCatName.toUpperCase().includes('SEM CLASSIFICA')) return;
 
       const catKey = rawCatName.trim().toUpperCase();
+      categoriesWithActiveProducts.add(catKey);
 
       if (!categoryMap.has(catKey)) {
         categoryMap.set(catKey, { name: rawCatName, key: catKey, subs: new Set<string>() });
       }
 
-      if (p.subcategory) {
+      const resolvedSub = resolveProductSubcategoryName(p);
+      if (resolvedSub && resolvedSub.toUpperCase() !== 'TODAS' && !resolvedSub.toUpperCase().includes('SEM CLASSIFICA')) {
+        categoryMap.get(catKey)?.subs.add(resolvedSub);
+      } else if (p.subcategory) {
         const subName = normalizeSubcategoryName(p.subcategory);
         if (subName && subName.toUpperCase() !== 'TODAS' && !subName.toUpperCase().includes('SEM CLASSIFICA')) {
           categoryMap.get(catKey)?.subs.add(subName);
@@ -147,8 +161,10 @@ export const CategorySandwichMenu: React.FC<CategorySandwichMenuProps> = ({ isOp
       }
     });
 
-    // Retorna todas as categorias configuradas na loja sem descarte
-    return Array.from(categoryMap.values()).map(item => {
+    // Retorna apenas categorias que possuem produtos relacionados ativos na vitrine
+    return Array.from(categoryMap.values())
+      .filter(item => categoriesWithActiveProducts.has(item.key))
+      .map(item => {
       const itemMatchKey = cleanStringForMatch(item.key);
       const meta = categoryMetaMap[item.key] || categoryMetaMap[itemMatchKey] || { icon: Layers, bg: 'bg-[#EEF8FF] dark:bg-blue-950/60', color: 'text-[#006EDB] dark:text-blue-300' };
 
