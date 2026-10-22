@@ -511,3 +511,19 @@ Este arquivo é a memória persistente do projeto (AG Kit), consolidando decisõ
       * Códigos ERP femininos (`002.002`, `010.002`, `013.002`, `011.003`, `007.003..011`) e palavras-chave femininas sem `'UNISSEX'` explícito no nome/subgrupo resolvem estritamente para `'Feminino'`.
     - **Persistência Completa de `gender` / `genero` e `brand` / `marca` no Firestore (`moblinkProductsService.ts` & `MoblinkProductsManager.tsx`)**:
       * `hasProductChanged`, `sanitizeProductForFirestore` e `mergeErpSyncWithExistingDbProduct` preservam e gravam alterações de público/gênero e marca sem sobrescrita pelo ERP.
+
+61. **Gestão de Embalagens para Envio, Sugestão Inteligente e Auditoria de Diferença de Frete (Melhor Envio) (`boxService.ts`, `ProductEditPage.tsx`, `ProductEditModal.tsx`, `ShippingInfoCard.tsx`, `FreightStatusCard.tsx`, `AdminBoxManager.tsx`, `CheckoutPage.tsx`, `AppContext.tsx`, `types.ts`, `moblinkProductsService.ts`) (Implementado):**
+    - **Regra de Ouro do Frete: Cliente (Caixa Padrão) vs Loja (Embalagem Real)**:
+      * Na vitrine e no checkout (`ShippingCalculator.tsx` e `CheckoutPage.tsx`), o cliente cota e paga o frete calculado estritamente com a **Caixa Padrão da Loja** (`boxService.getDefaultBox()`), sem atrito de escolha de caixas na frente de loja.
+      * Na gestão de pedidos no painel administrativo (`ShippingInfoCard.tsx` e `FreightStatusCard.tsx`), o administrador pode alterar a embalagem do pedido e recalcular o frete da transportadora.
+      * **Isolamento no Admin**: A diferença financeira entre o frete do cliente e o frete da loja (economia ou acréscimo) é registrada e exibida exclusivamente no painel administrativo.
+      * Ao gerar etiqueta no Melhor Envio, as dimensões e peso da caixa escolhida são transmitidos para a transportadora.
+    - **Seletor de Embalagens no Detalhe/Edição do Produto (`ProductEditPage.tsx` e `ProductEditModal.tsx`)**:
+      * Inserido na Seção 1 (Apresentação & Visibilidade na Vitrine) com layout idêntico à referência de design: cabeçalho com ícone `#0071E3`, badge de sugestão inteligente (`Sparkles`), dropdown completo de caixas cadastradas no Melhor Envio e barra inferior com ícones `Package` (dimensões) e `Weight` (peso).
+      * Remoção total de simuladores/cálculos de frete dentro da edição de produtos (mantendo foco apenas na seleção e especificações da embalagem).
+      * Gravação imediata do `shippingBoxId` no Firestore com proteção contra sobrescrita nas sincronizações do ERP MobLink (`moblinkProductsService.ts`).
+    - **Heurística de Sugestão de Caixas (`boxService.ts`)**:
+      * Produtos: Botas/cano alto -> Caixa Grande; Rasteirinhas/chinelos/infantis -> Caixa Compacta; Tênis/sapatos -> Caixa Padrão.
+      * Pedidos: 2+ pares/itens no carrinho -> Caixa Grande.
+    - **Auditoria de Frete (`AdminBoxManager.tsx`)**:
+      * Tabela de auditoria no gerenciador de embalagens monitorando o saldo financeiro de frete por embalagem utilizada.

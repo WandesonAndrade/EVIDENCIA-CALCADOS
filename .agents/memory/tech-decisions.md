@@ -169,3 +169,11 @@ updated: 2026-09-18
 
 
 
+
+## 29. Desacoplamento de Frete Cliente (Caixa Padrão) e Frete Loja (Embalagem Real) com Auditoria Exclusiva no Painel Admin (`boxService.ts`, `ShippingInfoCard.tsx`, `ProductEditPage.tsx`)
+- **Problema de UX e Logística:** Apresentar opções de embalagens para o cliente final durante a compra gera fricção e confusão cognitiva. Por outro lado, enviar calçados volumosos (como botas) ou múltiplos pares na embalagem errada causa prejuízo logístico ou multas por cubagem no Melhor Envio.
+- **Solução Arquitetural:**
+  1. O cliente final cota sempre com a **Caixa Padrão da Loja**, garantindo consistência e simplicidade na vitrine e no checkout.
+  2. O produto possui um campo opcional `shippingBoxId` no Firestore, configurado na tela de edição do produto no Painel Administrativo com sugestão automática inteligente baseada no tipo de calçado.
+  3. No gerenciamento de pedidos (`ShippingInfoCard.tsx`), o lojista pode ajustar a embalagem do pedido e recalcular o frete da loja antes de gerar a etiqueta.
+  4. O comparativo financeiro entre o valor cobrado do cliente e o custo da loja é computado e exibido exclusivamente no painel administrativo, mantendo auditoria completa sem expor divergências operacionais para o cliente.

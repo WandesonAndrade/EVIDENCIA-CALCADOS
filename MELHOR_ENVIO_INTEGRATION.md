@@ -179,3 +179,22 @@ Quando a loja estiver pronta para emitir etiquetas reais pagas:
    ```
 5. Reinicie o servidor Node (`npm run dev` ou `npm run start`).
 6. Pronto! As novas etiquetas debitarão do saldo real e poderão ser despachadas nas agências dos Correios ou Jadlog.
+
+
+---
+
+## 8. Gestão de Embalagens de Envio & Regra de Frete (Cliente vs Loja)
+
+### 8.1 Arquitetura de Embalagens
+O e-commerce possui um catálogo de caixas cadastradas em `src/services/boxService.ts` e gerenciadas via painel em `AdminBoxManager.tsx`:
+- **Caixa Padrão Evidência (Tênis / Sapatos):** $30 \times 20 \times 12\text{ cm}$, $0.8\text{ kg}$ (Embalagem padrão para cotações de clientes).
+- **Caixa Compacta (Rasteirinhas / Chinelos / Infantil):** $28 \times 16 \times 10\text{ cm}$, $0.5\text{ kg}$.
+- **Caixa Grande (Botas / Cano Alto / Múltiplos Pares):** $36 \times 28 \times 14\text{ cm}$, $1.2\text{ kg}$.
+
+### 8.2 Regra de Ouro da Cotação
+- **Frente de Loja (Cliente):** A cotação e cobrança de frete no checkout utilizam sempre as dimensões da **Caixa Padrão**. O cliente nunca precisa selecionar caixa.
+- **Painel Administrativo:**
+  - O produto pode ter sua embalagem preferencial definida na Seção 1 da edição de produtos (`ProductEditPage.tsx` e `ProductEditModal.tsx`).
+  - No pedido (`ShippingInfoCard.tsx`), o lojista pode selecionar a embalagem ideal para o pacote e recalcular o frete da loja.
+  - A diferença entre o frete pago pelo cliente e o frete cobrado pela transportadora fica visível e auditada **exclusivamente no painel admin**.
+  - A etiqueta é gerada no Melhor Envio com as dimensões e peso da caixa real selecionada pela loja.

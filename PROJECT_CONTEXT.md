@@ -1379,3 +1379,39 @@ Ao corrigir a foto de um produto que estava marcado com erro (404 / NoSuchKey), 
 
 
 
+
+
+---
+
+## 57. Gestão de Embalagens para Envio, Sugestão Inteligente e Auditoria de Diferença de Frete (Melhor Envio) (`boxService.ts`, `ProductEditPage.tsx`, `ProductEditModal.tsx`, `ShippingInfoCard.tsx`, `FreightStatusCard.tsx`, `AdminBoxManager.tsx`, `CheckoutPage.tsx`, `AppContext.tsx`, `types.ts`, `moblinkProductsService.ts`)
+
+### A. Regra de Negócio de Frete: Cliente (Caixa Padrão) vs Loja (Embalagem Real)
+- **Frente de Loja (Cliente)**:
+  - Todas as cotações de frete exibidas para o cliente na vitrine (`ShippingCalculator.tsx`) e calculadas no fluxo de compra (`CheckoutPage.tsx`) utilizam exclusivamente a **Caixa Padrão da Loja** (`boxService.getDefaultBox()`), garantindo simplicidade, previsibilidade e ausência de atrito na jornada do consumidor.
+  - A seleção manual de embalagem foi **removida da vitrine da loja** (`ProductDetail.tsx`).
+- **Painel Administrativo (Gestão do Pedido)**:
+  - Na tela de detalhes do pedido (`ShippingInfoCard.tsx` e `FreightStatusCard.tsx`), o lojista visualiza a embalagem sugerida para o envio daquele pedido (ou embalagens associadas aos produtos).
+  - É possível alterar a embalagem selecionada e clicar em **"Recalcular Frete da Loja"**.
+  - **Exclusividade Admin**: O sistema exibe o comparativo financeiro entre o **Frete Pago pelo Cliente** e o **Frete Real da Loja**, detalhando o saldo (se a loja teve economia ou custo absorvido). Esse comparativo e qualquer variação de frete ficam restritos ao painel administrativo, sem afetar o pedido do cliente.
+  - Ao emitir a etiqueta no Melhor Envio, as dimensões e peso da caixa selecionada são transmitidos para a transportadora.
+
+### B. Seleção de Embalagem na Edição do Produto (`ProductEditPage.tsx` e `ProductEditModal.tsx`)
+- **Seção 1 (Apresentação & Visibilidade na Vitrine)**:
+  - Integrado um card dedicado de **Embalagem de Envio (Melhor Envio)**, seguindo a referência visual da loja:
+    - Cabeçalho com ícone de caixa azul (`#0071E3`), título em caixa alta e badge de **Sugestão Inteligente** (`Sparkles`);
+    - Texto descritivo informando a embalagem recomendada;
+    - Seletor dropdown completo com todas as caixas cadastradas no Melhor Envio (nome, dimensões $C \times L \times A\text{ cm}$, peso e badges de "Sugerida" e "Padrão da Loja");
+    - Barra de especificações no rodapé com ícone de caixa (`Package`) para dimensões e ícone de peso (`Weight`) para o peso embalado;
+    - **Sem simulador de frete no produto**: Conforme solicitado, a tela de produto contém apenas a seleção de embalagem e suas especificações (sem inputs de CEP ou cálculos redundantes).
+  - **Persistência Imediata**: A escolha da embalagem salva o `shippingBoxId` no Firestore (`products/{id}`), além de ser preservado nas sincronizações do ERP MobLink (`moblinkProductsService.ts`).
+
+### C. Sugestão Inteligente de Embalagens (`boxService.ts`)
+- `suggestBoxForProduct(product, boxes)`:
+  - Botas, cano alto e mochilas -> Sugere **Caixa Grande** (`box-botas-cano-alto`);
+  - Rasteirinhas, sapatilhas, chinelos e infantis -> Sugere **Caixa Compacta** (`box-rasteirinha`);
+  - Tênis, sapatos convencionais e sandálias -> Sugere **Caixa Padrão Evidência** (`box-padrao`).
+- `suggestBoxForOrderItems(items, boxes)`:
+  - Pedidos com 2 ou mais pares/itens -> Sugere automaticamente a **Caixa Grande**.
+
+### D. Auditoria e Histórico de Diferenças (`AdminBoxManager.tsx`)
+- Métodos `saveFreightDifferenceAudit` e `getFreightDifferenceAudits` no `boxService.ts` armazenam o histórico de recálculos de frete com dados do pedido/produto, caixa padrão vs caixa real, valor do cliente, valor da loja e a diferença financeira apurada.
