@@ -104,7 +104,7 @@ export const FreightStatusCard: React.FC<Props> = ({
             </span>
           </div>
           <div className="flex justify-between text-slate-500 dark:text-[#86868B]">
-            <span>Frete:</span>
+            <span>Frete Cliente:</span>
             <span className="font-medium text-slate-700 dark:text-slate-300 font-mono">
               {order.deliveryType === 'Retirada na Loja'
                 ? 'Grátis (Retirada)'
@@ -113,8 +113,43 @@ export const FreightStatusCard: React.FC<Props> = ({
                     : (isOtherCities ? 'A Combinar' : 'Grátis'))}
             </span>
           </div>
+
+          {typeof order.storeFreightCost === 'number' && !isStorePickup && (() => {
+            const clientPaid = Number(order.freightCost || 0);
+            const storeCost = Number(order.storeFreightCost || 0);
+            const diff = Math.round((storeCost - clientPaid) * 100) / 100;
+            return (
+              <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/20 space-y-1 my-1">
+                <div className="flex justify-between text-[10px]">
+                  <span className="text-slate-600 dark:text-slate-300 font-semibold">
+                    Frete Loja ({order.shippingBoxName ? order.shippingBoxName.split('(')[0].trim() : 'Embalagem'}):
+                  </span>
+                  <span className="font-mono font-bold text-[#0071E3] dark:text-sky-400">
+                    R$ {formatCurrency(storeCost)}
+                  </span>
+                </div>
+                <div className="flex justify-between text-[10px] pt-0.5 border-t border-amber-500/20">
+                  <span className="font-bold text-slate-700 dark:text-slate-200">Diferença (Cliente vs Loja):</span>
+                  <span className={`font-mono font-black ${
+                    diff > 0
+                      ? 'text-rose-600 dark:text-rose-400'
+                      : diff < 0
+                      ? 'text-emerald-600 dark:text-emerald-400'
+                      : 'text-slate-600 dark:text-slate-300'
+                  }`}>
+                    {diff === 0
+                      ? 'R$ 0,00 (Igual)'
+                      : diff > 0
+                      ? `-R$ ${formatCurrency(diff)} (Loja absorve)`
+                      : `+R$ ${formatCurrency(Math.abs(diff))} (Economia Loja)`}
+                  </span>
+                </div>
+              </div>
+            );
+          })()}
+
           <div className="flex justify-between font-semibold text-slate-900 dark:text-white pt-1.5 border-t border-black/[0.04] dark:border-white/[0.06] text-xs">
-            <span>Total:</span>
+            <span>Total Pago Cliente:</span>
             <span className="text-[#0071E3] dark:text-[#0A84FF] font-mono">
               R$ {formatCurrency(order.total)}
             </span>

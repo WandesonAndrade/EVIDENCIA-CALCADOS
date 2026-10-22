@@ -1,11 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { Truck, MapPin, Store, Clock, CheckCircle2, Printer, Package, ExternalLink, XCircle, RefreshCw, AlertTriangle, Edit2, Check, X, ChevronDown, ChevronUp } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Truck, MapPin, Store, Clock, CheckCircle2, Printer, Package, ExternalLink, XCircle, RefreshCw, AlertTriangle, Edit2, Check, X, ChevronDown, ChevronUp, Sparkles } from 'lucide-react';
 import { Order, OrderStatus } from '../../types';
 import { formatCurrency } from '../../utils/orderUtils';
 import { db } from '../../lib/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { ShippingLabelPrintModal } from './ShippingLabelPrintModal';
 import { ShippingTrackerService } from '../../services/shipping/shippingTracker';
+import { boxService, IShippingBox, INITIAL_SHIPPING_BOXES } from '../../services/boxService';
+import { IShippingOption } from '../../services/shipping/shippingProvider.interface';
 import { useApp } from '../../context/AppContext';
 
 interface Props {
@@ -16,7 +18,7 @@ interface Props {
 }
 
 export const ShippingInfoCard: React.FC<Props> = ({ order, isDark: _isDark, variant = 'client', onStatusChange }) => {
-  const { updateOrderData, addToast } = useApp();
+  const { updateOrderData, addToast, products = [] } = useApp();
   const isStorePickup = order.deliveryType === 'Retirada na Loja';
   const isOtherCities = order.deliveryType === 'Entrega para Outras Cidades';
   const isLocalDelivery = !isStorePickup && !isOtherCities && (
@@ -34,11 +36,102 @@ export const ShippingInfoCard: React.FC<Props> = ({ order, isDark: _isDark, vari
   const [isTrackingHistoryOpen, setIsTrackingHistoryOpen] = useState(false);
   const [editedTrackingCode, setEditedTrackingCode] = useState(order.trackingCode || '');
   const [labelError, setLabelError] = useState<string | null>(null);
+  const [shippingBoxes, setShippingBoxes] = useState<IShippingBox[]>(INITIAL_SHIPPING_BOXES);
+  const [selectedBoxId, setSelectedBoxId] = useState<string>(order.shippingBoxId || '');
+  const [recalculatingFreight, setRecalculatingFreight] = useState(false);
+
+  useEffect(() => {
+    if (variant === 'admin') {
+      boxService.getShippingBoxes().then((boxes) => {
+        if (boxes && boxes.length > 0) setShippingBoxes(boxes);
+      }).catch(() => {});
+    }
+  }, [variant]);
+
+  const suggestedOrderBoxInfo = useMemo(() => {
+    return boxService.suggestBoxForOrderItems(currentOrder.items || [], shippingBoxes, products);
+  }, [currentOrder.items, shippingBoxes, products]);
 
   useEffect(() => {
     setCurrentOrder(order);
     setEditedTrackingCode(order.trackingCode || '');
-  }, [order]);
+    if (order.shippingBoxId) {
+      setSelectedBoxId(order.shippingBoxId);
+    } else {
+      setSelectedBoxId(suggestedOrderBoxInfo.box.id);
+    }
+  }, [order, suggestedOrderBoxInfo.box.id]);
+
+  const activeOrderBox = useMemo(() => {
+    return shippingBoxes.find((b) => b.id === selectedBoxId) || suggestedOrderBoxInfo.box || INITIAL_SHIPPING_BOXES[0];
+  }, [shippingBoxes, selectedBoxId, suggestedOrderBoxInfo.box]);
+
+  const handleRecalculateAdminOrderFreight = async (boxOverrideId?: string) => {
+    const boxIdToUse = boxOverrideId || selectedBoxId || suggestedOrderBoxInfo.box.id;
+    const targetBox = shippingBoxes.find((b) => b.id === boxIdToUse) || activeOrderBox;
+
+    const cepMatch = (currentOrder.deliveryAddress || '').match(/(\d{5}-?\d{3})/);
+    let targetCep = (currentOrder.customerCep || '').replace(/\D/g, '');
+    if (targetCep.length !== 8 && cepMatch) {
+      targetCep = cepMatch[1].replace(/\D/g, '');
+    }
+    if (targetCep.length !== 8) {
+      targetCep = '64000020';
+    }
+
+    setRecalculatingFreight(true);
+    try {
+      const res = await fetch('/api/shipping/calculate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          toPostalCode: targetCep,
+          box: {
+            height: targetBox.height,
+            width: targetBox.width,
+            length: targetBox.length,
+            weight: targetBox.weight,
+          },
+          cartTotal: currentOrder.subtotal ?? currentOrder.total,
+        }),
+      });
+      const data = await res.json().catch(() => null);
+      const opts: IShippingOption[] = Array.isArray(data?.options) ? data.options : [];
+
+      const pickOpt = (list: IShippingOption[]) =>
+        list.find((o) => currentOrder.shippingServiceId && String(o.id) === String(currentOrder.shippingServiceId)) ||
+        list.find((o) => String(o.id) !== 'entrega-propria-caxias' && o.isCheapest) ||
+        list.find((o) => String(o.id) !== 'entrega-propria-caxias') ||
+        list[0];
+
+      const chosenOpt = pickOpt(opts);
+      if (chosenOpt) {
+        const updates: Partial<Order> = {
+          storeFreightCost: chosenOpt.price,
+          shippingBoxId: targetBox.id,
+          shippingBoxName: targetBox.name,
+          shippingBoxDimensions: {
+            height: targetBox.height,
+            width: targetBox.width,
+            length: targetBox.length,
+            weight: targetBox.weight,
+          },
+        };
+        setCurrentOrder((prev) => ({ ...prev, ...updates }));
+        await updateOrderData(currentOrder.id, updates);
+        addToast(
+          'Frete Recalculado (Admin)',
+          `Custo Loja: R$ ${chosenOpt.price.toFixed(2).replace('.', ',')} na embalagem "${targetBox.name}" (Valor do cliente mantido).`,
+          'success'
+        );
+      }
+    } catch (err) {
+      console.error('Erro ao recalcular frete do pedido:', err);
+      addToast('Erro', 'Não foi possível recalcular o frete no momento.', 'error');
+    } finally {
+      setRecalculatingFreight(false);
+    }
+  };
 
   const handleSyncTracking = async () => {
     const code = currentOrder.trackingCode?.trim();
@@ -210,6 +303,13 @@ export const ShippingInfoCard: React.FC<Props> = ({ order, isDark: _isDark, vari
             quantity: item.quantity,
             unitary_value: item.price,
           })),
+          box: {
+            height: activeOrderBox.height,
+            width: activeOrderBox.width,
+            length: activeOrderBox.length,
+            weight: activeOrderBox.weight,
+          },
+          serviceId: currentOrder.shippingServiceId,
         }),
       });
 
@@ -446,6 +546,49 @@ export const ShippingInfoCard: React.FC<Props> = ({ order, isDark: _isDark, vari
                   </div>
                 </div>
               )}
+
+              {/* SELEÇÃO DE EMBALAGEM & RECÁLCULO DE FRETE NO PEDIDO (EXCLUSIVO ADMIN) */}
+              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-white/[0.03] border border-slate-200/80 dark:border-white/10 space-y-2">
+                <div className="flex items-center justify-between gap-1">
+                  <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                    <Sparkles className="w-3 h-3 text-emerald-500" />
+                    <span>Embalagem Sugerida</span>
+                  </span>
+                  <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 truncate max-w-[60%]" title={suggestedOrderBoxInfo.reason}>
+                    {suggestedOrderBoxInfo.box.name.split('(')[0].trim()}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <select
+                    value={selectedBoxId || suggestedOrderBoxInfo.box.id}
+                    onChange={(e) => setSelectedBoxId(e.target.value)}
+                    className="flex-1 min-w-0 px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 text-[11px] font-semibold focus:outline-none cursor-pointer"
+                  >
+                    {shippingBoxes.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name} ({b.length}×{b.width}×{b.height}cm • {b.weight}kg){b.id === suggestedOrderBoxInfo.box.id ? ' ★' : ''}
+                      </option>
+                    ))}
+                  </select>
+
+                  <button
+                    type="button"
+                    onClick={() => handleRecalculateAdminOrderFreight(selectedBoxId)}
+                    disabled={recalculatingFreight}
+                    title="Recalcular custo de frete da loja com esta embalagem (sem alterar valor do cliente)"
+                    className="px-2.5 py-1.5 rounded-lg bg-slate-900 dark:bg-slate-700 hover:bg-slate-800 text-white text-[10px] font-bold transition flex items-center gap-1 shrink-0 cursor-pointer disabled:opacity-50"
+                  >
+                    <RefreshCw className={`w-3 h-3 ${recalculatingFreight ? 'animate-spin' : ''}`} />
+                    <span>Recalcular</span>
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400 font-mono">
+                  <span>Medidas: {activeOrderBox.length}×{activeOrderBox.width}×{activeOrderBox.height}cm</span>
+                  <span>Peso: {activeOrderBox.weight}kg</span>
+                </div>
+              </div>
 
               {!hasLabel ? (
                 <button

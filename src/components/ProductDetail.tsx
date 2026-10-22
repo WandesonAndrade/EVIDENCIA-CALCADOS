@@ -30,6 +30,8 @@ export const ProductDetail: React.FC = () => {
     addToCart, 
     currentUser, 
     createOrder,
+    updateProduct,
+    addToast,
     favorites = [],
     toggleFavorite,
     theme,

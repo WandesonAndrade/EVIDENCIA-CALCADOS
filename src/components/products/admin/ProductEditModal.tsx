@@ -15,8 +15,14 @@ import {
   Layers,
   Code,
   Eye,
+  Package,
+  ChevronDown,
+  Weight,
 } from 'lucide-react';
 import { ProdutoGradesResult } from '../../../types';
+import { boxService, IShippingBox, INITIAL_SHIPPING_BOXES } from '../../../services/boxService';
+import { db } from '../../../lib/firebase';
+import { doc, setDoc } from 'firebase/firestore';
 import { MoblinkRawProduct } from '../../MoblinkProductsManager';
 import {
   extractPrecoTabelaMoblink,
@@ -125,6 +131,35 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   if (!selectedProduct) return null;
 
   const [descTab, setDescTab] = useState<'edit' | 'preview'>('edit');
+  const [shippingBoxes, setShippingBoxes] = useState<IShippingBox[]>(INITIAL_SHIPPING_BOXES);
+  const [selectedBoxId, setSelectedBoxId] = useState<string>('');
+
+  React.useEffect(() => {
+    boxService.getShippingBoxes().then((boxes) => {
+      if (boxes && boxes.length > 0) setShippingBoxes(boxes);
+    }).catch(() => {});
+  }, []);
+
+  const suggestedBoxInfo = useMemo(() => {
+    return boxService.suggestBoxForProduct(selectedProduct, shippingBoxes);
+  }, [selectedProduct, shippingBoxes]);
+
+  const defaultStoreBox = useMemo(() => {
+    return shippingBoxes.find((b) => b.isDefault) || shippingBoxes[0] || INITIAL_SHIPPING_BOXES[0];
+  }, [shippingBoxes]);
+
+  React.useEffect(() => {
+    const savedBoxId = (selectedProduct as any)?.shippingBoxId;
+    if (savedBoxId && shippingBoxes.some((b) => b.id === savedBoxId)) {
+      setSelectedBoxId(savedBoxId);
+    } else {
+      setSelectedBoxId(suggestedBoxInfo.box.id);
+    }
+  }, [selectedProduct, suggestedBoxInfo.box.id, shippingBoxes]);
+
+  const activeModalBox = useMemo(() => {
+    return shippingBoxes.find((b) => b.id === selectedBoxId) || suggestedBoxInfo.box || defaultStoreBox;
+  }, [shippingBoxes, selectedBoxId, suggestedBoxInfo.box, defaultStoreBox]);
 
   // Indica se o produto possui desmembramento de grade de variações (cores e tamanhos) ativo no ERP
   const hasDesmembramentoGrade = useMemo(() => {
@@ -543,6 +578,69 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                     <span>⚠️ Produto sem foto real cadastrada. Faça o upload de uma foto do produto na Seção 2 abaixo para ativar a visibilidade na loja virtual.</span>
                   </div>
                 )}
+
+                {/* EMBALAGEM DE ENVIO (MELHOR ENVIO) */}
+                <div className="mt-3 p-4 rounded-2xl bg-[#f8fbff] dark:bg-slate-800/50 border border-blue-100/90 dark:border-slate-700/80 space-y-3.5">
+                  <div className="flex flex-wrap items-center justify-between gap-2 pb-1">
+                    <div className="flex items-center gap-2.5">
+                      <Package className="h-5 w-5 text-[#0071E3]" />
+                      <span className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white">
+                        EMBALAGEM DE ENVIO (MELHOR ENVIO)
+                      </span>
+                    </div>
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/25">
+                      <Sparkles className="h-3.5 w-3.5 text-emerald-500" />
+                      <span>Sugestão: {suggestedBoxInfo.box.name}</span>
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                    {suggestedBoxInfo.reason}. Esta embalagem será utilizada para as dimensões e peso no cálculo do frete e na emissão de etiquetas.
+                  </p>
+
+                  <div className="space-y-1.5 pt-1">
+                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-400 block">
+                      SELECIONAR EMBALAGEM DO PRODUTO
+                    </label>
+                    <div className="relative">
+                      <select
+                        value={selectedBoxId}
+                        onChange={async (e) => {
+                          const newBoxId = e.target.value;
+                          setSelectedBoxId(newBoxId);
+                          (selectedProduct as any).shippingBoxId = newBoxId;
+                          const prodId = String(selectedProduct.id || selectedProduct.moblinkId || '');
+                          if (prodId && db) {
+                            await setDoc(doc(db, 'products', prodId), { shippingBoxId: newBoxId }, { merge: true }).catch(() => {});
+                          }
+                        }}
+                        className="w-full appearance-none px-3.5 py-2.5 pr-8 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs font-bold focus:outline-none focus:border-blue-500 cursor-pointer shadow-2xs"
+                      >
+                        {shippingBoxes.map((b) => (
+                          <option key={b.id} value={b.id}>
+                            {b.name} ({b.length}×{b.width}×{b.height}cm • {b.weight}kg){b.id === suggestedBoxInfo.box.id ? ' ★ Sugerida' : ''}{b.isDefault ? ' (Padrão da Loja)' : ''}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="h-4 w-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-between text-xs text-slate-500 dark:text-slate-400 pt-2 px-1 border-t border-blue-100/60 dark:border-slate-700/60 font-medium">
+                    <div className="flex items-center gap-2">
+                      <Package className="h-4 w-4 text-slate-400 dark:text-slate-500" />
+                      <span>
+                        Dimensões da caixa: <strong className="font-mono text-slate-900 dark:text-white font-bold">{activeModalBox.length} × {activeModalBox.width} × {activeModalBox.height} cm</strong>
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Weight className="h-4 w-4 text-slate-400 dark:text-slate-500" />
+                      <span>
+                        Peso embalado: <strong className="font-mono text-slate-900 dark:text-white font-bold">{activeModalBox.weight} kg ({Math.round(activeModalBox.weight * 1000)}g)</strong>
+                      </span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

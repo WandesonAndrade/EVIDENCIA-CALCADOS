@@ -66,7 +66,7 @@ interface AppContextProps {
 
   orders: Order[];
   isLoadingOrders: boolean;
-  createOrder: (customerName: string, customerEmail: string, options?: { paymentMethod?: 'Pix' | 'Cartão de Crédito' | 'Cartão de Débito' | 'Crediário da Loja'; deliveryType?: 'Entrega no Endereço' | 'Entrega em Caxias-MA' | 'Entrega para Outras Cidades' | 'Retirada na Loja'; installments?: number; customerPhone?: string; customerCpf?: string; customerCep?: string; customerNumero?: string; customerBairro?: string; city?: string; uf?: string; customerUf?: string; deliveryAddress?: string; freightCost?: number; sellerName?: string; sellerEmail?: string; overrideItems?: any[]; paymentStatus?: PaymentStatus; status?: OrderStatus; paymentId?: string | number }) => Promise<Order>;
+  createOrder: (customerName: string, customerEmail: string, options?: { paymentMethod?: 'Pix' | 'Cartão de Crédito' | 'Cartão de Débito' | 'Crediário da Loja'; deliveryType?: 'Entrega no Endereço' | 'Entrega em Caxias-MA' | 'Entrega para Outras Cidades' | 'Retirada na Loja'; installments?: number; customerPhone?: string; customerCpf?: string; customerCep?: string; customerNumero?: string; customerBairro?: string; city?: string; uf?: string; customerUf?: string; deliveryAddress?: string; freightCost?: number; storeFreightCost?: number; shippingBoxId?: string; shippingBoxName?: string; shippingBoxDimensions?: { height: number; width: number; length: number; weight: number }; shippingServiceId?: string | number; shippingServiceName?: string; sellerName?: string; sellerEmail?: string; overrideItems?: any[]; paymentStatus?: PaymentStatus; status?: OrderStatus; paymentId?: string | number }) => Promise<Order>;
   solicitarCrediario: (dados: Partial<UserProfile>) => Promise<void>;
   atualizarStatusCrediario: (uid: string, novoStatus: CrediarioStatus, motivo?: string) => Promise<void>;
   updateUserCashback: (uid: string, cashbackBalance: number, cashbackValidUntil: string) => Promise<void>;
@@ -2230,6 +2230,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       customerUf?: string;
       deliveryAddress?: string; 
       freightCost?: number;
+      storeFreightCost?: number;
+      shippingBoxId?: string;
+      shippingBoxName?: string;
+      shippingBoxDimensions?: { height: number; width: number; length: number; weight: number };
+      shippingServiceId?: string | number;
+      shippingServiceName?: string;
       overrideItems?: CartItem[];
       sellerName?: string;
       sellerEmail?: string;
@@ -2367,6 +2373,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       originalSubtotal,
       totalDiscount,
       freightCost,
+      ...(typeof options?.storeFreightCost === 'number' ? { storeFreightCost: options.storeFreightCost } : {}),
+      ...(options?.shippingBoxId ? { shippingBoxId: options.shippingBoxId } : {}),
+      ...(options?.shippingBoxName ? { shippingBoxName: options.shippingBoxName } : {}),
+      ...(options?.shippingBoxDimensions ? { shippingBoxDimensions: options.shippingBoxDimensions } : {}),
+      ...(options?.shippingServiceId !== undefined ? { shippingServiceId: options.shippingServiceId } : {}),
+      ...(options?.shippingServiceName ? { shippingServiceName: options.shippingServiceName } : {}),
       cashbackDiscount,
       total: grandTotal,
       paymentMethod,

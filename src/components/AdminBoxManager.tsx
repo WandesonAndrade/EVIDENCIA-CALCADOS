@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from "react";
-import { boxService, IShippingBox } from "../services/boxService";
-import { Package, Plus, Trash2, Edit3, CheckCircle2, Star, Box, Ruler, Weight, RefreshCw } from "lucide-react";
+import { boxService, IShippingBox, IFreightDifferenceAudit } from "../services/boxService";
+import { Package, Plus, Trash2, Edit3, CheckCircle2, Star, Box, Ruler, Weight, RefreshCw, Truck } from "lucide-react";
 
 export const AdminBoxManager: React.FC = () => {
   const [boxes, setBoxes] = useState<IShippingBox[]>([]);
+  const [freightAudits, setFreightAudits] = useState<IFreightDifferenceAudit[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -21,8 +22,12 @@ export const AdminBoxManager: React.FC = () => {
   const loadBoxes = async () => {
     setLoading(true);
     try {
-      const data = await boxService.getShippingBoxes();
+      const [data, audits] = await Promise.all([
+        boxService.getShippingBoxes(),
+        boxService.getFreightDifferenceAudits(),
+      ]);
       setBoxes(data);
+      setFreightAudits(audits);
     } catch (err) {
       console.error("Erro ao carregar caixas:", err);
     } finally {
@@ -259,6 +264,87 @@ export const AdminBoxManager: React.FC = () => {
           ))}
         </div>
       )}
+
+      {/* Painel Exclusivo Admin: Comparativo Frete Cliente vs Frete Loja */}
+      <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
+          <div>
+            <div className="flex items-center gap-2 text-[#0071E3] font-bold text-xs uppercase tracking-wider">
+              <Truck className="w-4 h-4" />
+              <span>Visão Exclusiva do Painel Admin</span>
+            </div>
+            <h3 className="text-lg font-bold text-slate-900 mt-0.5">
+              Diferença de Valores de Frete: Cliente vs Loja (Por Embalagem)
+            </h3>
+            <p className="text-xs text-slate-500">
+              Quando a embalagem é alterada e recalculada no Detalhe do Produto, o valor exibido ao cliente permanece na Caixa Padrão e a diferença real da loja fica registrada aqui.
+            </p>
+          </div>
+        </div>
+
+        {freightAudits.length === 0 ? (
+          <div className="p-6 rounded-2xl bg-slate-50 border border-slate-100 text-center text-xs text-slate-500">
+            Nenhuma alteração de embalagem recalculada ainda. Ao alterar a embalagem e clicar em <strong>"Recalcular Frete"</strong> no Detalhe do Produto, o comparativo aparecerá aqui.
+          </div>
+        ) : (
+          <div className="overflow-x-auto rounded-2xl border border-slate-100">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50 text-slate-500 uppercase text-[10px] font-bold tracking-wider border-b border-slate-100">
+                <tr>
+                  <th className="py-3 px-4">Produto</th>
+                  <th className="py-3 px-4">CEP / Modalidade</th>
+                  <th className="py-3 px-4">Embalagem Selecionada</th>
+                  <th className="py-3 px-4 text-right">Frete Cliente (Padrão)</th>
+                  <th className="py-3 px-4 text-right">Frete Loja (Real)</th>
+                  <th className="py-3 px-4 text-right">Diferença (Cliente vs Loja)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {freightAudits.map((audit) => {
+                  const diff = Number(audit.difference || 0);
+                  return (
+                    <tr key={audit.id} className="hover:bg-slate-50/80 transition">
+                      <td className="py-3 px-4 font-bold text-slate-800">
+                        {audit.productName}
+                        <span className="block text-[10px] font-mono text-slate-400">ID: {audit.productId}</span>
+                      </td>
+                      <td className="py-3 px-4 text-slate-600">
+                        <span className="font-mono font-bold text-slate-800">{audit.postalCode}</span>
+                        <span className="block text-[10px] text-slate-400">{audit.serviceName} ({audit.companyName})</span>
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className="font-semibold text-slate-800 block">{audit.selectedBoxName}</span>
+                        <span className="text-[10px] font-mono text-slate-400">{audit.selectedBoxDimensions}</span>
+                      </td>
+                      <td className="py-3 px-4 text-right font-mono font-bold text-slate-800">
+                        R$ {Number(audit.clientFreightPrice || 0).toFixed(2).replace(".", ",")}
+                      </td>
+                      <td className="py-3 px-4 text-right font-mono font-bold text-[#0071E3]">
+                        R$ {Number(audit.storeFreightPrice || 0).toFixed(2).replace(".", ",")}
+                      </td>
+                      <td className="py-3 px-4 text-right font-mono font-black">
+                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] ${
+                          diff > 0
+                            ? "bg-rose-50 text-rose-600 border border-rose-200"
+                            : diff < 0
+                            ? "bg-emerald-50 text-emerald-600 border border-emerald-200"
+                            : "bg-slate-100 text-slate-600"
+                        }`}>
+                          {diff === 0
+                            ? "R$ 0,00 (Igual)"
+                            : diff > 0
+                            ? `-R$ ${diff.toFixed(2).replace(".", ",")} (Custo Loja)`
+                            : `+R$ ${Math.abs(diff).toFixed(2).replace(".", ",")} (Economia Loja)`}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
 
       {/* Edit / Add Modal */}
       {isModalOpen && (

@@ -12,6 +12,7 @@ import { motion } from 'motion/react';
 import { cepService } from '../services/cepService';
 import { ShippingCalculator } from './common/ShippingCalculator';
 import { IShippingOption } from '../services/shipping/shippingProvider.interface';
+import { boxService, IShippingBox, INITIAL_SHIPPING_BOXES } from '../services/boxService';
 import { isProfileIncomplete } from '../App';
 import { getUfFromCep } from '../utils/orderUtils';
 
@@ -45,6 +46,21 @@ export const CheckoutPage: React.FC = () => {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false);
   const [selectedAddressId, setSelectedAddressId] = useState<string>('default');
   const [selectedShippingOption, setSelectedShippingOption] = useState<IShippingOption | null>(null);
+  const [shippingBoxes, setShippingBoxes] = useState<IShippingBox[]>(INITIAL_SHIPPING_BOXES);
+
+  useEffect(() => {
+    boxService.getShippingBoxes().then((boxes) => {
+      if (boxes && boxes.length > 0) setShippingBoxes(boxes);
+    }).catch(() => {});
+  }, []);
+
+  const defaultCheckoutBox = React.useMemo(() => {
+    return shippingBoxes.find((b) => b.isDefault) || shippingBoxes[0] || INITIAL_SHIPPING_BOXES[0];
+  }, [shippingBoxes]);
+
+  const suggestedCartBox = React.useMemo(() => {
+    return boxService.suggestBoxForOrderItems(cart || [], shippingBoxes).box;
+  }, [cart, shippingBoxes]);
   const [isAddingNewAddress, setIsAddingNewAddress] = useState<boolean>(false);
   const [newAddrForm, setNewAddrForm] = useState({
     label: '',
@@ -309,6 +325,16 @@ export const CheckoutPage: React.FC = () => {
         customerUf: activeUf,
         deliveryAddress: formattedAddress,
         freightCost: freightCost,
+        shippingBoxId: suggestedCartBox.id,
+        shippingBoxName: suggestedCartBox.name,
+        shippingBoxDimensions: {
+          height: suggestedCartBox.height,
+          width: suggestedCartBox.width,
+          length: suggestedCartBox.length,
+          weight: suggestedCartBox.weight,
+        },
+        shippingServiceId: selectedShippingOption?.id,
+        shippingServiceName: selectedShippingOption?.name,
         paymentStatus: determinedPaymentStatus,
         status: determinedStatus,
         paymentId: pixPaymentId,
@@ -647,6 +673,12 @@ export const CheckoutPage: React.FC = () => {
                       key={`shipping-${selectedAddressId}-${activeCep}`}
                       initialPostalCode={activeCep}
                       cartTotal={activeSubtotal}
+                      boxDimensions={{
+                        height: defaultCheckoutBox.height,
+                        width: defaultCheckoutBox.width,
+                        length: defaultCheckoutBox.length,
+                        weight: defaultCheckoutBox.weight,
+                      }}
                       hideInput={true}
                       hideHeader={false}
                       selectedOptionId={selectedShippingOption?.id}

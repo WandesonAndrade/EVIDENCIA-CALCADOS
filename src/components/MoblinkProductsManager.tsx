@@ -2012,6 +2012,7 @@ export const MoblinkProductsManager: React.FC<MoblinkProductsManagerProps> = ({ 
       referencia: refCode,
       modelCode: refCode,
       referenceCode: refCode,
+      shippingBoxId: (selectedProduct as any).shippingBoxId || undefined,
     };
 
     try {

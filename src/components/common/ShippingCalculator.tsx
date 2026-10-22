@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useApp } from "../../context/AppContext";
 import { IShippingOption, IShippingBoxDimensions } from "../../services/shipping/shippingProvider.interface";
+import { boxService, INITIAL_SHIPPING_BOXES } from "../../services/boxService";
 import { Truck, Calculator, Clock, Check, Sparkles, AlertCircle, RefreshCw } from "lucide-react";
 
 interface ShippingCalculatorProps {
@@ -8,6 +9,7 @@ interface ShippingCalculatorProps {
   boxDimensions?: IShippingBoxDimensions;
   selectedOptionId?: string | number;
   onSelectOption?: (option: IShippingOption) => void;
+  onCalculateSuccess?: (options: IShippingOption[], postalCode: string, usedBox: IShippingBoxDimensions) => void;
   compact?: boolean;
   hideInput?: boolean;
   hideHeader?: boolean;
@@ -19,6 +21,7 @@ export const ShippingCalculator: React.FC<ShippingCalculatorProps> = ({
   boxDimensions,
   selectedOptionId,
   onSelectOption,
+  onCalculateSuccess,
   compact = false,
   hideInput = false,
   hideHeader = false,
@@ -30,19 +33,40 @@ export const ShippingCalculator: React.FC<ShippingCalculatorProps> = ({
   const [options, setOptions] = useState<IShippingOption[]>([]);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  const [defaultBox, setDefaultBox] = useState<IShippingBoxDimensions>(INITIAL_SHIPPING_BOXES[0]);
+
+  useEffect(() => {
+    boxService.getDefaultBox().then((b) => {
+      if (b) {
+        setDefaultBox({
+          height: b.height,
+          width: b.width,
+          length: b.length,
+          weight: b.weight,
+        });
+      }
+    }).catch(() => {});
+  }, []);
 
   const onSelectOptionRef = useRef(onSelectOption);
   onSelectOptionRef.current = onSelectOption;
 
+  const onCalculateSuccessRef = useRef(onCalculateSuccess);
+  onCalculateSuccessRef.current = onCalculateSuccess;
+
   const selectedOptionIdRef = useRef(selectedOptionId);
   selectedOptionIdRef.current = selectedOptionId;
 
-  const calculate = async (targetCep?: string) => {
+  const effectiveBox = boxDimensions || defaultBox;
+
+  const calculate = async (targetCep?: string, customBox?: IShippingBoxDimensions) => {
     const cepToUse = (targetCep || postalCode).replace(/\D/g, "");
     if (cepToUse.length !== 8) {
       setErrorMsg("Por favor, digite um CEP válido com 8 números.");
       return;
     }
+
+    const boxToUse = customBox || effectiveBox;
 
     setErrorMsg("");
     setLoading(true);
@@ -53,7 +77,7 @@ export const ShippingCalculator: React.FC<ShippingCalculatorProps> = ({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           toPostalCode: cepToUse,
-          box: boxDimensions,
+          box: boxToUse,
           cartTotal,
         }),
       });
@@ -76,6 +100,9 @@ export const ShippingCalculator: React.FC<ShippingCalculatorProps> = ({
 
       if (data && data.success && Array.isArray(data.options)) {
         setOptions(data.options);
+        if (onCalculateSuccessRef.current) {
+          onCalculateSuccessRef.current(data.options, cepToUse, boxToUse);
+        }
         if (data.options.length === 0) {
           setErrorMsg("Nenhuma modalidade de envio disponível para este CEP.");
         } else if (onSelectOptionRef.current) {
@@ -95,14 +122,24 @@ export const ShippingCalculator: React.FC<ShippingCalculatorProps> = ({
     }
   };
 
-  // Dispara cotação ao montar e quando initialPostalCode ou cartTotal mudam
+  // Dispara cotação ao montar e quando initialPostalCode, cartTotal ou boxDimensions mudam
   useEffect(() => {
-    if (initialPostalCode && initialPostalCode.replace(/\D/g, "").length === 8) {
+    const cleanInitial = initialPostalCode ? initialPostalCode.replace(/\D/g, "") : "";
+    if (cleanInitial.length === 8) {
       setPostalCode(initialPostalCode);
-      calculate(initialPostalCode);
+      calculate(initialPostalCode, boxDimensions || defaultBox);
+    } else if (postalCode.replace(/\D/g, "").length === 8 && boxDimensions) {
+      calculate(postalCode, boxDimensions);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialPostalCode, cartTotal]);
+  }, [
+    initialPostalCode,
+    cartTotal,
+    boxDimensions?.height,
+    boxDimensions?.width,
+    boxDimensions?.length,
+    boxDimensions?.weight,
+  ]);
 
   const handleCepChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let val = e.target.value.replace(/\D/g, "");

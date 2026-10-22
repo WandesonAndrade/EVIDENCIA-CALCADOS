@@ -899,6 +899,7 @@ export const mergeErpSyncWithExistingDbProduct = (
     managedPhotos: existingDbProd.managedPhotos ?? (protectedImages.length > 0 ? true : false),
     colorImageMap: protectedColorImageMap,
     colorImages: protectedColorImages,
+    shippingBoxId: existingDbProd.shippingBoxId || updatedErpProd.shippingBoxId,
 
     // Atualização integral de Preços (Tabela, Vista, Cartão e Promoção)
     price: livePrice,
@@ -1145,6 +1146,9 @@ export const sanitizeProductForFirestore = (
   }
   if (product.colorImages) {
     cleanPayload.colorImages = product.colorImages;
+  }
+  if (product.shippingBoxId !== undefined) {
+    cleanPayload.shippingBoxId = product.shippingBoxId;
   }
 
   // Remoção permanente de campos redundantes e legados
@@ -1687,9 +1691,10 @@ export const hasProductChanged = (
   const existingModel = String(existing.modelCode ?? existing.referenceCode ?? "").trim();
   if (freshModel && existingModel && freshModel !== existingModel) return true;
 
-  // 9. Visibilidade / Destaque
+  // 9. Visibilidade / Destaque / Embalagem
   if ((fresh as any).visible !== undefined && (fresh as any).visible !== existing.visible) return true;
   if ((fresh as any).newArrival !== undefined && (fresh as any).newArrival !== existing.newArrival) return true;
+  if ((fresh as any).shippingBoxId !== undefined && (fresh as any).shippingBoxId !== existing.shippingBoxId) return true;
 
   // 10. Imagens e Proteção de Fotos (Garante que fotos anexadas por link ou alteradas sejam salvas)
   if ((fresh as any).managedPhotos !== undefined && (fresh as any).managedPhotos !== existing.managedPhotos) return true;

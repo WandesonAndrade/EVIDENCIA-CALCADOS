@@ -152,6 +152,7 @@ export interface Product {
   referenceCode?: string;
   cor?: string;
   isSaldao?: boolean;
+  shippingBoxId?: string;
 }
 
 export interface SaldaoConfig {
@@ -277,6 +278,17 @@ export interface Order {
   originalSubtotal?: number;
   totalDiscount?: number;
   freightCost?: number;
+  storeFreightCost?: number;
+  shippingBoxId?: string;
+  shippingBoxName?: string;
+  shippingBoxDimensions?: {
+    height: number;
+    width: number;
+    length: number;
+    weight: number;
+  };
+  shippingServiceId?: string | number;
+  shippingServiceName?: string;
   cashbackDiscount?: number;
   total: number;
   paymentMethod?: 'Pix' | 'Cartão de Crédito' | 'Cartão de Débito' | 'Crediário da Loja';
