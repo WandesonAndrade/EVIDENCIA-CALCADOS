@@ -1213,11 +1213,38 @@ var isValidWebPhotoUrl = (url) => {
 };
 
 // src/services/supabaseStorageService.ts
+var DELETED_PHOTOS_STORAGE_KEY = "evidencia_deleted_photo_urls";
+var deletedPhotoUrlsMemory = /* @__PURE__ */ new Set();
+function loadDeletedPhotoUrls() {
+  if (typeof localStorage !== "undefined") {
+    try {
+      const raw = localStorage.getItem(DELETED_PHOTOS_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          parsed.forEach((u) => {
+            if (typeof u === "string" && u.trim()) deletedPhotoUrlsMemory.add(u.trim());
+          });
+        }
+      }
+    } catch {
+    }
+  }
+  return deletedPhotoUrlsMemory;
+}
+function isPhotoUrlDeleted(url) {
+  if (!url || typeof url !== "string") return false;
+  const clean = url.trim();
+  if (!clean) return false;
+  const set = loadDeletedPhotoUrls();
+  return set.has(clean);
+}
 function preserveExistingImages(existingImages, newUrls) {
   const result = [];
   const addUrl = (url) => {
     if (typeof url === "string" && isValidWebPhotoUrl(url)) {
       const clean = url.trim();
+      if (isPhotoUrlDeleted(clean)) return;
       if (!result.includes(clean)) {
         result.push(clean);
       }
