@@ -1385,10 +1385,10 @@ Ao corrigir a foto de um produto que estava marcado com erro (404 / NoSuchKey), 
 
 ## 57. Gestão de Embalagens para Envio, Sugestão Inteligente e Auditoria de Diferença de Frete (Melhor Envio) (`boxService.ts`, `ProductEditPage.tsx`, `ProductEditModal.tsx`, `ShippingInfoCard.tsx`, `FreightStatusCard.tsx`, `AdminBoxManager.tsx`, `CheckoutPage.tsx`, `AppContext.tsx`, `types.ts`, `moblinkProductsService.ts`)
 
-### A. Regra de Negócio de Frete: Cliente (Caixa Padrão) vs Loja (Embalagem Real)
+### A. Regra de Negócio de Frete: Cotação do Cliente Baseada na Embalagem do Produto
 - **Frente de Loja (Cliente)**:
-  - Todas as cotações de frete exibidas para o cliente na vitrine (`ShippingCalculator.tsx`) e calculadas no fluxo de compra (`CheckoutPage.tsx`) utilizam exclusivamente a **Caixa Padrão da Loja** (`boxService.getDefaultBox()`), garantindo simplicidade, previsibilidade e ausência de atrito na jornada do consumidor.
-  - A seleção manual de embalagem foi **removida da vitrine da loja** (`ProductDetail.tsx`).
+  - Todas as cotações de frete exibidas para o cliente na tela de produto (`ProductDetail.tsx` via `ShippingCalculator.tsx`) e no checkout (`CheckoutPage.tsx`) são calculadas **com base no tamanho e peso da embalagem definidos no cadastro do produto** (`shippingBoxId`). Caso o produto ainda não possua embalagem manual cadastrada, o sistema utiliza a embalagem sugerida para o tipo de calçado (`boxService.suggestBoxForProduct`).
+  - A seleção manual de embalagens permanece exclusivamente no painel administrativo (`ProductEditPage.tsx`), garantindo que o cliente receba a cotação correta sem qualquer atrito na navegação da loja virtual.
 - **Painel Administrativo (Gestão do Pedido)**:
   - Na tela de detalhes do pedido (`ShippingInfoCard.tsx` e `FreightStatusCard.tsx`), o lojista visualiza a embalagem sugerida para o envio daquele pedido (ou embalagens associadas aos produtos).
   - É possível alterar a embalagem selecionada e clicar em **"Recalcular Frete da Loja"**.

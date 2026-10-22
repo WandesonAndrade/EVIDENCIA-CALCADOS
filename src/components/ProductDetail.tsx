@@ -15,6 +15,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { CompleteProfileModal } from './CompleteProfileModal';
 import { ProductCard } from './ProductList';
 import { ShippingCalculator } from './common/ShippingCalculator';
+import { boxService, IShippingBox, INITIAL_SHIPPING_BOXES } from '../services/boxService';
 import { isProfileIncomplete } from '../App';
 import { NO_PHOTO_SVG } from '../utils/placeholder';
 
@@ -41,6 +42,33 @@ export const ProductDetail: React.FC = () => {
   } = useApp();
 
   const isOutubroRosa = storeTheme === 'outubro-rosa';
+
+  // Embalagem e cubagem do produto para cotação precisa de frete
+  const [shippingBoxes, setShippingBoxes] = useState<IShippingBox[]>(INITIAL_SHIPPING_BOXES);
+
+  useEffect(() => {
+    boxService.getShippingBoxes().then((boxes) => {
+      if (boxes && boxes.length > 0) setShippingBoxes(boxes);
+    }).catch(() => {});
+  }, []);
+
+  const fullProduct = React.useMemo(() => {
+    if (!selectedProduct) return null;
+    const prodId = String(selectedProduct.id || selectedProduct.moblinkId || '');
+    const matched = products.find((p) => String(p.id) === prodId || String(p.moblinkId) === prodId);
+    return matched ? { ...matched, ...selectedProduct, shippingBoxId: selectedProduct.shippingBoxId || matched.shippingBoxId } : selectedProduct;
+  }, [selectedProduct, products]);
+
+  const productBoxDimensions = React.useMemo(() => {
+    if (!fullProduct) return undefined;
+    const box = boxService.resolveProductBox(fullProduct, shippingBoxes, false);
+    return {
+      height: box.height,
+      width: box.width,
+      length: box.length,
+      weight: box.weight,
+    };
+  }, [fullProduct, shippingBoxes]);
 
   const [selectedLinhaOption, setSelectedLinhaOption] = useState<string | number | null>(null);
   const [selectedColunaOption, setSelectedColunaOption] = useState<string | null>(null);
@@ -1073,7 +1101,12 @@ export const ProductDetail: React.FC = () => {
                 </div>
               ) : (
                 <div className="pt-0.5">
-                  <ShippingCalculator compact cartTotal={selectedProduct?.price || 0} />
+                  <ShippingCalculator
+                    key={`shipping-${fullProduct?.id || fullProduct?.moblinkId || 'prod'}-${productBoxDimensions?.height || 0}-${productBoxDimensions?.weight || 0}`}
+                    compact
+                    cartTotal={selectedProduct?.price || 0}
+                    boxDimensions={productBoxDimensions}
+                  />
                 </div>
               )}
             </div>

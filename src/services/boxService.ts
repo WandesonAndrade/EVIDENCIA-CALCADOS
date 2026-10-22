@@ -240,15 +240,17 @@ export const boxService = {
   },
 
   /**
-   * Retorna a embalagem efetiva de um produto (respeita shippingBoxId salvo no produto; caso não tenha, retorna a caixa padrão da loja)
+   * Retorna a embalagem efetiva de um produto (respeita shippingBoxId salvo no produto; caso não tenha, retorna a embalagem sugerida para o tipo de calçado)
    */
   resolveProductBox(
     product: any,
     availableBoxes: IShippingBox[] = INITIAL_SHIPPING_BOXES,
-    useDefaultForStorefront = true
+    useDefaultForStorefront = false
   ): IShippingBox {
     const boxes = availableBoxes.length > 0 ? availableBoxes : INITIAL_SHIPPING_BOXES;
     const defaultBox = boxes.find((b) => b.isDefault) || boxes[0] || INITIAL_SHIPPING_BOXES[0];
+
+    if (!product) return defaultBox;
 
     if (product?.shippingBoxId) {
       const matched = boxes.find((b) => b.id === product.shippingBoxId);
@@ -280,22 +282,38 @@ export const boxService = {
     const totalQty = (items || []).reduce((acc, item) => acc + (Number(item.quantity) || 1), 0);
 
     if (totalQty >= 2) {
+      const hasLarge = items.some((it) => {
+        const pid = String(it.product?.id || it.product?.moblinkId || (it as any).productId || '');
+        const p = it.product || catalogProducts.find((cp) => String(cp.id) === pid || String(cp.moblinkId) === pid);
+        const bId = p?.shippingBoxId || it.product?.shippingBoxId;
+        const name = (p?.name || p?.nome || it.name || '').toLowerCase();
+        return bId === 'box-botas-cano-alto' || name.includes('bota') || name.includes('coturno');
+      });
+
+      if (hasLarge || totalQty >= 3) {
+        return {
+          box: largeBox,
+          reason: `Pedido com múltiplos itens (${totalQty} un) — sugerida Caixa Grande`,
+        };
+      }
+
       return {
-        box: largeBox,
-        reason: `Pedido com ${totalQty} itens/pares — sugerida Caixa Grande`,
+        box: defaultBox,
+        reason: `Pedido com ${totalQty} itens — sugerida Caixa Padrão da Loja`,
       };
     }
 
     const firstItem = items?.[0];
     if (firstItem) {
-      const prod =
-        firstItem.product ||
-        catalogProducts.find(
-          (p) =>
-            String(p.id) === String((firstItem as any).productId) ||
-            String(p.moblinkId) === String((firstItem as any).productId)
-        ) ||
-        { name: firstItem.name };
+      const prodId = String(firstItem.product?.id || firstItem.product?.moblinkId || (firstItem as any).productId || '');
+      const catalogMatch = catalogProducts.find(
+        (p) => String(p.id) === prodId || String(p.moblinkId) === prodId
+      );
+      const prod = {
+        ...catalogMatch,
+        ...firstItem.product,
+        shippingBoxId: firstItem.product?.shippingBoxId || catalogMatch?.shippingBoxId,
+      };
 
       if (prod?.shippingBoxId) {
         const savedBox = boxes.find((b) => b.id === prod.shippingBoxId);

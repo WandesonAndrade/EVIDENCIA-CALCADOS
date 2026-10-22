@@ -513,8 +513,9 @@ Este arquivo é a memória persistente do projeto (AG Kit), consolidando decisõ
       * `hasProductChanged`, `sanitizeProductForFirestore` e `mergeErpSyncWithExistingDbProduct` preservam e gravam alterações de público/gênero e marca sem sobrescrita pelo ERP.
 
 61. **Gestão de Embalagens para Envio, Sugestão Inteligente e Auditoria de Diferença de Frete (Melhor Envio) (`boxService.ts`, `ProductEditPage.tsx`, `ProductEditModal.tsx`, `ShippingInfoCard.tsx`, `FreightStatusCard.tsx`, `AdminBoxManager.tsx`, `CheckoutPage.tsx`, `AppContext.tsx`, `types.ts`, `moblinkProductsService.ts`) (Implementado):**
-    - **Regra de Ouro do Frete: Cliente (Caixa Padrão) vs Loja (Embalagem Real)**:
-      * Na vitrine e no checkout (`ShippingCalculator.tsx` e `CheckoutPage.tsx`), o cliente cota e paga o frete calculado estritamente com a **Caixa Padrão da Loja** (`boxService.getDefaultBox()`), sem atrito de escolha de caixas na frente de loja.
+    - **Regra de Ouro do Frete: Cotação do Cliente Baseada na Embalagem do Produto**:
+      * Na vitrine (`ProductDetail.tsx` via `ShippingCalculator.tsx`) e no checkout (`CheckoutPage.tsx`), a cotação de frete para o cliente baseia-se **obrigatoriamente no tamanho e peso da embalagem definidos nos detalhes do produto** (`shippingBoxId`). Caso o produto não tenha embalagem definida manualmente, aplica-se a sugestão automática para a categoria do calçado (`boxService.suggestBoxForProduct`).
+      * A seleção da caixa ocorre exclusivamente no painel admin (`ProductEditPage.tsx`), poupando o cliente de decisões técnicas na frente de loja.
       * Na gestão de pedidos no painel administrativo (`ShippingInfoCard.tsx` e `FreightStatusCard.tsx`), o administrador pode alterar a embalagem do pedido e recalcular o frete da transportadora.
       * **Isolamento no Admin**: A diferença financeira entre o frete do cliente e o frete da loja (economia ou acréscimo) é registrada e exibida exclusivamente no painel administrativo.
       * Ao gerar etiqueta no Melhor Envio, as dimensões e peso da caixa escolhida são transmitidos para a transportadora.

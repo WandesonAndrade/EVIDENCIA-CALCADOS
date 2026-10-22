@@ -23,6 +23,7 @@ export const CheckoutPage: React.FC = () => {
     theme, 
     sellers = [], 
     cart,
+    products = [],
     removeFromCart,
     clearCart,
     setCurrentView,
@@ -59,8 +60,8 @@ export const CheckoutPage: React.FC = () => {
   }, [shippingBoxes]);
 
   const suggestedCartBox = React.useMemo(() => {
-    return boxService.suggestBoxForOrderItems(cart || [], shippingBoxes).box;
-  }, [cart, shippingBoxes]);
+    return boxService.suggestBoxForOrderItems(cart || [], shippingBoxes, products).box;
+  }, [cart, shippingBoxes, products]);
   const [isAddingNewAddress, setIsAddingNewAddress] = useState<boolean>(false);
   const [newAddrForm, setNewAddrForm] = useState({
     label: '',
@@ -670,14 +671,14 @@ export const CheckoutPage: React.FC = () => {
                   {/* COTAÇÃO AUTOMÁTICA DE FRETE BASEADA NO ENDEREÇO SELECIONADO (SEM REPETIÇÕES) */}
                   <div className="pt-3">
                     <ShippingCalculator
-                      key={`shipping-${selectedAddressId}-${activeCep}`}
+                      key={`shipping-${selectedAddressId}-${activeCep}-${suggestedCartBox.id}`}
                       initialPostalCode={activeCep}
                       cartTotal={activeSubtotal}
                       boxDimensions={{
-                        height: defaultCheckoutBox.height,
-                        width: defaultCheckoutBox.width,
-                        length: defaultCheckoutBox.length,
-                        weight: defaultCheckoutBox.weight,
+                        height: suggestedCartBox.height,
+                        width: suggestedCartBox.width,
+                        length: suggestedCartBox.length,
+                        weight: suggestedCartBox.weight,
                       }}
                       hideInput={true}
                       hideHeader={false}
