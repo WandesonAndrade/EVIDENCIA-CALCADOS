@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useApp } from "../context/AppContext";
 import {
   X,
@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { moblinkClientesService } from "../services/moblinkClientesService";
 import { cepService } from "../services/cepService";
+import { extractStreetName, formatFullAddress } from "../utils/addressUtils";
 
 interface CompleteProfileModalProps {
   isOpen: boolean;
@@ -56,6 +57,8 @@ export const CompleteProfileModal: React.FC<CompleteProfileModalProps> = ({
 
   const [isLoadingCep, setIsLoadingCep] = useState(false);
   const [cepSuccessMsg, setCepSuccessMsg] = useState("");
+  const enderecoInputRef = useRef<HTMLInputElement>(null);
+  const numeroInputRef = useRef<HTMLInputElement>(null);
 
   const handleCepChange = async (val: string) => {
     const formatted = formatCEP(val);
@@ -68,11 +71,26 @@ export const CompleteProfileModal: React.FC<CompleteProfileModalProps> = ({
       const res = await cepService.fetchAddressByCep(clean);
       setIsLoadingCep(false);
       if (res) {
-        if (res.logradouro) setEndereco(res.logradouro);
+        if (res.suggestedCep && res.suggestedCep.replace(/\D/g, "") !== clean) {
+          setCep(formatCEP(res.suggestedCep));
+        }
+        const cleanStreet = extractStreetName(res.logradouro);
+        if (cleanStreet) setEndereco(cleanStreet);
         if (res.bairro) setBairro(res.bairro);
         if (res.localidade) setCidade(res.localidade);
         if (res.uf) setUf(res.uf);
-        setCepSuccessMsg(`✓ Endereço localizado: ${res.localidade}/${res.uf}`);
+
+        if (cleanStreet && res.bairro) {
+          if (res.suggestedCep && res.suggestedCep.replace(/\D/g, "") !== clean) {
+            setCepSuccessMsg(`✓ Endereço preenchido: ${cleanStreet}, ${res.bairro} (CEP corrigido para ${formatCEP(res.suggestedCep)})`);
+          } else {
+            setCepSuccessMsg(`✓ Endereço preenchido: ${cleanStreet}, ${res.bairro} • ${res.localidade}/${res.uf}`);
+          }
+          setTimeout(() => numeroInputRef.current?.focus(), 50);
+        } else if (res.localidade) {
+          setCepSuccessMsg(`✓ Localizado: ${res.localidade}/${res.uf} (informe a rua e o bairro)`);
+          setTimeout(() => enderecoInputRef.current?.focus(), 50);
+        }
       }
     }
   };
@@ -145,7 +163,7 @@ export const CompleteProfileModal: React.FC<CompleteProfileModalProps> = ({
       matched.logradouro ||
       matched.rua ||
       "";
-    if (rawEndereco) setEndereco(rawEndereco);
+    if (rawEndereco) setEndereco(extractStreetName(rawEndereco));
 
     const rawNumero = matched.numero || matched.numero_end || matched.num || "";
     if (rawNumero) setNumero(rawNumero);
@@ -247,7 +265,9 @@ export const CompleteProfileModal: React.FC<CompleteProfileModalProps> = ({
 
         setCep(formatCEP(currentUser.cep || anyUser.codigo_postal || ""));
         setEndereco(
-          currentUser.endereco || anyUser.address || anyUser.logradouro || "",
+          extractStreetName(
+            currentUser.endereco || anyUser.address || anyUser.logradouro || "",
+          ),
         );
         setNumero(currentUser.numero || anyUser.numero_end || "");
         setBairro(currentUser.bairro || "");
@@ -342,10 +362,20 @@ export const CompleteProfileModal: React.FC<CompleteProfileModalProps> = ({
     try {
       setIsSaving(true);
 
-      const hasAddress = Boolean(endereco.trim() && numero.trim());
+      const cleanStreet = extractStreetName(endereco);
+      const hasAddress = Boolean(cleanStreet && numero.trim());
       const combinedEndereco = hasAddress
-        ? `${endereco.trim()}, Nº ${numero.trim()}${bairro.trim() ? `, ${bairro.trim()}` : ""}${cidade.trim() ? `, ${cidade.trim()}` : ""}/${uf.trim()}${cep.trim() ? ` - CEP: ${cep.trim()}` : ""}${complemento.trim() ? ` (${complemento.trim()})` : ""}${pontoReferencia.trim() ? ` [Ref: ${pontoReferencia.trim()}]` : ""}`
-        : currentUser.endereco || "";
+        ? formatFullAddress({
+            street: cleanStreet,
+            number: numero.trim(),
+            district: bairro.trim(),
+            city: cidade.trim(),
+            state: uf.trim(),
+            cep: cep.trim(),
+            complement: complemento.trim(),
+            reference: pontoReferencia.trim(),
+          })
+        : currentUser.formattedAddress || cleanStreet || currentUser.endereco || "";
 
       const nextCrediarioStatus =
         matchedErpClient?.crediarioStatus === "Aprovado" ||
@@ -372,7 +402,8 @@ export const CompleteProfileModal: React.FC<CompleteProfileModalProps> = ({
         rendaMensal: rendaMensal.trim(),
         referenciaPessoal: referenciaPessoal.trim(),
         cep: cep.trim(),
-        endereco: combinedEndereco,
+        endereco: cleanStreet,
+        formattedAddress: combinedEndereco,
         numero: numero.trim(),
         bairro: bairro.trim(),
         cidade: cidade.trim(),
@@ -789,6 +820,7 @@ export const CompleteProfileModal: React.FC<CompleteProfileModalProps> = ({
                     placeholder="00000-000 (Preenche o endereço automaticamente)"
                     value={cep}
                     onChange={(e) => handleCepChange(e.target.value)}
+                    onBlur={() => handleCepChange(cep)}
                     className="w-full pl-8 pr-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-primary text-slate-800 font-medium"
                   />
                   <MapPin className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
@@ -817,6 +849,7 @@ export const CompleteProfileModal: React.FC<CompleteProfileModalProps> = ({
                 <div className="relative">
                   <input
                     type="text"
+                    ref={enderecoInputRef}
                     placeholder="Rua, Avenida, Praça, etc."
                     value={endereco}
                     onChange={(e) => setEndereco(e.target.value)}
@@ -843,6 +876,7 @@ export const CompleteProfileModal: React.FC<CompleteProfileModalProps> = ({
                 <div className="relative">
                   <input
                     type="text"
+                    ref={numeroInputRef}
                     placeholder="Ex: 123 ou S/N"
                     value={numero}
                     onChange={(e) => setNumero(e.target.value)}

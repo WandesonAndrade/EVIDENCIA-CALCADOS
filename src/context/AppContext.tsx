@@ -31,6 +31,7 @@ import { NO_PHOTO_SVG, isPlaceholderUrl, isValidWebPhotoUrl } from '../utils/pla
 import { getCachedCatalog, setCachedCatalog, safeSetLocalStorage, mergeStockIntoCachedProducts } from '../services/catalogCacheService';
 import { fetchLiveStockMapFromMoblink, fetchDirectProductStockAndGrade } from '../services/moblinkStockDirectService';
 import { slugifyParam } from '../components/products/utils/categoryNavigationUtils';
+import { extractStreetName } from '../utils/addressUtils';
 
 
 interface AppContextProps {
@@ -66,7 +67,7 @@ interface AppContextProps {
 
   orders: Order[];
   isLoadingOrders: boolean;
-  createOrder: (customerName: string, customerEmail: string, options?: { paymentMethod?: 'Pix' | 'Cartão de Crédito' | 'Cartão de Débito' | 'Crediário da Loja'; deliveryType?: 'Entrega no Endereço' | 'Entrega em Caxias-MA' | 'Entrega para Outras Cidades' | 'Retirada na Loja'; installments?: number; customerPhone?: string; customerCpf?: string; customerCep?: string; customerNumero?: string; customerBairro?: string; city?: string; uf?: string; customerUf?: string; deliveryAddress?: string; freightCost?: number; storeFreightCost?: number; shippingBoxId?: string; shippingBoxName?: string; shippingBoxDimensions?: { height: number; width: number; length: number; weight: number }; shippingServiceId?: string | number; shippingServiceName?: string; sellerName?: string; sellerEmail?: string; overrideItems?: any[]; paymentStatus?: PaymentStatus; status?: OrderStatus; paymentId?: string | number }) => Promise<Order>;
+  createOrder: (customerName: string, customerEmail: string, options?: { paymentMethod?: 'Pix' | 'Cartão de Crédito' | 'Cartão de Débito' | 'Crediário da Loja'; deliveryType?: 'Entrega no Endereço' | 'Entrega em Caxias-MA' | 'Entrega para Outras Cidades' | 'Retirada na Loja'; installments?: number; customerPhone?: string; customerCpf?: string; customerCep?: string; customerNumero?: string; customerBairro?: string; city?: string; uf?: string; customerUf?: string; deliveryAddress?: string; freightCost?: number; storeFreightCost?: number; shippingBoxId?: string; shippingBoxName?: string; shippingBoxDimensions?: { height: number; width: number; length: number; weight: number }; shippingServiceId?: string | number; shippingServiceName?: string; deliveryMode?: 'LOCAL' | 'MELHOR_ENVIO' | 'PICKUP'; localLabelNumber?: string; sellerName?: string; sellerEmail?: string; overrideItems?: any[]; paymentStatus?: PaymentStatus; status?: OrderStatus; paymentId?: string | number }) => Promise<Order>;
   solicitarCrediario: (dados: Partial<UserProfile>) => Promise<void>;
   atualizarStatusCrediario: (uid: string, novoStatus: CrediarioStatus, motivo?: string) => Promise<void>;
   updateUserCashback: (uid: string, cashbackBalance: number, cashbackValidUntil: string) => Promise<void>;
@@ -2116,9 +2117,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!currentUser) {
       throw new Error('No user is currently logged in');
     }
+    const sanitizedProfileData = { ...profileData };
+    if (sanitizedProfileData.endereco) {
+      sanitizedProfileData.endereco = extractStreetName(sanitizedProfileData.endereco);
+    }
     const updatedProfile: UserProfile = {
       ...currentUser,
-      ...profileData
+      ...sanitizedProfileData
     };
     
     // Save to local list
@@ -2236,6 +2241,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       shippingBoxDimensions?: { height: number; width: number; length: number; weight: number };
       shippingServiceId?: string | number;
       shippingServiceName?: string;
+      deliveryMode?: 'LOCAL' | 'MELHOR_ENVIO' | 'PICKUP';
+      localLabelNumber?: string;
       overrideItems?: CartItem[];
       sellerName?: string;
       sellerEmail?: string;
@@ -2379,6 +2386,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ...(options?.shippingBoxDimensions ? { shippingBoxDimensions: options.shippingBoxDimensions } : {}),
       ...(options?.shippingServiceId !== undefined ? { shippingServiceId: options.shippingServiceId } : {}),
       ...(options?.shippingServiceName ? { shippingServiceName: options.shippingServiceName } : {}),
+      ...(options?.deliveryMode ? { deliveryMode: options.deliveryMode } : {}),
+      ...(options?.localLabelNumber ? { localLabelNumber: options.localLabelNumber } : {}),
       cashbackDiscount,
       total: grandTotal,
       paymentMethod,

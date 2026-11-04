@@ -301,6 +301,11 @@ export interface Order {
   sellerEmail?: string;
   sellerName?: string;
   localSaleId?: string;
+  deliveryMode?: 'LOCAL' | 'MELHOR_ENVIO' | 'PICKUP';
+  localLabelNumber?: string;
+  localCourierName?: string;
+  localDeliveryNotes?: string;
+  deliveredAt?: string;
   melhorEnvioId?: string;
   trackingCode?: string;
   labelUrl?: string;
@@ -392,6 +397,7 @@ export interface UserProfile {
   dataNascimento?: string;
   naturalidade?: string;
   endereco?: string;
+  formattedAddress?: string;
   telefone?: string;
   cep?: string;
   numero?: string;

@@ -6,7 +6,7 @@ import { CompleteProfileModal } from './CompleteProfileModal';
 import { PaymentForm } from './PaymentForm';
 import { 
   CheckCircle2, Truck, ShoppingBag, CreditCard, 
-  ShieldCheck, MapPin, MessageSquare, User, Edit3, Plus, Loader2, ArrowLeft, Lock, Package, Store, Trash2
+  ShieldCheck, MapPin, MessageSquare, User, Edit3, Plus, Loader2, ArrowLeft, Lock, Package, Store, Trash2, AlertCircle
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cepService } from '../services/cepService';
@@ -15,6 +15,8 @@ import { IShippingOption } from '../services/shipping/shippingProvider.interface
 import { boxService, IShippingBox, INITIAL_SHIPPING_BOXES } from '../services/boxService';
 import { isProfileIncomplete } from '../App';
 import { getUfFromCep } from '../utils/orderUtils';
+import { isUrbanCaxias } from '../utils/localDelivery';
+import { extractStreetName } from '../utils/addressUtils';
 
 export const CheckoutPage: React.FC = () => {
   const { 
@@ -27,7 +29,8 @@ export const CheckoutPage: React.FC = () => {
     removeFromCart,
     clearCart,
     setCurrentView,
-    createOrder
+    createOrder,
+    addToast
   } = useApp();
   
   const isDark = theme === 'dark';
@@ -90,9 +93,16 @@ export const CheckoutPage: React.FC = () => {
       setIsLoadingCheckoutCep(false);
       const autoUf = getUfFromCep(raw);
       if (res) {
+        if (res.suggestedCep && res.suggestedCep.replace(/\D/g, '') !== raw) {
+          const cleanSug = res.suggestedCep.replace(/\D/g, '');
+          const formattedSuggested = cleanSug.length === 8
+            ? `${cleanSug.slice(0, 5)}-${cleanSug.slice(5, 8)}`
+            : res.suggestedCep;
+          setCheckoutCep(formattedSuggested);
+        }
         setNewAddrForm(prev => ({
           ...prev,
-          rua: res.logradouro || prev.rua,
+          rua: extractStreetName(res.logradouro) || prev.rua,
           bairro: res.bairro || prev.bairro,
           cidade: res.localidade || prev.cidade,
           uf: res.uf || autoUf || prev.uf
@@ -117,7 +127,7 @@ export const CheckoutPage: React.FC = () => {
   const defaultAddress: SavedAddress = {
     id: 'default',
     label: 'Endereço Cadastrado',
-    rua: currentUser?.endereco || '',
+    rua: extractStreetName(currentUser?.endereco || ''),
     numero: currentUser?.numero || 'S/N',
     bairro: currentUser?.bairro || 'Centro',
     cidade: currentUser?.cidade || 'Caxias',
@@ -290,6 +300,42 @@ export const CheckoutPage: React.FC = () => {
   const grandTotal = Math.max(0, activeSubtotal + freightCost - cashbackDiscount);
 
   const handleConfirmOrder = async (pixPaymentId?: number | string, customPaymentStatus?: PaymentStatus) => {
+    // 1. Bloqueio de Frete Estimado (conforme diretriz: estimativa sem chegar a compra)
+    if (deliveryType !== 'Retirada na Loja' && selectedShippingOption?.estimated) {
+      addToast(
+        'Frete Estimado Indisponível',
+        'A cotação oficial da transportadora está temporariamente em contingência. Não é permitido concluir compras com frete estimado. Recalcule o frete ou selecione Retirada na Loja.',
+        'error'
+      );
+      return;
+    }
+
+    // 2. Validação obrigatória de dados completos do cliente para entregas
+    if (deliveryType !== 'Retirada na Loja') {
+      const cleanCpf = (currentUser.cpf || '').replace(/\D/g, '');
+      const cleanPhone = (currentUser.telefone || '').replace(/\D/g, '');
+      const street = extractStreetName(activeAddressObj?.rua || currentUser.endereco || '').trim();
+      const num = (activeAddressObj?.numero || currentUser.numero || '').trim();
+      const district = (activeAddressObj?.bairro || currentUser.bairro || '').trim();
+
+      const missing: string[] = [];
+      if (!cleanCpf || cleanCpf.length !== 11) missing.push('CPF válido');
+      if (!cleanPhone || cleanPhone.length < 10) missing.push('Telefone com DDD');
+      if (!street) missing.push('Rua/Endereço');
+      if (!num || num.toUpperCase() === 'S/N') missing.push('Número do endereço');
+      if (!district) missing.push('Bairro');
+
+      if (missing.length > 0) {
+        addToast(
+          'Complete seu Cadastro',
+          `Para entrega, precisamos que complete: ${missing.join(', ')}.`,
+          'warning'
+        );
+        setIsProfileModalOpen(true);
+        return;
+      }
+    }
+
     const selectedInstallments = paymentMethod === 'Cartão de Crédito' ? installments : 1;
 
     const effectiveCep = (activeAddressObj?.cep || checkoutCep || currentUser?.cep || '65600060').replace(/\D/g, '');
@@ -314,6 +360,11 @@ export const CheckoutPage: React.FC = () => {
       const order = await createOrder(currentUser.name, currentUser.email, {
         paymentMethod,
         deliveryType,
+        deliveryMode: deliveryType === 'Retirada na Loja'
+          ? 'PICKUP'
+          : (selectedShippingOption?.id === 'entrega-propria-caxias' || isUrbanCaxias({ cep: effectiveCep, city: activeCity, uf: activeUf }))
+            ? 'LOCAL'
+            : 'MELHOR_ENVIO',
         installments: selectedInstallments,
         sellerName: selectedSellerName !== 'Atendimento Direto da Loja' ? selectedSellerName : undefined,
         customerPhone: currentUser.telefone || '',
@@ -575,6 +626,7 @@ export const CheckoutPage: React.FC = () => {
                           type="text"
                           value={checkoutCep}
                           onChange={(e) => handleCheckoutCepChange(e.target.value)}
+                          onBlur={() => handleCheckoutCepChange(checkoutCep)}
                           className="w-full md:w-1/2 px-4 py-3 rounded-xl border-slate-200 dark:border-white/10 bg-white dark:bg-[#1c1c1e] text-sm focus:ring-2 focus:ring-[#0071E3]/20 focus:border-[#0071E3] transition-all outline-none font-mono"
                           placeholder="00000-000"
                         />
@@ -831,12 +883,28 @@ export const CheckoutPage: React.FC = () => {
                 </div>
               </div>
 
+              {/* Alerta de Frete Estimado Bloqueando Compra */}
+              {deliveryType !== 'Retirada na Loja' && selectedShippingOption?.estimated && (
+                <div className="mt-4 p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-amber-700 dark:text-amber-400 text-xs font-semibold flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-amber-600 mt-0.5" />
+                  <span>A modalidade de frete selecionada possui valor estimado de contingência. Não é permitido concluir a compra com frete estimado. Por favor, tente recalcular ou escolha a modalidade <strong>Retirada na Loja (Grátis)</strong>.</span>
+                </div>
+              )}
+
+              {/* Alerta de Dados Faltantes no Cadastro */}
+              {deliveryType !== 'Retirada na Loja' && (!currentUser.cpf || !currentUser.telefone) && (
+                <div className="mt-4 p-3.5 bg-rose-500/10 border border-rose-500/30 rounded-2xl text-rose-700 dark:text-rose-400 text-xs font-semibold flex items-center justify-between gap-2">
+                  <span>Faltam CPF ou Telefone para envio.</span>
+                  <button onClick={() => setIsProfileModalOpen(true)} className="underline cursor-pointer font-bold shrink-0">Completar Cadastro</button>
+                </div>
+              )}
+
               {/* Botão Oficial de Concluir para Pix */}
               <button
                 onClick={() => handleConfirmOrder(currentPixPaymentId, 'Pendente')}
-                disabled={isProcessing || onlineTab === 'credit'}
-                className={`w-full mt-8 py-4 rounded-2xl font-semibold text-base transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                  isProcessing || onlineTab === 'credit' 
+                disabled={isProcessing || onlineTab === 'credit' || (deliveryType !== 'Retirada na Loja' && Boolean(selectedShippingOption?.estimated))}
+                className={`w-full mt-6 py-4 rounded-2xl font-semibold text-base transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                  isProcessing || onlineTab === 'credit' || (deliveryType !== 'Retirada na Loja' && Boolean(selectedShippingOption?.estimated))
                     ? 'opacity-50 cursor-not-allowed bg-slate-100 dark:bg-white/5 text-slate-400' 
                     : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm'
                 }`}

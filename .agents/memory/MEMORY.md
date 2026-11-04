@@ -528,3 +528,67 @@ Este arquivo é a memória persistente do projeto (AG Kit), consolidando decisõ
       * Pedidos: 2+ pares/itens no carrinho -> Caixa Grande.
     - **Auditoria de Frete (`AdminBoxManager.tsx`)**:
       * Tabela de auditoria no gerenciador de embalagens monitorando o saldo financeiro de frete por embalagem utilizada.
+
+62. **Blindagem e Correção da Integração com Melhor Envio (Implementado):**
+    - **Cotação sem Falsos Positivos & Estimativa com Bloqueio de Compra (`melhorEnvioAdapter.ts`, `ShippingCalculator.tsx`, `CheckoutPage.tsx`)**:
+      * Em caso de falha de comunicação ou ausência de cotações oficiais no Sandbox, as opções de contingência retornam marcadas estritamente com `estimated: true` e nomes com sufixo `(Estimativa)`.
+      * `ShippingCalculator.tsx` exibe badge visual `⚠️ Estimativa` e nota explicativa de cotação contingencial.
+      * `CheckoutPage.tsx` bloqueia categoricamente a conclusão de compras com frete estimado (`estimated: true`), alertando o cliente para recalcular o frete ou selecionar a opção de Retirada na Loja (Grátis), atendendo à diretriz de "estimativa sem chegar à compra".
+      * Em ambiente de produção (`production`), qualquer falha na cotação oficial da transportadora dispara erro transparente (`502` / `500`), sem aplicar preços arbitrários silenciosos.
+    - **Obrigatoriedade de Cadastro Completo para Entregas (Fim dos Dados Fictícios)**:
+      * No `CheckoutPage.tsx`, se o cliente optar por entrega no endereço, a finalização exige compulsoriamente CPF válido (11 dígitos), telefone com DDD, rua, número residencial e bairro. Se houver pendências, o checkout bloqueia o avanço e abre o modal `CompleteProfileModal`.
+      * No `ShippingInfoCard.tsx` (painel administrativo), a emissão valida todos os campos do destinatário. Se faltar CPF, telefone ou número, a emissão é interrompida com alerta instruindo o lojista a contatar o cliente pelo WhatsApp para completar o cadastro.
+      * No `melhorEnvioAdapter.ts` e `server.ts`, foram eliminados todos os fallbacks com CPF `04067032307`, telefone `99999999999` e cidade forçada, garantindo validação estrita com retorno `422`.
+    - **Preservação do CEP Real do Cliente**:
+      * Eliminada a substituição cega de CEPs de Caxias por `65604000`. O CEP real digitado pelo cliente é mantido e transmitido para a transportadora.
+      * Caso o CEP de destino seja idêntico à origem da loja (`65600060`), o sistema bloqueia remessa externa e instrui despacho via Entrega Própria da loja.
+    - **Idempotência e Recuperação de Etiquetas (`server.ts` e `ShippingInfoCard.tsx`)**:
+      * A rota `/api/shipping/labels/generate` verifica se o pedido já possui `melhorEnvioId` gerado no Firestore. Se existir, recupera a etiqueta existente em vez de recomprar uma nova remessa no Melhor Envio.
+      * Salva imediatamente `melhorEnvioId`, `trackingCode` e `labelUrl` no Firestore após a compra da remessa.
+    - **Cancelamento Real de Remessas (`cancelLabel`)**:
+      * O adapter agora valida a resposta HTTP e o payload do Melhor Envio (`canceled: true`). Se a transportadora recusar, lança erro com a mensagem real para a interface em vez de retornar `true` incondicionalmente.
+    - **Unificação do Mapeamento de UF por CEP (`orderUtils.ts`)**:
+      * `getUfFromCep` unificado em `src/utils/orderUtils.ts` cobrindo todas as 27 unidades federativas do Brasil (incluindo AP, RR, AC, RO, TO, MS, MT, DF, etc.) a partir dos prefixos oficiais dos Correios, eliminando duplicações no adapter e no card de frete.
+    - **Segurança de Tokens no Backend e Suporte a Webhook Autenticado**:
+      * Variáveis de token (`MELHOR_ENVIO_TOKEN`, `CLIENT_SECRET`, `WEBHOOK_SECRET`) lidas exclusivamente no backend Node.js (`process.env`), sem exposição a variáveis `VITE_` no bundle do navegador.
+      * Token pessoal JWT configurado em `.env` e `functions/.env` para o ambiente Sandbox (`https://sandbox.melhorenvio.com.br`), testado com sucesso end-to-end (cotação com Jadlog/Correios, adição ao carrinho, checkout de pagamento de etiquetas, geração e link público de impressão).
+      * A rota de webhook `/api/webhooks/shipping` valida a assinatura do segredo quando `MELHOR_ENVIO_WEBHOOK_SECRET` estiver configurado no ambiente.
+      * Valor segurado (`insuranceValue`) repassado nas cotações e remessas para proteção da carga.
+
+63. **Etiqueta Própria e Gestão de Entrega Local em Caxias - MA (`localDelivery.ts`, `barcodeUtils.tsx`, `LocalDeliveryLabel.tsx`, `ShippingLabelPrintModal.tsx`, `ShippingInfoCard.tsx`, `CheckoutPage.tsx`) (Implementado):**
+    - **Fonte Única de Elegibilidade Urbana (`isUrbanCaxias`)**:
+      * Validação centralizada de CEPs urbanos de Caxias-MA (`65600` a `65609`), cidade/UF e exclusão automática de termos rurais/povoados da rota de moto da loja.
+      * Pedidos locais recebem a flag `deliveryMode: 'LOCAL'` já no checkout, separando categoricamente remessas locais de envios via Melhor Envio.
+    - **Etiqueta Térmica 100x150 mm e Folha A4 com Canhoto de Recebimento (`LocalDeliveryLabel.tsx`)**:
+      * Formato de etiqueta profissional com suporte a rolos térmicos adesivos (100x150 mm) e folhas A4, estilizados via `@media print` com isolamento completo do modal e borda sólida de alto contraste.
+      * **Canhoto destacável**: Comprovante com nome legível do recebedor, documento (RG/CPF), parentesco, data/hora e campo de assinatura.
+      * **Destaque ao Motoboy**: Nome do cliente, telefone com DDD, endereço com **NÚMERO E BAIRRO EM ALTO RELEVO**, e CEP real do cliente (sem fallbacks fictícios).
+      * **Indicador Financeiro em Destaque**: Distinção clara e chamativa entre `✅ JÁ PAGO ONLINE (NÃO COBRAR)` e `⚠️ COBRAR NA ENTREGA: R$ XX,XX` com a forma de pagamento (Dinheiro / Maquininha).
+      * **Código de Barras Code 39 100% Nativo (`barcodeUtils.tsx`)**: Renderizado em SVG puro sem dependências externas, legível por qualquer leitor laser ou câmera de celular.
+    - **Ciclo de Status da Entrega Local no Painel Administrativo (`ShippingInfoCard.tsx`)**:
+      * Pedidos locais não exibem botões de remessa do Melhor Envio.
+      * Lojista conta com botões de avanço de fluxo:
+        1. **"Imprimir Etiqueta da Loja (Térmica / A4)"**: Registra o número do romaneio sequencial (`EP-AAAAMMDD-XXXXX`) e marca `labelStatus: 'impressa'`.
+        2. **"🛵 Despachar com Motoboy (Saiu para Entrega)"**: Avança o status para `'Em Trânsito'`, grava data/hora e abre o WhatsApp com mensagem formatada para avisar o cliente em 1 clique.
+        3. **"✅ Confirmar Entrega Realizada"**: Avança o status para `'Entregue'` com registro de `deliveredAt`.
+
+64. **Higienização de Endereço & Isolamento Estrito do Campo Logradouro/Rua (`addressUtils.ts`, `MeusDados.tsx`, `CompleteProfileModal.tsx`, `CheckoutPage.tsx`, `AppContext.tsx`, `moblinkClientesService.ts`) (Implementado):**
+    - **Diagnóstico da Causa Raiz**:
+      * Ao salvar o perfil do cliente no `MeusDados.tsx` e `CompleteProfileModal.tsx`, uma concatenação `combinedEndereco` (`${endereco}, Nº ${numero}, ${bairro}...`) estava sendo atribuída diretamente ao campo `endereco: combinedEndereco` no `updateUserProfile`.
+      * Como o campo `endereco` alimenta o input **Logradouro / Rua**, a cada salvamento ou carregamento do perfil o endereço completo era inserido no input e concatenado novamente (gerando o sintoma relatado: `"Rua 07 de Março,, Nº 07, vila paraiso... Nº 07, vila paraiso..."`).
+    - **Solução Arquitetural**:
+      * Criado o utilitário `src/utils/addressUtils.ts` com as funções `extractStreetName` e `formatFullAddress`.
+      * `extractStreetName` higieniza strings sujas ou legadas, isolando com precisão cirúrgica apenas o nome da rua (ex: extrai `"Rua 07 de Março"` mesmo se o banco contiver concatenações de número, CEP ou bairro).
+      * Adicionado o campo `formattedAddress?: string` na interface `UserProfile` (`types.ts`).
+      * Ao salvar (`handleSubmit`), `endereco` armazena **estritamente o logradouro/rua limpo** (`cleanStreet`), enquanto o endereço completo montado é persistido em `formattedAddress`.
+      * Sanitização proativa no `updateUserProfile` do `AppContext.tsx`, garantindo que nenhuma parte do sistema consiga mais gravar endereços compostos no atributo `endereco`.
+      * Blindagem aplicada também no carregamento de clientes do MobLink ERP (`moblinkClientesService.ts`), na montagem de endereços do checkout (`CheckoutPage.tsx`) e na impressão de etiquetas de entrega urbana (`LocalDeliveryLabel.tsx`).
+
+65. **Autopreenchimento Resiliente de Endereço por CEP (`cepService.ts`, `MeusDados.tsx`, `CompleteProfileModal.tsx`, `CheckoutPage.tsx`) (Implementado):**
+    - **Multi-Provedor Paralelo Ultra-Rápido (`cepService.ts`)**:
+      * Em vez de depender exclusivamente do ViaCEP (que falha ou fica lento em horários de pico), o serviço agora dispara consultas simultâneas para 4 provedores em alta velocidade com timeout de 4s: **ViaCEP**, **BrasilAPI**, **AwesomeAPI** e **OpenCEP**.
+      * Resposta imediata (0ms) via cache em memória (`cepCache`) para qualquer CEP já pesquisado na sessão.
+      * **Fallback Inteligente por Faixa Regional**: Se o CEP for recém-criado ou não constar em nenhuma base externa pública (como CEPs específicos do interior do Maranhão), o sistema detecta a faixa oficial (`65600-xxx` a `65609-xxx` -> Caxias / MA; `64000-xxx` -> Teresina / PI) e preenche automaticamente **Cidade** e **Estado (UF)** com base no `getUfFromCep`.
+    - **Autopreenchimento em Tempo Real nos Formulários**:
+      * Ao digitar os 8 dígitos ou sair do campo (`onBlur`), os campos **Logradouro / Rua**, **Bairro**, **Cidade** e **UF (Estado)** são preenchidos instantaneamente.
+      * Foco automático inteligente: Se a rua e bairro foram localizados, o cursor avança diretamente para o campo **Número** (`numeroInputRef`); se o CEP for genérico de município, foca no campo **Rua** para agilizar a digitação.

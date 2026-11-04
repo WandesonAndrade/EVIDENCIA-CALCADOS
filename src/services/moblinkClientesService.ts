@@ -14,6 +14,7 @@ import { evidenciaAuthService } from "../lib/evidenciaAuth";
 import { API_ENDPOINTS } from "./api";
 import { parseValor } from "../utils/numberUtils";
 import { checkInstallmentDiscountEligibility } from "./installmentDiscountService";
+import { extractStreetName } from "../utils/addressUtils";
 
 export const MOBLINK_CLIENTES_API_URL = API_ENDPOINTS.CLIENTES;
 
@@ -108,7 +109,7 @@ export const moblinkClientesService = {
       cpf: rawCpf,
       rg: client.rg || "",
       telefone: client.celular || client.telefone || "",
-      endereco: client.endereco || "",
+      endereco: extractStreetName(client.endereco || ""),
       numero: client.numero_end || "",
       bairro: client.bairro || "",
       cidade: client.cidade || "Caxias",
