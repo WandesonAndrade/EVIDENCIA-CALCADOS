@@ -51,7 +51,7 @@ export class MelhorEnvioAuth {
     }
 
     throw new Error(
-      "[MelhorEnvioAuth] Token de API do Melhor Envio não encontrado nas variáveis de ambiente (MELHOR_ENVIO_TOKEN / VITE_MELHOR_ENVIO_TOKEN)."
+      "Token de API do Melhor Envio não configurado no arquivo .env (chave: MELHOR_ENVIO_TOKEN). Por favor, adicione o token da sua conta Sandbox no arquivo .env da raiz do projeto e reinicie o servidor Node.js."
     );
   }
 

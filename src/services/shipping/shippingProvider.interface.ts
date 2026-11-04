@@ -35,6 +35,7 @@ export interface IShippingCalculatePayload {
   box?: IShippingBoxDimensions;
   productsCount?: number;
   cartTotal?: number;     // Valor total dos produtos para regras de frete grátis local
+  insuranceValue?: number; // Valor segurado dos itens
 }
 
 export interface IShippingOption {
@@ -52,6 +53,7 @@ export interface IShippingOption {
   error?: string;
   isCheapest?: boolean;     // Selo "Mais Barato"
   isFastest?: boolean;      // Selo "Mais Rápido"
+  estimated?: boolean;      // Quando true: cálculo por estimativa de contingência (não oficial / compra bloqueada)
 }
 
 export interface IContactAddressPayload {
@@ -79,6 +81,7 @@ export interface ICreateLabelPayload {
     unitary_value: number;
   }>;
   box?: IShippingBoxDimensions;
+  insuranceValue?: number;
 }
 
 export interface ILabelResult {
@@ -86,6 +89,7 @@ export interface ILabelResult {
   trackingCode?: string;
   labelUrl?: string;
   status: string;
+  protocol?: string;
 }
 
 export interface ITrackingEvent {

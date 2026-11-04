@@ -1291,7 +1291,7 @@ app.get("/api/shipping/cep/:cep", async (req, res) => {
 // --- ROTA PROXY DE COTAÇÃO DE FRETE VIA PROVEDOR ATIVO ---
 app.post("/api/shipping/calculate", async (req, res) => {
   try {
-    const { toPostalCode, fromPostalCode, box, cartTotal } = req.body || {};
+    const { toPostalCode, fromPostalCode, box, cartTotal, insuranceValue } = req.body || {};
 
     if (!toPostalCode || typeof toPostalCode !== "string") {
       return res.status(400).json({ success: false, error: "CEP de destino (toPostalCode) é obrigatório." });
@@ -1308,6 +1308,7 @@ app.post("/api/shipping/calculate", async (req, res) => {
       fromPostalCode,
       box,
       cartTotal: typeof cartTotal === "number" ? cartTotal : undefined,
+      insuranceValue: typeof insuranceValue === "number" ? insuranceValue : (typeof cartTotal === "number" ? cartTotal : undefined),
     });
 
     return res.json({
@@ -1327,10 +1328,37 @@ app.post("/api/shipping/calculate", async (req, res) => {
 // --- ROTA PROXY DE GERAÇÃO E COMPRA DE ETIQUETAS DE FRETE ---
 app.post("/api/shipping/labels/generate", async (req, res) => {
   try {
-    const { orderId, serviceId, to, products, box, from } = req.body;
+    const { orderId, serviceId, to, products, box, from, insuranceValue } = req.body;
 
     if (!orderId || !to || !products) {
       return res.status(400).json({ success: false, error: "Dados incompletos para geração de etiqueta (orderId, to, products)." });
+    }
+
+    // Idempotência: Se o pedido já possui melhorEnvioId registrado no Firestore, tenta reutilizar
+    if (db && orderId) {
+      try {
+        const orderRef = doc(db, "orders", String(orderId));
+        const orderSnap = await getDoc(orderRef);
+        if (orderSnap.exists()) {
+          const oData = orderSnap.data();
+          if (oData.melhorEnvioId && (oData.labelUrl || oData.trackingCode)) {
+            console.log(`ℹ️ [Shipping Label Generate] Pedido ${orderId} já possui etiqueta emitida: #${oData.melhorEnvioId}. Reutilizando dados existentes.`);
+            return res.json({
+              success: true,
+              provider: "melhorenvio",
+              label: {
+                shipmentId: oData.melhorEnvioId,
+                trackingCode: oData.trackingCode,
+                labelUrl: oData.labelUrl,
+                status: oData.labelStatus || "gerada",
+              },
+              reused: true,
+            });
+          }
+        }
+      } catch (dbErr) {
+        console.warn("[Shipping Label Generate] Falha ao verificar idempotência no Firestore:", dbErr);
+      }
     }
 
     const provider = ShippingService.getProvider();
@@ -1341,7 +1369,25 @@ app.post("/api/shipping/labels/generate", async (req, res) => {
       products,
       box,
       from,
+      insuranceValue,
     });
+
+    // Persistência imediata do ID e URL da remessa no Firestore logo após emissão bem-sucedida
+    if (db && orderId && result.shipmentId) {
+      try {
+        const orderRef = doc(db, "orders", String(orderId));
+        await updateDoc(orderRef, {
+          melhorEnvioId: result.shipmentId,
+          trackingCode: result.trackingCode || null,
+          labelUrl: result.labelUrl || null,
+          labelStatus: "gerada",
+          status: "Em Preparação",
+          updatedAt: new Date().toISOString(),
+        });
+      } catch (saveErr) {
+        console.warn("[Shipping Label Generate] Etiqueta comprada mas falhou ao gravar no Firestore:", saveErr);
+      }
+    }
 
     return res.json({
       success: true,
@@ -1350,9 +1396,11 @@ app.post("/api/shipping/labels/generate", async (req, res) => {
     });
   } catch (error: any) {
     console.error("[Shipping Label Generate API Error]:", error.message);
-    return res.status(500).json({
+    const isValidation = error.message?.includes("Dados incompletos") || error.message?.includes("inválido") || error.message?.includes("idêntico");
+    return res.status(isValidation ? 422 : 500).json({
       success: false,
       error: error.message || "Erro ao gerar etiqueta no Melhor Envio",
+      isValidationError: isValidation,
     });
   }
 });
@@ -1367,18 +1415,18 @@ app.post("/api/shipping/labels/cancel", async (req, res) => {
     }
 
     const provider = ShippingService.getProvider();
-    const success = await provider.cancelLabel(shipmentId, reason);
+    await provider.cancelLabel(shipmentId, reason);
 
     return res.json({
-      success,
+      success: true,
       provider: provider.providerName,
-      message: "Solicitação de cancelamento enviada.",
+      message: "Etiqueta cancelada com sucesso no Melhor Envio.",
     });
   } catch (error: any) {
     console.error("[Shipping Label Cancel API Error]:", error.message);
-    return res.status(500).json({
+    return res.status(400).json({
       success: false,
-      error: error.message || "Erro ao cancelar etiqueta de frete",
+      error: error.message || "Erro ao cancelar etiqueta de frete no Melhor Envio",
     });
   }
 });
@@ -1557,6 +1605,16 @@ app.post("/api/upload-photo", uploadMiddleware.single("file"), async (req, res) 
 // --- ROTA DE WEBHOOK DO MELHOR ENVIO (STATUS & TRAJETÓRIA AUTOMÁTICA) ---
 app.post("/api/webhooks/shipping", async (req, res) => {
   console.log("📦 [Shipping Webhook] Notificação recebida do Melhor Envio:", JSON.stringify(req.body));
+
+  // Validação opcional de segredo caso configurado no ambiente
+  const webhookSecret = process.env.MELHOR_ENVIO_WEBHOOK_SECRET;
+  if (webhookSecret) {
+    const signature = (req.headers["x-me-signature"] || req.headers["x-melhorenvio-signature"] || req.headers["authorization"] || req.query.token) as string;
+    if (!signature || (signature !== webhookSecret && !signature.includes(webhookSecret))) {
+      console.warn("⚠️ [Shipping Webhook] Rejeitado: assinatura inválida ou ausente.");
+      return res.status(401).json({ error: "Assinatura do webhook inválida ou ausente." });
+    }
+  }
 
   try {
     const provider = ShippingService.getProvider();

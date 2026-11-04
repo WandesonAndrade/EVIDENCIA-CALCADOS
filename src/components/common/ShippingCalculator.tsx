@@ -79,6 +79,7 @@ export const ShippingCalculator: React.FC<ShippingCalculatorProps> = ({
           toPostalCode: cepToUse,
           box: boxToUse,
           cartTotal,
+          insuranceValue: cartTotal,
         }),
       });
 
@@ -268,7 +269,12 @@ export const ShippingCalculator: React.FC<ShippingCalculatorProps> = ({
                       {opt.price === 0 ? "GRÁTIS" : opt.price.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                     </div>
 
-                    <div className="flex items-center justify-end gap-1 mt-1">
+                    <div className="flex items-center justify-end gap-1 mt-1 flex-wrap">
+                      {opt.estimated && (
+                        <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full">
+                          ⚠️ Estimativa
+                        </span>
+                      )}
                       {opt.price === 0 ? (
                         <span className="inline-flex items-center gap-0.5 text-[10px] font-black text-emerald-800 bg-emerald-100 dark:bg-emerald-950 dark:text-emerald-300 px-2 py-0.5 rounded-full">
                           🎉 Frete Grátis
@@ -289,6 +295,13 @@ export const ShippingCalculator: React.FC<ShippingCalculatorProps> = ({
               );
             })}
           </div>
+
+          {options.some((o) => o.estimated) && (
+            <div className="p-2.5 bg-amber-50 border border-amber-200/80 rounded-xl text-amber-800 text-[11px] font-medium flex items-center gap-1.5 mt-2">
+              <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+              <span>Valores com aviso de estimativa (cotação oficial em contingência).</span>
+            </div>
+          )}
         </div>
       )}
     </div>

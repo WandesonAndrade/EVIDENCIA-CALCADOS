@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Truck, MapPin, Store, Clock, CheckCircle2, Printer, Package, ExternalLink, XCircle, RefreshCw, AlertTriangle, Edit2, Check, X, ChevronDown, ChevronUp, Sparkles } from 'lucide-react';
+import { Truck, MapPin, Store, Clock, CheckCircle2, Printer, Package, ExternalLink, XCircle, RefreshCw, AlertTriangle, Edit2, Check, X, ChevronDown, ChevronUp, Sparkles, Bike, Send } from 'lucide-react';
 import { Order, OrderStatus } from '../../types';
-import { formatCurrency } from '../../utils/orderUtils';
+import { formatCurrency, getUfFromCep } from '../../utils/orderUtils';
+import { isUrbanCaxias } from '../../utils/localDelivery';
 import { db } from '../../lib/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { ShippingLabelPrintModal } from './ShippingLabelPrintModal';
@@ -22,10 +23,15 @@ export const ShippingInfoCard: React.FC<Props> = ({ order, isDark: _isDark, vari
   const isStorePickup = order.deliveryType === 'Retirada na Loja';
   const isOtherCities = order.deliveryType === 'Entrega para Outras Cidades';
   const isLocalDelivery = !isStorePickup && !isOtherCities && (
-    (order.deliveryType || '').toLowerCase().includes('caxias') ||
-    (order.deliveryType || '').toLowerCase().includes('própria') ||
-    (order.deliveryType || '').toLowerCase().includes('propria') ||
-    (!order.deliveryType && (order.city || '').toLowerCase().includes('caxias'))
+    order.deliveryMode === 'LOCAL' ||
+    isUrbanCaxias({
+      cep: order.customerCep,
+      city: order.city,
+      uf: order.uf || order.customerUf,
+      address: order.deliveryAddress,
+      bairro: order.customerBairro,
+      deliveryType: order.deliveryType,
+    })
   );
 
   const [loading, setLoading] = useState(false);
@@ -237,45 +243,43 @@ export const ShippingInfoCard: React.FC<Props> = ({ order, isDark: _isDark, vari
 
   const handleGenerateLabel = async () => {
     setLoading(true);
-    // Extração robusta do CEP (caso venha no campo customerCep ou no texto do deliveryAddress)
+    setLabelError(null);
+
+    const rawCpf = (order.customerCpf || '').replace(/\D/g, '');
+    const rawPhone = (order.customerPhone || '').replace(/\D/g, '');
+    const rawCep = (order.customerCep || '').replace(/\D/g, '');
     const cepMatch = (order.deliveryAddress || '').match(/(\d{5}-?\d{3})/);
-    let targetCep = (order.customerCep || '').replace(/\D/g, '');
-    if (targetCep.length !== 8 && cepMatch) {
-      targetCep = cepMatch[1].replace(/\D/g, '');
+    const targetCep = rawCep.length === 8 ? rawCep : (cepMatch ? cepMatch[1].replace(/\D/g, '') : '');
+
+    // Validação preventiva no painel administrativo antes de enviar para o Melhor Envio
+    const missingFields: string[] = [];
+    if (!order.customerName || order.customerName.trim().length < 2) missingFields.push('Nome do cliente');
+    if (!rawCpf || (rawCpf.length !== 11 && rawCpf.length !== 14)) missingFields.push('CPF válido');
+    if (!rawPhone || rawPhone.length < 10) missingFields.push('Telefone de contato');
+    if (!targetCep || targetCep.length !== 8) missingFields.push('CEP válido com 8 dígitos');
+    if (!order.customerNumero || order.customerNumero === 'S/N' || !order.customerNumero.trim()) {
+      missingFields.push('Número do endereço');
     }
-    // Se ainda for inválido ou for 65600000 (rejeitado pela Jadlog no ME), usa o CEP oficial de Caxias 65600060
-    // Identificação inteligente de Cidade e UF
-    const cleanCepNumbers = targetCep.replace(/\D/g, '');
-    const getUfFromCep = (cepStr: string): string => {
-      const p2 = parseInt(cepStr.substring(0, 2), 10);
-      if (p2 >= 1 && p2 <= 19) return 'SP';
-      if (p2 >= 20 && p2 <= 28) return 'RJ';
-      if (p2 === 29) return 'ES';
-      if (p2 >= 30 && p2 <= 39) return 'MG';
-      if (p2 >= 40 && p2 <= 48) return 'BA';
-      if (p2 === 49) return 'SE';
-      if (p2 >= 50 && p2 <= 56) return 'PE';
-      if (p2 === 57) return 'AL';
-      if (p2 === 58) return 'PB';
-      if (p2 === 59) return 'RN';
-      if (p2 >= 60 && p2 <= 63) return 'CE';
-      if (p2 === 64) return 'PI'; // Teresina e Piauí
-      if (p2 === 65) return 'MA'; // Caxias e Maranhão
-      if (p2 >= 66 && p2 <= 68) return 'PA';
-      if (p2 === 69) return 'AM';
-      if (p2 >= 70 && p2 <= 72) return 'DF';
-      if (p2 >= 73 && p2 <= 76) return 'GO';
-      if (p2 === 77) return 'TO';
-      if (p2 >= 78 && p2 <= 79) return 'MT';
-      if (p2 >= 80 && p2 <= 87) return 'PR';
-      if (p2 >= 88 && p2 <= 89) return 'SC';
-      if (p2 >= 90 && p2 <= 99) return 'RS';
-      return 'MA';
-    };
+
+    if (rawCpf === '04067032307' || rawCpf === '60997831000101') {
+      const msg = 'O CPF do cliente não pode ser igual ao CPF/CNPJ da própria loja (remetente). Em pedidos de teste, altere o CPF do destinatário para emitir no Melhor Envio.';
+      setLabelError(msg);
+      addToast('CPF Inválido para Envio', msg, 'error');
+      setLoading(false);
+      return;
+    }
+
+    if (missingFields.length > 0) {
+      const msg = `Não é possível emitir etiqueta no Melhor Envio: ${missingFields.join(', ')} ausentes no pedido. Entre em contato com o cliente via WhatsApp para completar o cadastro antes da emissão.`;
+      setLabelError(msg);
+      addToast('Dados Incompletos', msg, 'warning');
+      setLoading(false);
+      return;
+    }
 
     const ufMatch = (order.deliveryAddress || '').match(/\/([A-Za-z]{2})/);
     const addressUf = ufMatch ? ufMatch[1].toUpperCase() : '';
-    const targetUf = addressUf || getUfFromCep(cleanCepNumbers);
+    const targetUf = addressUf || getUfFromCep(targetCep);
 
     const cityMatch = (order.deliveryAddress || '').match(/,\s*([^,/-]+)\/[A-Za-z]{2}/);
     const targetCity = (order as any).customerCidade || order.city || (cityMatch ? cityMatch[1].trim() : (targetUf === 'PI' ? 'Teresina' : 'Caxias'));
@@ -287,15 +291,15 @@ export const ShippingInfoCard: React.FC<Props> = ({ order, isDark: _isDark, vari
         body: JSON.stringify({
           orderId: order.id,
           to: {
-            name: order.customerName || 'Cliente',
-            phone: (order.customerPhone || '99999999999').replace(/\D/g, ''),
+            name: order.customerName.trim(),
+            phone: rawPhone,
             email: order.customerEmail || 'cliente@evidenciacalcados.com.br',
-            document: (order.customerCpf || '04067032307').replace(/\D/g, ''),
-            address: order.deliveryAddress?.split(',')[0]?.trim() || order.deliveryAddress || 'Rua Afonso Pena',
-            number: order.customerNumero || '295',
-            district: order.customerBairro || 'Centro',
-            city: targetCity,
-            state_abbr: targetUf,
+            document: rawCpf,
+            address: order.deliveryAddress?.split(',')[0]?.trim() || order.deliveryAddress || 'Rua',
+            number: order.customerNumero.trim(),
+            district: order.customerBairro?.trim() || 'Centro',
+            city: targetCity.trim(),
+            state_abbr: targetUf.trim(),
             postal_code: targetCep,
           },
           products: order.items.map((item) => ({
@@ -310,12 +314,9 @@ export const ShippingInfoCard: React.FC<Props> = ({ order, isDark: _isDark, vari
             weight: activeOrderBox.weight,
           },
           serviceId: currentOrder.shippingServiceId,
+          insuranceValue: order.subtotal ?? order.total,
         }),
       });
-
-      if (!response.ok) {
-        throw new Error('Falha na resposta do servidor proxy de etiquetas.');
-      }
 
       const data = await response.json().catch(() => ({}));
       if (!response.ok || !data.success || !data.label) {
@@ -336,7 +337,11 @@ export const ShippingInfoCard: React.FC<Props> = ({ order, isDark: _isDark, vari
       if (onStatusChange) {
         onStatusChange(order.id, 'Em Preparação');
       }
-      addToast('Etiqueta Gerada', 'Etiqueta emitida com sucesso e pedido em preparação.', 'success');
+      addToast(
+        data.reused ? 'Etiqueta Reutilizada' : 'Etiqueta Gerada',
+        data.reused ? 'Etiqueta existente recuperada com sucesso.' : 'Etiqueta emitida com sucesso e pedido em preparação.',
+        'success'
+      );
       setLabelError(null);
 
       if (data.label.labelUrl) {
@@ -345,7 +350,7 @@ export const ShippingInfoCard: React.FC<Props> = ({ order, isDark: _isDark, vari
     } catch (err: any) {
       console.error('📌 Erro ao gerar etiqueta no Melhor Envio:', err);
       setLabelError(err?.message || 'Erro inesperado ao gerar etiqueta no Melhor Envio.');
-      addToast('Erro', err?.message || 'Falha ao emitir etiqueta no Melhor Envio.', 'error');
+      addToast('Erro na Etiqueta', err?.message || 'Falha ao emitir etiqueta no Melhor Envio.', 'error');
     } finally {
       setLoading(false);
     }
@@ -357,7 +362,7 @@ export const ShippingInfoCard: React.FC<Props> = ({ order, isDark: _isDark, vari
 
     setLoading(true);
     try {
-      await fetch('/api/shipping/labels/cancel', {
+      const res = await fetch('/api/shipping/labels/cancel', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -365,6 +370,11 @@ export const ShippingInfoCard: React.FC<Props> = ({ order, isDark: _isDark, vari
           reason: 'Cancelado via painel administrativo',
         }),
       });
+
+      const resData = await res.json().catch(() => ({}));
+      if (!res.ok || resData.success === false) {
+        throw new Error(resData.error || 'A transportadora recusou o cancelamento desta remessa.');
+      }
 
       const updatedFields = {
         melhorEnvioId: '',
@@ -375,12 +385,73 @@ export const ShippingInfoCard: React.FC<Props> = ({ order, isDark: _isDark, vari
 
       setCurrentOrder((prev) => ({ ...prev, ...updatedFields }));
       await updateOrderData(order.id, updatedFields);
-      addToast('Etiqueta Cancelada', 'A etiqueta foi cancelada com sucesso.', 'info');
+      addToast('Etiqueta Cancelada', 'A etiqueta foi cancelada com sucesso no Melhor Envio.', 'info');
     } catch (err: any) {
       console.error('📌 Erro ao cancelar etiqueta:', err);
-      addToast('Erro', 'Não foi possível cancelar a etiqueta no momento.', 'error');
+      addToast('Erro ao Cancelar', err.message || 'Não foi possível cancelar a etiqueta no momento.', 'error');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleLocalDispatch = async () => {
+    try {
+      const updates: Partial<Order> = {
+        status: 'Em Trânsito',
+        deliveryMode: 'LOCAL',
+        labelStatus: currentOrder.labelStatus || 'impressa',
+      };
+      setCurrentOrder((prev) => ({ ...prev, ...updates }));
+      await updateOrderData(currentOrder.id, updates);
+      if (onStatusChange) {
+        onStatusChange(currentOrder.id, 'Em Trânsito');
+      }
+      addToast('Pedido Despachado', 'O pedido saiu para entrega com o motoboy da loja.', 'success');
+
+      const rawPhone = (currentOrder.customerPhone || '').replace(/\D/g, '');
+      if (rawPhone.length >= 10) {
+        const text = encodeURIComponent(
+          `Olá, ${currentOrder.customerName.split(' ')[0]}! Seu pedido #${currentOrder.orderNumber || currentOrder.id} na Evidência Calçados acabou de sair para entrega com nosso entregador e chegará em breve no seu endereço em Caxias!`
+        );
+        window.open(`https://wa.me/55${rawPhone}?text=${text}`, '_blank');
+      }
+    } catch (err) {
+      console.error('Erro ao despachar pedido local:', err);
+      addToast('Erro', 'Não foi possível atualizar o status de entrega.', 'error');
+    }
+  };
+
+  const handleLocalDelivered = async () => {
+    try {
+      const updates: Partial<Order> = {
+        status: 'Entregue',
+        deliveryMode: 'LOCAL',
+        deliveredAt: new Date().toISOString(),
+      };
+      setCurrentOrder((prev) => ({ ...prev, ...updates }));
+      await updateOrderData(currentOrder.id, updates);
+      if (onStatusChange) {
+        onStatusChange(currentOrder.id, 'Entregue');
+      }
+      addToast('Entrega Confirmada', 'Pedido registrado como entregue com sucesso!', 'success');
+    } catch (err) {
+      console.error('Erro ao confirmar entrega:', err);
+      addToast('Erro', 'Não foi possível confirmar a entrega.', 'error');
+    }
+  };
+
+  const handleLocalLabelPrinted = async (labelNumber: string) => {
+    try {
+      const updates: Partial<Order> = {
+        localLabelNumber: labelNumber,
+        labelStatus: 'impressa',
+        deliveryMode: 'LOCAL',
+      };
+      setCurrentOrder((prev) => ({ ...prev, ...updates }));
+      await updateOrderData(currentOrder.id, updates);
+      addToast('Romaneio Registrado', `Etiqueta local ${labelNumber} gerada com sucesso.`, 'info');
+    } catch (err) {
+      console.warn('Falha ao registrar romaneio:', err);
     }
   };
 
@@ -433,26 +504,79 @@ export const ShippingInfoCard: React.FC<Props> = ({ order, isDark: _isDark, vari
 
           {/* 1. SE FOR ENTREGA PRÓPRIA DA LOJA (CAXIAS URBANA) */}
           {isLocalDelivery && (
-            <div className="pt-3 border-t border-slate-200/60 dark:border-slate-800 space-y-2">
+            <div className="pt-3 border-t border-slate-200/60 dark:border-slate-800 space-y-2.5">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider flex items-center gap-1">
-                  <Truck className="w-3.5 h-3.5" />
+                  <Bike className="w-3.5 h-3.5" />
                   <span>Entrega Própria da Loja</span>
                 </span>
                 <span className="text-[10px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-bold px-2 py-0.5 rounded-full border border-emerald-500/20">
                   Caxias Urbana
                 </span>
               </div>
+
+              {currentOrder.localLabelNumber && (
+                <div className="flex items-center justify-between p-2 rounded-xl bg-emerald-500/5 border border-emerald-500/15 text-[11px]">
+                  <span className="text-slate-500">Romaneio Local:</span>
+                  <span className="font-mono font-bold text-emerald-700 dark:text-emerald-400">
+                    {currentOrder.localLabelNumber}
+                  </span>
+                </div>
+              )}
+
               <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight">
-                Entrega expressa própria da Evidência Calçados. Não gera etiqueta externa nos Correios.
+                Entrega expressa direta pelo entregador da loja. Não utiliza Melhor Envio nem Correios.
               </p>
+
+              {/* Botão de Impressão de Etiqueta Térmica 10x15 / A4 */}
               <button
                 onClick={() => setIsPrintModalOpen(true)}
                 className="w-full py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
               >
                 <Printer className="w-3.5 h-3.5" />
-                <span>Imprimir Etiqueta da Loja (Romaneio Local)</span>
+                <span>Imprimir Etiqueta da Loja (Térmica / A4)</span>
               </button>
+
+              {/* Botões do Fluxo de Status da Entrega Local */}
+              {(currentOrder.status === 'Confirmado' || currentOrder.status === 'Em Preparação') && (
+                <button
+                  onClick={handleLocalDispatch}
+                  className="w-full py-2 px-3 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-semibold text-xs transition flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
+                >
+                  <Bike className="w-3.5 h-3.5" />
+                  <span>Despachar com Motoboy (Saiu para Entrega)</span>
+                </button>
+              )}
+
+              {currentOrder.status === 'Em Trânsito' && (
+                <div className="space-y-1.5">
+                  <div className="p-2 rounded-xl bg-sky-500/10 border border-sky-500/20 text-sky-800 dark:text-sky-300 text-xs font-semibold flex items-center gap-1.5">
+                    <Bike className="w-4 h-4 text-sky-600 shrink-0" />
+                    <span>Em rota de entrega com o motoboy</span>
+                  </div>
+                  <button
+                    onClick={handleLocalDelivered}
+                    className="w-full py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>Confirmar Entrega Realizada</span>
+                  </button>
+                </div>
+              )}
+
+              {currentOrder.status === 'Entregue' && (
+                <div className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-800 dark:text-emerald-300 text-xs font-semibold flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    <span>Entregue com Sucesso</span>
+                  </span>
+                  {currentOrder.deliveredAt && (
+                    <span className="text-[10px] font-mono text-emerald-700 dark:text-emerald-400">
+                      {new Date(currentOrder.deliveredAt).toLocaleDateString('pt-BR')}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
@@ -767,6 +891,7 @@ export const ShippingInfoCard: React.FC<Props> = ({ order, isDark: _isDark, vari
           order={currentOrder}
           labelUrl={currentOrder.labelUrl}
           trackingCode={currentOrder.trackingCode}
+          onLabelPrinted={handleLocalLabelPrinted}
         />
       </div>
     );

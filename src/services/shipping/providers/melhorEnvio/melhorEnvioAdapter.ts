@@ -19,6 +19,8 @@ import {
 } from "../../shippingProvider.interface.js";
 import { MelhorEnvioAuth } from "./melhorEnvioAuth.js";
 import { getMelhorEnvioConfig } from "./melhorEnvioConfig.js";
+import { getUfFromCep } from "../../../../utils/orderUtils.js";
+import { isUrbanCaxias } from "../../../../utils/localDelivery.js";
 
 // CEP de Origem padrão da Loja Evidência Calçados (Caxias - MA)
 const DEFAULT_ORIGIN_CEP = "65600060";
@@ -29,6 +31,7 @@ const DEFAULT_FROM_ADDRESS: IContactAddressPayload = {
   phone: "99984684867",
   email: "wandesonandrade33@gmail.com",
   document: "60997831000101",
+  company_document: "60997831000101",
   address: "Rua Afonso Pena",
   number: "295",
   district: "Centro",
@@ -78,6 +81,42 @@ export class MelhorEnvioAdapter implements IShippingProvider {
   }
 
   /**
+   * Validação estrita dos dados do destinatário antes da compra de etiqueta
+   */
+  private validateRecipient(to: IContactAddressPayload): void {
+    const missing: string[] = [];
+
+    if (!to.name || to.name.trim().length < 2) missing.push("Nome completo");
+
+    const docClean = (to.document || "").replace(/\D/g, "");
+    if (!docClean || (docClean.length !== 11 && docClean.length !== 14)) {
+      missing.push("CPF ou CNPJ válido");
+    }
+
+    const phoneClean = (to.phone || "").replace(/\D/g, "");
+    if (!phoneClean || phoneClean.length < 10) {
+      missing.push("Telefone com DDD");
+    }
+
+    const cepClean = (to.postal_code || "").replace(/\D/g, "");
+    if (!cepClean || cepClean.length !== 8) {
+      missing.push("CEP válido com 8 dígitos");
+    }
+
+    if (!to.address || to.address.trim().length < 2) missing.push("Logradouro (Rua/Avenida)");
+    if (!to.number || to.number.trim().length === 0) missing.push("Número");
+    if (!to.district || to.district.trim().length < 2) missing.push("Bairro");
+    if (!to.city || to.city.trim().length < 2) missing.push("Cidade");
+    if (!to.state_abbr || to.state_abbr.trim().length !== 2) missing.push("UF (Estado)");
+
+    if (missing.length > 0) {
+      throw new Error(
+        `Dados incompletos do destinatário para emissão da etiqueta: ${missing.join(", ")}. Por favor, complete o cadastro do cliente.`
+      );
+    }
+  }
+
+  /**
    * Consulta um CEP na API do Melhor Envio
    */
   public async fetchAddressByCep(postalCode: string): Promise<IAddressLocation | null> {
@@ -119,16 +158,19 @@ export class MelhorEnvioAdapter implements IShippingProvider {
     const fromCep = (payload.fromPostalCode || DEFAULT_ORIGIN_CEP).replace(/\D/g, "");
     const toCep = payload.toPostalCode.replace(/\D/g, "");
     const box = payload.box || DEFAULT_BOX;
+    const config = getMelhorEnvioConfig();
 
     if (toCep.length !== 8) {
-      return this.getFallbackOptions("01001000", box);
+      if (config.environment === "production") {
+        throw new Error("CEP de destino inválido. Deve conter 8 dígitos.");
+      }
+      return this.getFallbackOptions("01001000", box, payload.cartTotal);
     }
 
     try {
-      const config = getMelhorEnvioConfig();
       const headers = await this.getAuthHeaders();
 
-      const requestBody = {
+      const requestBody: any = {
         from: { postal_code: fromCep },
         to: { postal_code: toCep },
         package: {
@@ -139,6 +181,12 @@ export class MelhorEnvioAdapter implements IShippingProvider {
         },
       };
 
+      if (payload.insuranceValue && payload.insuranceValue > 0) {
+        requestBody.options = {
+          insurance_value: Number(payload.insuranceValue),
+        };
+      }
+
       const response = await fetch(`${config.baseUrl}/api/v2/me/shipment/calculate`, {
         method: "POST",
         headers,
@@ -146,13 +194,22 @@ export class MelhorEnvioAdapter implements IShippingProvider {
       });
 
       if (!response.ok) {
-        return this.getFallbackOptions(toCep, box);
+        if (config.environment === "production") {
+          const errData = await response.json().catch(() => ({}));
+          const errMsg = errData.message || errData.error || `HTTP ${response.status}`;
+          throw new Error(`Cotação oficial de frete indisponível no Melhor Envio (${errMsg}).`);
+        }
+        console.warn(`[MelhorEnvioAdapter] Cotação HTTP ${response.status} no Sandbox. Ativando estimativa contingencial.`);
+        return this.getFallbackOptions(toCep, box, payload.cartTotal);
       }
 
       const rawData = await response.json();
 
       if (!Array.isArray(rawData)) {
-        return this.getFallbackOptions(toCep, box);
+        if (config.environment === "production") {
+          throw new Error("Resposta inválida retornada pela API do Melhor Envio.");
+        }
+        return this.getFallbackOptions(toCep, box, payload.cartTotal);
       }
 
       const validOptions: IShippingOption[] = rawData
@@ -172,15 +229,19 @@ export class MelhorEnvioAdapter implements IShippingProvider {
             price: finalPrice,
             discount: Number(item.discount || 0),
             deliveryTime,
+            estimated: false,
           };
         });
 
       if (validOptions.length === 0) {
+        if (config.environment === "production") {
+          throw new Error("Nenhuma modalidade oficial de envio disponível para este CEP na transportadora.");
+        }
         return this.getFallbackOptions(toCep, box, payload.cartTotal);
       }
 
       // Regra de Entrega Própria para Caxias / MA (Zona Urbana)
-      if (toCep.startsWith("6560") && !validOptions.some(o => o.id === "entrega-propria-caxias" || o.id === "motoboy-local-caxias")) {
+      if (isUrbanCaxias({ cep: toCep }) && !validOptions.some(o => o.id === "entrega-propria-caxias" || o.id === "motoboy-local-caxias")) {
         const isFree = typeof payload.cartTotal === "number" ? payload.cartTotal > 100 : false;
         validOptions.unshift({
           id: "entrega-propria-caxias",
@@ -188,18 +249,23 @@ export class MelhorEnvioAdapter implements IShippingProvider {
           company: { id: 99, name: "Evidência Express (Entrega Local)", picture: "" },
           price: isFree ? 0 : 10.00,
           deliveryTime: 1,
+          estimated: false,
         });
       }
 
       return this.enrichOptionsWithBadges(validOptions);
     } catch (err: any) {
-      console.warn("[MelhorEnvioAdapter] Falha na requisição HTTP de cotação, ativando estimativa Sandbox:", err?.message || err);
+      if (config.environment === "production") {
+        throw err;
+      }
+      console.warn("[MelhorEnvioAdapter] Falha na requisição HTTP de cotação no Sandbox, ativando estimativa contingencial:", err?.message || err);
       return this.getFallbackOptions(toCep, box, payload.cartTotal);
     }
   }
 
   /**
-   * Adiciona o item ao carrinho, executa o checkout e gera a etiqueta no Melhor Envio
+   * Adiciona o item ao carrinho, executa o checkout e gera a etiqueta no Melhor Envio.
+   * Totalmente protegido contra dados fictícios e CEP sobrescrito.
    */
   public async createAndBuyLabel(payload: ICreateLabelPayload): Promise<ILabelResult> {
     const config = getMelhorEnvioConfig();
@@ -210,48 +276,34 @@ export class MelhorEnvioAdapter implements IShippingProvider {
     const fromDocRaw = (from.company_document || from.document || "").replace(/\D/g, "");
     const isCnpj = fromDocRaw.length === 14;
 
-    // Higienização inteligente do CEP de Destino
     const cleanFromCep = from.postal_code.replace(/\D/g, "") || DEFAULT_ORIGIN_CEP;
-    let cleanToCep = (payload.to.postal_code || "").replace(/\D/g, "");
+    const cleanToCep = (payload.to.postal_code || "").replace(/\D/g, "");
 
-    // Se o CEP for de Caxias (6560x) mas for idêntico à origem, ou genérico 65600000, ou não indexado na base do ME (ex: 65606441):
-    // Usamos o CEP oficial do Centro de Caxias aceito pelo ME: 65604000
-    if (cleanToCep.startsWith("6560")) {
-      if (cleanToCep === cleanFromCep || cleanToCep === "65600000" || cleanToCep === "65606441" || cleanToCep.length !== 8) {
-        cleanToCep = "65604000";
-      }
-    } else if (cleanToCep.length !== 8 || cleanToCep === "00000000") {
-      cleanToCep = "65604000";
+    // 1. Validação estrita de CEP
+    if (cleanToCep.length !== 8) {
+      throw new Error(`CEP de destino inválido ("${payload.to.postal_code}"). Deve conter 8 números.`);
     }
 
-    const cleanCepNumbers = cleanToCep.replace(/\D/g, "");
-    const getUfFromCep = (cepStr: string): string => {
-      const p2 = parseInt(cepStr.substring(0, 2), 10);
-      if (p2 >= 1 && p2 <= 19) return 'SP';
-      if (p2 >= 20 && p2 <= 28) return 'RJ';
-      if (p2 === 29) return 'ES';
-      if (p2 >= 30 && p2 <= 39) return 'MG';
-      if (p2 >= 40 && p2 <= 48) return 'BA';
-      if (p2 === 49) return 'SE';
-      if (p2 >= 50 && p2 <= 56) return 'PE';
-      if (p2 === 57) return 'AL';
-      if (p2 === 58) return 'PB';
-      if (p2 === 59) return 'RN';
-      if (p2 >= 60 && p2 <= 63) return 'CE';
-      if (p2 === 64) return 'PI';
-      if (p2 === 65) return 'MA';
-      if (p2 >= 66 && p2 <= 68) return 'PA';
-      if (p2 === 69) return 'AM';
-      if (p2 >= 70 && p2 <= 72) return 'DF';
-      if (p2 >= 73 && p2 <= 76) return 'GO';
-      if (p2 === 77) return 'TO';
-      if (p2 >= 78 && p2 <= 79) return 'MT';
-      if (p2 >= 80 && p2 <= 87) return 'PR';
-      if (p2 >= 88 && p2 <= 89) return 'SC';
-      if (p2 >= 90 && p2 <= 99) return 'RS';
-      return 'MA';
-    };
-    const detectedToUf = getUfFromCep(cleanCepNumbers);
+    // 2. Proteção contra CEP idêntico à origem
+    if (cleanToCep === cleanFromCep) {
+      throw new Error(
+        `O CEP de destino (${cleanToCep}) é idêntico ao da loja física em Caxias-MA. Entregas no mesmo endereço de origem devem ser despachadas via Entrega Própria Local (Balcão ou Motoboy), e não via remessa externa de transportadora.`
+      );
+    }
+
+    // 3. Validação dos dados obrigatórios do destinatário (sem valores fictícios)
+    this.validateRecipient(payload.to);
+
+    const cleanToDoc = (payload.to.document || "").replace(/\D/g, "");
+    if (cleanToDoc === fromDocRaw || cleanToDoc === "04067032307") {
+      throw new Error("O CPF do destinatário não pode ser igual ao CPF/CNPJ do remetente (lojista) no Melhor Envio. Em caso de pedidos de teste, altere o CPF do destinatário no pedido.");
+    }
+
+    const cleanToPhone = (payload.to.phone || "").replace(/\D/g, "");
+    const detectedToUf = payload.to.state_abbr?.trim().toUpperCase() || getUfFromCep(cleanToCep);
+    const fromEmail = (from.email || "wandesonandrade33@gmail.com").trim().toLowerCase();
+    const cleanToEmail = (payload.to.email || "").trim().toLowerCase();
+    const safeToEmail = cleanToEmail && cleanToEmail !== fromEmail ? cleanToEmail : "cliente@evidenciacalcados.com.br";
 
     const cartBody: any = {
       service: Number(payload.serviceId) || 2,
@@ -267,15 +319,15 @@ export class MelhorEnvioAdapter implements IShippingProvider {
         postal_code: cleanFromCep,
       },
       to: {
-        name: payload.to.name,
-        phone: payload.to.phone || "99999999999",
-        email: payload.to.email,
-        document: (payload.to.document || "04067032307").replace(/\D/g, ""),
-        address: payload.to.address,
-        number: payload.to.number || "S/N",
-        district: payload.to.district || "Centro",
-        city: payload.to.city || (detectedToUf === 'PI' ? 'Teresina' : 'Caxias'),
-        state_abbr: detectedToUf || payload.to.state_abbr || "MA",
+        name: payload.to.name.trim(),
+        phone: cleanToPhone,
+        email: safeToEmail,
+        document: cleanToDoc,
+        address: payload.to.address.trim(),
+        number: payload.to.number.trim(),
+        district: payload.to.district.trim(),
+        city: payload.to.city.trim(),
+        state_abbr: detectedToUf,
         postal_code: cleanToCep,
       },
       products: payload.products.map((p) => ({
@@ -296,16 +348,18 @@ export class MelhorEnvioAdapter implements IShippingProvider {
         own_hand: false,
         reverse: false,
         non_commercial: true,
+        insurance_value: payload.insuranceValue && payload.insuranceValue > 0 ? Number(payload.insuranceValue) : undefined,
       },
     };
 
     if (isCnpj) {
       cartBody.from.company_document = fromDocRaw;
     } else {
-      cartBody.from.document = fromDocRaw || "04067032307";
+      cartBody.from.document = fromDocRaw;
     }
 
     try {
+      // ETAPA 1: ADICIONAR AO CARRINHO DO MELHOR ENVIO
       const cartRes = await fetch(`${config.baseUrl}/api/v2/me/cart`, {
         method: "POST",
         headers,
@@ -314,7 +368,7 @@ export class MelhorEnvioAdapter implements IShippingProvider {
 
       if (!cartRes.ok) {
         const errorData = await cartRes.json().catch(() => ({}));
-        console.error("[MelhorEnvioAdapter] Falha ao adicionar ao carrinho do Melhor Envio:", cartRes.status, errorData, "Payload:", JSON.stringify({ from: cartBody.from, to: cartBody.to }));
+        console.error("[MelhorEnvioAdapter] Falha ao adicionar ao carrinho do Melhor Envio:", cartRes.status, errorData);
         const errDetail = errorData.message || errorData.error || (errorData.errors ? Object.values(errorData.errors).flat().join(", ") : "");
         throw new Error(`Melhor Envio recusou criar a remessa: ${errDetail || `HTTP ${cartRes.status}`}`);
       }
@@ -326,6 +380,7 @@ export class MelhorEnvioAdapter implements IShippingProvider {
         throw new Error("Melhor Envio não retornou o identificador (ID) da remessa criada.");
       }
 
+      // ETAPA 2: CHECKOUT / PAGAMENTO DA ETIQUETA
       const checkoutRes = await fetch(`${config.baseUrl}/api/v2/me/shipment/checkout`, {
         method: "POST",
         headers,
@@ -335,9 +390,10 @@ export class MelhorEnvioAdapter implements IShippingProvider {
         const checkErr = await checkoutRes.json().catch(() => ({}));
         console.error("[MelhorEnvioAdapter] Checkout error:", checkoutRes.status, checkErr);
         const checkDetail = checkErr.message || checkErr.error || "";
-        throw new Error(`Falha ao comprar etiqueta no Melhor Envio (verifique o saldo da sua carteira): ${checkDetail || `HTTP ${checkoutRes.status}`}`);
+        throw new Error(`Remessa #${shipmentId} criada no carrinho, mas falhou ao comprar etiqueta no Melhor Envio (verifique saldo da carteira): ${checkDetail || `HTTP ${checkoutRes.status}`}`);
       }
 
+      // ETAPA 3: GERAR O DOCUMENTO DA ETIQUETA
       const genRes = await fetch(`${config.baseUrl}/api/v2/me/shipment/generate`, {
         method: "POST",
         headers,
@@ -347,9 +403,10 @@ export class MelhorEnvioAdapter implements IShippingProvider {
         const genErr = await genRes.json().catch(() => ({}));
         console.error("[MelhorEnvioAdapter] Generate error:", genRes.status, genErr);
         const genDetail = genErr.message || genErr.error || "";
-        throw new Error(`Falha ao gerar o documento da etiqueta no Melhor Envio: ${genDetail || `HTTP ${genRes.status}`}`);
+        throw new Error(`Etiqueta #${shipmentId} paga com sucesso, mas falhou ao enfileirar geração do PDF no Melhor Envio: ${genDetail || `HTTP ${genRes.status}`}`);
       }
 
+      // ETAPA 4: LINK PÚBLICO DE IMPRESSÃO
       const printRes = await fetch(`${config.baseUrl}/api/v2/me/shipment/print`, {
         method: "POST",
         headers,
@@ -361,10 +418,10 @@ export class MelhorEnvioAdapter implements IShippingProvider {
         const printData = await printRes.json();
         labelUrl = printData.url || printData.link || "";
       } else {
-        console.warn("[MelhorEnvioAdapter] Print error:", printRes.status, await printRes.json().catch(() => ({})));
+        console.warn("[MelhorEnvioAdapter] Print warning:", printRes.status, await printRes.json().catch(() => ({})));
       }
 
-      // Consulta o pedido criado no Melhor Envio para verificar se o código de rastreamento oficial já está liberado
+      // ETAPA 5: CONSULTA RASTREIO OFICIAL LIBERADO
       const officialTracking = await this.getOfficialTracking(String(shipmentId));
 
       return {
@@ -372,6 +429,7 @@ export class MelhorEnvioAdapter implements IShippingProvider {
         trackingCode: officialTracking || undefined,
         labelUrl: labelUrl || `${config.baseUrl}/imprimir/${shipmentId}`,
         status: "gerada",
+        protocol: cartData.protocol,
       };
     } catch (err: any) {
       console.error("[MelhorEnvioAdapter] Falha na emissão da etiqueta no Melhor Envio:", err);
@@ -381,27 +439,38 @@ export class MelhorEnvioAdapter implements IShippingProvider {
 
   /**
    * Cancela uma etiqueta no Melhor Envio (POST /api/v2/me/shipment/cancel)
+   * Validação real da resposta HTTP
    */
   public async cancelLabel(shipmentId: string, reason = "Cancelamento pelo lojista"): Promise<boolean> {
     const config = getMelhorEnvioConfig();
     const headers = await this.getAuthHeaders();
 
-    try {
-      await fetch(`${config.baseUrl}/api/v2/me/shipment/cancel`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          order: {
-            id: shipmentId,
-            reason_id: 2,
-            description: reason,
-          },
-        }),
-      });
-      return true;
-    } catch {
-      return true;
+    const response = await fetch(`${config.baseUrl}/api/v2/me/shipment/cancel`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        order: {
+          id: shipmentId,
+          reason_id: 2,
+          description: reason,
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      const msg = errorData.message || errorData.error || `HTTP ${response.status}`;
+      console.error(`[MelhorEnvioAdapter] Falha ao cancelar remessa ${shipmentId}:`, msg);
+      throw new Error(`Melhor Envio recusou cancelamento da etiqueta: ${msg}`);
     }
+
+    const data = await response.json().catch(() => ({}));
+    const orderResult = data && typeof data === "object" ? (data[shipmentId] || data) : null;
+    if (orderResult && orderResult.canceled === false) {
+      throw new Error(orderResult.error || "A transportadora não autorizou o cancelamento desta remessa.");
+    }
+
+    return true;
   }
 
   /**
@@ -460,9 +529,9 @@ export class MelhorEnvioAdapter implements IShippingProvider {
         }
       }
 
-      // 2. Se não achou na busca direcionada, tenta listar as remessas gerais
+      // 2. Se não achou na busca direcionada, tenta listar as remessas recentes
       if (!matchedOrder) {
-        const ordersRes = await fetch(`${config.baseUrl}/api/v2/me/orders?per_page=50`, {
+        const ordersRes = await fetch(`${config.baseUrl}/api/v2/me/orders?per_page=20`, {
           headers,
         });
 
@@ -483,15 +552,6 @@ export class MelhorEnvioAdapter implements IShippingProvider {
       }
 
       if (matchedOrder) {
-        console.log(`📦 [MelhorEnvioAdapter] Remessa encontrada na API do Melhor Envio:`, {
-          id: matchedOrder.id,
-          protocol: matchedOrder.protocol,
-          status: matchedOrder.status,
-          tracking: matchedOrder.tracking,
-          self_tracking: matchedOrder.self_tracking,
-          to: matchedOrder.to?.name,
-        });
-
         // Tenta obter os eventos detalhados do endpoint de tracking com o UUID oficial
         try {
           const trackingRes = await fetch(`${config.baseUrl}/api/v2/me/shipment/tracking`, {
@@ -503,7 +563,6 @@ export class MelhorEnvioAdapter implements IShippingProvider {
             const trackingData = await trackingRes.json();
             const trackingItem = trackingData && typeof trackingData === "object" ? trackingData[matchedOrder.id] : null;
             if (trackingItem && !trackingItem.error) {
-              // Determina a hierarquia de status para nunca regredir (ex: delivered > in_transit > posted > released/pending)
               const hierarchy: Record<string, number> = {
                 delivered: 5,
                 in_transit: 4,
@@ -585,7 +644,6 @@ export class MelhorEnvioAdapter implements IShippingProvider {
     } else if (statusRaw.includes("posted") || statusRaw.includes("postado")) {
       status = "posted";
     } else {
-      // Status como released, generated, pending, paid etc. permanecem como 'pending'
       status = "pending";
     }
 
@@ -601,7 +659,6 @@ export class MelhorEnvioAdapter implements IShippingProvider {
         });
       });
     } else {
-      // Constrói os checkpoints a partir das datas oficiais retornadas pela API do Melhor Envio
       if (item.created_at) {
         events.push({
           status: "Etiqueta Gerada",
@@ -628,7 +685,6 @@ export class MelhorEnvioAdapter implements IShippingProvider {
       }
     }
 
-    // Extração de divergência de métrica (caso cobrado valor extra por peso/cubagem na transportadora)
     let metricDivergence: IMetricDivergence | undefined;
     const div = item.metric_divergence || item.divergence || item.differences || item.metric_difference;
     if (div) {
@@ -687,9 +743,10 @@ export class MelhorEnvioAdapter implements IShippingProvider {
   }
 
   private getFallbackOptions(toCep: string, box: IShippingBoxDimensions, cartTotal?: number): IShippingOption[] {
+    const config = getMelhorEnvioConfig();
     const cleanCep = toCep.replace(/\D/g, "").padEnd(8, "0");
     const cepPrefix2 = parseInt(cleanCep.slice(0, 2), 10) || 0;
-    const isCaxias = cleanCep.startsWith("6560");
+    const isCaxias = isUrbanCaxias({ cep: cleanCep });
     const weightFactor = Math.max((box.weight || 0.8) - 0.5, 0) * 8;
 
     let basePricePac = 28.00;
@@ -707,7 +764,6 @@ export class MelhorEnvioAdapter implements IShippingProvider {
       timeSedex = 2;
       timeJadlog = 3;
     } else if (cepPrefix2 === 65) {
-      // Outras cidades do Maranhão (São Luís, Imperatriz, Timon)
       basePricePac = 22.00;
       basePriceSedex = 32.00;
       basePriceJadlog = 20.50;
@@ -715,7 +771,6 @@ export class MelhorEnvioAdapter implements IShippingProvider {
       timeSedex = 2;
       timeJadlog = 4;
     } else if (cepPrefix2 === 64) {
-      // Piauí (Teresina) - Estado vizinho
       basePricePac = 21.00;
       basePriceSedex = 30.00;
       basePriceJadlog = 19.50;
@@ -723,7 +778,6 @@ export class MelhorEnvioAdapter implements IShippingProvider {
       timeSedex = 2;
       timeJadlog = 3;
     } else if (cepPrefix2 >= 40 && cepPrefix2 <= 63) {
-      // Nordeste (BA, SE, CE, PE, RN, PB, AL)
       basePricePac = 28.50;
       basePriceSedex = 42.00;
       basePriceJadlog = 26.00;
@@ -731,7 +785,6 @@ export class MelhorEnvioAdapter implements IShippingProvider {
       timeSedex = 3;
       timeJadlog = 5;
     } else if (cepPrefix2 >= 1 && cepPrefix2 <= 39) {
-      // Sudeste (SP, RJ, MG, ES)
       basePricePac = 34.90;
       basePriceSedex = 58.00;
       basePriceJadlog = 31.50;
@@ -739,7 +792,6 @@ export class MelhorEnvioAdapter implements IShippingProvider {
       timeSedex = 3;
       timeJadlog = 6;
     } else if (cepPrefix2 >= 70 && cepPrefix2 <= 79) {
-      // Centro-Oeste (DF, GO, MT, MS)
       basePricePac = 36.00;
       basePriceSedex = 62.00;
       basePriceJadlog = 33.00;
@@ -747,7 +799,6 @@ export class MelhorEnvioAdapter implements IShippingProvider {
       timeSedex = 4;
       timeJadlog = 6;
     } else if (cepPrefix2 >= 80 && cepPrefix2 <= 99) {
-      // Sul (PR, SC, RS)
       basePricePac = 42.00;
       basePriceSedex = 74.00;
       basePriceJadlog = 39.00;
@@ -755,7 +806,6 @@ export class MelhorEnvioAdapter implements IShippingProvider {
       timeSedex = 4;
       timeJadlog = 7;
     } else if (cepPrefix2 >= 66 && cepPrefix2 <= 69) {
-      // Norte (PA, AM, AP, RR, AC, RO, TO)
       basePricePac = 39.00;
       basePriceSedex = 68.00;
       basePriceJadlog = 36.00;
@@ -774,30 +824,34 @@ export class MelhorEnvioAdapter implements IShippingProvider {
         company: { id: 99, name: "Evidência Express (Entrega Local)", picture: "" },
         price: isFree ? 0 : 10.00,
         deliveryTime: 1,
+        estimated: false,
       });
     }
 
     baseOptions.push(
       {
         id: "melhorenvio-jadlog-package",
-        name: ".Package",
-        company: { id: 2, name: "Jadlog", picture: "https://sandbox.melhorenvio.com.br/images/shipping-companies/jadlog.png" },
+        name: ".Package (Estimativa)",
+        company: { id: 2, name: "Jadlog", picture: `${config.baseUrl}/images/shipping-companies/jadlog.png` },
         price: Math.round((basePriceJadlog + weightFactor) * 100) / 100,
         deliveryTime: timeJadlog,
+        estimated: true,
       },
       {
         id: "melhorenvio-correios-pac",
-        name: "PAC",
-        company: { id: 1, name: "Correios", picture: "https://sandbox.melhorenvio.com.br/images/shipping-companies/correios.png" },
+        name: "PAC (Estimativa)",
+        company: { id: 1, name: "Correios", picture: `${config.baseUrl}/images/shipping-companies/correios.png` },
         price: Math.round((basePricePac + weightFactor) * 100) / 100,
         deliveryTime: timePac,
+        estimated: true,
       },
       {
         id: "melhorenvio-correios-sedex",
-        name: "SEDEX",
-        company: { id: 1, name: "Correios", picture: "https://sandbox.melhorenvio.com.br/images/shipping-companies/correios.png" },
+        name: "SEDEX (Estimativa)",
+        company: { id: 1, name: "Correios", picture: `${config.baseUrl}/images/shipping-companies/correios.png` },
         price: Math.round((basePriceSedex + weightFactor * 1.5) * 100) / 100,
         deliveryTime: timeSedex,
+        estimated: true,
       }
     );
 
@@ -844,15 +898,10 @@ export class MelhorEnvioAdapter implements IShippingProvider {
 
   /**
    * Interpreta os payloads enviados via Webhook pelo Melhor Envio
-   * Suporta eventos de:
-   * - Atualização de rastreamento (tracking)
-   * - Mudança de status da etiqueta (posted, delivered, canceled)
-   * - Divergência de métrica (aferição de peso/cubagem na agência)
    */
   public parseWebhookPayload(payload: any): IShippingWebhookResult | null {
     if (!payload || typeof payload !== "object") return null;
 
-    // Caso o payload venha com o objeto do envio diretamente ou aninhado
     const shipment = payload.shipment || payload.order || payload.data || payload;
     const shipmentId = String(shipment.id || payload.id || "").trim();
     const trackingCode = String(
@@ -891,7 +940,6 @@ export class MelhorEnvioAdapter implements IShippingProvider {
       statusText = "Em Trânsito na Transportadora";
     }
 
-    // Processamento de Eventos de Trajetória
     const rawEvents = shipment.events || payload.events || (payload.event ? [payload] : []);
     const newEvents: ITrackingEvent[] = [];
 
@@ -914,7 +962,6 @@ export class MelhorEnvioAdapter implements IShippingProvider {
       });
     }
 
-    // Detecção de Divergência de Métrica (peso/cubagem diferente)
     let metricDivergence: IMetricDivergence | undefined;
     const divergenceData = shipment.metric_divergence || payload.metric_divergence || payload.divergence;
     if (divergenceData) {
