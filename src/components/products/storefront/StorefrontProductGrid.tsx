@@ -1,9 +1,9 @@
 import React from 'react';
 import { Product } from '../../../types';
-import { StorefrontProductCard } from './StorefrontProductCard';
-import { AnimatePresence } from 'motion/react';
-import { ShoppingBag, RefreshCw, X } from 'lucide-react';
 import { useApp } from '../../../context/AppContext';
+import { StorefrontProductCard } from './StorefrontProductCard';
+import { ShoppingBag, RefreshCw, X } from 'lucide-react';
+import { AnimatePresence } from 'motion/react';
 
 export interface StorefrontProductGridProps {
   products: Product[];
@@ -24,14 +24,13 @@ export const StorefrontProductGrid: React.FC<StorefrontProductGridProps> = ({
   onResetFilters,
   isLoading = false,
 }) => {
-  const { storeTheme } = useApp();
-  const isOutubroRosa = storeTheme === 'outubro-rosa';
+  const { storeThemeTokens } = useApp();
   const isDark = theme === 'dark';
 
   if (isLoading) {
     return (
       <div className="py-20 flex flex-col items-center justify-center space-y-4">
-        <RefreshCw className={`w-8 h-8 ${isOutubroRosa ? 'text-[#EC4899]' : 'text-[#006EDB]'} animate-spin`} />
+        <RefreshCw className={`w-8 h-8 ${storeThemeTokens.navigation.spinner} animate-spin`} />
         <p className="text-sm font-semibold text-slate-500">Carregando calçados...</p>
       </div>
     );
@@ -41,7 +40,9 @@ export const StorefrontProductGrid: React.FC<StorefrontProductGridProps> = ({
     return (
       <div className="py-16 text-center space-y-4 max-w-md mx-auto">
         <div className={`w-16 h-16 mx-auto rounded-3xl ${
-          isOutubroRosa 
+          storeThemeTokens.isBlackFriday
+            ? 'bg-neutral-900 border border-amber-500/30 text-amber-400'
+            : storeThemeTokens.isOutubroRosa 
             ? 'bg-pink-100 dark:bg-pink-950/60 text-[#EC4899]' 
             : 'bg-blue-50 dark:bg-slate-800 text-[#006EDB]'
         } flex items-center justify-center`}>
@@ -60,10 +61,12 @@ export const StorefrontProductGrid: React.FC<StorefrontProductGridProps> = ({
             type="button"
             onClick={onResetFilters}
             className={`inline-flex items-center space-x-1.5 px-4 py-2 rounded-full ${
-              isOutubroRosa
-                ? 'bg-gradient-to-r from-[#DB2777] via-[#EC4899] to-[#F472B6] hover:from-[#BE185D] hover:to-[#DB2777] shadow-pink-500/25'
-                : 'bg-[#006EDB] hover:bg-[#00509E] shadow-blue-600/20'
-            } text-white text-xs font-bold transition-all shadow-xs cursor-pointer`}
+              storeThemeTokens.isBlackFriday
+                ? 'bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 hover:from-amber-400 hover:to-yellow-300 text-black font-black shadow-amber-500/25'
+                : storeThemeTokens.isOutubroRosa
+                ? 'bg-gradient-to-r from-[#DB2777] via-[#EC4899] to-[#F472B6] hover:from-[#BE185D] hover:to-[#DB2777] text-white shadow-pink-500/25'
+                : 'bg-[#006EDB] hover:bg-[#00509E] text-white shadow-blue-600/20'
+            } text-xs font-bold transition-all shadow-xs cursor-pointer`}
           >
             <X className="w-3.5 h-3.5" />
             <span>Limpar filtros de busca</span>

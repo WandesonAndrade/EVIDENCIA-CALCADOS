@@ -57,6 +57,7 @@ export const CategorySandwichMenu: React.FC<CategorySandwichMenuProps> = ({ isOp
     theme,
     saldaoConfig,
     storeTheme,
+    storeThemeTokens,
   } = useApp();
 
   const isOutubroRosa = storeTheme === 'outubro-rosa';
@@ -326,7 +327,7 @@ export const CategorySandwichMenu: React.FC<CategorySandwichMenuProps> = ({ isOp
                       </div>
                       <div>
                         <span className={`text-[10px] font-extrabold uppercase tracking-widest ${
-                          isOutubroRosa ? 'text-[#EC4899]' : 'text-[#006EDB]'
+                          storeThemeTokens.isBlackFriday ? 'text-amber-400' : isOutubroRosa ? 'text-[#EC4899]' : 'text-[#006EDB]'
                         }`}>
                           DEPARTAMENTO
                         </span>
@@ -341,7 +342,11 @@ export const CategorySandwichMenu: React.FC<CategorySandwichMenuProps> = ({ isOp
                       onClick={() => handleSelectSubcategory(activeCategory.name, 'TODAS')}
                       className={`w-full p-3.5 rounded-2xl border flex items-center justify-between transition-all cursor-pointer font-bold text-xs ${
                         selectedCategory.toUpperCase() === activeCategory.key && selectedSubcategory === 'TODAS'
-                          ? isOutubroRosa
+                          ? storeThemeTokens.isBlackFriday
+                            ? 'bg-gradient-to-r from-amber-500 to-yellow-400 border-amber-400 text-black font-black shadow-md shadow-amber-500/25'
+                            : storeThemeTokens.isBlackFriday
+                            ? 'bg-gradient-to-r from-amber-500 to-yellow-400 border-amber-400 text-black font-black shadow-md shadow-amber-500/25'
+                            : isOutubroRosa
                             ? 'bg-gradient-to-r from-[#DB2777] via-[#EC4899] to-[#F472B6] border-[#EC4899] text-white shadow-md shadow-pink-600/25'
                             : 'bg-[#006EDB] border-[#006EDB] text-white shadow-md'
                           : isDark
@@ -352,7 +357,7 @@ export const CategorySandwichMenu: React.FC<CategorySandwichMenuProps> = ({ isOp
                       }`}
                     >
                       <div className="flex items-center space-x-2.5">
-                        <PackageCheck className={`h-4 w-4 ${isOutubroRosa ? 'text-[#EC4899]' : 'text-[#006EDB]'}`} />
+                        <PackageCheck className={`h-4 w-4 ${storeThemeTokens.isBlackFriday ? 'text-amber-400' : isOutubroRosa ? 'text-[#EC4899]' : 'text-[#006EDB]'}`} />
                         <span>Ver Todos em {activeCategory.name}</span>
                       </div>
                       <ChevronRight className="h-4 w-4 opacity-50" />

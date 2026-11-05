@@ -546,7 +546,7 @@ export interface ICreditOrder {
   analyzedBy?: string;
 }
 
-export type StoreThemeId = 'default' | 'outubro-rosa';
+export type StoreThemeId = 'default' | 'outubro-rosa' | 'black-friday';
 
 export interface StoreThemeConfig {
   activeTheme: StoreThemeId;
@@ -584,6 +584,16 @@ export const AVAILABLE_STORE_THEMES: ThemeDefinition[] = [
     secondaryColor: '#EC4899',
     accentColor: '#F472B6',
     previewBg: 'linear-gradient(135deg, #5B0836 0%, #831843 45%, #DB2777 80%, #F472B6 100%)',
+  },
+  {
+    id: 'black-friday',
+    name: 'Black Friday',
+    badge: 'Super Campanha',
+    description: 'Visual imersivo de alta conversão com preto profundo (#0A0A0A), dourado âmbar radiante (#F59E0B) e detalhes em vermelho de urgência (#DC2626).',
+    primaryColor: '#0A0A0A',
+    secondaryColor: '#F59E0B',
+    accentColor: '#DC2626',
+    previewBg: 'linear-gradient(135deg, #050505 0%, #141414 45%, #B45309 80%, #F59E0B 100%)',
   },
 ];
 

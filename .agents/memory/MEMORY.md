@@ -592,3 +592,18 @@ Este arquivo é a memória persistente do projeto (AG Kit), consolidando decisõ
     - **Autopreenchimento em Tempo Real nos Formulários**:
       * Ao digitar os 8 dígitos ou sair do campo (`onBlur`), os campos **Logradouro / Rua**, **Bairro**, **Cidade** e **UF (Estado)** são preenchidos instantaneamente.
       * Foco automático inteligente: Se a rua e bairro foram localizados, o cursor avança diretamente para o campo **Número** (`numeroInputRef`); se o CEP for genérico de município, foca no campo **Rua** para agilizar a digitação.
+
+
+66. **Arquitetura de Tokens de Temas da Loja & Tema Black Friday (`storeThemes.ts`, `useStoreTheme.ts`, `AdminPanel.tsx`, `ProductBadges.tsx`) (Implementado):**
+    - **Centralização de Tokens Tipados (`src/theme/storeThemes.ts`)**:
+      * Eliminação de mais de 270 condicionais ternárias dispersas pelo código em favor de tokens semânticos (`hero`, `card`, `saldao`, `nav`, `benefits`, `menu`, `promotions`).
+      * Três temas suportados: `default` (Azul Evidência), `outubro-rosa` (Rosa/Magenta) e `black-friday` (Preto Obsidiana `#0A0A0A`, Âmbar Dourado `#F59E0B` e Vermelho Comercial `#DC2626`).
+      * Fallback padrão do sistema corrigido de forma segura para `'default'`.
+    - **Hook e Contexto Reativos (`useStoreTheme.ts` & `AppContext.tsx`)**:
+      * Exposição de `storeThemeTokens` em todo o aplicativo com propriedades reativas (`isBlackFriday`, `isOutubroRosa`, `isDefault`).
+    - **Selo "BLACK" nos Cards de Produto**:
+      * Badges de produto exibem dinamicamente `BLACK SALDÃO -XX%`, `BLACK {promo}`, `BLACK -XX% OFF` ou `BLACK FRIDAY` quando a campanha está ativada.
+    - **Ativação Manual no Painel Administrativo (`AdminPanel.tsx`)**:
+      * Painel de Temas & Campanhas reformulado em 3 colunas (`lg:grid-cols-3`) com prévia visual, botão ouro/preto e seleção manual com 1 clique persistida no Firestore.
+    - **Vitrine 100% Limpa de Emojis**:
+      * Removidos todos os emojis decorativos de cards e banners de vitrine comercial (`SaldaoBanner.tsx`, `ProductDetail.tsx`, `CategoryPage.tsx`), garantindo um visual limpo e profissional.

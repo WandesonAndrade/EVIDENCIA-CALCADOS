@@ -2644,7 +2644,7 @@ export const AdminPanel: React.FC = () => {
                 </label>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-2">
                 <div>
                   <label className="block text-xs font-bold mb-1 text-slate-300">
                     Estoque Máximo para Entrar no Saldão (Unidades)
@@ -3049,17 +3049,19 @@ export const AdminPanel: React.FC = () => {
 
               {/* Status Pill do Tema Atual */}
               <div className={`px-4 py-2.5 rounded-2xl border flex items-center space-x-3 shrink-0 ${
-                storeTheme === 'outubro-rosa'
+                storeTheme === 'black-friday'
+                  ? 'bg-amber-950/40 border-amber-500/50 text-amber-300 shadow-lg shadow-black/60'
+                  : storeTheme === 'outubro-rosa'
                   ? 'bg-pink-950/40 border-pink-500/40 text-pink-300 shadow-lg shadow-pink-950/50'
                   : isDark ? 'bg-slate-800 border-slate-700 text-sky-300' : 'bg-blue-50 border-blue-200 text-blue-700'
               }`}>
                 <span className={`w-3 h-3 rounded-full animate-ping ${
-                  storeTheme === 'outubro-rosa' ? 'bg-pink-500' : 'bg-blue-500'
+                  storeTheme === 'black-friday' ? 'bg-amber-400' : storeTheme === 'outubro-rosa' ? 'bg-pink-500' : 'bg-blue-500'
                 }`} />
                 <div className="text-xs">
                   <span className="font-semibold opacity-70 block text-[10px] tracking-wider uppercase">TEMA ATIVO NO MOMENTO</span>
                   <span className="font-black text-sm">
-                    {storeTheme === 'outubro-rosa' ? '🌸 Outubro Rosa' : '🔷 Tema Padrão (Azul Evidência)'}
+                    {storeTheme === 'black-friday' ? '⚡ Black Friday (Preto & Dourado)' : storeTheme === 'outubro-rosa' ? '🌸 Outubro Rosa' : '🔷 Tema Padrão (Azul Evidência)'}
                   </span>
                 </div>
               </div>
@@ -3070,6 +3072,7 @@ export const AdminPanel: React.FC = () => {
               {AVAILABLE_STORE_THEMES.map((themeDef) => {
                 const isActive = storeTheme === themeDef.id;
                 const isRosa = themeDef.id === 'outubro-rosa';
+                const isBlack = themeDef.id === 'black-friday';
 
                 return (
                   <div
@@ -3088,7 +3091,9 @@ export const AdminPanel: React.FC = () => {
                     {isActive && (
                       <div className="absolute top-4 right-4">
                         <span className={`inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                          isRosa
+                          isBlack
+                            ? 'bg-amber-500 text-black font-black shadow-md shadow-amber-500/40'
+                            : isRosa
                             ? 'bg-pink-500 text-white shadow-md shadow-pink-600/40'
                             : 'bg-blue-600 text-white shadow-md shadow-blue-600/40'
                         }`}>
@@ -3101,7 +3106,9 @@ export const AdminPanel: React.FC = () => {
                     <div className="space-y-4">
                       {/* Tag do Tema */}
                       <span className={`inline-block text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-xl ${
-                        isRosa
+                        isBlack
+                          ? 'bg-amber-500/15 text-amber-300 border border-amber-500/40'
+                          : isRosa
                           ? 'bg-pink-500/10 text-pink-400 border border-pink-500/30'
                           : 'bg-blue-500/10 text-blue-400 border border-blue-500/30'
                       }`}>
@@ -3142,7 +3149,7 @@ export const AdminPanel: React.FC = () => {
                       >
                         <div className="flex items-center justify-between text-xs">
                           <span className="font-extrabold text-[11px] uppercase tracking-wider">
-                            {isRosa ? '🌸 Campanha Rosa' : '⭐ Coleção Evidência'}
+                            {isBlack ? '⚡ Black Friday' : isRosa ? '🌸 Campanha Rosa' : '⭐ Coleção Evidência'}
                           </span>
                           <span className="px-2 py-0.5 rounded-full text-[9px] font-black" style={{ background: themeDef.accentColor }}>
                             -20% OFF
@@ -3190,7 +3197,9 @@ export const AdminPanel: React.FC = () => {
                             }
                           }}
                           className={`w-full py-3 rounded-xl font-black text-xs transition-all cursor-pointer shadow-lg active:scale-98 flex items-center justify-center space-x-2 text-white ${
-                            isRosa
+                            isBlack
+                              ? 'bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-black font-black shadow-amber-950/50'
+                              : isRosa
                               ? 'bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-500 hover:to-rose-500 shadow-pink-950/50'
                               : 'bg-gradient-to-r from-blue-600 to-sky-600 hover:from-blue-500 hover:to-sky-500 shadow-blue-950/50'
                           }`}

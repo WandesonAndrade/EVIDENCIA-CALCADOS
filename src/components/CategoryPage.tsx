@@ -225,7 +225,9 @@ export const CategoryPage: React.FC = () => {
     saldaoConfig,
     promotions = [],
     storeTheme,
+    storeThemeTokens,
   } = useApp();
+  const navTokens = storeThemeTokens.navigation;
 
   const isOutubroRosa = storeTheme === 'outubro-rosa';
   const isDark = theme === 'dark';
@@ -321,7 +323,7 @@ export const CategoryPage: React.FC = () => {
       const specificPromo = promotions.find(p => p.id === promoId);
       if (specificPromo) {
         return {
-          title: `🔥 ${specificPromo.title.toUpperCase()}`,
+          title: specificPromo.title.toUpperCase(),
           subtitle: specificPromo.description || `Confira todos os produtos com desconto exclusivo da campanha ${specificPromo.title}!`,
           bannerImage: 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?q=80&w=1600&auto=format&fit=crop',
           badgeText: `🏷️ ${specificPromo.discountType === 'percentage' ? `${specificPromo.discountValue}% OFF` : `R$ ${specificPromo.discountValue} OFF`}`,
@@ -369,10 +371,10 @@ export const CategoryPage: React.FC = () => {
 
     if (isSaldaoOrOfertas) {
       return {
-        title: '🔥 OFERTAS & SALDÃO DE CALÇADOS',
+        title: 'OFERTAS & SALDÃO DE CALÇADOS',
         subtitle: saldaoConfig?.bannerText || 'Confira os calçados em Saldão de estoque baixo e todas as campanhas de ofertas ativas com os melhores descontos do catálogo!',
         bannerImage: 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?q=80&w=1600&auto=format&fit=crop',
-        badgeText: '🏷️🔥 OFERTAS & SALDÃO',
+        badgeText: 'OFERTAS & SALDÃO',
         isDealsPage: true,
         filter: (prod: Product) => {
           const inSaldao = isSaldaoProduct(prod, saldaoConfig);
@@ -771,7 +773,7 @@ export const CategoryPage: React.FC = () => {
           <button
             onClick={clearAllFilters}
             className={`text-[11px] font-bold ${
-              isOutubroRosa ? 'text-[#BE185D] hover:text-[#9D174D]' : 'text-[#006EDB] hover:text-[#00509E]'
+              storeThemeTokens.isBlackFriday ? 'text-amber-400 hover:text-amber-300' : isOutubroRosa ? 'text-[#BE185D] hover:text-[#9D174D]' : 'text-[#006EDB] hover:text-[#00509E]'
             } flex items-center space-x-1 transition-colors cursor-pointer`}
           >
             <RotateCcw className="h-3 w-3" />
@@ -785,11 +787,11 @@ export const CategoryPage: React.FC = () => {
         <button
           onClick={() => setIsBrandOpen(!isBrandOpen)}
           className={`w-full flex items-center justify-between font-extrabold text-sm text-[#003B73] py-1 cursor-pointer transition-colors ${
-            isOutubroRosa ? 'hover:text-[#EC4899]' : 'hover:text-[#006EDB]'
+            storeThemeTokens.isBlackFriday ? 'hover:text-amber-400' : isOutubroRosa ? 'hover:text-[#EC4899]' : 'hover:text-[#006EDB]'
           }`}
         >
           <div className="flex items-center space-x-2">
-            <Tag className={`h-4 w-4 ${isOutubroRosa ? 'text-[#EC4899]' : 'text-[#006EDB]'}`} />
+            <Tag className={`h-4 w-4 ${storeThemeTokens.isBlackFriday ? 'text-amber-400' : isOutubroRosa ? 'text-[#EC4899]' : 'text-[#006EDB]'}`} />
             <span>Marca</span>
           </div>
           {isBrandOpen ? <ChevronUp className="h-4 w-4 text-[#003B73]" /> : <ChevronDown className="h-4 w-4 text-[#003B73]" />}
@@ -858,11 +860,11 @@ export const CategoryPage: React.FC = () => {
           <button
             onClick={() => setIsGradeOpen(!isGradeOpen)}
             className={`w-full flex items-center justify-between font-extrabold text-sm text-[#003B73] py-1 cursor-pointer transition-colors ${
-              isOutubroRosa ? 'hover:text-[#EC4899]' : 'hover:text-[#006EDB]'
+              storeThemeTokens.isBlackFriday ? 'hover:text-amber-400' : isOutubroRosa ? 'hover:text-[#EC4899]' : 'hover:text-[#006EDB]'
             }`}
           >
             <div className="flex items-center space-x-2">
-              <Ruler className={`h-4 w-4 ${isOutubroRosa ? 'text-[#EC4899]' : 'text-[#006EDB]'}`} />
+              <Ruler className={`h-4 w-4 ${storeThemeTokens.isBlackFriday ? 'text-amber-400' : isOutubroRosa ? 'text-[#EC4899]' : 'text-[#006EDB]'}`} />
               <span>Tamanho / Grade</span>
             </div>
             {isGradeOpen ? <ChevronUp className="h-4 w-4 text-[#003B73]" /> : <ChevronDown className="h-4 w-4 text-[#003B73]" />}
@@ -901,7 +903,7 @@ export const CategoryPage: React.FC = () => {
         <button
           onClick={() => setIsPriceOpen(!isPriceOpen)}
           className={`w-full flex items-center justify-between font-extrabold text-sm text-[#003B73] py-1 cursor-pointer transition-colors ${
-            isOutubroRosa ? 'hover:text-[#EC4899]' : 'hover:text-[#006EDB]'
+            storeThemeTokens.isBlackFriday ? 'hover:text-amber-400' : isOutubroRosa ? 'hover:text-[#EC4899]' : 'hover:text-[#006EDB]'
           }`}
         >
           <span>Faixa de Preço</span>
@@ -935,7 +937,7 @@ export const CategoryPage: React.FC = () => {
                   name="priceRange"
                   checked={priceRange === option.id}
                   onChange={() => setPriceRange(option.id)}
-                  className={`${isOutubroRosa ? 'accent-[#EC4899]' : 'accent-[#003B73]'} h-3.5 w-3.5`}
+                  className={`${storeThemeTokens.isBlackFriday ? 'accent-amber-400' : isOutubroRosa ? 'accent-[#EC4899]' : 'accent-[#003B73]'} h-3.5 w-3.5`}
                 />
                 <span>{option.label}</span>
               </label>
@@ -1285,7 +1287,7 @@ export const CategoryPage: React.FC = () => {
                     : 'bg-[#EEF8FF] border border-blue-900/10 shadow-sm'
                 }`}>
                   <div className="flex items-center space-x-2">
-                    <Tag className={`h-4 w-4 ${isOutubroRosa ? 'text-[#EC4899]' : 'text-[#006EDB]'}`} />
+                    <Tag className={`h-4 w-4 ${storeThemeTokens.isBlackFriday ? 'text-amber-400' : isOutubroRosa ? 'text-[#EC4899]' : 'text-[#006EDB]'}`} />
                     <span className="text-xs font-black text-[#003B73] uppercase tracking-wider">
                       Seções em Destaque
                     </span>
@@ -1304,7 +1306,7 @@ export const CategoryPage: React.FC = () => {
                           : 'bg-white text-[#003B73] border border-blue-900/10 hover:bg-[#DDF1FF]'
                       }`}
                     >
-                      🏷️🔥 Ver Todas ({filteredItems.length})
+                      Ver Todas ({filteredItems.length})
                     </button>
 
                     <button
@@ -1315,7 +1317,7 @@ export const CategoryPage: React.FC = () => {
                           : 'bg-white text-[#003B73] border border-blue-900/10 hover:bg-rose-50'
                       }`}
                     >
-                      🔥 Saldão ({saldaoItems.length})
+                      Saldão ({saldaoItems.length})
                     </button>
 
                     <button
@@ -1343,7 +1345,7 @@ export const CategoryPage: React.FC = () => {
                           <span className="text-xs font-extrabold text-rose-600">Saldão Exclusivo</span>
                         </div>
                         <h3 className="text-lg sm:text-xl font-black text-[#003B73] tracking-tight flex items-center space-x-2">
-                          <span>🔥 SALDÃO DE CALÇADOS - ÚLTIMAS UNIDADES</span>
+                          <span>SALDÃO DE CALÇADOS - ÚLTIMAS UNIDADES</span>
                         </h3>
                         <p className="text-xs text-[#52708F]">
                           Calçados com 5 ou menos pares em estoque com descontos de liquidação por tempo limitado!

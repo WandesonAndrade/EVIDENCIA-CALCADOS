@@ -20,8 +20,9 @@ export const SaldaoBanner: React.FC<SaldaoBannerProps> = ({
   bannerText,
   onViewAll
 }) => {
-  const { storeTheme } = useApp();
-  const isOutubroRosa = storeTheme === 'outubro-rosa';
+  const { storeThemeTokens } = useApp();
+  const saldaoTokens = storeThemeTokens.saldao;
+  const isOutubroRosa = storeThemeTokens.isOutubroRosa;
 
   // Formata o subtítulo para manter conciso e elegante na vitrine, removendo quaisquer emojis
   const cleanSubtitle = bannerText 
@@ -32,14 +33,10 @@ export const SaldaoBanner: React.FC<SaldaoBannerProps> = ({
     <div 
       id="saldao-destaque-banner"
       className={`relative overflow-hidden rounded-2xl sm:rounded-3xl lg:rounded-[28px] border text-white select-none group transition-all duration-300 ${
-        isOutubroRosa 
-          ? 'border-pink-400/40 bg-[#540832] shadow-2xl shadow-pink-950/40' 
-          : 'border-blue-600/30 bg-[#021B4D] shadow-2xl shadow-blue-950/60'
+        `${saldaoTokens.cardBorder} ${saldaoTokens.cardBg} ${saldaoTokens.cardShadow}`
       }`}
       style={{
-        background: isOutubroRosa
-          ? 'linear-gradient(108deg, #5B0836 0%, #7D0D47 35%, #9D174D 62%, #680A3A 100%)'
-          : 'linear-gradient(108deg, #011438 0%, #032158 35%, #052b6e 62%, #021a47 100%)'
+        background: saldaoTokens.cardGradient
       }}
     >
       {/* 1. Efeito de Iluminação de Fundo: Halo Solar / Spotlight Âmbar & Laranja Radiante */}
@@ -96,14 +93,14 @@ export const SaldaoBanner: React.FC<SaldaoBannerProps> = ({
               <h2 className="text-lg sm:text-2xl md:text-3xl lg:text-[30px] xl:text-[34px] font-black tracking-tight text-white leading-tight">
                 Saldão de Calçados
               </h2>
-              <span className={`text-lg sm:text-2xl md:text-3xl lg:text-[30px] xl:text-[34px] font-black ${isOutubroRosa ? 'text-[#F472B6]' : 'text-[#FF7A00]'} tracking-tight leading-tight shrink-0`}>
+              <span className={`text-lg sm:text-2xl md:text-3xl lg:text-[30px] xl:text-[34px] font-black ${saldaoTokens.discountText} tracking-tight leading-tight shrink-0`}>
                 -{discountPercent}% OFF
               </span>
             </div>
 
             {/* Subtítulo / Chamada Comercial */}
-            <div className={`flex items-center space-x-2 ${isOutubroRosa ? 'text-pink-100/90' : 'text-sky-100/90'} text-xs sm:text-sm font-medium`}>
-              <Tag className={`w-3.5 h-3.5 ${isOutubroRosa ? 'text-[#F472B6]' : 'text-[#38BDF8]'} shrink-0`} />
+            <div className={`flex items-center space-x-2 ${saldaoTokens.subtitleText} text-xs sm:text-sm font-medium`}>
+              <Tag className={`w-3.5 h-3.5 ${saldaoTokens.tagIconColor} shrink-0`} />
               <p className="truncate max-w-xs sm:max-w-md lg:max-w-sm xl:max-w-md">
                 {cleanSubtitle}
               </p>
@@ -121,22 +118,22 @@ export const SaldaoBanner: React.FC<SaldaoBannerProps> = ({
               <defs>
                 {/* Gradiente do Pódio Superior */}
                 <linearGradient id="podiumTopGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor={isOutubroRosa ? '#9D174D' : '#143C8A'} />
-                  <stop offset="50%" stopColor={isOutubroRosa ? '#700B40' : '#0B255E'} />
-                  <stop offset="100%" stopColor={isOutubroRosa ? '#4A062B' : '#051740'} />
+                  <stop offset="0%" stopColor={saldaoTokens.podiumTopStops[0]} />
+                  <stop offset="50%" stopColor={saldaoTokens.podiumTopStops[1]} />
+                  <stop offset="100%" stopColor={saldaoTokens.podiumTopStops[2]} />
                 </linearGradient>
 
                 {/* Gradiente da Face do Pódio */}
                 <linearGradient id="podiumBodyGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-                  <stop offset="0%" stopColor={isOutubroRosa ? '#700B40' : '#0B2660'} />
-                  <stop offset="100%" stopColor={isOutubroRosa ? '#3B0422' : '#03102C'} />
+                  <stop offset="0%" stopColor={saldaoTokens.podiumBodyStops[0]} />
+                  <stop offset="100%" stopColor={saldaoTokens.podiumBodyStops[1]} />
                 </linearGradient>
 
                 {/* Gradiente da Sacola Temática */}
                 <linearGradient id="themeBagGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor={isOutubroRosa ? '#EC4899' : '#124099'} />
-                  <stop offset="60%" stopColor={isOutubroRosa ? '#BE185D' : '#092766'} />
-                  <stop offset="100%" stopColor={isOutubroRosa ? '#831843' : '#051945'} />
+                  <stop offset="0%" stopColor={saldaoTokens.themeBagStops[0]} />
+                  <stop offset="60%" stopColor={saldaoTokens.themeBagStops[1]} />
+                  <stop offset="100%" stopColor={saldaoTokens.themeBagStops[2]} />
                 </linearGradient>
 
                 {/* Gradiente da Sacola Laranja */}
@@ -169,7 +166,7 @@ export const SaldaoBanner: React.FC<SaldaoBannerProps> = ({
                 rx="125" 
                 ry="36" 
                 fill="url(#podiumTopGrad)" 
-                stroke={isOutubroRosa ? '#EC4899' : '#2962FF'} 
+                stroke={saldaoTokens.podiumRingStroke} 
                 strokeWidth="1.5"
                 strokeOpacity="0.4"
               />
@@ -192,7 +189,7 @@ export const SaldaoBanner: React.FC<SaldaoBannerProps> = ({
                 <path 
                   d="M 28 22 C 28 -4, 62 -4, 62 22" 
                   fill="none" 
-                  stroke={isOutubroRosa ? '#F472B6' : '#448AFF'} 
+                  stroke={saldaoTokens.themeBagHandle} 
                   strokeWidth="4" 
                   strokeLinecap="round" 
                 />
@@ -203,7 +200,7 @@ export const SaldaoBanner: React.FC<SaldaoBannerProps> = ({
                   height="105" 
                   rx="6" 
                   fill="url(#themeBagGrad)" 
-                  stroke={isOutubroRosa ? '#EC4899' : '#2979FF'} 
+                  stroke={saldaoTokens.themeBagStroke} 
                   strokeWidth="1.5" 
                   strokeOpacity="0.4"
                 />
@@ -297,11 +294,11 @@ export const SaldaoBanner: React.FC<SaldaoBannerProps> = ({
             <button 
               onClick={onViewAll}
               className={`inline-flex items-center space-x-2 px-5 sm:px-6 py-2.5 sm:py-3 rounded-full bg-white hover:bg-slate-100 ${
-                isOutubroRosa ? 'text-[#9D174D] hover:text-[#831843]' : 'text-[#002B70] hover:text-[#001E54]'
+                `${saldaoTokens.btnText} ${saldaoTokens.btnHoverText}`
               } font-black text-xs sm:text-sm tracking-tight shadow-xl hover:shadow-2xl hover:shadow-white/20 active:scale-95 transition-all duration-200 cursor-pointer group/btn whitespace-nowrap`}
             >
               <span>Ver todos os calçados em saldão</span>
-              <ArrowRight className={`w-4 h-4 stroke-[2.8] ${isOutubroRosa ? 'text-[#9D174D]' : 'text-[#002B70]'} group-hover/btn:translate-x-1.5 transition-transform shrink-0`} />
+              <ArrowRight className={`w-4 h-4 stroke-[2.8] ${saldaoTokens.btnArrowColor} group-hover/btn:translate-x-1.5 transition-transform shrink-0`} />
             </button>
           </div>
 
@@ -312,12 +309,12 @@ export const SaldaoBanner: React.FC<SaldaoBannerProps> = ({
           
           {/* Pilar 1: Entrega Rápida */}
           <div className="flex items-center space-x-2">
-            <Truck className={`h-3.5 w-3.5 ${isOutubroRosa ? 'text-[#F472B6]' : 'text-[#38BDF8]'} shrink-0 stroke-[2.2]`} />
+            <Truck className={`h-3.5 w-3.5 ${saldaoTokens.trustIconColor} shrink-0 stroke-[2.2]`} />
             <div>
               <h5 className="text-[10px] sm:text-[11px] font-bold text-white tracking-tight leading-none">
                 Entrega Rápida
               </h5>
-              <span className={`text-[8px] sm:text-[9px] ${isOutubroRosa ? 'text-pink-200/70' : 'text-sky-200/70'} leading-none`}>
+              <span className={`text-[8px] sm:text-[9px] ${saldaoTokens.trustSubtitleColor} leading-none`}>
                 Para todo o Brasil
               </span>
             </div>
@@ -325,12 +322,12 @@ export const SaldaoBanner: React.FC<SaldaoBannerProps> = ({
 
           {/* Pilar 2: Compra Segura */}
           <div className="flex items-center space-x-2">
-            <ShieldCheck className={`h-3.5 w-3.5 ${isOutubroRosa ? 'text-[#F472B6]' : 'text-[#38BDF8]'} shrink-0 stroke-[2.2]`} />
+            <ShieldCheck className={`h-3.5 w-3.5 ${saldaoTokens.trustIconColor} shrink-0 stroke-[2.2]`} />
             <div>
               <h5 className="text-[10px] sm:text-[11px] font-bold text-white tracking-tight leading-none">
                 Compra Segura
               </h5>
-              <span className={`text-[8px] sm:text-[9px] ${isOutubroRosa ? 'text-pink-200/70' : 'text-sky-200/70'} leading-none`}>
+              <span className={`text-[8px] sm:text-[9px] ${saldaoTokens.trustSubtitleColor} leading-none`}>
                 Seus dados protegidos
               </span>
             </div>
@@ -338,12 +335,12 @@ export const SaldaoBanner: React.FC<SaldaoBannerProps> = ({
 
           {/* Pilar 3: Parcele em até 10x */}
           <div className="flex items-center space-x-2">
-            <CreditCard className={`h-3.5 w-3.5 ${isOutubroRosa ? 'text-[#F472B6]' : 'text-[#38BDF8]'} shrink-0 stroke-[2.2]`} />
+            <CreditCard className={`h-3.5 w-3.5 ${saldaoTokens.trustIconColor} shrink-0 stroke-[2.2]`} />
             <div>
               <h5 className="text-[10px] sm:text-[11px] font-bold text-white tracking-tight leading-none">
                 Parcele em até 10x
               </h5>
-              <span className={`text-[8px] sm:text-[9px] ${isOutubroRosa ? 'text-pink-200/70' : 'text-sky-200/70'} leading-none`}>
+              <span className={`text-[8px] sm:text-[9px] ${saldaoTokens.trustSubtitleColor} leading-none`}>
                 No cartão de crédito
               </span>
             </div>
@@ -351,12 +348,12 @@ export const SaldaoBanner: React.FC<SaldaoBannerProps> = ({
 
           {/* Pilar 4: Troca e Devolução */}
           <div className="flex items-center space-x-2">
-            <RefreshCw className={`h-3.5 w-3.5 ${isOutubroRosa ? 'text-[#F472B6]' : 'text-[#38BDF8]'} shrink-0 stroke-[2.2]`} />
+            <RefreshCw className={`h-3.5 w-3.5 ${saldaoTokens.trustIconColor} shrink-0 stroke-[2.2]`} />
             <div>
               <h5 className="text-[10px] sm:text-[11px] font-bold text-white tracking-tight leading-none">
                 Troca e Devolução
               </h5>
-              <span className={`text-[8px] sm:text-[9px] ${isOutubroRosa ? 'text-pink-200/70' : 'text-sky-200/70'} leading-none`}>
+              <span className={`text-[8px] sm:text-[9px] ${saldaoTokens.trustSubtitleColor} leading-none`}>
                 Sem complicação
               </span>
             </div>

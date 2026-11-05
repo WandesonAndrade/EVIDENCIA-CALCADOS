@@ -49,10 +49,13 @@ export const ProductList: React.FC = () => {
     theme,
     categories: dbCategories = [],
     storeTheme,
+    storeThemeTokens,
     featuredPromoCards,
   } = useApp();
 
   const isOutubroRosa = storeTheme === 'outubro-rosa';
+  const navTokens = storeThemeTokens.navigation;
+  const benefitsTokens = storeThemeTokens.benefits;
   const [sortBy, setSortBy] = useState<"relevant" | "price-asc" | "price-desc" | "launches">("relevant");
   const catalogSectionRef = useRef<HTMLElement | null>(null);
   const isDark = theme === "dark";
@@ -400,7 +403,7 @@ export const ProductList: React.FC = () => {
       {searchQuery && searchQuery.trim() ? (
         <div className="space-y-6 pt-2 w-full">
           <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b ${
-            isOutubroRosa ? 'border-pink-900/15 dark:border-pink-500/20' : 'border-blue-900/10 dark:border-white/10'
+            navTokens.sectionDivider
           }`}>
             <div className="space-y-1">
               <div className="flex items-center space-x-2">
@@ -465,10 +468,14 @@ export const ProductList: React.FC = () => {
           {/* BARRA DE VANTAGENS & CONFIANÇA (POSICIONADA NO TOPO, LOGO ABAIXO DO HERO BANNER) */}
           <div className={`p-2.5 min-[390px]:p-3.5 sm:p-6 rounded-2xl sm:rounded-3xl border transition-all w-full ${
             isDark 
-              ? isOutubroRosa
+              ? storeThemeTokens.isBlackFriday
+                ? 'bg-[#121212]/95 border-amber-500/30 text-neutral-200 shadow-xl shadow-black/80'
+                : isOutubroRosa
                 ? 'bg-[#1F0314]/90 border-pink-500/20 text-slate-200 shadow-xl shadow-pink-950/20'
                 : 'bg-[#0E1627]/90 border-blue-900/30 text-slate-200 shadow-xl' 
-              : isOutubroRosa
+              : storeThemeTokens.isBlackFriday
+                ? 'bg-[#0A0A0A] border-amber-500/30 shadow-md text-white'
+                : isOutubroRosa
                 ? 'bg-white border-pink-900/10 shadow-sm text-[#003B73]'
                 : 'bg-white border-blue-900/10 shadow-sm text-[#003B73]'
           }`}>
@@ -626,7 +633,7 @@ export const ProductList: React.FC = () => {
       {novidadesProducts.length > 0 && (
         <div className="space-y-6">
           <div className={`flex flex-col sm:flex-row sm:items-end justify-between gap-3 border-b pb-3 ${
-            isOutubroRosa ? 'border-pink-900/15 dark:border-pink-500/20' : 'border-blue-900/10 dark:border-white/10'
+            navTokens.sectionDivider
           }`}>
             <div>
               <h2 className={`text-2xl sm:text-3xl font-black tracking-tight ${isDark ? "text-white" : "text-[#003B73]"}`}>
@@ -645,9 +652,7 @@ export const ProductList: React.FC = () => {
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
               className={`text-xs font-extrabold ${
-                isOutubroRosa
-                  ? 'text-[#BE185D] hover:text-[#9D174D] dark:text-pink-300 dark:hover:text-white'
-                  : 'text-[#006EDB] hover:text-[#00509E] dark:text-amber-300 dark:hover:text-white'
+                `${navTokens.seeAllTextLight} ${navTokens.seeAllHover} ${navTokens.seeAllTextDark}`
               } transition-colors cursor-pointer shrink-0`}
             >
               Ver todas as novidades →
@@ -692,17 +697,23 @@ export const ProductList: React.FC = () => {
                   !card1.active ? 'hidden' : ''
                 } ${
                   isDark
-                    ? isOutubroRosa
+                    ? storeThemeTokens.isBlackFriday
+                      ? 'border-amber-500/40 shadow-xl shadow-black/80'
+                      : isOutubroRosa
                       ? 'border-pink-500/30 shadow-lg shadow-pink-950/40'
                       : 'border-white/10 shadow-lg shadow-black/40'
-                    : isOutubroRosa
+                    : storeThemeTokens.isBlackFriday
+                      ? 'border-amber-500/40 shadow-xl shadow-black/50'
+                      : isOutubroRosa
                       ? 'border-pink-300/40 shadow-md shadow-pink-900/10'
                       : 'border-slate-200/60 shadow-md shadow-slate-900/5'
                 }`}
               >
                 {/* Lado Esquerdo: Painel Gráfico Promocional */}
                 <div className={`w-[56%] min-[390px]:w-[58%] sm:w-[56%] p-3 min-[390px]:p-3.5 sm:p-4.5 flex flex-col justify-between relative z-10 shrink-0 ${
-                  isOutubroRosa
+                  storeThemeTokens.isBlackFriday
+                    ? 'bg-gradient-to-r from-[#171717] via-[#262626] to-[#0A0A0A] border-r border-amber-500/25'
+                    : isOutubroRosa
                     ? 'bg-gradient-to-r from-[#BE185D] via-[#DB2777] to-[#BE185D]'
                     : 'bg-gradient-to-r from-[#E50914] via-[#DC2626] to-[#B91C1C]'
                 }`}>
@@ -736,7 +747,7 @@ export const ProductList: React.FC = () => {
 
                   <div className="pt-1.5 min-[390px]:pt-2">
                     <span className={`inline-flex items-center space-x-1.5 px-3 min-[390px]:px-3.5 py-1.5 rounded-full bg-white font-black text-[9.5px] min-[390px]:text-[10.5px] uppercase tracking-wider shadow-md group-hover:scale-105 active:scale-95 transition-transform duration-200 ${
-                      isOutubroRosa ? 'text-[#BE185D]' : 'text-[#DC2626]'
+                      storeThemeTokens.isBlackFriday ? 'text-black bg-gradient-to-r from-amber-400 to-yellow-400 font-black' : isOutubroRosa ? 'text-[#BE185D]' : 'text-[#DC2626]'
                     }`}>
                       <span>{card1.buttonText || 'VER OFERTAS'}</span>
                       <ShoppingCart className="w-3.5 h-3.5 stroke-[2.5]" />
@@ -876,17 +887,23 @@ export const ProductList: React.FC = () => {
                   !card3.active ? 'hidden' : ''
                 } ${
                   isDark
-                    ? isOutubroRosa
+                    ? storeThemeTokens.isBlackFriday
+                      ? 'border-amber-500/40 shadow-xl shadow-black/80'
+                      : isOutubroRosa
                       ? 'border-pink-500/30 shadow-lg shadow-pink-950/40'
                       : 'border-white/10 shadow-lg shadow-black/40'
-                    : isOutubroRosa
+                    : storeThemeTokens.isBlackFriday
+                      ? 'border-amber-500/40 shadow-xl shadow-black/50'
+                      : isOutubroRosa
                       ? 'border-pink-300/40 shadow-md shadow-pink-900/10'
                       : 'border-slate-200/60 shadow-md shadow-slate-900/5'
                 }`}
               >
                 {/* Lado Esquerdo: Painel Gráfico Promocional */}
                 <div className={`w-[56%] min-[390px]:w-[58%] sm:w-[56%] p-3 min-[390px]:p-3.5 sm:p-4.5 flex flex-col justify-between relative z-10 shrink-0 ${
-                  isOutubroRosa
+                  storeThemeTokens.isBlackFriday
+                    ? 'bg-gradient-to-r from-[#171717] via-[#262626] to-[#0A0A0A] border-r border-amber-500/25'
+                    : isOutubroRosa
                     ? 'bg-gradient-to-r from-[#BE185D] via-[#DB2777] to-[#BE185D]'
                     : 'bg-gradient-to-r from-[#E50914] via-[#DC2626] to-[#B91C1C]'
                 }`}>
@@ -920,7 +937,7 @@ export const ProductList: React.FC = () => {
 
                   <div className="pt-1.5 min-[390px]:pt-2">
                     <span className={`inline-flex items-center space-x-1.5 px-3 min-[390px]:px-3.5 py-1.5 rounded-full bg-white font-black text-[9.5px] min-[390px]:text-[10.5px] uppercase tracking-wider shadow-md group-hover:scale-105 active:scale-95 transition-transform duration-200 ${
-                      isOutubroRosa ? 'text-[#BE185D]' : 'text-[#DC2626]'
+                      storeThemeTokens.isBlackFriday ? 'text-black bg-gradient-to-r from-amber-400 to-yellow-400 font-black' : isOutubroRosa ? 'text-[#BE185D]' : 'text-[#DC2626]'
                     }`}>
                       <span>{card3.buttonText || 'VER OFERTAS'}</span>
                       <ShoppingCart className="w-3.5 h-3.5 stroke-[2.5]" />
@@ -971,7 +988,7 @@ export const ProductList: React.FC = () => {
       {calcadosProducts.length > 0 && (
         <div className="space-y-6">
           <div className={`flex flex-col sm:flex-row sm:items-end justify-between gap-3 border-b pb-3 ${
-            isOutubroRosa ? 'border-pink-900/15 dark:border-pink-500/20' : 'border-blue-900/10 dark:border-white/10'
+            navTokens.sectionDivider
           }`}>
             <div>
               <h2 className={`text-2xl sm:text-3xl font-black tracking-tight ${isDark ? "text-white" : "text-[#003B73]"}`}>
@@ -984,9 +1001,7 @@ export const ProductList: React.FC = () => {
             <button 
               onClick={() => handleSelectCategory('CALÇADOS')}
               className={`text-xs font-extrabold ${
-                isOutubroRosa
-                  ? 'text-[#BE185D] hover:text-[#9D174D] dark:text-pink-300 dark:hover:text-white'
-                  : 'text-[#006EDB] hover:text-[#00509E] dark:text-amber-300 dark:hover:text-white'
+                `${navTokens.seeAllTextLight} ${navTokens.seeAllHover} ${navTokens.seeAllTextDark}`
               } transition-colors cursor-pointer shrink-0`}
             >
               Ver todos os calçados →
@@ -1013,7 +1028,7 @@ export const ProductList: React.FC = () => {
       {confeccoesProducts.length > 0 && (
         <div className="space-y-6">
           <div className={`flex flex-col sm:flex-row sm:items-end justify-between gap-3 border-b pb-3 ${
-            isOutubroRosa ? 'border-pink-900/15 dark:border-pink-500/20' : 'border-blue-900/10 dark:border-white/10'
+            navTokens.sectionDivider
           }`}>
             <div>
               <h2 className={`text-2xl sm:text-3xl font-black tracking-tight ${isDark ? "text-white" : "text-[#003B73]"}`}>
@@ -1026,9 +1041,7 @@ export const ProductList: React.FC = () => {
             <button 
               onClick={() => handleSelectCategory('CONFECÇÕES')}
               className={`text-xs font-extrabold ${
-                isOutubroRosa
-                  ? 'text-[#BE185D] hover:text-[#9D174D] dark:text-pink-300 dark:hover:text-white'
-                  : 'text-[#006EDB] hover:text-[#00509E] dark:text-amber-300 dark:hover:text-white'
+                `${navTokens.seeAllTextLight} ${navTokens.seeAllHover} ${navTokens.seeAllTextDark}`
               } transition-colors cursor-pointer shrink-0`}
             >
               Ver todas as confecções →
@@ -1055,7 +1068,7 @@ export const ProductList: React.FC = () => {
       {acessoriosProducts.length > 0 && (
         <div className="space-y-6">
           <div className={`flex flex-col sm:flex-row sm:items-end justify-between gap-3 border-b pb-3 ${
-            isOutubroRosa ? 'border-pink-900/15 dark:border-pink-500/20' : 'border-blue-900/10 dark:border-white/10'
+            navTokens.sectionDivider
           }`}>
             <div>
               <h2 className={`text-2xl sm:text-3xl font-black tracking-tight ${isDark ? "text-white" : "text-[#003B73]"}`}>
@@ -1068,9 +1081,7 @@ export const ProductList: React.FC = () => {
             <button 
               onClick={() => handleSelectCategory('ACESSÓRIOS')}
               className={`text-xs font-extrabold ${
-                isOutubroRosa
-                  ? 'text-[#BE185D] hover:text-[#9D174D] dark:text-pink-300 dark:hover:text-white'
-                  : 'text-[#006EDB] hover:text-[#00509E] dark:text-amber-300 dark:hover:text-white'
+                `${navTokens.seeAllTextLight} ${navTokens.seeAllHover} ${navTokens.seeAllTextDark}`
               } transition-colors cursor-pointer shrink-0`}
             >
               Ver todos os acessórios →

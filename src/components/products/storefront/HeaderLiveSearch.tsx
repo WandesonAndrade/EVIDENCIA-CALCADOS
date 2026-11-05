@@ -25,6 +25,7 @@ export const HeaderLiveSearch: React.FC<HeaderLiveSearchProps> = ({ isMobile = f
     saldaoConfig,
     promotions = [],
     storeTheme,
+    storeThemeTokens,
   } = useApp();
 
   const isOutubroRosa = storeTheme === 'outubro-rosa';
@@ -175,7 +176,11 @@ export const HeaderLiveSearch: React.FC<HeaderLiveSearchProps> = ({ isMobile = f
             }`}>
               <div className="flex items-center space-x-1.5">
                 <span className={`p-1 rounded-lg ${
-                  isOutubroRosa
+                  storeThemeTokens.isBlackFriday
+                    ? 'bg-amber-500/20 text-amber-400 dark:bg-neutral-900 dark:text-amber-300'
+                    : storeThemeTokens.isBlackFriday
+                    ? 'bg-amber-500/20 text-amber-400 dark:bg-neutral-900 dark:text-amber-300'
+                    : isOutubroRosa
                     ? 'bg-pink-100 text-[#EC4899] dark:bg-pink-950/70 dark:text-pink-300'
                     : 'bg-[#0071E3]/10 text-[#0071E3] dark:bg-blue-500/20 dark:text-blue-400'
                 }`}>
@@ -289,7 +294,11 @@ export const HeaderLiveSearch: React.FC<HeaderLiveSearchProps> = ({ isMobile = f
                   type="button"
                   onClick={handleViewAllCatalog}
                   className={`w-full py-2 px-3 rounded-xl ${
-                    isOutubroRosa
+                    storeThemeTokens.isBlackFriday
+                      ? 'bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-black font-black shadow-amber-500/25'
+                      : storeThemeTokens.isBlackFriday
+                      ? 'bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-black font-black shadow-amber-500/25'
+                      : isOutubroRosa
                       ? 'bg-gradient-to-r from-[#DB2777] via-[#EC4899] to-[#F472B6] hover:from-[#BE185D] hover:to-[#DB2777] shadow-pink-500/25'
                       : 'bg-[#0071E3] hover:bg-[#005bb5]'
                   } text-white text-xs font-bold transition-all cursor-pointer flex items-center justify-center space-x-1.5 shadow-sm active:scale-[0.99]`}

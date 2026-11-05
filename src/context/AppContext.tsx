@@ -1,7 +1,8 @@
-import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Product, CartItem, Order, PaymentStatus, OrderStatus, UserProfile, UserRole, CrediarioStatus, Category, MoblinkConfig, MoblinkSyncLog, MoblinkSyncLogItem, EvidenciaAuthSession, HeroBanner, HomeSectionConfig, AboutConfig, ContactConfig, StoreConfig, ViewMode, SaldaoConfig, PromoCampaign, Seller, StoreThemeId, FeaturedPromoCard, InstallmentDiscountConfig } from '../types';
 import { loadSaldaoConfig, saveSaldaoConfig, DEFAULT_SALDAO_CONFIG, getSaldaoProductPrice } from '../services/saldaoService';
 import { loadThemeConfig, saveThemeConfig, DEFAULT_THEME_CONFIG } from '../services/themeService';
+import { getStoreThemeTokens, StoreThemeTokens } from '../theme/storeThemes';
 import { loadInstallmentDiscountConfig, saveInstallmentDiscountConfig, DEFAULT_INSTALLMENT_DISCOUNT_CONFIG } from '../services/installmentDiscountService';
 import { loadPromotionsFromLocalStorage, savePromotionsToLocalStorage, savePromotionToFirestore, deletePromotionFromFirestore, PROMOTIONS_COLLECTION, getApplicablePromotion } from '../services/promotionsService';
 import { loadSellersFromLocalStorage, saveSellersToLocalStorage, saveSellerToFirestore, deleteSellerFromFirestore, SELLERS_COLLECTION } from '../services/sellersService';
@@ -129,6 +130,7 @@ interface AppContextProps {
   updateSaldaoConfig: (config: Partial<SaldaoConfig>) => Promise<void>;
   // Tema da Vitrine & Campanhas Sazonais
   storeTheme: StoreThemeId;
+  storeThemeTokens: StoreThemeTokens;
   updateStoreTheme: (themeId: StoreThemeId) => Promise<void>;
   // Desconto de Pontualidade nas Parcelas do Crediário
   installmentDiscountConfig: InstallmentDiscountConfig;
@@ -492,6 +494,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     return () => unsub();
   }, []);
+
+  const storeThemeTokens = useMemo(() => getStoreThemeTokens(storeTheme), [storeTheme]);
 
   const updateStoreTheme = useCallback(async (newTheme: StoreThemeId) => {
     setStoreTheme(newTheme);
@@ -3191,6 +3195,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         saldaoConfig,
         updateSaldaoConfig,
         storeTheme,
+        storeThemeTokens,
         updateStoreTheme,
         installmentDiscountConfig,
         updateInstallmentDiscountConfig,

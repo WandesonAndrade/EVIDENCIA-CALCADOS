@@ -16,8 +16,8 @@ export const ProductBadges: React.FC<ProductBadgesProps> = ({
   position = 'corner',
   showErpInfo = false,
 }) => {
-  const { saldaoConfig, promotions = [], storeTheme } = useApp();
-  const isOutubroRosa = storeTheme === 'outubro-rosa';
+  const { saldaoConfig, promotions = [], storeThemeTokens } = useApp();
+  const cardTokens = storeThemeTokens.cards;
   const saldaoCalc = getSaldaoProductPrice(product, saldaoConfig);
   const applicablePromo = getApplicablePromotion(product, promotions);
 
@@ -48,39 +48,27 @@ export const ProductBadges: React.FC<ProductBadgesProps> = ({
       <div className="absolute top-2 min-[390px]:top-2.5 left-2 min-[390px]:left-2.5 flex flex-col gap-1 z-10">
         {saldaoCalc.isSaldao ? (
           <span
-            className={`px-2 min-[390px]:px-2.5 py-0.5 min-[390px]:py-1 text-[9px] min-[390px]:text-[10px] font-black text-white ${
-              isOutubroRosa
-                ? 'bg-gradient-to-r from-[#EC4899] via-[#F472B6] to-[#DB2777] shadow-pink-500/30'
-                : 'bg-gradient-to-r from-[#FF4500] via-[#FF6000] to-[#FFA000] shadow-orange-600/30'
-            } rounded-full shadow-md uppercase tracking-wider animate-pulse flex items-center gap-1`}
+            className={`px-2 min-[390px]:px-2.5 py-0.5 min-[390px]:py-1 text-[9px] min-[390px]:text-[10px] font-black ${cardTokens.cornerBadgeSaldao} rounded-full shadow-md uppercase tracking-wider animate-pulse flex items-center gap-1`}
           >
-            🔥 SALDÃO -{saldaoCalc.discountPercent}%
+            {cardTokens.cornerBadgeLabel(true, saldaoCalc.discountPercent)}
           </span>
         ) : applicablePromo ? (
           <span
-            className={`px-2 min-[390px]:px-2.5 py-0.5 min-[390px]:py-1 text-[9px] min-[390px]:text-[10px] font-black ${
-              isOutubroRosa
-                ? 'text-white bg-gradient-to-r from-[#EC4899] to-[#F472B6]'
-                : 'text-slate-950 bg-gradient-to-r from-amber-400 to-amber-500'
-            } rounded-full shadow-md uppercase tracking-wider animate-bounce flex items-center gap-1`}
+            className={`px-2 min-[390px]:px-2.5 py-0.5 min-[390px]:py-1 text-[9px] min-[390px]:text-[10px] font-black ${cardTokens.cornerBadgePromo} rounded-full shadow-md uppercase tracking-wider animate-bounce flex items-center gap-1`}
           >
-            🏷️ {applicablePromo.discountLabel}
+            {cardTokens.cornerBadgeLabel(false, 0, applicablePromo.discountLabel)}
           </span>
         ) : discountPercent > 0 ? (
           <span
-            className={`px-2 min-[390px]:px-2.5 py-0.5 text-[9px] min-[390px]:text-[10px] font-bold text-white ${
-              isOutubroRosa ? 'bg-[#EC4899]' : 'bg-[#e30000]'
-            } rounded-full shadow-xs uppercase tracking-wider`}
+            className={`px-2 min-[390px]:px-2.5 py-0.5 text-[9px] min-[390px]:text-[10px] font-bold ${cardTokens.cornerBadgeDiscount} rounded-full shadow-xs uppercase tracking-wider`}
           >
-            -{discountPercent}% OFF
+            {cardTokens.cornerBadgeLabel(false, discountPercent)}
           </span>
         ) : (
           <span
-            className={`px-2 min-[390px]:px-2.5 py-0.5 text-[9px] min-[390px]:text-[10px] font-bold text-white ${
-              isOutubroRosa ? 'bg-[#EC4899]' : 'bg-[#006EDB]'
-            } rounded-full shadow-xs uppercase tracking-wider`}
+            className={`px-2 min-[390px]:px-2.5 py-0.5 text-[9px] min-[390px]:text-[10px] font-bold ${cardTokens.cornerBadgeNew} rounded-full shadow-xs uppercase tracking-wider`}
           >
-            Novo
+            {cardTokens.cornerBadgeLabel(false, 0)}
           </span>
         )}
       </div>
@@ -92,33 +80,23 @@ export const ProductBadges: React.FC<ProductBadgesProps> = ({
     <div className="flex items-center gap-1.5 flex-wrap">
       {saldaoCalc.isSaldao && (
         <span
-          className={`px-2 py-0.5 text-[9px] font-black text-white ${
-            isOutubroRosa
-              ? 'bg-gradient-to-r from-[#EC4899] to-[#F472B6]'
-              : 'bg-gradient-to-r from-[#FF4500] to-[#FFA000]'
-          } rounded-md uppercase`}
+          className={`px-2 py-0.5 text-[9px] font-black ${cardTokens.cornerBadgeSaldao} rounded-md uppercase`}
         >
-          Saldão -{saldaoCalc.discountPercent}%
+          {cardTokens.cornerBadgeLabel(true, saldaoCalc.discountPercent)}
         </span>
       )}
       {applicablePromo && (
         <span
-          className={`px-2 py-0.5 text-[9px] font-black ${
-            isOutubroRosa
-              ? 'text-white bg-gradient-to-r from-[#EC4899] to-[#F472B6]'
-              : 'text-amber-950 bg-amber-400'
-          } rounded-md uppercase`}
+          className={`px-2 py-0.5 text-[9px] font-black ${cardTokens.cornerBadgePromo} rounded-md uppercase`}
         >
-          {applicablePromo.discountLabel}
+          {cardTokens.cornerBadgeLabel(false, 0, applicablePromo.discountLabel)}
         </span>
       )}
       {discountPercent > 0 && !saldaoCalc.isSaldao && !applicablePromo && (
         <span
-          className={`px-2 py-0.5 text-[9px] font-bold text-white ${
-            isOutubroRosa ? 'bg-[#EC4899]' : 'bg-[#e30000]'
-          } rounded-md uppercase`}
+          className={`px-2 py-0.5 text-[9px] font-bold ${cardTokens.cornerBadgeDiscount} rounded-md uppercase`}
         >
-          -{discountPercent}% OFF
+          {cardTokens.cornerBadgeLabel(false, discountPercent)}
         </span>
       )}
       {Boolean(product.newArrival) && (
@@ -128,9 +106,15 @@ export const ProductBadges: React.FC<ProductBadgesProps> = ({
         </span>
       )}
       {showErpInfo && product.classificacao && (
-        <span className="px-2 py-0.5 text-[9px] font-mono font-bold text-[#0071E3] bg-blue-50 dark:bg-blue-950/50 rounded-md border border-blue-200/50 inline-flex items-center gap-1">
+        <span className="px-1.5 py-0.5 text-[8.5px] font-mono text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 inline-flex items-center gap-1">
           <Layers className="h-2.5 w-2.5" />
-          {String(product.classificacao)}
+          {product.classificacao}
+        </span>
+      )}
+      {showErpInfo && ((product as any).marca || (product as any).brand) && (
+        <span className="px-1.5 py-0.5 text-[8.5px] font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 inline-flex items-center gap-1">
+          <Tag className="h-2.5 w-2.5" />
+          {(product as any).marca || (product as any).brand}
         </span>
       )}
     </div>

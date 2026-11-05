@@ -114,6 +114,7 @@ export const MeuCrediario: React.FC = () => {
     setCurrentView, 
     theme, 
     storeTheme,
+    storeThemeTokens,
     contactConfig,
     installmentDiscountConfig 
   } = useApp();
@@ -330,7 +331,11 @@ export const MeuCrediario: React.FC = () => {
         >
           <div className="flex items-center space-x-3.5">
             <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-md font-bold text-white transition-all ${
-              isOutubroRosa
+              storeThemeTokens.isBlackFriday
+                ? 'bg-gradient-to-br from-amber-500 via-yellow-400 to-amber-600 text-black shadow-amber-950/40'
+                : storeThemeTokens.isBlackFriday
+                ? 'bg-gradient-to-br from-amber-500 via-yellow-400 to-amber-600 text-black shadow-amber-950/40'
+                : isOutubroRosa
                 ? 'bg-gradient-to-br from-[#BE185D] to-[#831843] shadow-pink-950/20'
                 : 'bg-gradient-to-br from-[#002554] via-[#003B73] to-[#0071E3] shadow-blue-950/20'
             }`}>
@@ -510,7 +515,11 @@ export const MeuCrediario: React.FC = () => {
                   initial={{ opacity: 0, scale: 0.98 }}
                   animate={{ opacity: 1, scale: 1 }}
                   className={`p-4 sm:p-5 rounded-3xl border flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative overflow-hidden transition-all ${
-                    isOutubroRosa
+                    storeThemeTokens.isBlackFriday
+                      ? 'bg-gradient-to-r from-neutral-950 via-[#1C1405] to-[#2B1D07] border-amber-500/30 text-white shadow-xl shadow-black/80'
+                      : storeThemeTokens.isBlackFriday
+                      ? 'bg-gradient-to-r from-neutral-950 via-[#1C1405] to-[#2B1D07] border-amber-500/30 text-white shadow-xl shadow-black/80'
+                      : isOutubroRosa
                       ? isDark 
                         ? 'bg-gradient-to-r from-[#4A062B] via-[#630B3A] to-[#831843] border-pink-400/30 text-white shadow-xl shadow-pink-950/25'
                         : 'bg-gradient-to-r from-[#5B0836] via-[#7D0D47] to-[#9D174D] border-pink-300 text-white shadow-lg'

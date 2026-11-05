@@ -113,8 +113,9 @@ export const SubcategoryCarousel: React.FC<SubcategoryCarouselProps> = ({
   title = 'Compre por Categoria',
   subtitle = 'Acesso rápido aos modelos e estilos mais procurados da loja.',
 }) => {
-  const { storeTheme } = useApp();
+  const { storeTheme, storeThemeTokens } = useApp();
   const isOutubroRosa = storeTheme === 'outubro-rosa';
+  const navTokens = storeThemeTokens.navigation;
   const carouselRef = useRef<HTMLDivElement | null>(null);
   const isDark = theme === 'dark';
   const [imgErrors, setImgErrors] = useState<Record<string, boolean>>({});
@@ -134,7 +135,7 @@ export const SubcategoryCarousel: React.FC<SubcategoryCarouselProps> = ({
     <div className="space-y-4">
       {/* Top Header com Botões de Navegação */}
       <div className={`flex flex-col sm:flex-row sm:items-end justify-between gap-3 border-b pb-3 ${
-        isOutubroRosa ? 'border-pink-900/15 dark:border-pink-500/20' : 'border-blue-900/10 dark:border-white/10'
+        navTokens.sectionDivider
       }`}>
         <div>
           <h2 className={`text-2xl sm:text-3xl font-black tracking-tight ${isDark ? 'text-white' : 'text-[#003B73]'}`}>
@@ -153,6 +154,8 @@ export const SubcategoryCarousel: React.FC<SubcategoryCarouselProps> = ({
             className={`p-2 rounded-full border transition-all cursor-pointer ${
               isDark
                 ? 'bg-slate-900 border-white/10 text-white hover:bg-slate-800'
+                : storeThemeTokens.isBlackFriday
+                ? 'bg-neutral-900 border-amber-500/40 text-amber-400 hover:bg-neutral-800 shadow-xs'
                 : isOutubroRosa
                 ? 'bg-white border-pink-900/15 text-[#BE185D] hover:bg-pink-50 shadow-xs'
                 : 'bg-white border-blue-900/10 text-[#003B73] hover:bg-blue-50 shadow-xs'
@@ -167,6 +170,8 @@ export const SubcategoryCarousel: React.FC<SubcategoryCarouselProps> = ({
             className={`p-2 rounded-full border transition-all cursor-pointer ${
               isDark
                 ? 'bg-slate-900 border-white/10 text-white hover:bg-slate-800'
+                : storeThemeTokens.isBlackFriday
+                ? 'bg-neutral-900 border-amber-500/40 text-amber-400 hover:bg-neutral-800 shadow-xs'
                 : isOutubroRosa
                 ? 'bg-white border-pink-900/15 text-[#BE185D] hover:bg-pink-50 shadow-xs'
                 : 'bg-white border-blue-900/10 text-[#003B73] hover:bg-blue-50 shadow-xs'
@@ -224,8 +229,8 @@ export const SubcategoryCarousel: React.FC<SubcategoryCarouselProps> = ({
               <span
                 className={`text-xs sm:text-sm font-extrabold line-clamp-1 mt-2.5 transition-colors ${
                   isDark
-                    ? isOutubroRosa ? 'text-slate-100 group-hover:text-pink-400' : 'text-slate-100 group-hover:text-blue-400'
-                    : isOutubroRosa ? 'text-[#003B73] group-hover:text-[#EC4899]' : 'text-[#003B73] group-hover:text-[#006EDB]'
+                    ? storeThemeTokens.isBlackFriday ? 'text-slate-100 group-hover:text-amber-400' : isOutubroRosa ? 'text-slate-100 group-hover:text-pink-400' : 'text-slate-100 group-hover:text-blue-400'
+                    : storeThemeTokens.isBlackFriday ? 'text-neutral-900 group-hover:text-amber-600' : isOutubroRosa ? 'text-[#003B73] group-hover:text-[#EC4899]' : 'text-[#003B73] group-hover:text-[#006EDB]'
                 }`}
               >
                 {displayName}

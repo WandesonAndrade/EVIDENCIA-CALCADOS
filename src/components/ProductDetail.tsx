@@ -39,9 +39,11 @@ export const ProductDetail: React.FC = () => {
     saldaoConfig,
     promotions = [],
     storeTheme,
+    storeThemeTokens,
   } = useApp();
 
   const isOutubroRosa = storeTheme === 'outubro-rosa';
+  const detailTokens = storeThemeTokens.productDetail;
 
   // Embalagem e cubagem do produto para cotação precisa de frete
   const [shippingBoxes, setShippingBoxes] = useState<IShippingBox[]>(INITIAL_SHIPPING_BOXES);
@@ -699,7 +701,7 @@ export const ProductDetail: React.FC = () => {
           {/* GALERIA DE FOTOS COM ALTURA FIXA E PROPORCIONAL (ENCAIXA NA TELA SEM SCROLL) */}
           <div className="relative space-y-2">
             <div className={`relative h-[260px] sm:h-[320px] lg:h-[340px] rounded-2xl overflow-hidden border p-4 flex items-center justify-center transition-all ${
-              isDark ? 'bg-slate-950 border-slate-800' : isOutubroRosa ? 'bg-[#FFF5F8] border-pink-900/10' : 'bg-[#EEF8FF] border-blue-900/10'
+              isDark ? (storeThemeTokens.isBlackFriday ? 'bg-neutral-950 border-amber-500/20' : 'bg-slate-950 border-slate-800') : storeThemeTokens.isBlackFriday ? 'bg-[#141414] border-amber-500/30' : isOutubroRosa ? 'bg-[#FFF5F8] border-pink-900/10' : 'bg-[#EEF8FF] border-blue-900/10'
             }`}>
               <motion.img
                 key={activeImageIndex}
@@ -754,7 +756,7 @@ export const ProductDetail: React.FC = () => {
                       onClick={() => setActiveImageIndex(idx)}
                       className={`h-1.5 rounded-full transition-all cursor-pointer ${
                         activeImageIndex === idx
-                          ? isOutubroRosa ? 'w-4 bg-[#EC4899]' : 'w-4 bg-[#006EDB]'
+                          ? storeThemeTokens.isBlackFriday ? 'w-4 bg-[#F59E0B]' : isOutubroRosa ? 'w-4 bg-[#EC4899]' : 'w-4 bg-[#006EDB]'
                           : 'w-1.5 bg-white/60 hover:bg-white'
                       }`}
                     />
@@ -797,7 +799,7 @@ export const ProductDetail: React.FC = () => {
             <div className="space-y-2 pt-3 border-t border-blue-900/10 dark:border-slate-800">
               <div className="flex items-center justify-between text-xs">
                 <span className={`font-extrabold ${isDark ? 'text-white' : 'text-[#003B73]'}`}>
-                  Cor selecionada: <span className={`font-black ${isOutubroRosa ? 'text-[#EC4899]' : 'text-[#006EDB]'}`}>{selectedColunaOption || 'Selecione a cor'}</span>
+                  Cor selecionada: <span className={`font-black ${detailTokens.sellerAccent}`}>{selectedColunaOption || 'Selecione a cor'}</span>
                 </span>
               </div>
 
@@ -959,7 +961,7 @@ export const ProductDetail: React.FC = () => {
                   <Tag className={`h-5 w-5 ${isOutubroRosa ? 'text-[#F472B6]' : 'text-[#38BDF8]'} shrink-0`} />
                   <div>
                     <div className="text-xs font-black uppercase tracking-wider text-white flex items-center gap-1.5 flex-wrap">
-                      <span>🔥 SALDÃO DE CALÇADOS</span>
+                      <span>SALDÃO DE CALÇADOS</span>
                       <span className={isOutubroRosa ? 'text-[#FBCFE8]' : 'text-[#FF7A00]'}>-{saldaoCalc.discountPercent}% OFF</span>
                     </div>
                     <div className={`text-[10px] ${isOutubroRosa ? 'text-pink-100/90' : 'text-sky-100/80'} font-medium`}>
@@ -1178,9 +1180,7 @@ export const ProductDetail: React.FC = () => {
               <button
                 onClick={handleAddToCart}
                 className={`w-full flex items-center justify-center space-x-2 py-3.5 px-6 ${
-                  isOutubroRosa
-                    ? 'bg-gradient-to-r from-[#DB2777] via-[#EC4899] to-[#F472B6] hover:from-[#BE185D] hover:to-[#DB2777] shadow-pink-500/25 hover:shadow-pink-500/35'
-                    : 'bg-[#006EDB] hover:bg-[#00509E] shadow-blue-600/20 hover:shadow-blue-600/30'
+                  `${detailTokens.addToCartGradient} ${detailTokens.addToCartText}`
                 } active:scale-98 text-white font-black text-xs uppercase tracking-wider rounded-full shadow-md transition-all cursor-pointer`}
               >
                 <ShoppingBag className="h-4 w-4 stroke-[2.5]" />
@@ -1190,9 +1190,7 @@ export const ProductDetail: React.FC = () => {
               <button
                 onClick={handleInstantBuy}
                 className={`w-full flex items-center justify-center space-x-2 py-3.5 px-6 ${
-                  isOutubroRosa
-                    ? 'bg-[#831843] hover:bg-[#700B40] text-white shadow-md'
-                    : 'bg-[#003B73] hover:bg-[#00509E] text-white shadow-md'
+                  `${detailTokens.buyNowBg} ${detailTokens.buyNowText} shadow-md`
                 } active:scale-98 font-black text-xs uppercase tracking-wider rounded-full transition-all cursor-pointer`}
               >
                 <span>Comprar Agora</span>
@@ -1219,11 +1217,11 @@ export const ProductDetail: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-8">
         <div className={`p-6 rounded-3xl border text-center flex flex-col items-center space-y-2.5 ${
           isDark 
-            ? isOutubroRosa ? 'bg-[#3D0825]/70 border-pink-500/20' : 'bg-[#161617] border-white/10'
-            : isOutubroRosa ? 'bg-white border-pink-900/10 shadow-xs' : 'bg-[#f5f5f7] border-black/5'
+            ? storeThemeTokens.isBlackFriday ? 'bg-[#121212] border-amber-500/20 text-neutral-200' : isOutubroRosa ? 'bg-[#3D0825]/70 border-pink-500/20' : 'bg-[#161617] border-white/10'
+            : storeThemeTokens.isBlackFriday ? 'bg-neutral-900 border-amber-500/30 text-white shadow-md' : isOutubroRosa ? 'bg-white border-pink-900/10 shadow-xs' : 'bg-[#f5f5f7] border-black/5'
         }`}>
           <div className={`p-3 rounded-full ${
-            isOutubroRosa ? 'bg-pink-100 dark:bg-pink-950/50 text-[#EC4899]' : 'bg-[#0071e3]/10 text-[#0071e3]'
+            storeThemeTokens.isBlackFriday ? 'bg-amber-500/20 text-amber-400' : isOutubroRosa ? 'bg-pink-100 dark:bg-pink-950/50 text-[#EC4899]' : 'bg-[#0071e3]/10 text-[#0071e3]'
           }`}>
             <Shield className="h-6 w-6" />
           </div>
@@ -1233,11 +1231,11 @@ export const ProductDetail: React.FC = () => {
 
         <div className={`p-6 rounded-3xl border text-center flex flex-col items-center space-y-2.5 ${
           isDark 
-            ? isOutubroRosa ? 'bg-[#3D0825]/70 border-pink-500/20' : 'bg-[#161617] border-white/10'
-            : isOutubroRosa ? 'bg-white border-pink-900/10 shadow-xs' : 'bg-[#f5f5f7] border-black/5'
+            ? storeThemeTokens.isBlackFriday ? 'bg-[#121212] border-amber-500/20 text-neutral-200' : isOutubroRosa ? 'bg-[#3D0825]/70 border-pink-500/20' : 'bg-[#161617] border-white/10'
+            : storeThemeTokens.isBlackFriday ? 'bg-neutral-900 border-amber-500/30 text-white shadow-md' : isOutubroRosa ? 'bg-white border-pink-900/10 shadow-xs' : 'bg-[#f5f5f7] border-black/5'
         }`}>
           <div className={`p-3 rounded-full ${
-            isOutubroRosa ? 'bg-pink-100 dark:bg-pink-950/50 text-[#EC4899]' : 'bg-[#0071e3]/10 text-[#0071e3]'
+            storeThemeTokens.isBlackFriday ? 'bg-amber-500/20 text-amber-400' : isOutubroRosa ? 'bg-pink-100 dark:bg-pink-950/50 text-[#EC4899]' : 'bg-[#0071e3]/10 text-[#0071e3]'
           }`}>
             <Truck className="h-6 w-6" />
           </div>
@@ -1247,11 +1245,11 @@ export const ProductDetail: React.FC = () => {
 
         <div className={`p-6 rounded-3xl border text-center flex flex-col items-center space-y-2.5 ${
           isDark 
-            ? isOutubroRosa ? 'bg-[#3D0825]/70 border-pink-500/20' : 'bg-[#161617] border-white/10'
-            : isOutubroRosa ? 'bg-white border-pink-900/10 shadow-xs' : 'bg-[#f5f5f7] border-black/5'
+            ? storeThemeTokens.isBlackFriday ? 'bg-[#121212] border-amber-500/20 text-neutral-200' : isOutubroRosa ? 'bg-[#3D0825]/70 border-pink-500/20' : 'bg-[#161617] border-white/10'
+            : storeThemeTokens.isBlackFriday ? 'bg-neutral-900 border-amber-500/30 text-white shadow-md' : isOutubroRosa ? 'bg-white border-pink-900/10 shadow-xs' : 'bg-[#f5f5f7] border-black/5'
         }`}>
           <div className={`p-3 rounded-full ${
-            isOutubroRosa ? 'bg-pink-100 dark:bg-pink-950/50 text-[#EC4899]' : 'bg-[#0071e3]/10 text-[#0071e3]'
+            storeThemeTokens.isBlackFriday ? 'bg-amber-500/20 text-amber-400' : isOutubroRosa ? 'bg-pink-100 dark:bg-pink-950/50 text-[#EC4899]' : 'bg-[#0071e3]/10 text-[#0071e3]'
           }`}>
             <RefreshCw className="h-6 w-6" />
           </div>

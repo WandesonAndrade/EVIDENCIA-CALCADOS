@@ -3,7 +3,7 @@ import { db } from '../lib/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 export const DEFAULT_THEME_CONFIG: StoreThemeConfig = {
-  activeTheme: 'outubro-rosa',
+  activeTheme: 'default',
   updatedAt: new Date().toISOString(),
 };
 

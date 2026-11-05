@@ -1415,3 +1415,37 @@ Ao corrigir a foto de um produto que estava marcado com erro (404 / NoSuchKey), 
 
 ### D. Auditoria e Histórico de Diferenças (`AdminBoxManager.tsx`)
 - Métodos `saveFreightDifferenceAudit` e `getFreightDifferenceAudits` no `boxService.ts` armazenam o histórico de recálculos de frete com dados do pedido/produto, caixa padrão vs caixa real, valor do cliente, valor da loja e a diferença financeira apurada.
+
+
+---
+
+## 45. Arquitetura de Tokens de Temas da Loja e Tema da Black Friday
+
+### A. Contexto e Motivação
+- A loja contava anteriormente com verificações ternárias dispersas (`storeTheme === 'outubro-rosa' ? ... : ...`) em múltiplos componentes, além do fallback padrão configurado inadvertidamente como `'outubro-rosa'`.
+- Para o lançamento do tema da **Black Friday**, implementou-se uma arquitetura escalável e tipada baseada em tokens centralizados (`StoreThemeTokens`), permitindo alternância instantânea entre `default` (Azul Evidência), `outubro-rosa` e `black-friday`, mantendo total consistência visual sem poluir a vitrine.
+
+### B. Arquitetura Centralizada de Tokens (`src/theme/storeThemes.ts`)
+- **Tokens Padronizados**:
+  - `hero`: Gradientes de fundo, paradas das curvas SVG, cores de traço neon (`#F59E0B` âmbar/ouro na Black Friday), badges de coleção, CTAs primários e pílula de paginação.
+  - `card`: Bordas dos cards de produtos, hover de sombras, fundo da moldura da foto, realce de título, badges e botão de compra em gradiente ouro/âmbar com texto em preto obsidiana.
+  - `saldao`: Gradientes do card de saldão, textos de desconto (`#F59E0B`), ícones de tag, tons vetoriais 3D das sacolas e do pódio, botões de ação e ícones de vantagens.
+  - `nav`: Cores e divisórias da barra de navegação, breadcrumbs, abas ativas e botões de paginação.
+  - `benefits`: Cores dos 4 cards de vantagens institucionais da vitrine.
+  - `menu`: Cores do Mega Menu, banner superior com acento neon e botões de destaque.
+  - `promotions`: Cores e gradientes dos cards promocionais Bento.
+- **Hook Especializado (`useStoreTheme.ts`)**:
+  - Retorna `tokens`, `storeTheme`, `isDefault`, `isOutubroRosa`, `isBlackFriday` e `updateStoreTheme`.
+  - Integrado ao `AppContext.tsx` via `storeThemeTokens` memorizado (`useMemo`).
+- **Selo "BLACK" nos Cards**:
+  - Quando a Black Friday está ativa, os badges dos cards de produto recebem automaticamente o prefixo ou selo de destaque: `BLACK SALDÃO -XX%`, `BLACK {promoLabel}`, `BLACK -XX% OFF` ou `BLACK FRIDAY`.
+
+### C. Ativação Manual no Painel Administrativo (`AdminPanel.tsx`)
+- Aba **"Temas & Campanhas"** reestruturada em grid responsivo de 3 colunas (`lg:grid-cols-3`):
+  1. **Padrão Oficial (Azul Royal)**: Identidade clássica Evidência Calçados com destaque `#002B70`.
+  2. **Outubro Rosa**: Campanha de conscientização com tons vibrantes de rosa e magenta.
+  3. **Black Friday**: Visual dark premium com preto obsidiana (`#0A0A0A`), âmbar dourado radiante (`#F59E0B`) e vermelho de urgência comercial (`#DC2626`).
+- Troca de tema realizada com 1 clique diretamente pelo administrador, com persistência no Firestore e fallback seguro para `'default'`.
+
+### D. Remoção Completa de Emojis da Vitrine
+- Removidos quaisquer emojis decorativos remanescentes em cards, banners e títulos da vitrine comercial (`SaldaoBanner.tsx`, `ProductBadges.tsx`, `ProductDetail.tsx`, `CategoryPage.tsx`), garantindo um design limpo, tipográfico e profissional orientado a conversão.
