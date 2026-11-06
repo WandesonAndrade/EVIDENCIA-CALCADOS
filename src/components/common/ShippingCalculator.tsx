@@ -2,7 +2,9 @@ import React, { useState, useEffect, useRef } from "react";
 import { useApp } from "../../context/AppContext";
 import { IShippingOption, IShippingBoxDimensions } from "../../services/shipping/shippingProvider.interface";
 import { boxService, INITIAL_SHIPPING_BOXES } from "../../services/boxService";
-import { Truck, Calculator, Clock, Check, Sparkles, AlertCircle, RefreshCw } from "lucide-react";
+import { Truck, Calculator, Clock, Check, Sparkles, AlertCircle, RefreshCw, MapPin } from "lucide-react";
+import { isUrbanCaxias } from "../../utils/localDelivery";
+import { shippingConfigService, ShippingSettings, DEFAULT_SHIPPING_SETTINGS } from "../../services/shipping/shippingConfigService";
 
 interface ShippingCalculatorProps {
   initialPostalCode?: string;
@@ -34,6 +36,14 @@ export const ShippingCalculator: React.FC<ShippingCalculatorProps> = ({
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [defaultBox, setDefaultBox] = useState<IShippingBoxDimensions>(INITIAL_SHIPPING_BOXES[0]);
+  const [shippingSettings, setShippingSettings] = useState<ShippingSettings>(DEFAULT_SHIPPING_SETTINGS);
+  const [isExternalDisabledForCep, setIsExternalDisabledForCep] = useState<boolean>(false);
+
+  useEffect(() => {
+    shippingConfigService.getSettings().then(setShippingSettings);
+    const unsubscribe = shippingConfigService.subscribeSettings(setShippingSettings);
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     boxService.getDefaultBox().then((b) => {

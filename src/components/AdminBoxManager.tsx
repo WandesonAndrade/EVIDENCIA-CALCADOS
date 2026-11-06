@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { boxService, IShippingBox, IFreightDifferenceAudit } from "../services/boxService";
-import { Package, Plus, Trash2, Edit3, CheckCircle2, Star, Box, Ruler, Weight, RefreshCw, Truck } from "lucide-react";
+import { Package, Plus, Trash2, Edit3, CheckCircle2, Star, Box, Ruler, Weight, RefreshCw, Truck, Globe, MapPin, Check } from "lucide-react";
+import { shippingConfigService, ShippingSettings, DEFAULT_SHIPPING_SETTINGS } from "../services/shipping/shippingConfigService";
 
 export const AdminBoxManager: React.FC = () => {
   const [boxes, setBoxes] = useState<IShippingBox[]>([]);
@@ -9,6 +10,9 @@ export const AdminBoxManager: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingBox, setEditingBox] = useState<IShippingBox | null>(null);
+  const [shippingSettings, setShippingSettings] = useState<ShippingSettings>(DEFAULT_SHIPPING_SETTINGS);
+  const [isUpdatingSettings, setIsUpdatingSettings] = useState(false);
+  const [settingsFeedback, setSettingsFeedback] = useState<string | null>(null);
 
   // Form State
   const [name, setName] = useState("");
@@ -22,12 +26,14 @@ export const AdminBoxManager: React.FC = () => {
   const loadBoxes = async () => {
     setLoading(true);
     try {
-      const [data, audits] = await Promise.all([
+      const [data, audits, settings] = await Promise.all([
         boxService.getShippingBoxes(),
         boxService.getFreightDifferenceAudits(),
+        shippingConfigService.getSettings(),
       ]);
       setBoxes(data);
       setFreightAudits(audits);
+      setShippingSettings(settings);
     } catch (err) {
       console.error("Erro ao carregar caixas:", err);
     } finally {
@@ -38,6 +44,29 @@ export const AdminBoxManager: React.FC = () => {
   useEffect(() => {
     loadBoxes();
   }, []);
+
+  const handleToggleExternalShipping = async () => {
+    setIsUpdatingSettings(true);
+    setSettingsFeedback(null);
+    try {
+      const nextValue = !shippingSettings.allowExternalShipping;
+      const updated = await shippingConfigService.updateSettings({
+        allowExternalShipping: nextValue,
+      });
+      setShippingSettings(updated);
+      setSettingsFeedback(
+        nextValue
+          ? 'Entregas nacionais (fora de Caxias) ATIVADAS com sucesso!'
+          : 'Entregas para fora de Caxias DESATIVADAS. Clientes fora de Caxias verão aviso de indisponibilidade.'
+      );
+      setTimeout(() => setSettingsFeedback(null), 5000);
+    } catch (err) {
+      console.error('Erro ao atualizar configurações de envio:', err);
+      alert('Não foi possível atualizar a configuração de frete.');
+    } finally {
+      setIsUpdatingSettings(false);
+    }
+  };
 
   const handleOpenModal = (boxToEdit?: IShippingBox) => {
     setErrorMsg("");

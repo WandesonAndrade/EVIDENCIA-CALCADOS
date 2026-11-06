@@ -85,6 +85,15 @@ Este documento centraliza todas as regras de negócio, decisões de arquitetura,
 - **Detecção de Divergência Métrica:** Diferenças de peso/cubagem cobradas pela transportadora na postagem são registradas dinamicamente em `order.metricDivergence` com alerta visual no painel do administrador.
 - **Dead Code Elimination Concluída:** Removidos todos os métodos mortos de teste offline (`getSandboxMockTracking`, `getSandboxMockLabel`) e condicionais hardcoded de prints de teste.
 
+### E. Controle de Alcance Geográfico das Entregas (Ativar / Desativar Entregas Fora de Caxias)
+- **Objetivo:** Permitir ao lojista suspender temporariamente ou reativar os envios externos (Melhor Envio / Correios / Jadlog) para fora de Caxias - MA com um único clique no painel administrativo (`AdminBoxManager.tsx`).
+- **Persistência Centralizada:** Salvo no Firestore na coleção `settings`, documento `shipping` (`allowExternalShipping: boolean`, `externalDisabledNotice: string`), gerenciado via `shippingConfigService.ts`, com sincronização em tempo real (`onSnapshot`) e cache resiliente no `localStorage` (`evidencia_shipping_settings`).
+- **Comportamento quando Desativado (`allowExternalShipping = false`):**
+  - **Na Vitrine / Detalhes do Produto (`ShippingCalculator.tsx`):** Se o cliente digitar um CEP fora de Caxias (não-urbano `isUrbanCaxias`), a cotação externa é ignorada e um aviso âmbar amigável informa que as entregas estão temporariamente indisponíveis para o endereço informado, destacando a Retirada Grátis na Loja.
+  - **No Checkout (`CheckoutPage.tsx`):** Se o endereço selecionado for fora de Caxias, o checkout bloqueia a etapa de pagamento com aviso de indisponibilidade e oferece atalhos diretos: "Mudar para Retirada na Loja (Grátis)" ou selecionar um endereço em Caxias.
+  - **Proteção no Backend (`server.ts` - `/api/shipping/calculate`):** A rota backend verifica a configuração no Firestore e bloqueia cotações externas para CEPs fora de Caxias quando inativo (`isExternalBlocked: true`).
+  - **Caxias - MA:** Entregas urbanas locais e Retirada na Loja permanecem 100% operacionais em qualquer cenário.
+
 ---
 
 ## 5. Gestão de Pedidos (Vendas & Pedidos / Meus Pedidos)

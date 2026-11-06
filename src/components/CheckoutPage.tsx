@@ -13,6 +13,7 @@ import { cepService } from '../services/cepService';
 import { ShippingCalculator } from './common/ShippingCalculator';
 import { IShippingOption } from '../services/shipping/shippingProvider.interface';
 import { boxService, IShippingBox, INITIAL_SHIPPING_BOXES } from '../services/boxService';
+import { shippingConfigService, ShippingSettings, DEFAULT_SHIPPING_SETTINGS } from '../services/shipping/shippingConfigService';
 import { isProfileIncomplete } from '../App';
 import { getUfFromCep } from '../utils/orderUtils';
 import { isUrbanCaxias } from '../utils/localDelivery';
@@ -51,6 +52,13 @@ export const CheckoutPage: React.FC = () => {
   const [selectedAddressId, setSelectedAddressId] = useState<string>('default');
   const [selectedShippingOption, setSelectedShippingOption] = useState<IShippingOption | null>(null);
   const [shippingBoxes, setShippingBoxes] = useState<IShippingBox[]>(INITIAL_SHIPPING_BOXES);
+  const [shippingSettings, setShippingSettings] = useState<ShippingSettings>(DEFAULT_SHIPPING_SETTINGS);
+
+  useEffect(() => {
+    shippingConfigService.getSettings().then(setShippingSettings);
+    const unsubscribe = shippingConfigService.subscribeSettings(setShippingSettings);
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     boxService.getShippingBoxes().then((boxes) => {

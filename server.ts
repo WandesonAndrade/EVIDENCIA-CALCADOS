@@ -6,6 +6,7 @@ import fs from "fs";
 import os from "os";
 import multer from "multer";
 import { ShippingService } from "./src/services/shipping/shippingService.js";
+import { isUrbanCaxias } from "./src/utils/localDelivery.js";
 import { db } from "./src/lib/firebase.js";
 import { doc, getDoc, setDoc, updateDoc, collection, getDocs, query, where } from "firebase/firestore";
 import { createClient } from "@supabase/supabase-js";

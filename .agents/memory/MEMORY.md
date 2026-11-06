@@ -41,6 +41,7 @@ Este arquivo é a memória persistente do projeto (AG Kit), consolidando decisõ
 5. **Logística e Frete:**
    - Melhor Envio via adapter desacoplado com fallback regional por CEP.
    - Retirada na Loja Física (Rua Afonso Pena, 295 - Centro, Caxias - MA) com frete grátis.
+   - **Controle de Alcance Geográfico das Entregas (Fora de Caxias):** Configuração no Firestore `settings/shipping` (`allowExternalShipping`) gerenciada em `AdminBoxManager.tsx`. Quando desativada, bloqueia cotações externas no backend e frontend (`ShippingCalculator.tsx` e `CheckoutPage.tsx`), exibindo aviso de indisponibilidade de entrega para endereços fora de Caxias e sugerindo Retirada na Loja, mantendo entregas locais em Caxias 100% ativas.
 
 6. **Protocolo de Validação:**
    - Antes de cada commit: `npx tsc --noEmit` (0 erros), testes automatizados (`tests/test-category-navigation.ts`, `tests/test-smart-search.ts`), e `npm run build`.
