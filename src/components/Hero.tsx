@@ -40,6 +40,7 @@ export const Hero: React.FC = () => {
   const heroTokens = storeThemeTokens.hero;
 
   const [currentSlide, setCurrentSlide] = useState(0);
+  const [imageAspectRatios, setImageAspectRatios] = useState<Record<string | number, number>>({});
   const [isPaused, setIsPaused] = useState(false);
   const [isUserPaused, setIsUserPaused] = useState(false);
   const [hasUserNavigated, setHasUserNavigated] = useState(false);
@@ -139,6 +140,11 @@ export const Hero: React.FC = () => {
   };
 
   const currentBanner = slides[currentSlide] || slides[0];
+  const isArtBanner = Boolean(
+    currentBanner.hideContentOverlay || 
+    (currentBanner.hideLeftOverlay && !currentBanner.title?.trim() && !currentBanner.description?.trim())
+  );
+  const currentRatio = imageAspectRatios[currentBanner.id] || null;
 
   const handleCtaClick = (cta: HeroSlideCTA) => {
     switch (cta.action) {
@@ -234,7 +240,7 @@ export const Hero: React.FC = () => {
     const words = title.trim().split(/\s+/);
     if (words.length <= 2) {
       return (
-        <h2 className="text-2xl min-[390px]:text-3xl sm:text-5xl lg:text-[52px] font-black tracking-tight leading-[1.08] text-white drop-shadow-sm">
+        <h2 className="text-sm min-[390px]:text-base min-[430px]:text-lg sm:text-4xl lg:text-[52px] font-black tracking-tight leading-[1.12] text-white drop-shadow-sm">
           {title}
         </h2>
       );
@@ -245,7 +251,7 @@ export const Hero: React.FC = () => {
     const secondPart = words.slice(splitIndex).join(' ');
 
     return (
-      <h2 className="text-2xl min-[390px]:text-3xl sm:text-5xl lg:text-[52px] font-black tracking-tight leading-[1.06] text-white drop-shadow-sm">
+      <h2 className="text-sm min-[390px]:text-base min-[430px]:text-lg sm:text-4xl lg:text-[52px] font-black tracking-tight leading-[1.12] text-white drop-shadow-sm">
         <span>{firstPart} </span>
         <span className={`${heroTokens.titleAccent} block sm:inline`}>{secondPart}</span>
       </h2>
@@ -253,15 +259,30 @@ export const Hero: React.FC = () => {
   };
 
   return (
-    <section 
-      id="hero-banner" 
-      style={{ background: heroTokens.containerGradient }}
-      role="region"
-      aria-roledescription="carrossel"
-      aria-label="Destaques e Coleções Principais"
-      className={`relative overflow-hidden rounded-2xl sm:rounded-3xl mx-2.5 min-[390px]:mx-3 sm:mx-6 lg:mx-8 my-2.5 min-[390px]:my-3 sm:my-4 lg:my-6 min-h-[430px] min-[390px]:min-h-[460px] sm:min-h-[520px] lg:min-h-[560px] max-w-7xl lg:mx-auto select-none shadow-2xl transition-all duration-300 group/hero border ${
-        `${heroTokens.containerBorder} ${heroTokens.containerBg}`
-      }`}
+    <>
+    <div className="w-full max-w-7xl mx-auto px-0 sm:px-6 lg:px-8">
+      <section 
+        id="hero-banner" 
+        style={{ 
+          background: currentBanner.hideLeftOverlay ? 'transparent' : heroTokens.containerGradient,
+          aspectRatio: currentRatio ? `${currentRatio}` : '16 / 9'
+        }}
+        role="region"
+        aria-roledescription="carrossel"
+        aria-label="Destaques e Coleções Principais"
+        className={`relative overflow-hidden rounded-none sm:rounded-3xl my-0 sm:my-4 lg:my-6 w-full max-h-[620px] select-none shadow-2xl transition-all duration-300 group/hero border-0 sm:border ${
+          `${heroTokens.containerBorder} ${heroTokens.containerBg}`
+        } ${isArtBanner ? 'cursor-pointer' : ''}`}
+      onClick={(e) => {
+        if ((e.target as HTMLElement).closest('button')) return;
+        if (currentBanner.hideContentOverlay) {
+          if (currentBanner.ctas && currentBanner.ctas.length > 0) {
+            handleCtaClick(currentBanner.ctas[0]);
+          } else if (currentBanner.tabKey) {
+            handleCtaClick({ text: '', action: 'category', targetParam: currentBanner.tabKey });
+          }
+        }
+      }}
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
       onFocus={() => setIsPaused(true)}
@@ -287,15 +308,25 @@ export const Hero: React.FC = () => {
               fetchPriority={currentSlide === 0 ? "high" : "auto"}
               loading={currentSlide === 0 ? "eager" : "lazy"}
               decoding="async"
-              className="w-full h-full object-cover object-center lg:object-[82%_center]"
+              onLoad={(e) => {
+                const { naturalWidth, naturalHeight } = e.currentTarget;
+                if (naturalWidth && naturalHeight) {
+                  const ratio = naturalWidth / naturalHeight;
+                  setImageAspectRatios((prev) => (prev[currentBanner.id] === ratio ? prev : { ...prev, [currentBanner.id]: ratio }));
+                }
+              }}
+              className={`w-full h-full object-cover ${currentBanner.hideLeftOverlay ? 'object-center' : 'object-center lg:object-[82%_center]'}`}
             />
-            {/* Vinheta escura para garantir contraste sobre qualquer fundo */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent pointer-events-none" />
+            {/* Vinheta escura sutil apenas se a cobertura da esquerda foi retirada mas ainda houver textos sobre a imagem */}
+            {currentBanner.hideLeftOverlay && !currentBanner.hideContentOverlay && Boolean(currentBanner.title?.trim()) && (
+              <div className="absolute inset-y-0 left-0 w-full sm:w-[60%] bg-gradient-to-r from-black/80 via-black/40 to-transparent pointer-events-none" />
+            )}
           </motion.div>
         </AnimatePresence>
       </div>
 
       {/* 2. Painel Curvo com Linha de Luz Neon (Desktop) */}
+      {!currentBanner.hideLeftOverlay && (
       <div className="hidden lg:block absolute inset-y-0 left-0 w-[58%] xl:w-[54%] z-10 pointer-events-none" aria-hidden="true">
         <svg 
           className="w-full h-full" 
@@ -326,22 +357,26 @@ export const Hero: React.FC = () => {
           />
         </svg>
       </div>
+      )}
 
-      {/* 2.1 Overlay Mobile / Tablet com Gradiente Suave para máxima legibilidade */}
+      {/* 2.1 Overlay Mobile / Tablet: cobre apenas o lado do texto à esquerda e deixa a foto 100% limpa, nítida e sem sombra à direita */}
+      {!currentBanner.hideLeftOverlay && (
       <div 
         aria-hidden="true"
-        className={`lg:hidden absolute inset-0 bg-gradient-to-r ${
+        className={`lg:hidden absolute inset-y-0 left-0 w-[72%] min-[420px]:w-[62%] sm:w-[55%] bg-gradient-to-r ${
           storeThemeTokens.isBlackFriday
-            ? 'from-[#0A0A0A]/95 via-[#1A1408]/90 to-[#0A0A0A]/85'
+            ? 'from-[#0A0A0A] via-[#1A1408]/95 to-transparent'
             : isOutubroRosa
-            ? 'from-[#4A062B]/95 via-[#780B44]/90 to-[#3B0422]/80'
-            : 'from-[#001838]/95 via-[#00244F]/90 to-[#00132B]/80'
+            ? 'from-[#4A062B] via-[#780B44]/95 to-transparent'
+            : 'from-[#001838] via-[#00244F]/95 to-transparent'
         } z-10 pointer-events-none`} 
       />
+      )}
 
       {/* 3. Coluna de Conteúdo à Esquerda */}
+      {!currentBanner.hideContentOverlay && (
       <div 
-        className="relative z-20 flex flex-col justify-between h-full min-h-[430px] min-[390px]:min-h-[460px] sm:min-h-[520px] lg:min-h-[560px] p-4 min-[390px]:p-5 sm:p-10 lg:p-12 xl:p-14 w-full max-w-xl lg:max-w-[49%]"
+        className="relative z-20 flex flex-col justify-center sm:justify-between h-full p-3 min-[390px]:p-4 sm:p-10 lg:p-12 xl:p-14 w-full max-w-xl lg:max-w-[52%]"
         aria-live={isPaused || isUserPaused ? "polite" : "off"}
       >
         
@@ -354,7 +389,7 @@ export const Hero: React.FC = () => {
             animate={{ opacity: 1, y: 0 }}
             className="inline-flex items-center space-x-2"
           >
-            <span className={`text-[10px] min-[390px]:text-[11px] font-extrabold tracking-wider uppercase px-3 min-[390px]:px-4 py-1.5 rounded-full border ${
+            <span className={`text-[8.5px] min-[390px]:text-[9.5px] sm:text-[11px] font-extrabold tracking-wider uppercase px-2.5 py-0.5 sm:px-4 sm:py-1.5 rounded-full border ${
               `${heroTokens.badgeBg} ${heroTokens.badgeText} ${heroTokens.badgeBorder}`
             } backdrop-blur-md shadow-xs inline-flex items-center space-x-1.5 min-[390px]:space-x-2`}>
               {renderBadgeIcon(currentBanner.collectionTag)}
@@ -374,14 +409,14 @@ export const Hero: React.FC = () => {
             >
               {renderTwoToneTitle(currentBanner.title)}
 
-              <p className={`text-xs min-[390px]:text-[13px] sm:text-sm lg:text-base font-normal leading-relaxed ${
+              <p className={`hidden sm:block text-xs min-[390px]:text-[13px] sm:text-sm lg:text-base font-normal leading-relaxed ${
                 heroTokens.trustTextColor
               } max-w-lg line-clamp-3 sm:line-clamp-none`}>
                 {currentBanner.description}
               </p>
 
               {/* Botões de Ação Dinâmicos (CTAs) */}
-              <div className="pt-2 sm:pt-3 flex flex-wrap items-center gap-2.5 sm:gap-3">
+              <div className="pt-1 sm:pt-3 flex flex-wrap items-center gap-2 sm:gap-3">
                 {currentBanner.ctas.map((cta, idx) => {
                   if (cta.variant === 'outline') {
                     return (
@@ -389,10 +424,10 @@ export const Hero: React.FC = () => {
                         key={`cta-${idx}`}
                         type="button"
                         onClick={() => handleCtaClick(cta)}
-                        className="inline-flex items-center justify-center text-[11px] min-[390px]:text-xs sm:text-sm font-semibold px-4 min-[390px]:px-5 sm:px-6 py-2.5 min-[390px]:py-3 rounded-full border border-white/30 text-white hover:bg-white/15 hover:border-white/50 active:scale-95 transition-all backdrop-blur-sm cursor-pointer space-x-1.5 sm:space-x-2 group/btn shadow-xs focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+                        className="hidden min-[480px]:inline-flex sm:inline-flex items-center justify-center text-[10px] min-[390px]:text-[11px] sm:text-sm font-semibold px-3 py-1.5 sm:px-6 sm:py-3 rounded-full border border-white/30 text-white hover:bg-white/15 hover:border-white/50 active:scale-95 transition-all backdrop-blur-sm cursor-pointer space-x-1.5 sm:space-x-2 group/btn shadow-xs focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
                       >
                         <span>{cta.text}</span>
-                        <ArrowRight className="w-3.5 h-3.5 stroke-[2.5] shrink-0 transition-transform group-hover/btn:translate-x-1" />
+                        <ArrowRight className="w-3 h-3 sm:w-3.5 sm:h-3.5 stroke-[2.5] shrink-0 transition-transform group-hover/btn:translate-x-1" />
                       </button>
                     );
                   }
@@ -403,12 +438,12 @@ export const Hero: React.FC = () => {
                       key={`cta-${idx}`}
                       type="button"
                       onClick={() => handleCtaClick(cta)}
-                      className={`inline-flex items-center justify-center text-[11px] min-[390px]:text-xs sm:text-sm font-bold px-5 min-[390px]:px-6 sm:px-7 py-2.5 min-[390px]:py-3 rounded-full ${
+                      className={`inline-flex items-center justify-center text-[10px] min-[390px]:text-[11px] sm:text-sm font-bold px-3 py-1.5 min-[390px]:px-4 min-[390px]:py-2 sm:px-7 sm:py-3 rounded-full ${
                         `${heroTokens.ctaGradient} ${heroTokens.ctaText} ${heroTokens.ctaHover} ${heroTokens.ctaShadow}`
                       } active:scale-95 transition-all cursor-pointer space-x-1.5 sm:space-x-2 group/btn focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white`}
                     >
                       <span>{cta.text}</span>
-                      <ArrowRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[2.5] shrink-0 transition-transform group-hover/btn:translate-x-1" />
+                      <ArrowRight className="w-3 h-3 sm:w-4 sm:h-4 stroke-[2.5] shrink-0 transition-transform group-hover/btn:translate-x-1" />
                     </button>
                   );
                 })}
@@ -418,7 +453,7 @@ export const Hero: React.FC = () => {
         </div>
 
         {/* 4. Barra de Confiança Integrada no Rodapé do Banner */}
-        <div className="pt-4 sm:pt-6 border-t border-white/15 grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 text-left">
+        <div className="hidden sm:grid pt-4 sm:pt-6 border-t border-white/15 grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 text-left">
           <div className="flex items-center space-x-2 min-[390px]:space-x-2.5">
             <Truck className={`h-4 w-4 ${heroTokens.trustIconColor} shrink-0 stroke-[2.2]`} />
             <div>
@@ -453,9 +488,10 @@ export const Hero: React.FC = () => {
         </div>
 
       </div>
+      )}
 
       {/* 5. Controles do Slider: Botões Anterior / Próximo */}
-      <div className="hidden sm:flex absolute inset-y-0 right-0 left-auto lg:left-[51%] items-center justify-between px-4 sm:px-8 pointer-events-none z-30">
+      <div className={`hidden sm:flex absolute inset-y-0 right-0 ${currentBanner.hideLeftOverlay || currentBanner.hideContentOverlay ? 'left-0' : 'left-auto lg:left-[51%]'} items-center justify-between px-4 sm:px-8 pointer-events-none z-30`}>
         <button
           type="button"
           onClick={handlePrev}
@@ -475,8 +511,8 @@ export const Hero: React.FC = () => {
         </button>
       </div>
 
-      {/* 6. Controles de Pausa Acessível e Indicadores de Paginação */}
-      <div className="absolute bottom-4 right-4 sm:bottom-5 sm:right-8 z-30 flex items-center space-x-2">
+      {/* 6. Controles de Pausa Acessível e Indicadores de Paginação (Desktop: sobre o banner) */}
+      <div className="hidden sm:flex absolute bottom-5 right-8 z-30 items-center space-x-2">
         {/* Botão de pausa/reprodução acessível (WCAG 2.2.2) */}
         {slides.length > 1 && !prefersReducedMotion && (
           <button
@@ -518,5 +554,52 @@ export const Hero: React.FC = () => {
         ))}
       </div>
     </section>
+    </div>
+
+    {/* 7. Controles de Pausa e Indicadores de Paginação no Mobile (Abaixo do Banner, fora da arte) */}
+    {slides.length > 1 && (
+      <div className="flex sm:hidden items-center justify-center space-x-3 mt-2.5 mb-1.5 select-none px-4">
+        {!prefersReducedMotion && (
+          <button
+            type="button"
+            onClick={() => setIsUserPaused((prev) => !prev)}
+            className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 border border-slate-200/80 text-slate-700 flex items-center justify-center transition-all cursor-pointer focus-visible:outline-2 focus-visible:outline-slate-400 shadow-xs active:scale-95"
+            aria-label={isUserPaused ? "Retomar rotação automática de banners" : "Pausar rotação automática de banners"}
+            title={isUserPaused ? "Retomar" : "Pausar"}
+          >
+            {isUserPaused ? (
+              <Play className="h-3 w-3 fill-current ml-0.5" />
+            ) : (
+              <Pause className="h-3 w-3 fill-current" />
+            )}
+          </button>
+        )}
+
+        <div className="flex items-center space-x-1.5">
+          {slides.map((slide, idx) => (
+            <button
+              key={`mob-dot-${slide.id}`}
+              type="button"
+              onClick={() => {
+                setHasUserNavigated(true);
+                setCurrentSlide(idx);
+              }}
+              className="py-2 px-1 flex items-center cursor-pointer outline-none focus:outline-none"
+              aria-label={`Ir para slide ${idx + 1} de ${slides.length}: ${slide.collectionTag}`}
+              aria-current={currentSlide === idx ? 'true' : undefined}
+            >
+              <span 
+                className={`h-1.5 rounded-full transition-all duration-300 block ${
+                  currentSlide === idx 
+                    ? `${heroTokens.indicatorActive} w-6` 
+                    : 'w-2 bg-slate-300 hover:bg-slate-400'
+                }`}
+              />
+            </button>
+          ))}
+        </div>
+      </div>
+    )}
+  </>
   );
 };
