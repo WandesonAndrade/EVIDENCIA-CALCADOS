@@ -454,6 +454,8 @@ export interface HeroBanner {
   active: boolean;
   secondaryButtonText?: string;
   secondaryTabKey?: string;
+  hideLeftOverlay?: boolean;
+  hideContentOverlay?: boolean;
 }
 
 export interface HomeSectionConfig {

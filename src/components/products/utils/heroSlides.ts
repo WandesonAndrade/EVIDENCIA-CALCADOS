@@ -15,6 +15,9 @@ export interface HeroSlide {
   image: string;
   ctas: HeroSlideCTA[];
   badgeVariant?: 'amber' | 'blue' | 'default';
+  hideLeftOverlay?: boolean;
+  hideContentOverlay?: boolean;
+  tabKey?: string;
 }
 
 export const DEFAULT_SLIDES: HeroSlide[] = [
@@ -91,6 +94,8 @@ export interface RawBannerInput {
   description?: string;
   image?: string;
   buttonText?: string;
+  hideLeftOverlay?: boolean;
+  hideContentOverlay?: boolean;
 }
 
 /**
@@ -186,6 +191,9 @@ export function buildSlidesFromBanners(rawBanners?: RawBannerInput[] | null): He
       description: b.description?.trim() || 'Confira os modelos exclusivos e aproveite as melhores condições da Evidência Calçados.',
       image: sanitizeUrl(b.image) || 'https://images.unsplash.com/photo-1533867617858-e7b97e060509?q=80&w=1600&auto=format&fit=crop',
       badgeVariant: isOffers ? 'amber' : 'blue',
+      hideLeftOverlay: b.hideLeftOverlay ?? false,
+      hideContentOverlay: b.hideContentOverlay ?? false,
+      tabKey: b.tabKey,
       ctas
     };
   });

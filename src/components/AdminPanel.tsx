@@ -422,6 +422,8 @@ export const AdminPanel: React.FC = () => {
   const [bannerBtnText, setBannerBtnText] = useState('');
   const [bannerTabKey, setBannerTabKey] = useState('lançamentos');
   const [bannerActive, setBannerActive] = useState(true);
+  const [bannerHideLeftOverlay, setBannerHideLeftOverlay] = useState(false);
+  const [bannerHideContentOverlay, setBannerHideContentOverlay] = useState(false);
   const [cmsFeedback, setCmsFeedback] = useState('');
 
   // CMS 2: About Us State & Form
@@ -630,6 +632,8 @@ export const AdminPanel: React.FC = () => {
     setBannerBtnText('Ver Lançamentos');
     setBannerTabKey('lançamentos');
     setBannerActive(true);
+    setBannerHideLeftOverlay(false);
+    setBannerHideContentOverlay(false);
     setIsBannerModalOpen(true);
   };
 
@@ -640,8 +644,10 @@ export const AdminPanel: React.FC = () => {
     setBannerDesc(b.description);
     setBannerImage(b.image);
     setBannerBtnText(b.buttonText);
-    setBannerTabKey(b.tabKey);
-    setBannerActive(b.active);
+    setBannerTabKey(b.tabKey || 'lançamentos');
+    setBannerActive(b.active ?? true);
+    setBannerHideLeftOverlay(b.hideLeftOverlay ?? false);
+    setBannerHideContentOverlay(b.hideContentOverlay ?? false);
     setIsBannerModalOpen(true);
   };
 
@@ -677,8 +683,12 @@ export const AdminPanel: React.FC = () => {
 
   const handleSaveBanner = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!bannerTitle || !bannerImage) {
-      addToast('Campos Obrigatórios', 'Por favor, preencha o Título e a URL da Imagem do Banner.', 'error');
+    if (!bannerImage) {
+      addToast('Campo Obrigatório', 'Por favor, informe a URL da Imagem do Banner.', 'error');
+      return;
+    }
+    if (!bannerTitle && !bannerHideContentOverlay) {
+      addToast('Campo Obrigatório', 'Por favor, preencha o Título Principal ou marque a opção de arte pronta.', 'error');
       return;
     }
 
@@ -687,19 +697,32 @@ export const AdminPanel: React.FC = () => {
       if (editingBanner) {
         updatedBanners = updatedBanners.map(b => 
           b.id === editingBanner.id 
-            ? { ...b, badge: bannerBadge, title: bannerTitle, description: bannerDesc, image: bannerImage, buttonText: bannerBtnText, tabKey: bannerTabKey, active: bannerActive } 
+            ? { 
+                ...b, 
+                badge: bannerBadge, 
+                title: bannerTitle || 'Banner Promocional', 
+                description: bannerDesc, 
+                image: bannerImage, 
+                buttonText: bannerBtnText, 
+                tabKey: bannerTabKey, 
+                active: bannerActive,
+                hideLeftOverlay: bannerHideLeftOverlay,
+                hideContentOverlay: bannerHideContentOverlay
+              } 
             : b
         );
       } else {
         const newB: HeroBanner = {
           id: `banner-${Date.now()}`,
           badge: bannerBadge || 'DESTAQUE',
-          title: bannerTitle,
+          title: bannerTitle || 'Banner Promocional',
           description: bannerDesc,
           image: bannerImage,
           buttonText: bannerBtnText || 'Explorar Coleção',
           tabKey: bannerTabKey || 'lançamentos',
-          active: bannerActive
+          active: bannerActive,
+          hideLeftOverlay: bannerHideLeftOverlay,
+          hideContentOverlay: bannerHideContentOverlay
         };
         updatedBanners.push(newB);
       }
@@ -1721,6 +1744,16 @@ export const AdminPanel: React.FC = () => {
                       }`}>
                         {banner.active ? 'Ativo na Home' : 'Inativo'}
                       </span>
+                      {banner.hideLeftOverlay && (
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                          Sem Cobertura Lateral
+                        </span>
+                      )}
+                      {banner.hideContentOverlay && (
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase bg-purple-500/20 text-purple-400 border border-purple-500/30">
+                          Arte Pronta
+                        </span>
+                      )}
                     </div>
 
                     <h3 className="text-lg font-black">{banner.title}</h3>
@@ -1794,13 +1827,15 @@ export const AdminPanel: React.FC = () => {
                     </div>
 
                     <div>
-                      <label className="block text-xs font-bold mb-1 text-slate-300">Título Principal *</label>
+                      <label className="block text-xs font-bold mb-1 text-slate-300">
+                        Título Principal {!bannerHideContentOverlay ? '*' : '(Opcional se arte pronta)'}
+                      </label>
                       <input
                         type="text"
                         value={bannerTitle}
                         onChange={(e) => setBannerTitle(e.target.value)}
-                        placeholder="Ex: Elegância que caminha com você."
-                        required
+                        placeholder={bannerHideContentOverlay ? "Ex: Banner Especial (para controle interno)" : "Ex: Elegância que caminha com você."}
+                        required={!bannerHideContentOverlay}
                         className={`w-full p-3 rounded-xl text-xs border focus:outline-none ${
                           isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-100 border-slate-300'
                         }`}
@@ -1937,6 +1972,66 @@ export const AdminPanel: React.FC = () => {
                               </optgroup>
                           )}
                         </select>
+                      </div>
+                    </div>
+
+                    {/* Opções de Cobertura e Layout do Banner */}
+                    <div className={`p-4 rounded-2xl border transition-all ${
+                      isDark ? 'bg-slate-950/70 border-slate-800' : 'bg-slate-50 border-slate-200'
+                    }`}>
+                      <div className="flex items-center space-x-2 mb-3">
+                        <Layers className="h-4 w-4 text-amber-400" />
+                        <span className="text-xs font-black uppercase tracking-wider text-slate-300">
+                          Layout & Cobertura Visual
+                        </span>
+                      </div>
+
+                      <div className="space-y-3">
+                        {/* Opção 1: Retirar cobertura do lado esquerdo */}
+                        <label className="flex items-start space-x-3 cursor-pointer group">
+                          <div className="pt-0.5">
+                            <input
+                              type="checkbox"
+                              checked={bannerHideLeftOverlay}
+                              onChange={(e) => setBannerHideLeftOverlay(e.target.checked)}
+                              className="rounded accent-amber-400 w-4 h-4 cursor-pointer"
+                            />
+                          </div>
+                          <div className="flex-1">
+                            <span className="block text-xs font-bold text-slate-200 group-hover:text-amber-400 transition-colors">
+                              Retirar cobertura do lado esquerdo
+                            </span>
+                            <span className="block text-[11px] text-slate-400 leading-tight">
+                              Remove o painel curvo e o recorte azul escuro do lado esquerdo, exibindo a imagem do banner por completo de ponta a ponta.
+                            </span>
+                          </div>
+                        </label>
+
+                        {/* Opção 2: Ocultar textos e botões sobre o banner (Arte pronta) */}
+                        <label className="flex items-start space-x-3 cursor-pointer group">
+                          <div className="pt-0.5">
+                            <input
+                              type="checkbox"
+                              checked={bannerHideContentOverlay}
+                              onChange={(e) => {
+                                const checked = e.target.checked;
+                                setBannerHideContentOverlay(checked);
+                                if (checked && !bannerHideLeftOverlay) {
+                                  setBannerHideLeftOverlay(true);
+                                }
+                              }}
+                              className="rounded accent-amber-400 w-4 h-4 cursor-pointer"
+                            />
+                          </div>
+                          <div className="flex-1">
+                            <span className="block text-xs font-bold text-slate-200 group-hover:text-amber-400 transition-colors">
+                              Ocultar textos e botões sobre o banner (Arte pronta)
+                            </span>
+                            <span className="block text-[11px] text-slate-400 leading-tight">
+                              Ideal se a imagem já foi desenhada no Canva ou Photoshop com títulos próprios. O banner inteiro fica 100% limpo e com clique direcionado ao destino escolhido.
+                            </span>
+                          </div>
+                        </label>
                       </div>
                     </div>
 
