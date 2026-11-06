@@ -607,3 +607,67 @@ Este arquivo é a memória persistente do projeto (AG Kit), consolidando decisõ
       * Painel de Temas & Campanhas reformulado em 3 colunas (`lg:grid-cols-3`) com prévia visual, botão ouro/preto e seleção manual com 1 clique persistida no Firestore.
     - **Vitrine 100% Limpa de Emojis**:
       * Removidos todos os emojis decorativos de cards e banners de vitrine comercial (`SaldaoBanner.tsx`, `ProductDetail.tsx`, `CategoryPage.tsx`), garantindo um visual limpo e profissional.
+
+
+47. **Opção de Retirar a Cobertura Lateral Esquerda e Modo Arte Pronta nos Banners Hero (Implementado):**
+    - **Modal de Edição de Banner (`AdminPanel.tsx`)**:
+      - Adicionado o bloco **Layout & Cobertura Visual** no modal de criação e edição de banners hero.
+      - **Toggle 'Retirar cobertura do lado esquerdo'** (`hideLeftOverlay`): Remove o painel curvo com borda neon em SVG (desktop) e o gradiente escuro de sobreposição (mobile), exibindo a foto do banner de ponta a ponta sem recorte.
+      - **Toggle 'Ocultar textos e botões sobre o banner (Arte pronta)'** (`hideContentOverlay`): Para banners cuja arte já foi desenhada no Canva/Photoshop com títulos e tipografia próprios. Torna os campos de título e botão opcionais e transforma o banner inteiro em um elemento interativo e clicável direcionado ao destino configurado.
+      - **Badges de Identificação**: A lista de banners no CMS exibe badges informativos 🔵 `Sem Cobertura Lateral` e 🟣 `Arte Pronta`.
+    - **Renderização e Responsividade (`Hero.tsx` & `heroSlides.ts`)**:
+      - Quando `hideLeftOverlay` é ativado: O recorte fixo `object-[82%_center]` é substituído por `object-center` natural, a vinheta escura é dispensada (ou suavizada lateralmente apenas se houver textos sobrepostos), e os botões de navegação lateral (setas anterior/próximo) passam de `lg:left-[51%]` para as extremidades `left-0` / `right-0` contornando todo o banner.
+      - Suporte total aos temas Padrão e Outubro Rosa, sincronizado no Firestore (`storeConfig/layout`) e `localStorage`.
+
+48. **Banner Hero Proporcional ao Dispositivo & Controles Externos no Mobile (Implementado):**
+    - **Dimensionamento 100% Proporcional sem Cortes**:
+      - Banners com arte pronta (`hideContentOverlay` ou sem textos) calculam dinamicamente a proporção natural da imagem (`naturalWidth / naturalHeight`) e aplicam `aspectRatio` direto no container (`Hero.tsx`).
+      - A altura do banner passa a escalar proporcionalmente à largura da tela do celular (`w-full max-h-[620px]` dispensando o `min-h-[430px]` rígido), exibindo 100% da arte sem cortar textos, frascos ou calçados nas laterais.
+      - Para banners com textos nativos sobrepostos, mantém-se a altura mínima necessária (`min-h-[420px]`) para acomodar badges, títulos, descrições e botões CTA com conforto de toque.
+    - **Controles Fora da Arte no Mobile (`sm:hidden`)**:
+      - No celular, o botão de pausa acessível e as bolinhas indicadoras foram movidos para uma barra horizontal centralizada **logo abaixo do banner**.
+      - A arte do banner fica 100% limpa, sem controles sobrepostos bloqueando produtos ou botões desenhados na imagem.
+      - No desktop (`sm:` em diante), os controles permanecem elegantes no canto inferior direito interno (`bottom-5 right-8`), mantendo a harmonia visual.
+
+49. **Banner Hero em Largura Total no Mobile (Edge-to-Edge / Sangrado):**
+    - Ajustado o container do banner no celular para ocupar 100% da largura da tela (`mx-0 sm:mx-6 lg:mx-8`), encostando nas laterais sem margens que reduzam o tamanho da arte.
+    - Cantos sem arredondamento nas bordas da tela no mobile (`rounded-none sm:rounded-3xl`) e bordas laterais dispensadas (`border-0 sm:border`), proporcionando um visual nativo e imersivo estilo app.
+    - Removido o contorno de foco do navegador nos botões de paginação mobile para um visual limpo e sem caixas azuis/cinzas ao tocar.
+
+50. **Padronização Proporcional de Todos os Banners Hero (Inclusive com Texto Sobreposto):**
+    - Todos os banners agora adotam o mesmo dimensionamento proporcional (`aspectRatio: currentRatio || '16 / 9'`) e largura total no mobile (`mx-0`, `rounded-none sm:rounded-3xl`, `border-0 sm:border`).
+    - Para banners com textos nativos cadastrados no CMS:
+      - A tipografia do título no mobile escala proporcionalmente (`text-sm min-[390px]:text-base min-[430px]:text-lg sm:text-4xl lg:text-[52px]`).
+      - A descrição longa e a barra de confiança interna duplicada são ocultadas no mobile (`hidden sm:block` / `hidden sm:grid`), mantendo o foco no título e botão CTA com encaixe perfeito.
+      - A foto de fundo não sofre cortes laterais ou distorções, com bolinhas e controles de pausa sempre externos na base.
+
+51. **Eliminação de Sobra Lateral e Overflow na Foto/Banner no Mobile (`Hero.tsx` & `index.css`):**
+    - Envolvimento do `<section id="hero-banner">` em wrapper responsivo `w-full max-w-7xl mx-auto px-0 sm:px-6 lg:px-8`, eliminando combinação de `w-full` com `mx-6`.
+    - No mobile (`< sm`), o banner ocupa 100% da largura de ponta a ponta sem margens (`px-0`, `my-0`, `rounded-none`, `border-0`).
+    - Em `index.css`, corrigido para `max-width: 100%` e background `#003B73` no `html`.
+
+52. **Remoção de Sombra/Escurecimento sobre a Foto no Mobile (`Hero.tsx`):**
+    - **Causa**:
+      - No mobile (`lg:hidden`), o banner aplicava um gradiente azul escuro de tela cheia `absolute inset-0 bg-gradient-to-r from-[#001838]/95 via-[#00244F]/90 to-[#00132B]/80`, cobrindo e escurecendo a modelo/produto no lado direito com 80% de opacidade.
+      - Além disso, havia uma vinheta vertical `bg-gradient-to-t from-black/60` escurecendo a foto.
+    - **Correção**:
+      - A vinheta escura de tela cheia foi removida.
+      - O gradiente mobile foi restringido exclusivamente ao lado esquerdo onde ficam os textos (`inset-y-0 left-0 w-[72%] min-[420px]:w-[62%] sm:w-[55%] to-transparent`), garantindo contraste para leitura dos títulos e botões sem projetar nenhuma sombra sobre a modelo/produtos no lado direito, que agora fica 100% limpa, iluminada e nítida.
+
+53. **Design Premium do Card de Benefícios & Confiança (`ProductList.tsx`):**
+    - **Inspiração visual implementada com fidelidade total**:
+      - **Detalhes curvos decorativos**: Aplicação de círculos estilizados nos cantos superior esquerdo e inferior direito (`rounded-full bg-gradient-to-br from-[#00A3FF] via-[#006EDB] to-[#003B73]`), criando o recorte visual da marca.
+      - **Ícones em Squircles 3D / Glassmorphism**: Ícones envolvidos em botões almofadados com relevo suave (`bg-gradient-to-b from-[#FFFFFF] via-[#F0F7FF] to-[#DDEEFF]`, borda `border-blue-200/70`, sombra multicamada e reflexo interno `inset_0_1px_1px`).
+      - **Ícone de Entrega Rápida com Linhas de Velocidade**: O caminhão agora conta com linhas dinâmicas de velocidade (`speed lines`) fiéis à imagem de referência.
+      - **Divisores Verticais Elegantes**: Linhas separadoras sutis entre as colunas no desktop (`lg:block w-[1px] bg-slate-200/80`).
+      - **Destaque tipográfico no parcelamento**: "Parcele em até" com **"10x"** em destaque tipográfico aumentado e em azul vibrante.
+      - **Sem textos cortados**: Textos e subtítulos completos em duas linhas elegantes, sem truncamentos ou reticências feias (`...`).
+      - Suporte dinâmico aos temas Outubro Rosa e Black Friday, mantendo a identidade visual integrada.
+
+54. **Card de Benefícios Ultracompacto no Mobile (`ProductList.tsx`):**
+    - **Problema anterior**: No celular, os benefícios estavam empilhando em 1 coluna vertical (`grid-cols-1`), gerando um card de ~340px de altura que ocupava quase toda a tela do celular e empurrava o catálogo para baixo.
+    - **Otimização aplicada**:
+      - Grid 2x2 no mobile (`grid-cols-2 lg:grid-cols-4`): Apenas 2 linhas compactas em vez de 4.
+      - Ícones e caixas 3D proporcionais no celular (`w-8.5 h-8.5 min-[390px]:w-9.5 min-[390px]:h-9.5 sm:w-14 sm:h-14`), reduzindo o tamanho sem perder a identidade visual 3D.
+      - Padding reduzido no mobile (`p-2.5 min-[390px]:p-3 sm:p-5 lg:p-6`) e tipografia enxuta (`text-[11px]` e `text-[8.5px]`).
+      - Altura total no celular reduzida em mais de 70% (de ~340px para apenas ~95px), deixando o catálogo e categorias com visibilidade imediata.

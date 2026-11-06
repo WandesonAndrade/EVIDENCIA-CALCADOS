@@ -465,129 +465,176 @@ export const ProductList: React.FC = () => {
         </div>
       ) : (
         <>
-          {/* BARRA DE VANTAGENS & CONFIANÇA (POSICIONADA NO TOPO, LOGO ABAIXO DO HERO BANNER) */}
-          <div className={`p-2.5 min-[390px]:p-3.5 sm:p-6 rounded-2xl sm:rounded-3xl border transition-all w-full ${
+          {/* BARRA DE VANTAGENS & CONFIANÇA (DESIGN PREMIUM COMPACTO NO MOBILE E EXPANDIDO NO DESKTOP) */}
+          <div className={`relative overflow-hidden p-2.5 min-[390px]:p-3 sm:p-5 lg:p-6 rounded-2xl sm:rounded-3xl border transition-all w-full shadow-md sm:shadow-lg hover:shadow-xl ${
             isDark 
               ? storeThemeTokens.isBlackFriday
-                ? 'bg-[#121212]/95 border-amber-500/30 text-neutral-200 shadow-xl shadow-black/80'
+                ? 'bg-[#121212]/95 border-amber-500/30 text-neutral-200 shadow-black/80'
                 : isOutubroRosa
-                ? 'bg-[#1F0314]/90 border-pink-500/20 text-slate-200 shadow-xl shadow-pink-950/20'
-                : 'bg-[#0E1627]/90 border-blue-900/30 text-slate-200 shadow-xl' 
+                ? 'bg-[#1F0314]/90 border-pink-500/20 text-slate-200 shadow-pink-950/20'
+                : 'bg-[#0E1627]/90 border-blue-900/30 text-slate-200 shadow-slate-950/30' 
               : storeThemeTokens.isBlackFriday
-                ? 'bg-[#0A0A0A] border-amber-500/30 shadow-md text-white'
+                ? 'bg-[#0A0A0A] border-amber-500/30 text-white'
                 : isOutubroRosa
-                ? 'bg-white border-pink-900/10 shadow-sm text-[#003B73]'
-                : 'bg-white border-blue-900/10 shadow-sm text-[#003B73]'
+                ? 'bg-white border-pink-100 shadow-pink-900/5 text-[#003B73]'
+                : 'bg-white border-blue-100/80 shadow-[0_12px_40px_-8px_rgba(0,62,146,0.08)] text-[#003B73]'
           }`}>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 min-[390px]:gap-2.5 sm:gap-6">
+            {/* Detalhe Curvo Decorativo de Canto Superior Esquerdo */}
+            <div className="absolute top-0 left-0 w-6 h-6 sm:w-12 sm:h-12 pointer-events-none overflow-hidden rounded-tl-2xl sm:rounded-tl-3xl z-0">
+              <div className={`absolute -top-4 -left-4 sm:-top-6 sm:-left-6 w-9 h-9 sm:w-16 sm:h-16 rounded-full ${
+                storeThemeTokens.isBlackFriday
+                  ? 'bg-gradient-to-br from-[#F59E0B] to-[#B45309]'
+                  : isOutubroRosa
+                  ? 'bg-gradient-to-br from-[#F472B6] to-[#BE185D]'
+                  : 'bg-gradient-to-br from-[#00A3FF] via-[#006EDB] to-[#003B73]'
+              } shadow-sm opacity-90`} />
+            </div>
+
+            {/* Detalhe Curvo Decorativo de Canto Inferior Direito */}
+            <div className="absolute bottom-0 right-0 w-6 h-6 sm:w-12 sm:h-12 pointer-events-none overflow-hidden rounded-br-2xl sm:rounded-br-3xl z-0">
+              <div className={`absolute -bottom-4 -right-4 sm:-bottom-6 sm:-right-6 w-9 h-9 sm:w-16 sm:h-16 rounded-full ${
+                storeThemeTokens.isBlackFriday
+                  ? 'bg-gradient-to-tl from-[#F59E0B] to-[#B45309]'
+                  : isOutubroRosa
+                  ? 'bg-gradient-to-tl from-[#F472B6] to-[#BE185D]'
+                  : 'bg-gradient-to-tl from-[#00A3FF] via-[#006EDB] to-[#003B73]'
+              } shadow-sm opacity-90`} />
+            </div>
+
+            {/* Grid dos 4 Benefícios: 2x2 Ultracompacto no Celular e 4 Colunas no Desktop */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-2 gap-y-2.5 min-[390px]:gap-x-3 min-[390px]:gap-y-3 sm:gap-4 lg:gap-0 relative z-10">
               
               {/* Vantagem 1: Entrega Rápida */}
-              <div className="flex items-center space-x-2 min-[390px]:space-x-2.5 sm:space-x-3.5 p-1 min-[390px]:p-1.5 sm:p-2 rounded-xl sm:rounded-2xl group transition-transform hover:scale-[1.02]">
-                <div className={`p-2 min-[390px]:p-2.5 sm:p-3 rounded-xl sm:rounded-2xl shrink-0 transition-all ${
+              <div className="relative flex items-center space-x-2 min-[390px]:space-x-2.5 sm:space-x-4 p-0.5 sm:p-2 lg:px-5 lg:py-1 group transition-transform hover:scale-[1.01]">
+                <div className={`w-8.5 h-8.5 min-[390px]:w-9.5 min-[390px]:h-9.5 sm:w-14 sm:h-14 rounded-xl min-[390px]:rounded-2xl sm:rounded-[22px] shrink-0 flex items-center justify-center transition-all group-hover:scale-105 ${
                   isDark 
                     ? isOutubroRosa
-                      ? 'bg-pink-500/15 text-pink-300 border border-pink-500/25 group-hover:bg-[#EC4899] group-hover:text-white group-hover:border-[#EC4899]'
-                      : 'bg-blue-500/15 text-blue-400 border border-blue-500/20' 
+                      ? 'bg-gradient-to-b from-[#33081F] to-[#1C0311] border border-pink-500/40 text-pink-400 shadow-[0_4px_12px_rgba(236,72,153,0.2),inset_0_1px_1px_rgba(255,255,255,0.1)]'
+                      : 'bg-gradient-to-b from-[#1E293B] to-[#0F172A] border border-blue-500/30 text-blue-400 shadow-[0_4px_12px_rgba(0,110,219,0.2),inset_0_1px_1px_rgba(255,255,255,0.08)]' 
                     : isOutubroRosa
-                      ? 'bg-[#FFF0F5] text-[#EC4899] border border-pink-200/70 group-hover:bg-[#EC4899] group-hover:text-white group-hover:border-[#EC4899]'
-                      : 'bg-[#EAF5FF] text-[#006EDB] border border-blue-100'
+                      ? 'bg-gradient-to-b from-white via-[#FFF0F6] to-[#FCE7F3] border border-pink-200/80 text-[#EC4899] shadow-[0_4px_12px_rgba(236,72,153,0.15),0_1px_3px_rgba(0,0,0,0.03),inset_0_1px_1px_rgba(255,255,255,1)]'
+                      : 'bg-gradient-to-b from-[#FFFFFF] via-[#F0F7FF] to-[#DDEEFF] border border-blue-200/70 text-[#006EDB] shadow-[0_4px_12px_rgba(0,110,219,0.15),0_1px_3px_rgba(0,0,0,0.04),inset_0_1px_1px_rgba(255,255,255,1)]'
                 }`}>
-                  <Truck className="h-4.5 w-4.5 sm:h-5 sm:w-5 stroke-[2.2]" />
+                  <div className="relative flex items-center justify-center">
+                    <div className="hidden min-[360px]:flex flex-col gap-0.5 mr-0.5 opacity-80">
+                      <span className="w-1 sm:w-2 h-[1px] sm:h-[1.5px] rounded-full bg-current opacity-40 block" />
+                      <span className="w-2 sm:w-3.5 h-[1px] sm:h-[1.5px] rounded-full bg-current block" />
+                      <span className="w-1 sm:w-2 h-[1px] sm:h-[1.5px] rounded-full bg-current opacity-60 block" />
+                    </div>
+                    <Truck className="h-4 w-4 sm:h-6 sm:w-6 stroke-[2.3]" />
+                  </div>
                 </div>
-                <div>
-                  <h4 className={`text-[11px] min-[390px]:text-xs sm:text-sm font-extrabold tracking-tight transition-colors ${
+                <div className="text-left min-w-0 flex-1">
+                  <h4 className={`text-[11px] min-[390px]:text-xs sm:text-sm font-extrabold tracking-tight transition-colors leading-tight truncate sm:whitespace-normal ${
                     isDark 
                       ? isOutubroRosa ? 'text-white group-hover:text-pink-300' : 'text-white'
-                      : isOutubroRosa ? 'text-[#003B73] group-hover:text-[#BE185D]' : 'text-[#003B73]'
+                      : isOutubroRosa ? 'text-[#003B73] group-hover:text-[#BE185D]' : 'text-[#002B5B]'
                   }`}>
                     Entrega Rápida
                   </h4>
-                  <p className={`text-[9px] min-[390px]:text-[10px] sm:text-[11px] font-medium leading-tight ${isDark ? 'text-slate-400' : 'text-[#52708F]'}`}>
-                    Para todo o Brasil ou retirada em Caxias
+                  <p className={`text-[8.5px] min-[390px]:text-[9px] sm:text-[11px] font-medium leading-tight mt-0.5 ${isDark ? 'text-slate-400' : 'text-[#52708F]'}`}>
+                    Para todo o Brasil ou loja.
                   </p>
                 </div>
+                {/* Linha Divisória Vertical no Desktop */}
+                <div className="hidden lg:block absolute right-0 top-1/2 -translate-y-1/2 h-10 w-[1px] bg-slate-200/80 dark:bg-slate-800" />
               </div>
 
               {/* Vantagem 2: Parcelamento Facilitado */}
-              <div className="flex items-center space-x-2 min-[390px]:space-x-2.5 sm:space-x-3.5 p-1 min-[390px]:p-1.5 sm:p-2 rounded-xl sm:rounded-2xl group transition-transform hover:scale-[1.02]">
-                <div className={`p-2 min-[390px]:p-2.5 sm:p-3 rounded-xl sm:rounded-2xl shrink-0 transition-all ${
+              <div className="relative flex items-center space-x-2 min-[390px]:space-x-2.5 sm:space-x-4 p-0.5 sm:p-2 lg:px-5 lg:py-1 group transition-transform hover:scale-[1.01]">
+                <div className={`w-8.5 h-8.5 min-[390px]:w-9.5 min-[390px]:h-9.5 sm:w-14 sm:h-14 rounded-xl min-[390px]:rounded-2xl sm:rounded-[22px] shrink-0 flex items-center justify-center transition-all group-hover:scale-105 ${
                   isDark 
                     ? isOutubroRosa
-                      ? 'bg-pink-500/15 text-pink-300 border border-pink-500/25 group-hover:bg-[#EC4899] group-hover:text-white group-hover:border-[#EC4899]'
-                      : 'bg-blue-500/15 text-blue-400 border border-blue-500/20' 
+                      ? 'bg-gradient-to-b from-[#33081F] to-[#1C0311] border border-pink-500/40 text-pink-400 shadow-[0_4px_12px_rgba(236,72,153,0.2),inset_0_1px_1px_rgba(255,255,255,0.1)]'
+                      : 'bg-gradient-to-b from-[#1E293B] to-[#0F172A] border border-blue-500/30 text-blue-400 shadow-[0_4px_12px_rgba(0,110,219,0.2),inset_0_1px_1px_rgba(255,255,255,0.08)]' 
                     : isOutubroRosa
-                      ? 'bg-[#FFF0F5] text-[#EC4899] border border-pink-200/70 group-hover:bg-[#EC4899] group-hover:text-white group-hover:border-[#EC4899]'
-                      : 'bg-[#EAF5FF] text-[#006EDB] border border-blue-100'
+                      ? 'bg-gradient-to-b from-white via-[#FFF0F6] to-[#FCE7F3] border border-pink-200/80 text-[#EC4899] shadow-[0_4px_12px_rgba(236,72,153,0.15),0_1px_3px_rgba(0,0,0,0.03),inset_0_1px_1px_rgba(255,255,255,1)]'
+                      : 'bg-gradient-to-b from-[#FFFFFF] via-[#F0F7FF] to-[#DDEEFF] border border-blue-200/70 text-[#006EDB] shadow-[0_4px_12px_rgba(0,110,219,0.15),0_1px_3px_rgba(0,0,0,0.04),inset_0_1px_1px_rgba(255,255,255,1)]'
                 }`}>
-                  <CreditCard className="h-4.5 w-4.5 sm:h-5 sm:w-5 stroke-[2.2]" />
+                  <CreditCard className="h-4 w-4 sm:h-6 sm:w-6 stroke-[2.3]" />
                 </div>
-                <div>
-                  <h4 className={`text-[11px] min-[390px]:text-xs sm:text-sm font-extrabold tracking-tight transition-colors ${
+                <div className="text-left min-w-0 flex-1">
+                  <h4 className={`text-[11px] min-[390px]:text-xs sm:text-sm font-extrabold tracking-tight transition-colors leading-tight ${
                     isDark 
                       ? isOutubroRosa ? 'text-white group-hover:text-pink-300' : 'text-white'
-                      : isOutubroRosa ? 'text-[#003B73] group-hover:text-[#BE185D]' : 'text-[#003B73]'
+                      : isOutubroRosa ? 'text-[#003B73] group-hover:text-[#BE185D]' : 'text-[#002B5B]'
                   }`}>
-                    Parcele em até 10x
+                    <span>Parcele em até </span>
+                    <span className={`text-xs min-[390px]:text-[13px] sm:text-base font-black ${
+                      isOutubroRosa ? 'text-[#EC4899]' : 'text-[#006EDB] dark:text-[#38BDF8]'
+                    }`}>
+                      10x
+                    </span>
                   </h4>
-                  <p className={`text-[9px] min-[390px]:text-[10px] sm:text-[11px] font-medium leading-tight ${isDark ? 'text-slate-400' : 'text-[#52708F]'}`}>
-                    No cartão ou desconto exclusivo no Pix
+                  <p className={`text-[8.5px] min-[390px]:text-[9px] sm:text-[11px] font-medium leading-tight mt-0.5 ${isDark ? 'text-slate-400' : 'text-[#52708F]'}`}>
+                    No cartão ou PIX.
                   </p>
                 </div>
+                {/* Linha Divisória Vertical no Desktop */}
+                <div className="hidden lg:block absolute right-0 top-1/2 -translate-y-1/2 h-10 w-[1px] bg-slate-200/80 dark:bg-slate-800" />
               </div>
 
               {/* Vantagem 3: Troca Simplificada */}
-              <div className="flex items-center space-x-2 min-[390px]:space-x-2.5 sm:space-x-3.5 p-1 min-[390px]:p-1.5 sm:p-2 rounded-xl sm:rounded-2xl group transition-transform hover:scale-[1.02]">
-                <div className={`p-2 min-[390px]:p-2.5 sm:p-3 rounded-xl sm:rounded-2xl shrink-0 transition-all ${
+              <div className="relative flex items-center space-x-2 min-[390px]:space-x-2.5 sm:space-x-4 p-0.5 sm:p-2 lg:px-5 lg:py-1 group transition-transform hover:scale-[1.01]">
+                <div className={`w-8.5 h-8.5 min-[390px]:w-9.5 min-[390px]:h-9.5 sm:w-14 sm:h-14 rounded-xl min-[390px]:rounded-2xl sm:rounded-[22px] shrink-0 flex items-center justify-center transition-all group-hover:scale-105 ${
                   isDark 
                     ? isOutubroRosa
-                      ? 'bg-pink-500/15 text-pink-300 border border-pink-500/25 group-hover:bg-[#EC4899] group-hover:text-white group-hover:border-[#EC4899]'
-                      : 'bg-blue-500/15 text-blue-400 border border-blue-500/20' 
+                      ? 'bg-gradient-to-b from-[#33081F] to-[#1C0311] border border-pink-500/40 text-pink-400 shadow-[0_4px_12px_rgba(236,72,153,0.2),inset_0_1px_1px_rgba(255,255,255,0.1)]'
+                      : 'bg-gradient-to-b from-[#1E293B] to-[#0F172A] border border-blue-500/30 text-blue-400 shadow-[0_4px_12px_rgba(0,110,219,0.2),inset_0_1px_1px_rgba(255,255,255,0.08)]' 
                     : isOutubroRosa
-                      ? 'bg-[#FFF0F5] text-[#EC4899] border border-pink-200/70 group-hover:bg-[#EC4899] group-hover:text-white group-hover:border-[#EC4899]'
-                      : 'bg-[#EAF5FF] text-[#006EDB] border border-blue-100'
+                      ? 'bg-gradient-to-b from-white via-[#FFF0F6] to-[#FCE7F3] border border-pink-200/80 text-[#EC4899] shadow-[0_4px_12px_rgba(236,72,153,0.15),0_1px_3px_rgba(0,0,0,0.03),inset_0_1px_1px_rgba(255,255,255,1)]'
+                      : 'bg-gradient-to-b from-[#FFFFFF] via-[#F0F7FF] to-[#DDEEFF] border border-blue-200/70 text-[#006EDB] shadow-[0_4px_12px_rgba(0,110,219,0.15),0_1px_3px_rgba(0,0,0,0.04),inset_0_1px_1px_rgba(255,255,255,1)]'
                 }`}>
-                  <RefreshCw className="h-4.5 w-4.5 sm:h-5 sm:w-5 stroke-[2.2]" />
+                  <RefreshCw className="h-4 w-4 sm:h-6 sm:w-6 stroke-[2.3]" />
                 </div>
-                <div>
-                  <h4 className={`text-[11px] min-[390px]:text-xs sm:text-sm font-extrabold tracking-tight transition-colors ${
+                <div className="text-left min-w-0 flex-1">
+                  <h4 className={`text-[11px] min-[390px]:text-xs sm:text-sm font-extrabold tracking-tight transition-colors leading-tight truncate sm:whitespace-normal ${
                     isDark 
                       ? isOutubroRosa ? 'text-white group-hover:text-pink-300' : 'text-white'
-                      : isOutubroRosa ? 'text-[#003B73] group-hover:text-[#BE185D]' : 'text-[#003B73]'
+                      : isOutubroRosa ? 'text-[#003B73] group-hover:text-[#BE185D]' : 'text-[#002B5B]'
                   }`}>
-                    Troca Simplificada
+                    Troca Fácil
                   </h4>
-                  <p className={`text-[9px] min-[390px]:text-[10px] sm:text-[11px] font-medium leading-tight ${isDark ? 'text-slate-400' : 'text-[#52708F]'}`}>
-                    Até 7 dias garantidos sem complicações
+                  <p className={`text-[8.5px] min-[390px]:text-[9px] sm:text-[11px] font-medium leading-tight mt-0.5 ${isDark ? 'text-slate-400' : 'text-[#52708F]'}`}>
+                    Até 7 dias garantidos.
                   </p>
                 </div>
+                {/* Linha Divisória Vertical no Desktop */}
+                <div className="hidden lg:block absolute right-0 top-1/2 -translate-y-1/2 h-10 w-[1px] bg-slate-200/80 dark:bg-slate-800" />
               </div>
 
               {/* Vantagem 4: Atendimento Humanizado */}
-              <div className="flex items-center space-x-2 min-[390px]:space-x-2.5 sm:space-x-3.5 p-1 min-[390px]:p-1.5 sm:p-2 rounded-xl sm:rounded-2xl group transition-transform hover:scale-[1.02]">
-                <div className={`p-2 min-[390px]:p-2.5 sm:p-3 rounded-xl sm:rounded-2xl shrink-0 transition-all ${
+              <a
+                href="https://wa.me/5599984684867"
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Falar com Atendente no WhatsApp"
+                className="relative flex items-center space-x-2 min-[390px]:space-x-2.5 sm:space-x-4 p-0.5 sm:p-2 lg:px-5 lg:py-1 group transition-transform hover:scale-[1.01] cursor-pointer"
+              >
+                <div className={`w-8.5 h-8.5 min-[390px]:w-9.5 min-[390px]:h-9.5 sm:w-14 sm:h-14 rounded-xl min-[390px]:rounded-2xl sm:rounded-[22px] shrink-0 flex items-center justify-center transition-all group-hover:scale-105 ${
                   isDark 
                     ? isOutubroRosa
-                      ? 'bg-pink-500/15 text-pink-300 border border-pink-500/25 group-hover:bg-[#EC4899] group-hover:text-white group-hover:border-[#EC4899]'
-                      : 'bg-blue-500/15 text-blue-400 border border-blue-500/20' 
+                      ? 'bg-gradient-to-b from-[#33081F] to-[#1C0311] border border-pink-500/40 text-pink-400 shadow-[0_4px_12px_rgba(236,72,153,0.2),inset_0_1px_1px_rgba(255,255,255,0.1)]'
+                      : 'bg-gradient-to-b from-[#1E293B] to-[#0F172A] border border-blue-500/30 text-blue-400 shadow-[0_4px_12px_rgba(0,110,219,0.2),inset_0_1px_1px_rgba(255,255,255,0.08)]' 
                     : isOutubroRosa
-                      ? 'bg-[#FFF0F5] text-[#EC4899] border border-pink-200/70 group-hover:bg-[#EC4899] group-hover:text-white group-hover:border-[#EC4899]'
-                      : 'bg-[#EAF5FF] text-[#006EDB] border border-blue-100'
+                      ? 'bg-gradient-to-b from-white via-[#FFF0F6] to-[#FCE7F3] border border-pink-200/80 text-[#EC4899] shadow-[0_4px_12px_rgba(236,72,153,0.15),0_1px_3px_rgba(0,0,0,0.03),inset_0_1px_1px_rgba(255,255,255,1)]'
+                      : 'bg-gradient-to-b from-[#FFFFFF] via-[#F0F7FF] to-[#DDEEFF] border border-blue-200/70 text-[#006EDB] shadow-[0_4px_12px_rgba(0,110,219,0.15),0_1px_3px_rgba(0,0,0,0.04),inset_0_1px_1px_rgba(255,255,255,1)]'
                 }`}>
-                  <Headphones className="h-4.5 w-4.5 sm:h-5 sm:w-5 stroke-[2.2]" />
+                  <Headphones className="h-4 w-4 sm:h-6 sm:w-6 stroke-[2.3]" />
                 </div>
-                <div>
-                  <h4 className={`text-[11px] min-[390px]:text-xs sm:text-sm font-extrabold tracking-tight transition-colors ${
+                <div className="text-left min-w-0 flex-1">
+                  <h4 className={`text-[11px] min-[390px]:text-xs sm:text-sm font-extrabold tracking-tight transition-colors leading-tight truncate sm:whitespace-normal ${
                     isDark 
                       ? isOutubroRosa ? 'text-white group-hover:text-pink-300' : 'text-white'
-                      : isOutubroRosa ? 'text-[#003B73] group-hover:text-[#BE185D]' : 'text-[#003B73]'
+                      : isOutubroRosa ? 'text-[#003B73] group-hover:text-[#BE185D]' : 'text-[#002B5B]'
                   }`}>
-                    Atendimento Humano
+                    Suporte Humano
                   </h4>
-                  <p className={`text-[9px] min-[390px]:text-[10px] sm:text-[11px] font-medium leading-tight ${isDark ? 'text-slate-400' : 'text-[#52708F]'}`}>
-                    Tire suas dúvidas direto no WhatsApp
+                  <p className={`text-[8.5px] min-[390px]:text-[9px] sm:text-[11px] font-medium leading-tight mt-0.5 ${isDark ? 'text-slate-400' : 'text-[#52708F]'}`}>
+                    Direto no WhatsApp.
                   </p>
                 </div>
-              </div>
+              </a>
 
             </div>
           </div>
