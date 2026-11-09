@@ -195,8 +195,7 @@ var MelhorEnvioAuth = class {
   }
 };
 
-// src/utils/orderUtils.ts
-var import_lucide_react = require("lucide-react");
+// src/utils/cepUf.ts
 var getUfFromCep = (cep, fallback = "MA") => {
   const clean = (cep || "").replace(/\D/g, "");
   if (!clean || clean.length < 2) return fallback;

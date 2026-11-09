@@ -1,4 +1,4 @@
-import { getUfFromCep } from "../utils/orderUtils";
+import { getUfFromCep } from "../utils/cepUf";
 
 export interface ViaCepResult {
   cep: string;

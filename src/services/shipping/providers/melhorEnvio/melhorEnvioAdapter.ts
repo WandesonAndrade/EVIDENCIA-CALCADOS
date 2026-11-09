@@ -19,7 +19,7 @@ import {
 } from "../../shippingProvider.interface.js";
 import { MelhorEnvioAuth } from "./melhorEnvioAuth.js";
 import { getMelhorEnvioConfig } from "./melhorEnvioConfig.js";
-import { getUfFromCep } from "../../../../utils/orderUtils.js";
+import { getUfFromCep } from "../../../../utils/cepUf.js";
 import { isUrbanCaxias } from "../../../../utils/localDelivery.js";
 
 // CEP de Origem padrão da Loja Evidência Calçados (Caxias - MA)
