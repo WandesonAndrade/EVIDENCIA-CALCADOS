@@ -11,7 +11,7 @@ const STORAGE_KEY = 'evidencia_shipping_settings';
 
 export const DEFAULT_SHIPPING_SETTINGS: ShippingSettings = {
   allowExternalShipping: true,
-  externalDisabledNotice: 'No momento, realizamos entregas apenas para a cidade de Caxias - MA. Você também pode optar por retirar seu pedido em nossa loja física!',
+  externalDisabledNotice: 'Entrega indisponível para o endereço',
   updatedAt: new Date().toISOString(),
 };
 

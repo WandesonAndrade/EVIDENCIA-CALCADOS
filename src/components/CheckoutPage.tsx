@@ -800,11 +800,8 @@ export const CheckoutPage: React.FC = () => {
                       <MapPin className="w-6 h-6 text-amber-600 shrink-0 mt-0.5" />
                       <div className="space-y-1">
                         <h4 className="font-bold text-sm uppercase tracking-wider text-amber-900 dark:text-amber-100 flex items-center gap-2">
-                          <span>⚠️</span> Entrega Indisponível para este Endereço
+                          <span>⚠️</span> Entrega Indisponível para o Endereço
                         </h4>
-                        <p className="text-xs text-amber-800 dark:text-amber-300 leading-relaxed font-medium">
-                          {shippingSettings.externalDisabledNotice || "No momento, realizamos entregas apenas para a cidade de Caxias - MA. As entregas para outros municípios estão temporariamente suspensas."}
-                        </p>
                       </div>
                     </div>
 

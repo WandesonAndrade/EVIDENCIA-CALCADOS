@@ -2378,7 +2378,7 @@ app2.post("/api/shipping/calculate", async (req, res) => {
             provider: "Local Caxias Only",
             isExternalBlocked: true,
             options: [],
-            message: settingsData.externalDisabledNotice || "Entregas para fora de Caxias - MA temporariamente suspensas."
+            message: settingsData.externalDisabledNotice || "Entrega indispon\xEDvel para o endere\xE7o"
           });
         }
       }

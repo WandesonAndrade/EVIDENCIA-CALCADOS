@@ -222,7 +222,7 @@ export const AdminBoxManager: React.FC = () => {
                   </>
                 ) : (
                   <>
-                    Os envios para fora de Caxias - MA estão <strong>pausados</strong>. Clientes com CEP de fora recebem o aviso: <em>"Entrega indisponível para este endereço"</em>. Entregas locais em Caxias e Retirada na Loja continuam <strong>100% ativas</strong>.
+                    Os envios para fora de Caxias - MA estão <strong>pausados</strong>. Clientes com CEP de fora recebem o aviso: <em>"Entrega indisponível para o endereço"</em>. Entregas locais em Caxias e Retirada na Loja continuam <strong>100% ativas</strong>.
                   </>
                 )}
               </p>

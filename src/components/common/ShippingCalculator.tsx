@@ -282,20 +282,13 @@ export const ShippingCalculator: React.FC<ShippingCalculatorProps> = ({
 
       {/* Aviso de Entrega Indisponível para Fora de Caxias */}
       {isExternalDisabledForCep && (
-        <div className="p-4 rounded-2xl bg-amber-50 border border-amber-300/80 text-amber-950 space-y-2 animate-fade-in shadow-xs">
-          <div className="flex items-start gap-3">
-            <div className="p-2 bg-amber-200/70 rounded-xl text-amber-800 shrink-0 mt-0.5">
-              <MapPin className="w-5 h-5 text-amber-800" />
-            </div>
-            <div className="space-y-1">
-              <h4 className="font-bold text-xs uppercase tracking-wider text-amber-900 flex items-center gap-1.5">
-                <span>⚠️</span> Entrega indisponível para este endereço
-              </h4>
-              <p className="text-xs text-amber-800 leading-relaxed font-medium">
-                {shippingSettings.externalDisabledNotice || "No momento, realizamos entregas apenas para a cidade de Caxias - MA. As entregas para outros municípios estão temporariamente suspensas."}
-              </p>
-            </div>
+        <div className="flex items-center gap-3 p-3.5 bg-amber-50 border border-amber-300 text-amber-900 rounded-2xl animate-fade-in shadow-xs">
+          <div className="p-2 bg-amber-200/70 rounded-xl text-amber-800 shrink-0">
+            <MapPin className="w-4 h-4 text-amber-800" />
           </div>
+          <span className="font-bold text-xs text-amber-900">
+            Entrega indisponível para o endereço
+          </span>
         </div>
       )}
 
