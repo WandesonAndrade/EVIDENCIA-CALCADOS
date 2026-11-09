@@ -294,10 +294,6 @@ export const ShippingCalculator: React.FC<ShippingCalculatorProps> = ({
               <p className="text-xs text-amber-800 leading-relaxed font-medium">
                 {shippingSettings.externalDisabledNotice || "No momento, realizamos entregas apenas para a cidade de Caxias - MA. As entregas para outros municípios estão temporariamente suspensas."}
               </p>
-              <div className="mt-2.5 p-2.5 bg-white/90 border border-amber-200 rounded-xl text-xs font-semibold text-amber-900 flex items-center gap-2">
-                <span className="text-base">🏬</span>
-                <span>Você pode concluir seu pedido escolhendo a opção <strong>"Retirar na Loja (Grátis)"</strong>!</span>
-              </div>
             </div>
           </div>
         </div>
