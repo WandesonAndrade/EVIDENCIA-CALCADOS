@@ -41,9 +41,40 @@ export const ShippingCalculator: React.FC<ShippingCalculatorProps> = ({
 
   useEffect(() => {
     shippingConfigService.getSettings().then(setShippingSettings);
-    const unsubscribe = shippingConfigService.subscribeSettings(setShippingSettings);
-    return () => unsubscribe();
-  }, []);
+    const unsubscribe = shippingConfigService.subscribeSettings((newSettings) => {
+      setShippingSettings(newSettings);
+      const cleanCep = postalCode.replace(/\D/g, "");
+      if (cleanCep.length === 8) {
+        const isCaxias = isUrbanCaxias({ cep: cleanCep });
+        if (!newSettings.allowExternalShipping && !isCaxias) {
+          setIsExternalDisabledForCep(true);
+          setOptions([]);
+        }
+      }
+    });
+
+    const handleCustomEvent = (e: any) => {
+      if (e.detail) {
+        const newSettings = e.detail;
+        setShippingSettings(newSettings);
+        const cleanCep = postalCode.replace(/\D/g, "");
+        if (cleanCep.length === 8) {
+          const isCaxias = isUrbanCaxias({ cep: cleanCep });
+          if (!newSettings.allowExternalShipping && !isCaxias) {
+            setIsExternalDisabledForCep(true);
+            setOptions([]);
+          }
+        }
+      }
+    };
+
+    window.addEventListener('evidencia_shipping_settings_changed', handleCustomEvent);
+
+    return () => {
+      unsubscribe();
+      window.removeEventListener('evidencia_shipping_settings_changed', handleCustomEvent);
+    };
+  }, [postalCode]);
 
   useEffect(() => {
     boxService.getDefaultBox().then((b) => {
@@ -78,6 +109,26 @@ export const ShippingCalculator: React.FC<ShippingCalculatorProps> = ({
 
     const boxToUse = customBox || effectiveBox;
 
+    // 1. Obter a configuração mais atualizada (Firestore / localStorage)
+    const currentSettings = await shippingConfigService.getSettings();
+    setShippingSettings(currentSettings);
+
+    // 2. Verificar se o CEP pertence à malha de Caxias - MA
+    const isCaxias = isUrbanCaxias({ cep: cepToUse });
+
+    // 3. Se envios para fora de Caxias estiverem desativados e o CEP for externo:
+    if (!currentSettings.allowExternalShipping && !isCaxias) {
+      setIsExternalDisabledForCep(true);
+      setOptions([]);
+      setErrorMsg("");
+      setLoading(false);
+      if (onCalculateSuccessRef.current) {
+        onCalculateSuccessRef.current([], cepToUse, boxToUse);
+      }
+      return;
+    }
+
+    setIsExternalDisabledForCep(false);
     setErrorMsg("");
     setLoading(true);
 
@@ -102,6 +153,15 @@ export const ShippingCalculator: React.FC<ShippingCalculatorProps> = ({
         }
       } catch {
         // Ignora erro de JSON e trata o texto bruto
+      }
+
+      if (data && data.isExternalBlocked) {
+        setIsExternalDisabledForCep(true);
+        setOptions([]);
+        if (onCalculateSuccessRef.current) {
+          onCalculateSuccessRef.current([], cepToUse, boxToUse);
+        }
+        return;
       }
 
       if (!response.ok) {
@@ -159,6 +219,9 @@ export const ShippingCalculator: React.FC<ShippingCalculatorProps> = ({
       val = `${val.slice(0, 5)}-${val.slice(5)}`;
     }
     setPostalCode(val);
+    if (isExternalDisabledForCep) {
+      setIsExternalDisabledForCep(false);
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -215,6 +278,29 @@ export const ShippingCalculator: React.FC<ShippingCalculatorProps> = ({
             )}
           </button>
         </form>
+      )}
+
+      {/* Aviso de Entrega Indisponível para Fora de Caxias */}
+      {isExternalDisabledForCep && (
+        <div className="p-4 rounded-2xl bg-amber-50 border border-amber-300/80 text-amber-950 space-y-2 animate-fade-in shadow-xs">
+          <div className="flex items-start gap-3">
+            <div className="p-2 bg-amber-200/70 rounded-xl text-amber-800 shrink-0 mt-0.5">
+              <MapPin className="w-5 h-5 text-amber-800" />
+            </div>
+            <div className="space-y-1">
+              <h4 className="font-bold text-xs uppercase tracking-wider text-amber-900 flex items-center gap-1.5">
+                <span>⚠️</span> Entrega indisponível para este endereço
+              </h4>
+              <p className="text-xs text-amber-800 leading-relaxed font-medium">
+                {shippingSettings.externalDisabledNotice || "No momento, realizamos entregas apenas para a cidade de Caxias - MA. As entregas para outros municípios estão temporariamente suspensas."}
+              </p>
+              <div className="mt-2.5 p-2.5 bg-white/90 border border-amber-200 rounded-xl text-xs font-semibold text-amber-900 flex items-center gap-2">
+                <span className="text-base">🏬</span>
+                <span>Você pode concluir seu pedido escolhendo a opção <strong>"Retirar na Loja (Grátis)"</strong>!</span>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Error Message */}

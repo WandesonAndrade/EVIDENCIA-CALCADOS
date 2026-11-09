@@ -286,13 +286,18 @@ export const CheckoutPage: React.FC = () => {
 
   const activeAddressObj = allAddresses.find(a => a.id === selectedAddressId) || allAddresses[0] || defaultAddress;
 
-  const isCaxiasCity = (
-    (activeAddressObj?.cidade || otherCityName || currentUser?.cidade || 'Caxias')
-      .toLowerCase()
-      .includes('caxias')
-  );
+  const isCaxiasCity = isUrbanCaxias({
+    cep: activeCep,
+    city: activeAddressObj?.cidade || otherCityName || currentUser?.cidade,
+    uf: activeAddressObj?.uf || currentUser?.uf,
+  });
 
-  const freightCost = deliveryType === 'Retirada na Loja'
+  const isExternalDeliveryBlocked =
+    deliveryType === 'Entrega no Endereço' &&
+    !shippingSettings.allowExternalShipping &&
+    !isCaxiasCity;
+
+  const freightCost = (deliveryType === 'Retirada na Loja' || isExternalDeliveryBlocked)
     ? 0
     : selectedShippingOption
     ? selectedShippingOption.price
@@ -308,6 +313,16 @@ export const CheckoutPage: React.FC = () => {
   const grandTotal = Math.max(0, activeSubtotal + freightCost - cashbackDiscount);
 
   const handleConfirmOrder = async (pixPaymentId?: number | string, customPaymentStatus?: PaymentStatus) => {
+    // 0. Bloqueio de entregas para fora de Caxias quando desativadas
+    if (isExternalDeliveryBlocked) {
+      addToast(
+        'Entrega Indisponível',
+        'No momento, entregas para fora de Caxias - MA estão temporariamente suspensas. Escolha a opção "Retirada na Loja" para concluir sua compra.',
+        'warning'
+      );
+      return;
+    }
+
     // 1. Bloqueio de Frete Estimado (conforme diretriz: estimativa sem chegar a compra)
     if (deliveryType !== 'Retirada na Loja' && selectedShippingOption?.estimated) {
       addToast(
@@ -779,23 +794,61 @@ export const CheckoutPage: React.FC = () => {
 
               {/* Opções de Pagamento Online: Cartão de Crédito ou PIX */}
               <div className="p-1">
-                <PaymentForm
-                  grandTotal={grandTotal}
-                  emailCliente={currentUser.email || ''}
-                  nomeCliente={currentUser.name}
-                  cpfCliente={currentUser.cpf}
-                  externalReference={`ped_${Date.now()}`}
-                  isDark={isDark}
-                  onActiveTabChange={(tab) => setOnlineTab(tab)}
-                  onPixGenerated={(id) => setCurrentPixPaymentId(id)}
-                  onPaymentApproved={(details) => handleConfirmOrder(details.paymentId, details.status)}
-                  onPaymentFailed={(err) => console.error("Payment failed", err)}
-                />
-                
-                {onlineTab === 'credit' && (
-                  <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 p-4 border border-slate-200 dark:border-slate-700 rounded-xl mt-4 bg-slate-50 dark:bg-slate-800">
-                    ℹ️ O pagamento via Cartão de Crédito é processado diretamente pelo painel acima. Preencha e clique no botão de pagamento para finalizar.
-                  </p>
+                {isExternalDeliveryBlocked ? (
+                  <div className="p-6 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-700 text-amber-950 dark:text-amber-200 space-y-4">
+                    <div className="flex items-start gap-3">
+                      <MapPin className="w-6 h-6 text-amber-600 shrink-0 mt-0.5" />
+                      <div className="space-y-1">
+                        <h4 className="font-bold text-sm uppercase tracking-wider text-amber-900 dark:text-amber-100 flex items-center gap-2">
+                          <span>⚠️</span> Entrega Indisponível para este Endereço
+                        </h4>
+                        <p className="text-xs text-amber-800 dark:text-amber-300 leading-relaxed font-medium">
+                          {shippingSettings.externalDisabledNotice || "No momento, realizamos entregas apenas para a cidade de Caxias - MA. As entregas para outros municípios estão temporariamente suspensas."}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="pt-2 flex flex-col sm:flex-row gap-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDeliveryType('Retirada na Loja');
+                          setSelectedShippingOption(null);
+                        }}
+                        className="px-5 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition cursor-pointer"
+                      >
+                        <span>🏬 Mudar para Retirada na Loja (Grátis)</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsAddingNewAddress(true)}
+                        className="px-4 py-3 rounded-xl bg-white dark:bg-slate-800 border border-amber-300 dark:border-amber-700 hover:bg-amber-100/40 text-amber-900 dark:text-amber-200 font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer"
+                      >
+                        <span>📍 Cadastrar Endereço em Caxias - MA</span>
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <PaymentForm
+                      grandTotal={grandTotal}
+                      emailCliente={currentUser.email || ''}
+                      nomeCliente={currentUser.name}
+                      cpfCliente={currentUser.cpf}
+                      externalReference={`ped_${Date.now()}`}
+                      isDark={isDark}
+                      onActiveTabChange={(tab) => setOnlineTab(tab)}
+                      onPixGenerated={(id) => setCurrentPixPaymentId(id)}
+                      onPaymentApproved={(details) => handleConfirmOrder(details.paymentId, details.status)}
+                      onPaymentFailed={(err) => console.error("Payment failed", err)}
+                    />
+                    
+                    {onlineTab === 'credit' && (
+                      <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 p-4 border border-slate-200 dark:border-slate-700 rounded-xl mt-4 bg-slate-50 dark:bg-slate-800">
+                        ℹ️ O pagamento via Cartão de Crédito é processado diretamente pelo painel acima. Preencha e clique no botão de pagamento para finalizar.
+                      </p>
+                    )}
+                  </>
                 )}
 
                 {/* Banner informativo de Crediário Próprio */}
@@ -910,9 +963,9 @@ export const CheckoutPage: React.FC = () => {
               {/* Botão Oficial de Concluir para Pix */}
               <button
                 onClick={() => handleConfirmOrder(currentPixPaymentId, 'Pendente')}
-                disabled={isProcessing || onlineTab === 'credit' || (deliveryType !== 'Retirada na Loja' && Boolean(selectedShippingOption?.estimated))}
+                disabled={isProcessing || onlineTab === 'credit' || isExternalDeliveryBlocked || (deliveryType !== 'Retirada na Loja' && Boolean(selectedShippingOption?.estimated))}
                 className={`w-full mt-6 py-4 rounded-2xl font-semibold text-base transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                  isProcessing || onlineTab === 'credit' || (deliveryType !== 'Retirada na Loja' && Boolean(selectedShippingOption?.estimated))
+                  isProcessing || onlineTab === 'credit' || isExternalDeliveryBlocked || (deliveryType !== 'Retirada na Loja' && Boolean(selectedShippingOption?.estimated))
                     ? 'opacity-50 cursor-not-allowed bg-slate-100 dark:bg-white/5 text-slate-400' 
                     : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm'
                 }`}

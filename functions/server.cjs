@@ -2367,6 +2367,24 @@ app2.post("/api/shipping/calculate", async (req, res) => {
     if (cleanToCep.length !== 8) {
       return res.status(400).json({ success: false, error: "CEP de destino inv\xE1lido. Deve conter 8 n\xFAmeros." });
     }
+    const isCaxias = isUrbanCaxias({ cep: cleanToCep });
+    try {
+      const settingsSnap = await (0, import_firestore3.getDoc)((0, import_firestore3.doc)(db, "settings", "shipping"));
+      if (settingsSnap.exists()) {
+        const settingsData = settingsSnap.data();
+        if (settingsData && settingsData.allowExternalShipping === false && !isCaxias) {
+          return res.json({
+            success: true,
+            provider: "Local Caxias Only",
+            isExternalBlocked: true,
+            options: [],
+            message: settingsData.externalDisabledNotice || "Entregas para fora de Caxias - MA temporariamente suspensas."
+          });
+        }
+      }
+    } catch (settingsErr) {
+      console.warn("[Shipping Calculate] Erro ao consultar settings/shipping no Firestore:", settingsErr);
+    }
     const provider = ShippingService.getProvider();
     const options = await provider.calculateShipping({
       toPostalCode: cleanToCep,
