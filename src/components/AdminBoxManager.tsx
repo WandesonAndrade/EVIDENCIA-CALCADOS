@@ -183,6 +183,91 @@ export const AdminBoxManager: React.FC = () => {
         </div>
       </div>
 
+      {/* Card Alcance Geográfico das Entregas (Fora de Caxias) */}
+      <div className={`rounded-3xl p-6 border transition-all duration-300 shadow-sm ${
+        shippingSettings.allowExternalShipping
+          ? 'bg-gradient-to-r from-emerald-50/60 via-white to-white border-emerald-200/80'
+          : 'bg-gradient-to-r from-amber-50/70 via-white to-white border-amber-200/80'
+      }`}>
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+          <div className="flex items-start gap-4">
+            <div className={`p-3.5 rounded-2xl shrink-0 ${
+              shippingSettings.allowExternalShipping
+                ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/20'
+                : 'bg-amber-500 text-white shadow-md shadow-amber-500/20'
+            }`}>
+              <Globe className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex flex-wrap items-center gap-2 mb-1">
+                <h3 className="text-lg font-bold text-slate-900 tracking-tight">
+                  Alcance Geográfico das Entregas
+                </h3>
+                {shippingSettings.allowExternalShipping ? (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300/60">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    Entregas Nacionais Ativas
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300/60">
+                    <span className="w-2 h-2 rounded-full bg-amber-500" />
+                    Restrito a Caxias - MA
+                  </span>
+                )}
+              </div>
+              <p className="text-sm text-slate-600 max-w-2xl leading-relaxed">
+                {shippingSettings.allowExternalShipping ? (
+                  <>
+                    Os envios para <strong>fora de Caxias - MA</strong> estão <strong>liberados</strong> via Melhor Envio (Correios e Jadlog). Clientes de outros municípios conseguem cotar e comprar normalmente.
+                  </>
+                ) : (
+                  <>
+                    Os envios para fora de Caxias - MA estão <strong>pausados</strong>. Clientes com CEP de fora recebem o aviso: <em>"Entrega indisponível para este endereço"</em>. Entregas locais em Caxias e Retirada na Loja continuam <strong>100% ativas</strong>.
+                  </>
+                )}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0">
+            <button
+              onClick={handleToggleExternalShipping}
+              disabled={isUpdatingSettings || loading}
+              className={`px-5 py-3 rounded-2xl font-bold text-sm transition-all flex items-center justify-center gap-2.5 shadow-sm cursor-pointer ${
+                shippingSettings.allowExternalShipping
+                  ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 hover:border-rose-300 hover:shadow'
+                  : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/25 hover:shadow-emerald-600/35 hover:shadow-md'
+              } disabled:opacity-50 disabled:cursor-not-allowed`}
+            >
+              {isUpdatingSettings ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <span>Salvando alteração...</span>
+                </>
+              ) : shippingSettings.allowExternalShipping ? (
+                <>
+                  <Truck className="w-4 h-4 text-rose-500" />
+                  <span>Pausar Entregas Fora de Caxias</span>
+                </>
+              ) : (
+                <>
+                  <Check className="w-4 h-4" />
+                  <span>Liberar para Todo o Brasil</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Mensagem de Feedback */}
+        {settingsFeedback && (
+          <div className="mt-4 p-3.5 rounded-2xl bg-slate-900 text-white text-xs font-semibold flex items-center gap-2 animate-fade-in shadow-md">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span>{settingsFeedback}</span>
+          </div>
+        )}
+      </div>
+
       {/* Boxes Grid */}
       {loading ? (
         <div className="bg-white rounded-3xl p-12 text-center text-slate-400 font-medium border border-slate-100 shadow-sm flex flex-col items-center justify-center gap-3">
