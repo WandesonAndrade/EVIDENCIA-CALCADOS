@@ -651,7 +651,7 @@ export const ProductList: React.FC = () => {
       {saldaoConfig?.enabled && saldaoProducts.length > 0 && (
         <div className="space-y-6">
           <SaldaoBanner 
-            discountPercent={saldaoConfig.discountPercent}
+            discountPercent={saldaoConfig.discountPercentVista ?? saldaoConfig.discountPercent ?? 20}
             bannerText={saldaoConfig.bannerText}
             onViewAll={() => {
               if (setSelectedSubcategory) setSelectedSubcategory('TODAS');

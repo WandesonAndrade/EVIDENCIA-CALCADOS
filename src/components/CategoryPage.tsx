@@ -18,7 +18,10 @@ import {
   Ruler,
   Sparkles,
   Gift,
-  ShoppingBag
+  ShoppingBag,
+  LayoutGrid,
+  ArrowUpDown,
+  Footprints
 } from 'lucide-react';
 import { Hero } from './Hero';
 import { ProductCard } from './ProductList';
@@ -211,6 +214,7 @@ export const CategoryPage: React.FC = () => {
   const { 
     products, 
     selectedMenuTab, 
+    setSelectedMenuTab,
     setCurrentView, 
     setSelectedProduct,
     searchQuery,
@@ -222,6 +226,7 @@ export const CategoryPage: React.FC = () => {
     selectedSubcategory: globalSubcategory,
     setSelectedSubcategory: setGlobalSubcategory,
     selectedCategory,
+    setSelectedCategory,
     saldaoConfig,
     promotions = [],
     storeTheme,
@@ -756,6 +761,48 @@ export const CategoryPage: React.FC = () => {
     setOnlySale(false);
   };
 
+  const handleClearAllFilters = () => {
+    clearAllFilters();
+    setSelectedSubcategory('TODAS');
+    if (setGlobalSubcategory) setGlobalSubcategory('TODAS');
+    setSortBy('relevant');
+  };
+
+  const handleCategoryChange = (val: string) => {
+    if (val === 'TODOS' || !val) {
+      if (setSelectedCategory) setSelectedCategory('TODOS', 'TODAS');
+      if (setSelectedMenuTab) setSelectedMenuTab('todos');
+      setSelectedSubcategory('TODAS');
+      if (setGlobalSubcategory) setGlobalSubcategory('TODAS');
+    } else {
+      if (setSelectedCategory) setSelectedCategory(val.toUpperCase(), 'TODAS');
+      if (setSelectedMenuTab) setSelectedMenuTab(val.toLowerCase());
+      setSelectedSubcategory('TODAS');
+      if (setGlobalSubcategory) setGlobalSubcategory('TODAS');
+    }
+  };
+
+  const currentCategoryValue = useMemo(() => {
+    const cleanTabKey = (selectedMenuTab || '').trim().toLowerCase();
+    const cleanCatKey = (selectedCategory || '').trim().toLowerCase();
+    
+    if (cleanTabKey === 'feminino' || cleanCatKey === 'feminino') return 'feminino';
+    if (cleanTabKey === 'masculino' || cleanCatKey === 'masculino') return 'masculino';
+    if (cleanTabKey.includes('infantil-fem') || cleanCatKey.includes('infantil-fem') || cleanTabKey.includes('infantil feminino') || cleanCatKey.includes('infantil feminino')) return 'infantil-feminino';
+    if (cleanTabKey.includes('infantil-masc') || cleanCatKey.includes('infantil-masc') || cleanTabKey.includes('infantil masculino') || cleanCatKey.includes('infantil masculino')) return 'infantil-masculino';
+    if (cleanTabKey === 'infantil' || cleanCatKey === 'infantil') return 'infantil';
+    if (cleanTabKey === 'unissex' || cleanCatKey === 'unissex') return 'unissex';
+    if (cleanTabKey.includes('calcad') || cleanCatKey.includes('calcad')) return 'calcados';
+    if (cleanTabKey.includes('acessor') || cleanCatKey.includes('acessor')) return 'acessorios';
+    if (cleanTabKey.includes('cosmet') || cleanCatKey.includes('cosmet')) return 'cosmeticos';
+    if (cleanTabKey.includes('perfum') || cleanCatKey.includes('perfum')) return 'perfumes';
+    if (cleanTabKey.includes('confec') || cleanCatKey.includes('confec')) return 'confeccoes';
+    if (cleanTabKey === 'novidades' || cleanCatKey === 'novidades' || cleanTabKey === 'lançamentos' || cleanCatKey === 'lançamentos') return 'novidades';
+    if (cleanTabKey === 'ofertas' || cleanCatKey === 'ofertas' || cleanTabKey.includes('salda') || cleanCatKey.includes('salda')) return 'ofertas';
+    
+    return cleanTabKey || cleanCatKey || 'TODOS';
+  }, [selectedMenuTab, selectedCategory]);
+
   const hasActiveFilters = selectedBrands.length > 0 || selectedSizes.length > 0 || priceRange !== 'all' || onlySale;
 
   // COMPONENTE SIDEBAR DE FILTROS (ESTILO REFRIGERANTE E-COMMERCE CONFORME IMAGEM DE REFERÊNCIA)
@@ -1089,8 +1136,8 @@ export const CategoryPage: React.FC = () => {
 
       {/* SEÇÃO PRINCIPAL DE PRODUTOS COM FILTROS LATERAIS (DESKTOP E MOBILE) */}
       <div id="category-all-items-section" ref={gridSectionRef} className="space-y-6 pt-2">
-        {/* Cabeçalho da Seção Padronizado */}
-        <div className="border-b border-blue-900/10 pb-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        {/* Cabeçalho da Seção Padronizado (Apenas Desktop) */}
+        <div className="hidden lg:flex border-b border-blue-900/10 pb-5 flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1">
             <span className={`inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-widest ${
               isDark ? 'bg-blue-900/30 text-blue-200 border border-blue-800' : 'bg-[#DDF1FF] text-[#003B73] border border-[#006EDB]/20'
@@ -1106,18 +1153,6 @@ export const CategoryPage: React.FC = () => {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {/* Botão Mobile para Abrir Filtros Drawer */}
-            <button
-              onClick={() => setIsMobileFilterOpen(true)}
-              className="lg:hidden inline-flex items-center space-x-2 px-4 py-2 rounded-full bg-[#003B73] text-white text-xs font-bold shadow-xs cursor-pointer hover:bg-[#002850] transition-colors"
-            >
-              <Filter className="h-3.5 w-3.5" />
-              <span>Filtrar por Marca & Tamanho</span>
-              {hasActiveFilters && (
-                <span className="w-2 h-2 rounded-full bg-[#FFC928]" />
-              )}
-            </button>
-
             {activeSubcategory && (
               <button
                 onClick={() => {
@@ -1156,9 +1191,197 @@ export const CategoryPage: React.FC = () => {
           </div>
         </div>
 
-        {/* BARRA DE SELEÇÃO RÁPIDA DE SUBCATEGORIAS */}
+        {/* CARD DE FILTROS MOBILE (EXATAMENTE COMO NA IMAGEM DE REFERÊNCIA) */}
+        <div className="lg:hidden bg-white dark:bg-slate-900 rounded-3xl p-4 sm:p-5 border border-blue-100 dark:border-slate-800 shadow-md shadow-blue-900/5 mb-4 space-y-3.5">
+          {/* Cabeçalho do Card: Filtrar por + Limpar filtros */}
+          <div className="flex items-center justify-between pb-3 border-b border-blue-900/10 dark:border-slate-800">
+            <div className="flex items-center space-x-2">
+              <Filter className="w-5 h-5 text-[#006EDB]" />
+              <h3 className="font-extrabold text-base text-[#003B73] dark:text-white">
+                Filtrar por
+              </h3>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleClearAllFilters}
+              className={`inline-flex items-center space-x-1.5 text-xs font-bold transition-colors cursor-pointer ${
+                storeThemeTokens.isBlackFriday
+                  ? 'text-amber-400 hover:text-amber-300'
+                  : isOutubroRosa
+                  ? 'text-[#EC4899] hover:text-[#BE185D]'
+                  : 'text-[#006EDB] hover:text-[#00509E] dark:text-blue-400 dark:hover:text-blue-300'
+              }`}
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Limpar filtros</span>
+            </button>
+          </div>
+
+          {/* Grid 2x2 de Seletores (Marca, Tamanho, Categoria, Ordenar por) */}
+          <div className="grid grid-cols-2 gap-3 pt-1">
+            {/* 1. Marca */}
+            <div>
+              <div className="flex items-center space-x-1.5 text-xs font-bold text-[#003B73] dark:text-slate-200 mb-1.5">
+                <Tag className="w-3.5 h-3.5 text-[#006EDB]" />
+                <span>Marca</span>
+              </div>
+              <div className="relative">
+                <select
+                  value={selectedBrands.length > 0 ? selectedBrands[0] : ''}
+                  onChange={(e) => setSelectedBrands(e.target.value ? [e.target.value] : [])}
+                  className="w-full appearance-none bg-[#F4F9FF] dark:bg-slate-800/80 border border-blue-900/10 dark:border-slate-700 text-[#003B73] dark:text-white text-xs font-semibold py-2.5 pl-3 pr-8 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#006EDB]/20 cursor-pointer truncate"
+                >
+                  <option value="">Todas as marcas</option>
+                  {availableBrands.map((b) => (
+                    <option key={b.name} value={b.name}>
+                      {b.name} ({b.count})
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#003B73]/70 dark:text-slate-400 pointer-events-none stroke-[2.5]" />
+              </div>
+            </div>
+
+            {/* 2. Tamanho */}
+            <div>
+              <div className="flex items-center space-x-1.5 text-xs font-bold text-[#003B73] dark:text-slate-200 mb-1.5">
+                <Footprints className="w-3.5 h-3.5 text-[#006EDB]" />
+                <span>Tamanho</span>
+              </div>
+              <div className="relative">
+                <select
+                  value={selectedSizes.length > 0 ? selectedSizes[0] : ''}
+                  onChange={(e) => setSelectedSizes(e.target.value ? [e.target.value] : [])}
+                  className="w-full appearance-none bg-[#F4F9FF] dark:bg-slate-800/80 border border-blue-900/10 dark:border-slate-700 text-[#003B73] dark:text-white text-xs font-semibold py-2.5 pl-3 pr-8 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#006EDB]/20 cursor-pointer truncate"
+                >
+                  <option value="">Todos os tamanhos</option>
+                  {availableSizes.map((size) => (
+                    <option key={size} value={size}>
+                      Tamanho {size}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#003B73]/70 dark:text-slate-400 pointer-events-none stroke-[2.5]" />
+              </div>
+            </div>
+
+            {/* 3. Categoria */}
+            <div>
+              <div className="flex items-center space-x-1.5 text-xs font-bold text-[#003B73] dark:text-slate-200 mb-1.5">
+                <LayoutGrid className="w-3.5 h-3.5 text-[#006EDB]" />
+                <span>Categoria</span>
+              </div>
+              <div className="relative">
+                <select
+                  value={currentCategoryValue}
+                  onChange={(e) => handleCategoryChange(e.target.value)}
+                  className="w-full appearance-none bg-[#F4F9FF] dark:bg-slate-800/80 border border-blue-900/10 dark:border-slate-700 text-[#003B73] dark:text-white text-xs font-semibold py-2.5 pl-3 pr-8 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#006EDB]/20 cursor-pointer truncate"
+                >
+                  <option value="TODOS">Todas as categorias</option>
+                  <option value="feminino">Feminino</option>
+                  <option value="masculino">Masculino</option>
+                  <option value="infantil-feminino">Infantil Feminino</option>
+                  <option value="infantil-masculino">Infantil Masculino</option>
+                  <option value="infantil">Infantil & Bebê</option>
+                  <option value="unissex">Unissex</option>
+                  <option value="calcados">Calçados</option>
+                  <option value="acessorios">Bolsas & Acessórios</option>
+                  <option value="cosmeticos">Cosméticos & Beleza</option>
+                  <option value="perfumes">Perfumes</option>
+                  <option value="confeccoes">Moda & Confecções</option>
+                  <option value="novidades">Lançamentos</option>
+                  <option value="ofertas">Ofertas & Saldão</option>
+                </select>
+                <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#003B73]/70 dark:text-slate-400 pointer-events-none stroke-[2.5]" />
+              </div>
+            </div>
+
+            {/* 4. Ordenar por */}
+            <div>
+              <div className="flex items-center space-x-1.5 text-xs font-bold text-[#003B73] dark:text-slate-200 mb-1.5">
+                <ArrowUpDown className="w-3.5 h-3.5 text-[#006EDB]" />
+                <span>Ordenar por</span>
+              </div>
+              <div className="relative">
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as any)}
+                  className="w-full appearance-none bg-[#F4F9FF] dark:bg-slate-800/80 border border-blue-900/10 dark:border-slate-700 text-[#003B73] dark:text-white text-xs font-semibold py-2.5 pl-3 pr-8 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#006EDB]/20 cursor-pointer truncate"
+                >
+                  <option value="relevant">Mais Relevantes</option>
+                  <option value="price-asc">Menor Preço</option>
+                  <option value="price-desc">Maior Preço</option>
+                  <option value="launches">Lançamentos</option>
+                </select>
+                <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#003B73]/70 dark:text-slate-400 pointer-events-none stroke-[2.5]" />
+              </div>
+            </div>
+          </div>
+
+          {/* Subcategorias */}
+          {availableSubcategories.length > 0 && (
+            <div className="pt-3.5 mt-2 border-t border-blue-900/10 dark:border-slate-800">
+              <div className="flex items-center space-x-1.5 text-xs font-bold text-[#003B73] dark:text-slate-200 mb-2.5">
+                <LayoutGrid className="w-3.5 h-3.5 text-[#006EDB]" />
+                <span>Subcategorias</span>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-1.5 min-[390px]:gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedSubcategory('TODAS');
+                    if (setGlobalSubcategory) setGlobalSubcategory('TODAS');
+                  }}
+                  className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer border ${
+                    !activeSubcategory || activeSubcategory === 'TODAS'
+                      ? isOutubroRosa
+                        ? 'bg-gradient-to-r from-[#EC4899] to-[#F472B6] text-white border-[#EC4899] shadow-xs'
+                        : 'bg-[#0071E3] text-white border-[#0071E3] shadow-xs'
+                      : isOutubroRosa
+                      ? 'bg-white text-[#9D174D] border-pink-200 hover:border-[#EC4899] hover:bg-pink-50'
+                      : 'bg-white dark:bg-slate-800 text-[#006EDB] dark:text-blue-300 border-blue-200/80 dark:border-slate-700 hover:border-[#0071E3] hover:bg-blue-50/50'
+                  }`}
+                >
+                  Todas ({totalParentCategoryCount})
+                </button>
+
+                {availableSubcategories.map((sub) => {
+                  const isActive = activeSubcategory
+                    ? (activeSubcategory.toLowerCase() === sub.name.toLowerCase() || isSubcategoryMatch({ name: sub.name } as any, activeSubcategory))
+                    : false;
+
+                  return (
+                    <button
+                      key={sub.name}
+                      type="button"
+                      onClick={() => {
+                        setSelectedSubcategory(sub.name);
+                        if (setGlobalSubcategory) setGlobalSubcategory(sub.name);
+                      }}
+                      className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer border ${
+                        isActive
+                          ? isOutubroRosa
+                            ? 'bg-gradient-to-r from-[#EC4899] to-[#F472B6] text-white border-[#EC4899] shadow-xs'
+                            : 'bg-[#0071E3] text-white border-[#0071E3] shadow-xs'
+                          : isOutubroRosa
+                          ? 'bg-white text-[#9D174D] border-pink-200 hover:border-[#EC4899] hover:bg-pink-50'
+                          : 'bg-white dark:bg-slate-800 text-[#006EDB] dark:text-blue-300 border-blue-200/80 dark:border-slate-700 hover:border-[#0071E3] hover:bg-blue-50/50'
+                      }`}
+                    >
+                      {sub.name} <span className="opacity-75 font-normal">({sub.count})</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* BARRA DE SELEÇÃO RÁPIDA DE SUBCATEGORIAS (APENAS DESKTOP) */}
         {availableSubcategories.length > 0 && (
-          <div className="flex flex-wrap items-center gap-2 pt-1 pb-1">
+          <div className="hidden lg:flex flex-wrap items-center gap-2 pt-1 pb-1">
             <span className="text-xs font-bold text-[#003B73] mr-1">Subcategorias:</span>
             <button
               onClick={() => {
@@ -1206,9 +1429,9 @@ export const CategoryPage: React.FC = () => {
           </div>
         )}
 
-        {/* PÍLULAS DOS FILTROS ATIVOS PARA REMOÇÃO RÁPIDA */}
+        {/* PÍLULAS DOS FILTROS ATIVOS PARA REMOÇÃO RÁPIDA (DESKTOP) */}
         {(hasActiveFilters || Boolean(searchQuery && searchQuery.trim())) && (
-          <div className="flex flex-wrap items-center gap-2 p-3 rounded-2xl bg-[#DDF1FF]/60 border border-blue-900/10">
+          <div className="hidden lg:flex flex-wrap items-center gap-2 p-3 rounded-2xl bg-[#DDF1FF]/60 border border-blue-900/10">
             <span className="text-xs font-bold text-[#003B73] flex items-center space-x-1 mr-1">
               <Filter className="h-3.5 w-3.5 text-[#006EDB]" />
               <span>Filtros ativos:</span>
@@ -1264,6 +1487,23 @@ export const CategoryPage: React.FC = () => {
               className="text-xs font-bold text-rose-600 hover:underline cursor-pointer ml-auto"
             >
               Limpar Todos
+            </button>
+          </div>
+        )}
+
+        {/* TAG DE BUSCA ATIVA NO MOBILE (SE HOUVER BUSCA DIGITADA NO HEADER) */}
+        {Boolean(searchQuery && searchQuery.trim()) && (
+          <div className="lg:hidden flex items-center justify-between p-2.5 px-3.5 rounded-2xl bg-[#DDF1FF] dark:bg-slate-800 border border-blue-900/10 dark:border-slate-700 text-xs font-bold text-[#003B73] dark:text-white">
+            <span className="flex items-center space-x-1.5">
+              <Filter className="h-3.5 w-3.5 text-[#006EDB]" />
+              <span>Busca ativa: "{searchQuery.trim()}"</span>
+            </span>
+            <button
+              onClick={() => setSearchQuery?.('')}
+              className="p-1 rounded-full hover:bg-white/80 text-rose-600 cursor-pointer transition-colors"
+              title="Limpar busca"
+            >
+              <X className="h-3.5 w-3.5" />
             </button>
           </div>
         )}
@@ -1328,7 +1568,9 @@ export const CategoryPage: React.FC = () => {
                           : 'bg-white text-[#003B73] border border-blue-900/10 hover:bg-amber-50'
                       }`}
                     >
-                      🏷️ Oferta ({promoCampaignItems.length})
+                      🏷️ {activeCampaignsWithProducts.length === 1 
+                        ? (activeCampaignsWithProducts[0].campaign.headerLabel || activeCampaignsWithProducts[0].campaign.title)
+                        : 'Ofertas'} ({promoCampaignItems.length})
                     </button>
                   </div>
                 </div>
@@ -1342,10 +1584,12 @@ export const CategoryPage: React.FC = () => {
                           <span className="px-2 py-0.5 text-[9px] font-black rounded bg-rose-600 text-white uppercase tracking-wider animate-pulse">
                             Estoque Baixo
                           </span>
-                          <span className="text-xs font-extrabold text-rose-600">Saldão Exclusivo</span>
+                          <span className="text-xs font-extrabold text-rose-600">
+                            {saldaoConfig?.tagLabel ? `${saldaoConfig.tagLabel} Exclusivo` : 'Saldão Exclusivo'}
+                          </span>
                         </div>
                         <h3 className="text-lg sm:text-xl font-black text-[#003B73] tracking-tight flex items-center space-x-2">
-                          <span>SALDÃO DE CALÇADOS - ÚLTIMAS UNIDADES</span>
+                          <span>{saldaoConfig?.tagLabel ? `${saldaoConfig.tagLabel.toUpperCase()} DE CALÇADOS - ÚLTIMAS UNIDADES` : 'SALDÃO DE CALÇADOS - ÚLTIMAS UNIDADES'}</span>
                         </h3>
                         <p className="text-xs text-[#52708F]">
                           Calçados com 5 ou menos pares em estoque com descontos de liquidação por tempo limitado!
@@ -1382,47 +1626,74 @@ export const CategoryPage: React.FC = () => {
                 {(offersSectionTab === 'all' || offersSectionTab === 'promotions') && (
                   <div className="space-y-8 pt-6 border-t border-blue-900/10">
                     {activeCampaignsWithProducts.length > 0 ? (
-                      activeCampaignsWithProducts.map(({ campaign, products: campProducts }) => (
-                        <div key={campaign.id} className="space-y-4">
-                          <div className="p-5 rounded-2xl bg-gradient-to-r from-amber-500/10 via-amber-400/10 to-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                            <div className="space-y-0.5">
-                              <div className="flex items-center space-x-2">
-                                <span className="px-2 py-0.5 text-[9px] font-black rounded bg-amber-500 text-slate-950 uppercase tracking-wider animate-bounce">
-                                  Oferta Especial
-                                </span>
-                                <span className="text-xs font-extrabold text-amber-600">
-                                  {campaign.discountType === 'percentage' 
-                                    ? `-${campaign.discountValue}% OFF` 
-                                    : `-R$ ${campaign.discountValue} OFF`}
-                                </span>
+                      activeCampaignsWithProducts.map(({ campaign, products: campProducts }) => {
+                        const isPct = campaign.discountType === 'percentage';
+                        const valV = campaign.discountValueVista !== undefined ? campaign.discountValueVista : campaign.discountValue;
+                        const valP = campaign.discountValuePrazo !== undefined ? campaign.discountValuePrazo : campaign.discountValue;
+                        const labelText = valV !== valP
+                          ? (isPct ? `-${valV}% À Vista • -${valP}% A Prazo` : `-R$ ${valV.toFixed(2)} À Vista • -R$ ${valP.toFixed(2)} A Prazo`)
+                          : (isPct ? `-${valV}% OFF` : `-R$ ${valV.toFixed(2)} OFF`);
+
+                        const bannerStyle = campaign.tagColor ? {
+                          background: `linear-gradient(135deg, ${campaign.tagColor}15, ${campaign.tagColorEnd || campaign.tagColor}15)`,
+                          borderColor: `${campaign.tagColor}40`,
+                        } : undefined;
+
+                        const badgeStyle = campaign.tagColor ? {
+                          background: `linear-gradient(135deg, ${campaign.tagColor}, ${campaign.tagColorEnd || campaign.tagColor})`,
+                          color: campaign.tagTextColor || '#FFFFFF',
+                        } : undefined;
+
+                        return (
+                          <div key={campaign.id} className="space-y-4">
+                            <div 
+                              style={bannerStyle}
+                              className={`p-5 rounded-2xl ${
+                                !campaign.tagColor 
+                                  ? 'bg-gradient-to-r from-amber-500/10 via-amber-400/10 to-amber-500/10 border border-amber-500/30' 
+                                  : 'border shadow-xs'
+                              } flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3`}
+                            >
+                              <div className="space-y-0.5">
+                                <div className="flex items-center space-x-2">
+                                  <span 
+                                    style={badgeStyle}
+                                    className={`px-2 py-0.5 text-[9px] font-black rounded ${!campaign.tagColor ? 'bg-amber-500 text-slate-950' : 'text-white'} uppercase tracking-wider animate-bounce`}
+                                  >
+                                    {(campaign.tagLabel || 'Oferta Especial').toUpperCase()}
+                                  </span>
+                                  <span className="text-xs font-extrabold text-amber-600">
+                                    {labelText}
+                                  </span>
+                                </div>
+                                <h3 className="text-lg sm:text-xl font-black text-[#003B73] tracking-tight">
+                                  🏷️ {(campaign.headerLabel || campaign.title).toUpperCase()}
+                                </h3>
+                                <p className="text-xs text-[#52708F]">
+                                  {campaign.description || 'Produtos participantes desta oferta com descontos imperdíveis por tempo limitado.'}
+                                </p>
                               </div>
-                              <h3 className="text-lg sm:text-xl font-black text-[#003B73] tracking-tight">
-                                🏷️ {campaign.title.toUpperCase()}
-                              </h3>
-                              <p className="text-xs text-[#52708F]">
-                                {campaign.description || 'Produtos participantes desta oferta com descontos imperdíveis por tempo limitado.'}
-                              </p>
+
+                              <span className="px-3 py-1 rounded-xl bg-white border border-amber-500/30 text-amber-700 font-extrabold text-xs shrink-0">
+                                {campProducts.length} {campProducts.length === 1 ? 'produto na oferta' : 'produtos na oferta'}
+                              </span>
                             </div>
 
-                            <span className="px-3 py-1 rounded-xl bg-white border border-amber-500/30 text-amber-700 font-extrabold text-xs shrink-0">
-                              {campProducts.length} {campProducts.length === 1 ? 'produto na oferta' : 'produtos na oferta'}
-                            </span>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                              {campProducts.map((prod) => (
+                                <ProductCard
+                                  key={prod.id}
+                                  product={prod}
+                                  theme={theme}
+                                  isFavorite={favorites.includes(prod.id)}
+                                  onToggleFavorite={toggleFavorite}
+                                  onViewDetails={handleVerDetalhes}
+                                />
+                              ))}
+                            </div>
                           </div>
-
-                          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-                            {campProducts.map((prod) => (
-                              <ProductCard
-                                key={prod.id}
-                                product={prod}
-                                theme={theme}
-                                isFavorite={favorites.includes(prod.id)}
-                                onToggleFavorite={toggleFavorite}
-                                onViewDetails={handleVerDetalhes}
-                              />
-                            ))}
-                          </div>
-                        </div>
-                      ))
+                        );
+                      })
                     ) : (
                       <div className="space-y-4">
                         <div className="p-5 rounded-2xl bg-gradient-to-r from-amber-500/10 via-amber-400/10 to-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">

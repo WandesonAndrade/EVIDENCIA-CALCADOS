@@ -152,31 +152,103 @@ export const isCampaignActive = (campaign: PromoCampaign): boolean => {
 };
 
 /**
- * Calcula o preço promocional de um produto para uma campanha específica
+ * Calcula o preço promocional de um produto para uma campanha específica.
+ * Suporta o tipo 'vista' (À Vista), 'prazo' (A Prazo) ou 'default'.
  */
-export const calculateCampaignPrice = (originalPrice: number, campaign: PromoCampaign): number => {
+export const calculateCampaignPrice = (
+  originalPrice: number,
+  campaign: PromoCampaign,
+  targetMode: 'vista' | 'prazo' | 'default' = 'default'
+): number => {
   if (originalPrice <= 0) return 0;
 
+  const fallback = Number(campaign.discountValue) || 0;
+  let val = fallback;
+
+  if (targetMode === 'vista') {
+    val = campaign.discountValueVista !== undefined ? Number(campaign.discountValueVista) : fallback;
+  } else if (targetMode === 'prazo') {
+    val = campaign.discountValuePrazo !== undefined ? Number(campaign.discountValuePrazo) : fallback;
+  }
+
   if (campaign.discountType === 'percentage') {
-    const percent = Math.min(100, Math.max(0, campaign.discountValue));
+    const percent = Math.min(100, Math.max(0, val));
     const discounted = originalPrice * (1 - percent / 100);
     return Math.round(discounted * 100) / 100;
   } else {
     // Desconto em valor fixo R$
-    const discounted = Math.max(0, originalPrice - campaign.discountValue);
+    const discounted = Math.max(0, originalPrice - val);
     return Math.round(discounted * 100) / 100;
   }
 };
 
 /**
+ * Retorna os rótulos de desconto para à vista e a prazo de uma campanha
+ */
+export const getCampaignDiscountLabels = (campaign: PromoCampaign): {
+  vistaLabel: string;
+  prazoLabel: string;
+  generalLabel: string;
+} => {
+  const isPercent = campaign.discountType === 'percentage';
+  const fallback = Number(campaign.discountValue) || 0;
+  const valVista = campaign.discountValueVista !== undefined ? Number(campaign.discountValueVista) : fallback;
+  const valPrazo = campaign.discountValuePrazo !== undefined ? Number(campaign.discountValuePrazo) : fallback;
+
+  const formatVal = (v: number) => isPercent ? `${v}%` : `R$ ${v.toFixed(2).replace('.', ',')}`;
+
+  const vistaLabel = isPercent ? `-${valVista}%` : `-R$ ${valVista.toFixed(2).replace('.', ',')}`;
+  const prazoLabel = isPercent ? `-${valPrazo}%` : `-R$ ${valPrazo.toFixed(2).replace('.', ',')}`;
+
+  const generalLabel = valVista !== valPrazo
+    ? `${formatVal(valVista)} À Vista • ${formatVal(valPrazo)} A Prazo`
+    : `${formatVal(valVista)} OFF`;
+
+  return { vistaLabel, prazoLabel, generalLabel };
+};
+
+export interface ApplicablePromotionResult {
+  campaign: PromoCampaign;
+  promoPrice: number;            // Preço a prazo / base para parcelamento
+  priceVista: number;            // Preço especial à vista (Pix)
+  pricePrazo: number;            // Preço especial a prazo (Cartão/Crediário)
+  originalPrice: number;
+  discountLabel: string;         // Rótulo geral ou do maior desconto
+  discountLabelVista: string;
+  discountLabelPrazo: string;
+  tagLabel: string;
+  tagColor?: string;
+  tagColorEnd?: string;
+  tagTextColor?: string;
+}
+
+/**
+ * Retorna o estoque total disponível do produto (saldo em unidades)
+ */
+export const getProductTotalStock = (product: Product): number => {
+  if (!product) return 0;
+  if (product.tamanhos_estoque && typeof product.tamanhos_estoque === 'object') {
+    const sum = Object.values(product.tamanhos_estoque).reduce(
+      (acc: number, val: any) => acc + (Number(val) || 0),
+      0
+    );
+    if (sum > 0) return sum;
+  }
+  return Number(
+    product.stock ?? 
+    product.saldo_loja ?? 
+    product.moblinkStock ?? 
+    (product.stockBySize ? Object.values(product.stockBySize).reduce((a: number, b: any) => a + Number(b), 0) : 0)
+  );
+};
+
+/**
  * Retorna a melhor promoção ativa aplicável ao produto (se houver)
  */
-export const getApplicablePromotion = (product: Product, promotions: PromoCampaign[]): {
-  campaign: PromoCampaign;
-  promoPrice: number;
-  discountLabel: string;
-  originalPrice: number;
-} | null => {
+export const getApplicablePromotion = (
+  product: Product,
+  promotions: PromoCampaign[]
+): ApplicablePromotionResult | null => {
   if (!product || !promotions || !Array.isArray(promotions) || promotions.length === 0) return null;
 
   const prodIdStr = String(product.id || '').trim();
@@ -185,35 +257,60 @@ export const getApplicablePromotion = (product: Product, promotions: PromoCampai
   // Filtra apenas campanhas ativas que incluem este produto
   const activeMatchingCampaigns = promotions.filter(c => {
     if (!isCampaignActive(c)) return false;
-    if (!Array.isArray(c.productIds) || c.productIds.length === 0) return false;
-    
-    return c.productIds.some(id => {
-      const sId = String(id).trim();
-      return (prodIdStr !== '' && sId === prodIdStr) || (mobIdStr !== '' && sId === mobIdStr);
-    });
+
+    // Se a campanha tiver limite de saldo / estoque máximo configurado (como no Saldão)
+    if (c.maxStock !== undefined && c.maxStock !== null && Number(c.maxStock) > 0) {
+      const stock = getProductTotalStock(product);
+      if (stock <= 0 || stock > Number(c.maxStock)) {
+        return false;
+      }
+    }
+
+    const hasSpecificProducts = Array.isArray(c.productIds) && c.productIds.length > 0;
+    if (hasSpecificProducts) {
+      return c.productIds.some(id => {
+        const sId = String(id).trim();
+        return (prodIdStr !== '' && sId === prodIdStr) || (mobIdStr !== '' && sId === mobIdStr);
+      });
+    }
+
+    // Se não tiver productIds definidos, mas tiver maxStock configurado (modo automático por saldo, igual ao Saldão)
+    if (c.maxStock !== undefined && c.maxStock !== null && Number(c.maxStock) > 0) {
+      return true;
+    }
+
+    return false;
   });
 
   if (activeMatchingCampaigns.length === 0) return null;
 
-  // Ordena para selecionar a promoção que oferece o menor preço final
+  // Ordena para selecionar a promoção que oferece o menor preço final à vista
   const sorted = [...activeMatchingCampaigns].sort((a, b) => {
-    const priceA = calculateCampaignPrice(product.price, a);
-    const priceB = calculateCampaignPrice(product.price, b);
+    const priceA = calculateCampaignPrice(product.price, a, 'vista');
+    const priceB = calculateCampaignPrice(product.price, b, 'vista');
     return priceA - priceB;
   });
 
   const chosenCampaign = sorted[0];
   const originalBasePrice = product.price;
-  const promoPrice = calculateCampaignPrice(originalBasePrice, chosenCampaign);
+  const priceVista = calculateCampaignPrice(originalBasePrice, chosenCampaign, 'vista');
+  const pricePrazo = calculateCampaignPrice(originalBasePrice, chosenCampaign, 'prazo');
+  const labels = getCampaignDiscountLabels(chosenCampaign);
 
-  const discountLabel = chosenCampaign.discountType === 'percentage'
-    ? `-${chosenCampaign.discountValue}%`
-    : `-R$ ${chosenCampaign.discountValue.toFixed(2).replace('.', ',')}`;
+  const tagLabel = chosenCampaign.tagLabel?.trim() || chosenCampaign.headerLabel?.trim() || 'OFERTA';
 
   return {
     campaign: chosenCampaign,
-    promoPrice,
-    discountLabel,
+    promoPrice: pricePrazo, // compatibilidade com código existente que consome promoPrice
+    priceVista,
+    pricePrazo,
     originalPrice: originalBasePrice,
+    discountLabel: labels.vistaLabel,
+    discountLabelVista: labels.vistaLabel,
+    discountLabelPrazo: labels.prazoLabel,
+    tagLabel,
+    tagColor: chosenCampaign.tagColor,
+    tagColorEnd: chosenCampaign.tagColorEnd,
+    tagTextColor: chosenCampaign.tagTextColor,
   };
 };

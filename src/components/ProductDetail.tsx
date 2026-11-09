@@ -530,23 +530,29 @@ export const ProductDetail: React.FC = () => {
         : 0);
 
   // Regras de Preços por Modalidade (Respeita o valor do Saldão ou Oferta se ativo):
-  const precoCrediarioCalculado = isPromoOrSaldaoActive
-    ? effectivePromoPrice
-    : ((p as any).precoCrediario || (p as any).preco_crediario || p.price);
+  const precoCrediarioCalculado = saldaoCalc.isSaldao
+    ? saldaoCalc.pricePrazo
+    : applicablePromo
+      ? (applicablePromo.pricePrazo ?? applicablePromo.promoPrice)
+      : ((p as any).precoCrediario || (p as any).preco_crediario || p.price);
 
   const precoVistaVal = (p as any).precoVista ?? (p as any).preco_vista ?? (p as any).precoAvista ?? (p as any).priceCash ?? (p as any).pricePix;
-  const precoVistaCalculado = isPromoOrSaldaoActive
-    ? effectivePromoPrice
-    : ((typeof precoVistaVal === 'number' && precoVistaVal > 0)
-      ? precoVistaVal
-      : (p.price > 0 ? Math.round(p.price * 0.9 * 100) / 100 : p.price));
+  const precoVistaCalculado = saldaoCalc.isSaldao
+    ? saldaoCalc.priceVista
+    : applicablePromo
+      ? (applicablePromo.priceVista ?? applicablePromo.promoPrice)
+      : ((typeof precoVistaVal === 'number' && precoVistaVal > 0)
+        ? precoVistaVal
+        : (p.price > 0 ? Math.round(p.price * 0.9 * 100) / 100 : p.price));
 
   const precoCartaoVal = (p as any).precoCartao ?? (p as any).preco_cartao ?? (p as any).priceCard;
-  const precoCartaoCalculado = isPromoOrSaldaoActive
-    ? effectivePromoPrice
-    : ((typeof precoCartaoVal === 'number' && precoCartaoVal > 0)
-      ? precoCartaoVal
-      : (p.price > 0 ? Math.round(p.price * 0.9 * 100) / 100 : p.price));
+  const precoCartaoCalculado = saldaoCalc.isSaldao
+    ? saldaoCalc.pricePrazo
+    : applicablePromo
+      ? (applicablePromo.pricePrazo ?? applicablePromo.promoPrice)
+      : ((typeof precoCartaoVal === 'number' && precoCartaoVal > 0)
+        ? precoCartaoVal
+        : (p.price > 0 ? Math.round(p.price * 0.9 * 100) / 100 : p.price));
 
   const relatedProducts = React.useMemo(() => {
     if (!products || products.length === 0 || !p) return [];
@@ -961,37 +967,68 @@ export const ProductDetail: React.FC = () => {
                   <Tag className={`h-5 w-5 ${isOutubroRosa ? 'text-[#F472B6]' : 'text-[#38BDF8]'} shrink-0`} />
                   <div>
                     <div className="text-xs font-black uppercase tracking-wider text-white flex items-center gap-1.5 flex-wrap">
-                      <span>SALDÃO DE CALÇADOS</span>
-                      <span className={isOutubroRosa ? 'text-[#FBCFE8]' : 'text-[#FF7A00]'}>-{saldaoCalc.discountPercent}% OFF</span>
+                      <span>{saldaoConfig?.tagLabel ? `${saldaoConfig.tagLabel.toUpperCase()} DE CALÇADOS` : 'SALDÃO DE CALÇADOS'}</span>
+                      <span className={isOutubroRosa ? 'text-[#FBCFE8]' : 'text-[#FF7A00]'}>
+                        {saldaoCalc.discountPercentVista !== saldaoCalc.discountPercentPrazo
+                          ? `-${saldaoCalc.discountPercentVista}% À Vista • -${saldaoCalc.discountPercentPrazo}% A Prazo`
+                          : `-${saldaoCalc.discountPercentVista}% OFF`}
+                      </span>
                     </div>
                     <div className={`text-[10px] ${isOutubroRosa ? 'text-pink-100/90' : 'text-sky-100/80'} font-medium`}>
                       Estoque baixo (últimas unidades). Aproveite!
                     </div>
                   </div>
                 </div>
-                <span className={`px-2.5 py-1 rounded-full ${
-                  isOutubroRosa
-                    ? 'bg-gradient-to-r from-[#EC4899] to-[#F472B6] shadow-pink-600/30'
-                    : 'bg-gradient-to-r from-[#FF4500] via-[#FF6000] to-[#FFA000] shadow-orange-600/30'
+                <span 
+                  style={saldaoConfig?.tagColor ? {
+                    background: `linear-gradient(135deg, ${saldaoConfig.tagColor}, ${saldaoConfig.tagColorEnd || saldaoConfig.tagColor})`,
+                    color: saldaoConfig.tagTextColor || '#FFFFFF'
+                  } : undefined}
+                  className={`px-2.5 py-1 rounded-full ${
+                  saldaoConfig?.tagColor
+                    ? 'shadow-md'
+                    : isOutubroRosa
+                      ? 'bg-gradient-to-r from-[#EC4899] to-[#F472B6] shadow-pink-600/30'
+                      : 'bg-gradient-to-r from-[#FF4500] via-[#FF6000] to-[#FFA000] shadow-orange-600/30'
                 } text-white font-black text-[10px] uppercase tracking-tight shadow-md shrink-0`}>
-                  -{saldaoCalc.discountPercent}%
+                  -{saldaoCalc.discountPercentVista}%
                 </span>
               </div>
             ) : applicablePromo ? (
-              <div className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/15 via-amber-400/15 to-amber-500/15 border border-amber-500/30 text-amber-500 flex items-center justify-between">
+              <div 
+                style={applicablePromo.tagColor ? {
+                  background: `linear-gradient(135deg, ${applicablePromo.tagColor}22, ${applicablePromo.tagColorEnd || applicablePromo.tagColor}22)`,
+                  borderColor: `${applicablePromo.tagColor}55`,
+                  color: applicablePromo.tagColor,
+                } : undefined}
+                className={`p-3.5 rounded-2xl ${
+                  !applicablePromo.tagColor ? 'bg-gradient-to-r from-amber-500/15 via-amber-400/15 to-amber-500/15 border border-amber-500/30 text-amber-500' : 'border shadow-xs'
+                } flex items-center justify-between`}
+              >
                 <div className="flex items-center space-x-2">
-                  <Sparkles className="h-5 w-5 text-amber-500 shrink-0" />
+                  <Sparkles className="h-5 w-5 shrink-0" style={{ color: applicablePromo.tagColor || undefined }} />
                   <div>
-                    <div className="text-xs font-black uppercase tracking-wider text-amber-400">
-                      🏷️ {applicablePromo.campaign.title} ({applicablePromo.discountLabel})
+                    <div className="text-xs font-black uppercase tracking-wider flex items-center gap-1.5 flex-wrap">
+                      <span>🏷️ {applicablePromo.campaign.headerLabel || applicablePromo.campaign.title}</span>
+                      <span className="text-[11px] font-extrabold opacity-90">
+                        ({applicablePromo.discountLabelVista !== applicablePromo.discountLabelPrazo 
+                          ? `${applicablePromo.discountLabelVista} À Vista • ${applicablePromo.discountLabelPrazo} A Prazo`
+                          : `${applicablePromo.discountLabelVista || applicablePromo.discountLabel}`})
+                      </span>
                     </div>
                     <div className="text-[10px] text-slate-400 font-medium">
                       {applicablePromo.campaign.description || 'Preço promocional especial por tempo determinado.'}
                     </div>
                   </div>
                 </div>
-                <span className="px-2 py-0.5 rounded-md bg-amber-500 text-slate-950 font-black text-[10px] uppercase">
-                  {applicablePromo.discountLabel}
+                <span 
+                  style={applicablePromo.tagColor ? {
+                    background: `linear-gradient(135deg, ${applicablePromo.tagColor}, ${applicablePromo.tagColorEnd || applicablePromo.tagColor})`,
+                    color: applicablePromo.tagTextColor || '#FFFFFF'
+                  } : undefined}
+                  className={`px-2.5 py-1 rounded-full ${!applicablePromo.tagColor ? 'bg-amber-500 text-slate-950' : 'shadow-xs'} font-black text-[10px] uppercase shrink-0`}
+                >
+                  {applicablePromo.discountLabelVista || applicablePromo.discountLabel}
                 </span>
               </div>
             ) : null}
@@ -1007,12 +1044,35 @@ export const ProductDetail: React.FC = () => {
                   R$ {precoVistaCalculado.toFixed(2).replace('.', ',')}
                 </span>
                 {saldaoCalc.isSaldao ? (
-                  <span className={`text-[11px] font-extrabold text-white ${
-                    isOutubroRosa
-                      ? 'bg-gradient-to-r from-[#EC4899] to-[#F472B6]'
-                      : 'bg-gradient-to-r from-[#FF4500] to-[#FFA000]'
+                  <span 
+                    style={saldaoConfig?.tagColor ? {
+                      background: `linear-gradient(135deg, ${saldaoConfig.tagColor}, ${saldaoConfig.tagColorEnd || saldaoConfig.tagColor})`,
+                      color: saldaoConfig.tagTextColor || '#FFFFFF'
+                    } : undefined}
+                    className={`text-[11px] font-extrabold text-white ${
+                    saldaoConfig?.tagColor
+                      ? 'shadow-xs'
+                      : isOutubroRosa
+                        ? 'bg-gradient-to-r from-[#EC4899] to-[#F472B6]'
+                        : 'bg-gradient-to-r from-[#FF4500] to-[#FFA000]'
                   } px-2.5 py-1 rounded-full shadow-xs`}>
-                    Saldão ({saldaoCalc.discountPercent}% OFF)
+                    {saldaoCalc.discountPercentVista !== saldaoCalc.discountPercentPrazo
+                      ? `${saldaoConfig?.tagLabel || 'Saldão'} (${saldaoCalc.discountPercentVista}% À Vista • ${saldaoCalc.discountPercentPrazo}% A Prazo)`
+                      : `${saldaoConfig?.tagLabel || 'Saldão'} (${saldaoCalc.discountPercentVista}% OFF)`}
+                  </span>
+                ) : applicablePromo ? (
+                  <span 
+                    style={applicablePromo.tagColor ? {
+                      background: `linear-gradient(135deg, ${applicablePromo.tagColor}, ${applicablePromo.tagColorEnd || applicablePromo.tagColor})`,
+                      color: applicablePromo.tagTextColor || '#FFFFFF'
+                    } : undefined}
+                    className={`text-[11px] font-extrabold ${
+                      !applicablePromo.tagColor ? 'bg-amber-500 text-slate-950' : 'shadow-xs text-white'
+                    } px-2.5 py-1 rounded-full shadow-xs`}
+                  >
+                    {applicablePromo.discountLabelVista !== applicablePromo.discountLabelPrazo
+                      ? `${applicablePromo.tagLabel || 'Oferta'} (${applicablePromo.discountLabelVista} À Vista • ${applicablePromo.discountLabelPrazo} A Prazo)`
+                      : `${applicablePromo.tagLabel || 'Oferta'} (${applicablePromo.discountLabelVista || applicablePromo.discountLabel} OFF)`}
                   </span>
                 ) : precoVistaCalculado < p.price ? (
                   <span className="text-[11px] font-extrabold text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/80 px-2.5 py-1 rounded-full border border-emerald-200">

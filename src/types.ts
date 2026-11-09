@@ -92,6 +92,8 @@ export interface Product {
   precoVista?: number;
   precoCartao?: number;
   preco_cartao?: number;
+  precoCrediario?: number;
+  preco_crediario?: number;
   originalPrice?: number;
   updatedAt?: string;
   onSale?: boolean;
@@ -158,8 +160,15 @@ export interface Product {
 export interface SaldaoConfig {
   enabled: boolean;
   maxStock: number;
-  discountPercent: number;
+  discountPercent: number;          // Desconto padrão / geral
+  discountPercentVista?: number;    // Desconto % À Vista (PIX / Dinheiro)
+  discountPercentPrazo?: number;    // Desconto % A Prazo (Cartão / Crediário)
   bannerText?: string;
+  tagLabel?: string;          // Nome personalizado da tag (Ex: "SALDÃO", "LIQUIDAÇÃO", "OUTLET")
+  tagColor?: string;          // Cor primária / início do gradiente da tag (Ex: "#FF4500")
+  tagColorEnd?: string;       // Cor secundária / fim do gradiente da tag (Ex: "#FFA000")
+  tagTextColor?: string;      // Cor do texto da tag (Ex: "#FFFFFF")
+  tagBgPreset?: string;       // ID do preset de cor selecionado
   updatedAt?: string;
 }
 
@@ -170,7 +179,16 @@ export interface PromoCampaign {
   startDate: string; // Formato YYYY-MM-DD ou YYYY-MM-DDTHH:mm
   endDate: string;   // Formato YYYY-MM-DD ou YYYY-MM-DDTHH:mm
   discountType: 'percentage' | 'fixed';
-  discountValue: number;
+  discountValue: number;             // Valor padrão / fallback
+  discountValueVista?: number;       // Valor de desconto À Vista (% ou R$)
+  discountValuePrazo?: number;       // Valor de desconto A Prazo (% ou R$)
+  maxStock?: number;                 // Estoque Máximo / Saldo de estoque para entrar na promoção (opcional, como no Saldão)
+  tagLabel?: string;                 // Nome personalizado da tag no card (ex: "OFERTA", "BLACK WEEK", "PROMO")
+  headerLabel?: string;              // Rótulo renomeável para cabeçalhos e páginas (ex: "Semana do Consumidor")
+  tagColor?: string;                 // Cor primária / início do gradiente da tag
+  tagColorEnd?: string;              // Cor secundária / fim do gradiente da tag
+  tagTextColor?: string;             // Cor do texto da tag
+  tagBgPreset?: string;              // ID do preset de cor selecionado
   productIds: string[];
   active: boolean;
   createdAt?: string;

@@ -43,20 +43,43 @@ export const ProductBadges: React.FC<ProductBadgesProps> = ({
         ? Math.round(((originalPrice - mainPrice) / originalPrice) * 100)
         : 0;
 
+  const saldaoLabel = (saldaoConfig?.tagLabel?.trim() || 'SALDÃO').toUpperCase();
+  const saldaoBadgeText = `${saldaoLabel} -${saldaoCalc.discountPercentVista}%`;
+
+  const saldaoCustomStyle: React.CSSProperties | undefined = saldaoConfig?.tagColor ? {
+    background: `linear-gradient(135deg, ${saldaoConfig.tagColor}, ${saldaoConfig.tagColorEnd || saldaoConfig.tagColor})`,
+    color: saldaoConfig.tagTextColor || '#FFFFFF',
+  } : undefined;
+
+  const promoCustomStyle: React.CSSProperties | undefined = applicablePromo?.tagColor ? {
+    background: `linear-gradient(135deg, ${applicablePromo.tagColor}, ${applicablePromo.tagColorEnd || applicablePromo.tagColor})`,
+    color: applicablePromo.tagTextColor || '#FFFFFF',
+  } : undefined;
+
+  const promoLabelText = applicablePromo
+    ? `${(applicablePromo.tagLabel || 'OFERTA').toUpperCase()} ${applicablePromo.discountLabelVista || applicablePromo.discountLabel}`
+    : '';
+
   if (position === 'corner') {
     return (
       <div className="absolute top-2 min-[390px]:top-2.5 left-2 min-[390px]:left-2.5 flex flex-col gap-1 z-10">
         {saldaoCalc.isSaldao ? (
           <span
-            className={`px-2 min-[390px]:px-2.5 py-0.5 min-[390px]:py-1 text-[9px] min-[390px]:text-[10px] font-black ${cardTokens.cornerBadgeSaldao} rounded-full shadow-md uppercase tracking-wider animate-pulse flex items-center gap-1`}
+            style={saldaoCustomStyle}
+            className={`px-2 min-[390px]:px-2.5 py-0.5 min-[390px]:py-1 text-[9px] min-[390px]:text-[10px] font-black ${
+              !saldaoConfig?.tagColor ? cardTokens.cornerBadgeSaldao : 'shadow-md shadow-black/20'
+            } rounded-full uppercase tracking-wider animate-pulse flex items-center gap-1`}
           >
-            {cardTokens.cornerBadgeLabel(true, saldaoCalc.discountPercent)}
+            {saldaoBadgeText}
           </span>
         ) : applicablePromo ? (
           <span
-            className={`px-2 min-[390px]:px-2.5 py-0.5 min-[390px]:py-1 text-[9px] min-[390px]:text-[10px] font-black ${cardTokens.cornerBadgePromo} rounded-full shadow-md uppercase tracking-wider animate-bounce flex items-center gap-1`}
+            style={promoCustomStyle}
+            className={`px-2 min-[390px]:px-2.5 py-0.5 min-[390px]:py-1 text-[9px] min-[390px]:text-[10px] font-black ${
+              !applicablePromo.tagColor ? cardTokens.cornerBadgePromo : 'shadow-md shadow-black/20'
+            } rounded-full uppercase tracking-wider animate-bounce flex items-center gap-1`}
           >
-            {cardTokens.cornerBadgeLabel(false, 0, applicablePromo.discountLabel)}
+            {promoLabelText}
           </span>
         ) : discountPercent > 0 ? (
           <span
@@ -80,16 +103,22 @@ export const ProductBadges: React.FC<ProductBadgesProps> = ({
     <div className="flex items-center gap-1.5 flex-wrap">
       {saldaoCalc.isSaldao && (
         <span
-          className={`px-2 py-0.5 text-[9px] font-black ${cardTokens.cornerBadgeSaldao} rounded-md uppercase`}
+          style={saldaoCustomStyle}
+          className={`px-2 py-0.5 text-[9px] font-black ${
+            !saldaoConfig?.tagColor ? cardTokens.cornerBadgeSaldao : 'shadow-xs'
+          } rounded-md uppercase`}
         >
-          {cardTokens.cornerBadgeLabel(true, saldaoCalc.discountPercent)}
+          {saldaoBadgeText}
         </span>
       )}
       {applicablePromo && (
         <span
-          className={`px-2 py-0.5 text-[9px] font-black ${cardTokens.cornerBadgePromo} rounded-md uppercase`}
+          style={promoCustomStyle}
+          className={`px-2 py-0.5 text-[9px] font-black ${
+            !applicablePromo.tagColor ? cardTokens.cornerBadgePromo : 'shadow-xs'
+          } rounded-md uppercase`}
         >
-          {cardTokens.cornerBadgeLabel(false, 0, applicablePromo.discountLabel)}
+          {promoLabelText}
         </span>
       )}
       {discountPercent > 0 && !saldaoCalc.isSaldao && !applicablePromo && (

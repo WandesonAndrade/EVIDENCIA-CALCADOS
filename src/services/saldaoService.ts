@@ -7,7 +7,14 @@ export const DEFAULT_SALDAO_CONFIG: SaldaoConfig = {
   enabled: true,
   maxStock: 2,
   discountPercent: 20,
+  discountPercentVista: 20,
+  discountPercentPrazo: 10,
   bannerText: 'SALDÃO DE CALÇADOS - ÚLTIMAS UNIDADES COM DESCONTO EXCLUSIVO!',
+  tagLabel: 'SALDÃO',
+  tagColor: '#FF4500',
+  tagColorEnd: '#FFA000',
+  tagTextColor: '#FFFFFF',
+  tagBgPreset: 'orange',
   updatedAt: new Date().toISOString(),
 };
 
@@ -91,38 +98,65 @@ export function isSaldaoProduct(product: Product, config: SaldaoConfig): boolean
 
 /**
  * Retorna as informações financeiras recalculadas do produto quando está no Saldão
+ * Suporta descontos diferenciados para À Vista (Pix/Dinheiro) e A Prazo (Cartão/Crediário).
  */
 export function getSaldaoProductPrice(product: Product, config: SaldaoConfig): {
   isSaldao: boolean;
-  price: number;
-  originalPrice: number;
-  discountPercent: number;
+  price: number;              // Preço efetivo / a prazo (base para cartões e crediário)
+  priceVista: number;         // Preço com desconto especial à vista (Pix)
+  pricePrazo: number;         // Preço com desconto especial a prazo (Cartão/Crediário)
+  originalPrice: number;      // Preço original de tabela
+  discountPercent: number;    // Maior desconto aplicado
+  discountPercentVista: number; // Porcentagem de desconto à vista
+  discountPercentPrazo: number; // Porcentagem de desconto a prazo
   savedAmount: number;
+  savedAmountVista: number;
+  savedAmountPrazo: number;
 } {
   const basePrice = Number(product.price || product.preco_venda || 0);
 
   if (!isSaldaoProduct(product, config) || basePrice <= 0) {
     const promo = Number(product.promoPrice || product.preco_promocao || 0);
     const effective = promo > 0 && promo < basePrice ? promo : basePrice;
+    const discount = promo > 0 && promo < basePrice ? Math.round(((basePrice - promo) / basePrice) * 100) : 0;
+    const saved = promo > 0 && promo < basePrice ? basePrice - promo : 0;
     return {
       isSaldao: false,
       price: effective,
+      priceVista: effective,
+      pricePrazo: effective,
       originalPrice: basePrice,
-      discountPercent: promo > 0 && promo < basePrice ? Math.round(((basePrice - promo) / basePrice) * 100) : 0,
-      savedAmount: promo > 0 && promo < basePrice ? basePrice - promo : 0,
+      discountPercent: discount,
+      discountPercentVista: discount,
+      discountPercentPrazo: discount,
+      savedAmount: saved,
+      savedAmountVista: saved,
+      savedAmountPrazo: saved,
     };
   }
 
-  const discountPercent = Math.min(Math.max(Number(config.discountPercent) || 0, 0), 90);
-  const discountFactor = 1 - (discountPercent / 100);
-  const calculatedPrice = Math.round(basePrice * discountFactor * 100) / 100;
-  const savedAmount = Math.round((basePrice - calculatedPrice) * 100) / 100;
+  // Descontos configurados para à vista e a prazo (com fallback seguro para discountPercent)
+  const fallback = Number(config.discountPercent) || 20;
+  const discountPercentVista = Math.min(Math.max(Number(config.discountPercentVista ?? fallback) || 0, 0), 90);
+  const discountPercentPrazo = Math.min(Math.max(Number(config.discountPercentPrazo ?? fallback) || 0, 0), 90);
+
+  const priceVista = Math.round(basePrice * (1 - (discountPercentVista / 100)) * 100) / 100;
+  const pricePrazo = Math.round(basePrice * (1 - (discountPercentPrazo / 100)) * 100) / 100;
+
+  const savedAmountVista = Math.round((basePrice - priceVista) * 100) / 100;
+  const savedAmountPrazo = Math.round((basePrice - pricePrazo) * 100) / 100;
 
   return {
     isSaldao: true,
-    price: calculatedPrice,
+    price: pricePrazo, // preço base / parcelado
+    priceVista,
+    pricePrazo,
     originalPrice: basePrice,
-    discountPercent,
-    savedAmount,
+    discountPercent: Math.max(discountPercentVista, discountPercentPrazo),
+    discountPercentVista,
+    discountPercentPrazo,
+    savedAmount: savedAmountVista,
+    savedAmountVista,
+    savedAmountPrazo,
   };
 }

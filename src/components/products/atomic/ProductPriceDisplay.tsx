@@ -19,7 +19,7 @@ export function calculateProductPriceDetails(
   const saldaoCalc = getSaldaoProductPrice(product, saldaoConfig);
   const applicablePromo = getApplicablePromotion(product, promotions);
 
-  let mainPrice = saldaoCalc.price;
+  let mainPrice = saldaoCalc.isSaldao ? saldaoCalc.pricePrazo : saldaoCalc.price;
   let originalPrice = saldaoCalc.isSaldao
     ? saldaoCalc.originalPrice
     : product.originalPrice && product.originalPrice > product.price
@@ -27,21 +27,25 @@ export function calculateProductPriceDetails(
       : null;
 
   if (!saldaoCalc.isSaldao && applicablePromo) {
-    mainPrice = applicablePromo.promoPrice;
+    mainPrice = applicablePromo.pricePrazo ?? applicablePromo.promoPrice;
     originalPrice = applicablePromo.originalPrice;
   }
 
   const discountPercent = saldaoCalc.isSaldao
-    ? saldaoCalc.discountPercent
+    ? saldaoCalc.discountPercentVista
     : applicablePromo
       ? (applicablePromo.campaign.discountType === 'percentage'
-          ? applicablePromo.campaign.discountValue
-          : (originalPrice ? Math.round(((originalPrice - mainPrice) / originalPrice) * 100) : 0))
+          ? (applicablePromo.campaign.discountValueVista ?? applicablePromo.campaign.discountValue)
+          : (originalPrice ? Math.round(((originalPrice - (applicablePromo.priceVista ?? mainPrice)) / originalPrice) * 100) : 0))
       : originalPrice
         ? Math.round(((originalPrice - mainPrice) / originalPrice) * 100)
         : 0;
 
-  const rawPix = (saldaoCalc.isSaldao || applicablePromo) ? mainPrice : mainPrice * 0.9;
+  const rawPix = saldaoCalc.isSaldao
+    ? saldaoCalc.priceVista
+    : applicablePromo
+      ? (applicablePromo.priceVista ?? mainPrice)
+      : mainPrice * 0.9;
   const pixPrice = rawPix.toFixed(2).replace('.', ',');
   const parcelas = 10;
   const valorParcela = (mainPrice / parcelas).toFixed(2).replace('.', ',');
@@ -55,6 +59,7 @@ export function calculateProductPriceDetails(
     parcelas,
     valorParcela,
     isSaldao: saldaoCalc.isSaldao,
+    saldaoCalc,
     applicablePromo,
   };
 }
@@ -77,10 +82,28 @@ export const ProductPriceDisplay: React.FC<ProductPriceDisplayProps> = ({
     parcelas,
     valorParcela,
     isSaldao,
+    saldaoCalc,
     applicablePromo,
   } = calculateProductPriceDetails(product, saldaoConfig, promotions);
 
   const priceColorClass = isDark ? cardTokens.priceColorDark : cardTokens.priceColorLight;
+
+  const saldaoLabel = saldaoConfig?.tagLabel?.trim() || 'Saldão';
+  const isSaldaoCustomColor = isSaldao && Boolean(saldaoConfig?.tagColor);
+  const saldaoPriceBadgeStyle: React.CSSProperties | undefined = isSaldaoCustomColor ? {
+    backgroundColor: `${saldaoConfig.tagColor}18`,
+    borderColor: `${saldaoConfig.tagColor}40`,
+    color: saldaoConfig.tagColor,
+  } : undefined;
+
+  const isPromoCustomColor = !isSaldao && Boolean(applicablePromo?.tagColor);
+  const promoPriceBadgeStyle: React.CSSProperties | undefined = isPromoCustomColor ? {
+    backgroundColor: `${applicablePromo!.tagColor}18`,
+    borderColor: `${applicablePromo!.tagColor}40`,
+    color: applicablePromo!.tagColor,
+  } : undefined;
+
+  const priceBadgeCustomStyle = saldaoPriceBadgeStyle || promoPriceBadgeStyle;
 
   if (compact) {
     return (
@@ -107,8 +130,11 @@ export const ProductPriceDisplay: React.FC<ProductPriceDisplayProps> = ({
       <div className="space-y-0.5">
         <div className="flex items-center space-x-1 min-[390px]:space-x-1.5 flex-wrap gap-y-0.5">
           <span
+            style={priceBadgeCustomStyle}
             className={`text-[9px] min-[390px]:text-[10px] font-black uppercase tracking-wider px-1.5 min-[390px]:px-2 py-0.5 rounded-md border ${
-              storeThemeTokens.isBlackFriday
+              isSaldaoCustomColor || isPromoCustomColor
+                ? 'shadow-xs font-black'
+                : storeThemeTokens.isBlackFriday
                 ? 'text-amber-300 dark:text-amber-300 bg-neutral-900 border-amber-500/40 shadow-xs'
                 : storeThemeTokens.isOutubroRosa
                 ? 'text-[#9D174D] dark:text-pink-300 bg-pink-100 dark:bg-pink-950/80 border-pink-300/60'
@@ -120,9 +146,13 @@ export const ProductPriceDisplay: React.FC<ProductPriceDisplayProps> = ({
             }`}
           >
             {isSaldao
-              ? `Saldão (${discountPercent}% OFF)`
+              ? (saldaoCalc.discountPercentVista !== saldaoCalc.discountPercentPrazo
+                  ? `${saldaoLabel} (${saldaoCalc.discountPercentVista}% À Vista • ${saldaoCalc.discountPercentPrazo}% A Prazo)`
+                  : `${saldaoLabel} (${saldaoCalc.discountPercentVista}% OFF)`)
               : applicablePromo
-                ? `Oferta (${applicablePromo.discountLabel} OFF)`
+                ? (applicablePromo.discountLabelVista !== applicablePromo.discountLabelPrazo
+                    ? `${applicablePromo.tagLabel || 'Oferta'} (${applicablePromo.discountLabelVista} À Vista • ${applicablePromo.discountLabelPrazo} A Prazo)`
+                    : `${applicablePromo.tagLabel || 'Oferta'} (${applicablePromo.discountLabelVista || applicablePromo.discountLabel} OFF)`)
                 : 'À Vista no PIX (-10%)'}
           </span>
           {originalPrice && (

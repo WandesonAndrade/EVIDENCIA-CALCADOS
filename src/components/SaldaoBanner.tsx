@@ -20,9 +20,10 @@ export const SaldaoBanner: React.FC<SaldaoBannerProps> = ({
   bannerText,
   onViewAll
 }) => {
-  const { storeThemeTokens } = useApp();
+  const { saldaoConfig, storeThemeTokens } = useApp();
   const saldaoTokens = storeThemeTokens.saldao;
   const isOutubroRosa = storeThemeTokens.isOutubroRosa;
+  const saldaoTitle = saldaoConfig?.tagLabel ? `${saldaoConfig.tagLabel} de Calçados` : 'Saldão de Calçados';
 
   // Formata o subtítulo para manter conciso e elegante na vitrine, removendo quaisquer emojis
   const cleanSubtitle = bannerText 
@@ -90,8 +91,8 @@ export const SaldaoBanner: React.FC<SaldaoBannerProps> = ({
 
             {/* Título Principal Bicolor com -% OFF */}
             <div className="flex flex-wrap items-center gap-1.5 sm:gap-2.5">
-              <h2 className="text-lg sm:text-2xl md:text-3xl lg:text-[30px] xl:text-[34px] font-black tracking-tight text-white leading-tight">
-                Saldão de Calçados
+              <h2 className="text-lg sm:text-2xl md:text-3xl lg:text-[30px] xl:text-[34px] font-black tracking-tight text-white leading-tight capitalize">
+                {saldaoTitle}
               </h2>
               <span className={`text-lg sm:text-2xl md:text-3xl lg:text-[30px] xl:text-[34px] font-black ${saldaoTokens.discountText} tracking-tight leading-tight shrink-0`}>
                 -{discountPercent}% OFF

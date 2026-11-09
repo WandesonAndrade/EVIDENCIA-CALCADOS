@@ -14,7 +14,7 @@ import { moblinkClientesService } from '../services/moblinkClientesService';
 import { FinancialDashboard } from './FinancialDashboard';
 import { uploadImageToSupabase } from '../services/supabaseStorageService';
 import { isSaldaoProduct, getSaldaoProductPrice } from '../services/saldaoService';
-import { getCampaignStatus, isCampaignActive, calculateCampaignPrice } from '../services/promotionsService';
+import { getCampaignStatus, isCampaignActive, calculateCampaignPrice, getProductTotalStock } from '../services/promotionsService';
 import { NO_PHOTO_SVG } from '../utils/placeholder';
 
 
@@ -37,7 +37,9 @@ import { AdminBoxManager } from './AdminBoxManager';
 import { CreditManagement } from './admin/credit/CreditManagement';
 import { FeaturedPromoCardsManager } from './admin/FeaturedPromoCardsManager';
 import { DiscountsManager } from './admin/discounts/DiscountsManager';
-import { moblinkCategoriesService, normalizeCategoryName, normalizeSubcategoryName } from '../services/moblinkCategoriesService';
+import { moblinkCategoriesService, normalizeCategoryName, normalizeSubcategoryName, isProductInCategory } from '../services/moblinkCategoriesService';
+import { isSubcategoryMatch, resolveProductSubcategoryName } from './products/utils/categoryNavigationUtils';
+import { TAG_COLOR_PRESETS, SALDAO_COLOR_PRESETS } from '../constants/tagColorPresets';
 
 type AdminTab = 
   | 'overview' 
@@ -113,46 +115,84 @@ export const AdminPanel: React.FC = () => {
   const [editingPromo, setEditingPromo] = useState<PromoCampaign | null>(null);
 
   const [promoTitle, setPromoTitle] = useState('');
+  const [promoHeaderLabel, setPromoHeaderLabel] = useState('');
+  const [promoTagLabel, setPromoTagLabel] = useState('');
   const [promoDescription, setPromoDescription] = useState('');
   const [promoStartDate, setPromoStartDate] = useState('');
   const [promoEndDate, setPromoEndDate] = useState('');
   const [promoDiscountType, setPromoDiscountType] = useState<'percentage' | 'fixed'>('percentage');
-  const [promoDiscountValue, setPromoDiscountValue] = useState<number>(15);
+  const [promoDiscountValueVista, setPromoDiscountValueVista] = useState<number>(15);
+  const [promoDiscountValuePrazo, setPromoDiscountValuePrazo] = useState<number>(10);
+  const [promoMaxStock, setPromoMaxStock] = useState<number | ''>('');
+  const [promoOnlySaldoFilter, setPromoOnlySaldoFilter] = useState(false);
+  const [promoTagColor, setPromoTagColor] = useState('#FF4500');
+  const [promoTagColorEnd, setPromoTagColorEnd] = useState('#FFA000');
+  const [promoTagTextColor, setPromoTagTextColor] = useState('#FFFFFF');
+  const [promoTagBgPreset, setPromoTagBgPreset] = useState('orange');
   const [promoProductIds, setPromoProductIds] = useState<string[]>([]);
   const [promoActive, setPromoActive] = useState(true);
 
   const [promoProductSearch, setPromoProductSearch] = useState('');
   const [promoCategoryFilter, setPromoCategoryFilter] = useState('TODAS');
+  const [promoSubcategoryFilter, setPromoSubcategoryFilter] = useState('TODAS');
 
   const handleOpenNewPromoModal = () => {
     setEditingPromo(null);
     setPromoTitle('');
+    setPromoHeaderLabel('');
+    setPromoTagLabel('OFERTA');
     setPromoDescription('');
     const today = new Date().toISOString().split('T')[0];
     const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     setPromoStartDate(today);
     setPromoEndDate(nextWeek);
     setPromoDiscountType('percentage');
-    setPromoDiscountValue(15);
+    setPromoDiscountValueVista(15);
+    setPromoDiscountValuePrazo(10);
+    setPromoMaxStock('');
+    setPromoOnlySaldoFilter(false);
+    setPromoTagColor('#FF4500');
+    setPromoTagColorEnd('#FFA000');
+    setPromoTagTextColor('#FFFFFF');
+    setPromoTagBgPreset('orange');
     setPromoProductIds([]);
     setPromoActive(true);
     setPromoProductSearch('');
     setPromoCategoryFilter('TODAS');
+    setPromoSubcategoryFilter('TODAS');
     setIsPromoModalOpen(true);
   };
 
   const handleOpenEditPromoModal = (campaign: PromoCampaign) => {
     setEditingPromo(campaign);
     setPromoTitle(campaign.title);
+    setPromoHeaderLabel(campaign.headerLabel || campaign.title);
+    setPromoTagLabel(campaign.tagLabel || 'OFERTA');
     setPromoDescription(campaign.description || '');
     setPromoStartDate(campaign.startDate ? campaign.startDate.split('T')[0] : '');
     setPromoEndDate(campaign.endDate ? campaign.endDate.split('T')[0] : '');
     setPromoDiscountType(campaign.discountType || 'percentage');
-    setPromoDiscountValue(campaign.discountValue || 10);
+    setPromoDiscountValueVista(
+      campaign.discountValueVista !== undefined ? Number(campaign.discountValueVista) : Number(campaign.discountValue || 15)
+    );
+    setPromoDiscountValuePrazo(
+      campaign.discountValuePrazo !== undefined ? Number(campaign.discountValuePrazo) : Number(campaign.discountValue || 10)
+    );
+    setPromoMaxStock(
+      campaign.maxStock !== undefined && campaign.maxStock !== null && Number(campaign.maxStock) > 0
+        ? Number(campaign.maxStock)
+        : ''
+    );
+    setPromoOnlySaldoFilter(false);
+    setPromoTagColor(campaign.tagColor || '#FF4500');
+    setPromoTagColorEnd(campaign.tagColorEnd || '#FFA000');
+    setPromoTagTextColor(campaign.tagTextColor || '#FFFFFF');
+    setPromoTagBgPreset(campaign.tagBgPreset || 'orange');
     setPromoProductIds(campaign.productIds || []);
     setPromoActive(campaign.active !== false);
     setPromoProductSearch('');
     setPromoCategoryFilter('TODAS');
+    setPromoSubcategoryFilter('TODAS');
     setIsPromoModalOpen(true);
   };
 
@@ -166,21 +206,36 @@ export const AdminPanel: React.FC = () => {
       alert('Por favor, defina a data inicial e final da promoção.');
       return;
     }
-    if (promoProductIds.length === 0) {
-      alert('Por favor, selecione ao menos 1 produto participante.');
+
+    const maxStockVal = promoMaxStock !== '' && Number(promoMaxStock) > 0 ? Number(promoMaxStock) : undefined;
+
+    if (promoProductIds.length === 0 && !maxStockVal) {
+      alert('Por favor, selecione ao menos 1 produto participante ou informe um Estoque Máximo / Saldo.');
       return;
     }
 
     const campaignId = editingPromo ? editingPromo.id : `promo_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
 
+    const valVista = Number(promoDiscountValueVista) || 0;
+    const valPrazo = Number(promoDiscountValuePrazo) || 0;
+
     const campaign: PromoCampaign = {
       id: campaignId,
       title: promoTitle.trim(),
+      headerLabel: promoHeaderLabel.trim() || promoTitle.trim(),
+      tagLabel: promoTagLabel.trim() || 'OFERTA',
       description: promoDescription.trim(),
       startDate: promoStartDate,
       endDate: promoEndDate,
       discountType: promoDiscountType,
-      discountValue: Number(promoDiscountValue) || 0,
+      discountValue: valVista || valPrazo || 0,
+      discountValueVista: valVista,
+      discountValuePrazo: valPrazo,
+      maxStock: maxStockVal,
+      tagColor: promoTagColor,
+      tagColorEnd: promoTagColorEnd,
+      tagTextColor: promoTagTextColor,
+      tagBgPreset: promoTagBgPreset,
       productIds: promoProductIds,
       active: promoActive,
       createdAt: editingPromo?.createdAt || new Date().toISOString(),
@@ -378,16 +433,32 @@ export const AdminPanel: React.FC = () => {
   // Saldão de Calçados Form State
   const [saldaoEnabledInput, setSaldaoEnabledInput] = useState(saldaoConfig?.enabled ?? true);
   const [saldaoMaxStockInput, setSaldaoMaxStockInput] = useState(saldaoConfig?.maxStock ?? 2);
-  const [saldaoDiscountInput, setSaldaoDiscountInput] = useState(saldaoConfig?.discountPercent ?? 20);
+  const [saldaoDiscountVistaInput, setSaldaoDiscountVistaInput] = useState(
+    saldaoConfig?.discountPercentVista ?? saldaoConfig?.discountPercent ?? 20
+  );
+  const [saldaoDiscountPrazoInput, setSaldaoDiscountPrazoInput] = useState(
+    saldaoConfig?.discountPercentPrazo ?? 10
+  );
   const [saldaoBannerInput, setSaldaoBannerInput] = useState(saldaoConfig?.bannerText || 'SALDÃO DE CALÇADOS - ÚLTIMAS UNIDADES COM DESCONTO EXCLUSIVO!');
+  const [saldaoTagLabelInput, setSaldaoTagLabelInput] = useState(saldaoConfig?.tagLabel || 'SALDÃO');
+  const [saldaoTagColorInput, setSaldaoTagColorInput] = useState(saldaoConfig?.tagColor || '#FF4500');
+  const [saldaoTagColorEndInput, setSaldaoTagColorEndInput] = useState(saldaoConfig?.tagColorEnd || '#FFA000');
+  const [saldaoTagTextColorInput, setSaldaoTagTextColorInput] = useState(saldaoConfig?.tagTextColor || '#FFFFFF');
+  const [saldaoTagBgPreset, setSaldaoTagBgPreset] = useState(saldaoConfig?.tagBgPreset || 'orange');
   const [isSavingSaldao, setIsSavingSaldao] = useState(false);
 
   useEffect(() => {
     if (saldaoConfig) {
       setSaldaoEnabledInput(saldaoConfig.enabled);
       setSaldaoMaxStockInput(saldaoConfig.maxStock ?? 2);
-      setSaldaoDiscountInput(saldaoConfig.discountPercent ?? 20);
+      setSaldaoDiscountVistaInput(saldaoConfig.discountPercentVista ?? saldaoConfig.discountPercent ?? 20);
+      setSaldaoDiscountPrazoInput(saldaoConfig.discountPercentPrazo ?? 10);
       setSaldaoBannerInput(saldaoConfig.bannerText || 'SALDÃO DE CALÇADOS - ÚLTIMAS UNIDADES COM DESCONTO EXCLUSIVO!');
+      setSaldaoTagLabelInput(saldaoConfig.tagLabel || 'SALDÃO');
+      setSaldaoTagColorInput(saldaoConfig.tagColor || '#FF4500');
+      setSaldaoTagColorEndInput(saldaoConfig.tagColorEnd || '#FFA000');
+      setSaldaoTagTextColorInput(saldaoConfig.tagTextColor || '#FFFFFF');
+      setSaldaoTagBgPreset(saldaoConfig.tagBgPreset || 'orange');
     }
   }, [saldaoConfig]);
 
@@ -396,14 +467,24 @@ export const AdminPanel: React.FC = () => {
     setIsSavingSaldao(true);
 
     try {
+      const discVista = Number(saldaoDiscountVistaInput) || 0;
+      const discPrazo = Number(saldaoDiscountPrazoInput) || 0;
+
       await updateSaldaoConfig({
         enabled: saldaoEnabledInput,
         maxStock: Number(saldaoMaxStockInput) || 2,
-        discountPercent: Number(saldaoDiscountInput) || 20,
+        discountPercent: discVista || discPrazo || 20,
+        discountPercentVista: discVista,
+        discountPercentPrazo: discPrazo,
         bannerText: saldaoBannerInput.trim(),
+        tagLabel: saldaoTagLabelInput.trim() || 'SALDÃO',
+        tagColor: saldaoTagColorInput,
+        tagColorEnd: saldaoTagColorEndInput,
+        tagTextColor: saldaoTagTextColorInput,
+        tagBgPreset: saldaoTagBgPreset,
       });
 
-      addToast("Saldão Atualizado!", "As regras do Saldão de Calçados foram salvas e aplicadas na loja com sucesso.", "success");
+      addToast("Saldão Atualizado!", "As regras e descontos (à vista e a prazo) foram salvas com sucesso.", "success");
     } catch (err: any) {
       console.error(err);
       addToast("Erro ao Salvar", err.message || "Não foi possível salvar as configurações do Saldão.", "error");
@@ -2764,25 +2845,50 @@ export const AdminPanel: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold mb-1 text-slate-300">
-                    Desconto em Porcentagem (%) sobre o Preço de Venda
+                  <label className="block text-xs font-bold mb-1 text-slate-300 flex items-center justify-between">
+                    <span>Desconto À Vista (%)</span>
+                    <span className="text-[10px] text-emerald-400 font-semibold">Pix / Dinheiro</span>
                   </label>
                   <div className="relative">
                     <input
                       type="number"
-                      min="1"
-                      max="80"
-                      value={saldaoDiscountInput}
-                      onChange={(e) => setSaldaoDiscountInput(Number(e.target.value))}
-                      className={`w-full p-3.5 rounded-xl text-sm border font-black text-rose-500 focus:outline-none focus:border-rose-500 ${
+                      min="0"
+                      max="90"
+                      value={saldaoDiscountVistaInput}
+                      onChange={(e) => setSaldaoDiscountVistaInput(Number(e.target.value))}
+                      className={`w-full p-3.5 rounded-xl text-sm border font-black text-emerald-500 focus:outline-none focus:border-emerald-500 ${
                         isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-100 border-slate-300'
                       }`}
                       placeholder="Ex: 20"
                     />
-                    <span className="absolute right-3 top-3.5 text-xs text-slate-500 font-bold">% OFF</span>
+                    <span className="absolute right-3 top-3.5 text-xs text-slate-500 font-bold">% OFF À VISTA</span>
                   </div>
                   <p className="text-[11px] text-slate-500 mt-1">
-                    Ex: Um calçado de R$ 200,00 com 20% OFF será vendido por R$ 160,00.
+                    Ex: R$ 200,00 sairá por <strong className="text-emerald-400">R$ {(200 * (1 - ((Number(saldaoDiscountVistaInput) || 0) / 100))).toFixed(2).replace('.', ',')}</strong> no Pix.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold mb-1 text-slate-300 flex items-center justify-between">
+                    <span>Desconto A Prazo (%)</span>
+                    <span className="text-[10px] text-blue-400 font-semibold">Cartão / Crediário</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      min="0"
+                      max="90"
+                      value={saldaoDiscountPrazoInput}
+                      onChange={(e) => setSaldaoDiscountPrazoInput(Number(e.target.value))}
+                      className={`w-full p-3.5 rounded-xl text-sm border font-black text-blue-500 focus:outline-none focus:border-blue-500 ${
+                        isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-100 border-slate-300'
+                      }`}
+                      placeholder="Ex: 10"
+                    />
+                    <span className="absolute right-3 top-3.5 text-xs text-slate-500 font-bold">% OFF A PRAZO</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    Ex: R$ 200,00 sairá por <strong className="text-blue-400">R$ {(200 * (1 - ((Number(saldaoDiscountPrazoInput) || 0) / 100))).toFixed(2).replace('.', ',')}</strong> (10x de R$ {(((200 * (1 - ((Number(saldaoDiscountPrazoInput) || 0) / 100)))) / 10).toFixed(2).replace('.', ',')}).
                   </p>
                 </div>
               </div>
@@ -2800,6 +2906,260 @@ export const AdminPanel: React.FC = () => {
                   }`}
                   placeholder="Ex: SALDÃO DE CALÇADOS - ÚLTIMAS UNIDADES COM ATÉ 20% OFF!"
                 />
+              </div>
+
+              {/* Seção de Personalização Visual das Tags no Card (Nome e Cores) */}
+              <div className={`p-5 sm:p-6 rounded-2xl border space-y-5 ${
+                isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-slate-50 border-slate-200'
+              }`}>
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center space-x-2">
+                    <Palette className="h-5 w-5 text-rose-500" />
+                    <div>
+                      <h4 className="text-sm font-black text-rose-500">
+                        Personalização das Tags no Card (Nome e Cores)
+                      </h4>
+                      <p className="text-xs text-slate-400">
+                        Customize o texto e as cores dos selos de desconto que aparecem nos produtos em saldão.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Nome da Tag */}
+                  <div>
+                    <label className="block text-xs font-bold mb-1 text-slate-300">
+                      Nome / Texto da Tag no Card
+                    </label>
+                    <input
+                      type="text"
+                      value={saldaoTagLabelInput}
+                      onChange={(e) => setSaldaoTagLabelInput(e.target.value)}
+                      className={`w-full p-3.5 rounded-xl text-xs font-bold uppercase tracking-wider border focus:outline-none focus:border-rose-500 ${
+                        isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-300'
+                      }`}
+                      placeholder="Ex: SALDÃO, LIQUIDAÇÃO, OUTLET, ÚLTIMAS UNIDADES"
+                    />
+                    <p className="text-[11px] text-slate-500 mt-1">
+                      Texto exibido nos selos (ex: "{(saldaoTagLabelInput.trim() || 'SALDÃO').toUpperCase()} -{saldaoDiscountVistaInput}%").
+                    </p>
+                  </div>
+
+                  {/* Presets Rápidos de Cores */}
+                  <div>
+                    <label className="block text-xs font-bold mb-1 text-slate-300">
+                      Paletas de Cores Prontas
+                    </label>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {SALDAO_COLOR_PRESETS.map((preset) => {
+                        const isSelected = saldaoTagBgPreset === preset.id;
+                        return (
+                          <button
+                            key={preset.id}
+                            type="button"
+                            onClick={() => {
+                              setSaldaoTagBgPreset(preset.id);
+                              setSaldaoTagColorInput(preset.start);
+                              setSaldaoTagColorEndInput(preset.end);
+                              setSaldaoTagTextColorInput(preset.text);
+                            }}
+                            className={`p-2 rounded-xl border text-[11px] font-bold flex items-center space-x-2 transition-all cursor-pointer ${
+                              isSelected
+                                ? 'border-rose-500 ring-2 ring-rose-500/30 shadow-md scale-[1.02]'
+                                : isDark ? 'border-slate-800 hover:border-slate-700 bg-slate-900/50 text-slate-300' : 'border-slate-200 hover:border-slate-300 bg-white text-slate-700'
+                            }`}
+                          >
+                            <span
+                              className="w-4 h-4 rounded-full shrink-0 shadow-xs"
+                              style={{ background: `linear-gradient(135deg, ${preset.start}, ${preset.end})` }}
+                            />
+                            <span className="truncate">{preset.name}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Seletores manuais de cor */}
+                <div className="pt-2 border-t border-slate-800/40">
+                  <div className="text-xs font-bold text-slate-400 mb-3 flex items-center space-x-1.5">
+                    <Sliders className="h-3.5 w-3.5 text-rose-400" />
+                    <span>Ajuste Fino de Cores (Hexadecimal ou Seletor)</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    {/* Cor Inicial / Gradiente */}
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-400 mb-1">
+                        Cor Inicial do Gradiente
+                      </label>
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="color"
+                          value={saldaoTagColorInput}
+                          onChange={(e) => {
+                            setSaldaoTagColorInput(e.target.value);
+                            setSaldaoTagBgPreset('custom');
+                          }}
+                          className="w-10 h-10 rounded-lg cursor-pointer border border-slate-700 bg-transparent p-0.5"
+                        />
+                        <input
+                          type="text"
+                          value={saldaoTagColorInput}
+                          onChange={(e) => {
+                            setSaldaoTagColorInput(e.target.value);
+                            setSaldaoTagBgPreset('custom');
+                          }}
+                          className={`w-full p-2.5 rounded-lg text-xs font-mono border focus:outline-none focus:border-rose-500 ${
+                            isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-300'
+                          }`}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Cor Final do Gradiente */}
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-400 mb-1">
+                        Cor Final do Gradiente
+                      </label>
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="color"
+                          value={saldaoTagColorEndInput}
+                          onChange={(e) => {
+                            setSaldaoTagColorEndInput(e.target.value);
+                            setSaldaoTagBgPreset('custom');
+                          }}
+                          className="w-10 h-10 rounded-lg cursor-pointer border border-slate-700 bg-transparent p-0.5"
+                        />
+                        <input
+                          type="text"
+                          value={saldaoTagColorEndInput}
+                          onChange={(e) => {
+                            setSaldaoTagColorEndInput(e.target.value);
+                            setSaldaoTagBgPreset('custom');
+                          }}
+                          className={`w-full p-2.5 rounded-lg text-xs font-mono border focus:outline-none focus:border-rose-500 ${
+                            isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-300'
+                          }`}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Cor do Texto da Tag */}
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-400 mb-1">
+                        Cor do Texto
+                      </label>
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="color"
+                          value={saldaoTagTextColorInput}
+                          onChange={(e) => {
+                            setSaldaoTagTextColorInput(e.target.value);
+                            setSaldaoTagBgPreset('custom');
+                          }}
+                          className="w-10 h-10 rounded-lg cursor-pointer border border-slate-700 bg-transparent p-0.5"
+                        />
+                        <input
+                          type="text"
+                          value={saldaoTagTextColorInput}
+                          onChange={(e) => {
+                            setSaldaoTagTextColorInput(e.target.value);
+                            setSaldaoTagBgPreset('custom');
+                          }}
+                          className={`w-full p-2.5 rounded-lg text-xs font-mono border focus:outline-none focus:border-rose-500 ${
+                            isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-300'
+                          }`}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Prévia em tempo real no Card */}
+                <div className="pt-4 border-t border-slate-800/40">
+                  <div className="text-xs font-bold text-slate-400 mb-2 flex items-center space-x-1.5">
+                    <Eye className="h-3.5 w-3.5 text-rose-400" />
+                    <span>Pré-visualização em Tempo Real (Como aparecerá no Card do Produto)</span>
+                  </div>
+
+                  <div className={`flex flex-col sm:flex-row items-center gap-6 p-4 rounded-xl border ${
+                    isDark ? 'bg-slate-900/60 border-slate-800/80' : 'bg-white border-slate-200 shadow-xs'
+                  }`}>
+                    {/* Mini Card Simulado */}
+                    <div className={`w-56 rounded-2xl border p-3 relative shadow-md shrink-0 ${
+                      isDark ? 'border-slate-800 bg-slate-950' : 'border-slate-200 bg-white'
+                    }`}>
+                      {/* Canto com a Tag */}
+                      <div className={`relative aspect-square w-full rounded-xl flex items-center justify-center overflow-hidden mb-3 ${
+                        isDark ? 'bg-slate-900' : 'bg-slate-100'
+                      }`}>
+                        <div className="absolute top-2 left-2 z-10">
+                          <span
+                            style={{
+                              background: `linear-gradient(135deg, ${saldaoTagColorInput}, ${saldaoTagColorEndInput})`,
+                              color: saldaoTagTextColorInput,
+                            }}
+                            className="px-2.5 py-0.5 text-[9px] font-black rounded-full shadow-md uppercase tracking-wider animate-pulse flex items-center gap-1"
+                          >
+                            {(saldaoTagLabelInput.trim() || 'SALDÃO').toUpperCase()} -{saldaoDiscountVistaInput}%
+                          </span>
+                        </div>
+                        <ShoppingBag className={`w-12 h-12 ${isDark ? 'text-slate-800' : 'text-slate-300'}`} />
+                      </div>
+
+                      {/* Info & Tag de Preço */}
+                      <div className="space-y-1.5">
+                        <div className="text-[10px] font-bold text-slate-400 uppercase">Calçados</div>
+                        <div className={`text-xs font-black line-clamp-1 ${isDark ? 'text-white' : 'text-slate-800'}`}>Tênis Casual Exemplo</div>
+                        
+                        <div className="pt-1 flex items-center gap-1.5 flex-wrap">
+                          <span
+                            style={{
+                              backgroundColor: `${saldaoTagColorInput}22`,
+                              borderColor: `${saldaoTagColorInput}55`,
+                              color: saldaoTagColorInput,
+                            }}
+                            className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-md border"
+                          >
+                            {Number(saldaoDiscountVistaInput) !== Number(saldaoDiscountPrazoInput)
+                              ? `${saldaoTagLabelInput.trim() || 'Saldão'} (${saldaoDiscountVistaInput}% À Vista • ${saldaoDiscountPrazoInput}% A Prazo)`
+                              : `${saldaoTagLabelInput.trim() || 'Saldão'} (${saldaoDiscountVistaInput}% OFF)`}
+                          </span>
+                          <span className="text-[10px] line-through text-slate-400">R$ 200,00</span>
+                        </div>
+                        <div className={`text-sm font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                          R$ {(200 * (1 - ((Number(saldaoDiscountVistaInput) || 0) / 100))).toFixed(2).replace('.', ',')}
+                        </div>
+                        <div className="text-[10px] text-slate-400">
+                          ou <strong className={isDark ? 'text-slate-200' : 'text-slate-700'}>R$ {(200 * (1 - ((Number(saldaoDiscountPrazoInput) || 0) / 100))).toFixed(2).replace('.', ',')}</strong> em até 10x de <strong className={isDark ? 'text-slate-200' : 'text-slate-700'}>R$ {(((200 * (1 - ((Number(saldaoDiscountPrazoInput) || 0) / 100)))) / 10).toFixed(2).replace('.', ',')}</strong>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Explicação visual */}
+                    <div className="space-y-2 text-xs text-slate-400">
+                      <div className="flex items-center space-x-2">
+                        <Check className="h-4 w-4 text-emerald-400 shrink-0" />
+                        <span><strong>Desconto À Vista (Pix / Dinheiro):</strong> aplicado com destaque no valor à vista de vitrine e no checkout Pix.</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Check className="h-4 w-4 text-blue-400 shrink-0" />
+                        <span><strong>Desconto A Prazo (Cartão / Crediário):</strong> aplicado na simulação de parcelas e nas compras parceladas.</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Check className="h-4 w-4 text-emerald-400 shrink-0" />
+                        <span><strong>Tag Superior:</strong> exibe no canto superior esquerdo da foto do produto com o gradiente e animação pulsante.</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Check className="h-4 w-4 text-emerald-400 shrink-0" />
+                        <span><strong>Tag de Preço:</strong> exibe acima do valor com porcentagens claras de à vista e a prazo.</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <div className="flex items-center justify-between pt-4 border-t border-slate-800/40">
@@ -2824,7 +3184,14 @@ export const AdminPanel: React.FC = () => {
               const currentConfig: SaldaoConfig = {
                 enabled: saldaoEnabledInput,
                 maxStock: Number(saldaoMaxStockInput) || 2,
-                discountPercent: Number(saldaoDiscountInput) || 20,
+                discountPercent: Number(saldaoDiscountVistaInput) || 20,
+                discountPercentVista: Number(saldaoDiscountVistaInput) || 0,
+                discountPercentPrazo: Number(saldaoDiscountPrazoInput) || 0,
+                tagLabel: saldaoTagLabelInput.trim() || 'SALDÃO',
+                tagColor: saldaoTagColorInput,
+                tagColorEnd: saldaoTagColorEndInput,
+                tagTextColor: saldaoTagTextColorInput,
+                tagBgPreset: saldaoTagBgPreset,
               };
 
               const saldaoProds = products.filter(p => isSaldaoProduct(p, currentConfig));
@@ -2863,8 +3230,9 @@ export const AdminPanel: React.FC = () => {
                               <th className="p-4">Produto</th>
                               <th className="p-4 text-center">Estoque Atual</th>
                               <th className="p-4 text-right">Preço De</th>
-                              <th className="p-4 text-right">Preço Saldão ({currentConfig.discountPercent}% OFF)</th>
-                              <th className="p-4 text-right">Economia Cliente</th>
+                              <th className="p-4 text-right">À Vista (-{currentConfig.discountPercentVista}%)</th>
+                              <th className="p-4 text-right">A Prazo (-{currentConfig.discountPercentPrazo}%)</th>
+                              <th className="p-4 text-right">Economia À Vista</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-800/40 text-xs">
@@ -2895,10 +3263,16 @@ export const AdminPanel: React.FC = () => {
                                     R$ {(calc.originalPrice || 0).toFixed(2).replace('.', ',')}
                                   </td>
                                   <td className="p-4 text-right font-black text-emerald-400 text-sm">
-                                    R$ {(calc.price || 0).toFixed(2).replace('.', ',')}
+                                    R$ {(calc.priceVista || 0).toFixed(2).replace('.', ',')}
+                                  </td>
+                                  <td className="p-4 text-right font-bold text-blue-400 text-xs">
+                                    R$ {(calc.pricePrazo || 0).toFixed(2).replace('.', ',')}
+                                    <span className="block text-[10px] text-slate-500 font-normal">
+                                      10x R$ {((calc.pricePrazo || 0) / 10).toFixed(2).replace('.', ',')}
+                                    </span>
                                   </td>
                                   <td className="p-4 text-right font-bold text-amber-400">
-                                    - R$ {(calc.savedAmount || 0).toFixed(2).replace('.', ',')}
+                                    - R$ {(calc.savedAmountVista || 0).toFixed(2).replace('.', ',')}
                                   </td>
                                 </tr>
                               );
@@ -3017,7 +3391,15 @@ export const AdminPanel: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {promotions.map((promo) => {
                     const status = getCampaignStatus(promo);
-                    const matchingProducts = products.filter(p => promo.productIds.includes(String(p.id)) || (p.moblinkId && promo.productIds.includes(String(p.moblinkId))));
+                    const matchingProducts = products.filter(p => {
+                      const stock = getProductTotalStock(p);
+                      const stockOk = promo.maxStock && Number(promo.maxStock) > 0 ? (stock > 0 && stock <= Number(promo.maxStock)) : true;
+                      if (promo.productIds.length > 0) {
+                        const idMatch = promo.productIds.includes(String(p.id)) || (p.moblinkId && promo.productIds.includes(String(p.moblinkId)));
+                        return idMatch && stockOk;
+                      }
+                      return p.visible && promo.maxStock && Number(promo.maxStock) > 0 && stockOk;
+                    });
 
                     return (
                       <div
@@ -3029,7 +3411,7 @@ export const AdminPanel: React.FC = () => {
                         <div className="space-y-3">
                           <div className="flex items-start justify-between gap-3">
                             <div>
-                              <div className="flex items-center space-x-2">
+                              <div className="flex items-center space-x-2 flex-wrap gap-y-1">
                                 <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-md ${
                                   status === 'active' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 animate-pulse' :
                                   status === 'scheduled' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' :
@@ -3043,8 +3425,21 @@ export const AdminPanel: React.FC = () => {
                                 </span>
 
                                 <span className="text-[10px] font-black uppercase text-amber-400 px-2 py-0.5 bg-amber-400/10 rounded-md border border-amber-400/20">
-                                  {promo.discountType === 'percentage' ? `-${promo.discountValue}% OFF` : `-R$ ${(promo.discountValue || 0).toFixed(2).replace('.', ',')}`}
+                                  {promo.discountValueVista !== undefined && promo.discountValuePrazo !== undefined && promo.discountValueVista !== promo.discountValuePrazo
+                                    ? (promo.discountType === 'percentage'
+                                        ? `-${promo.discountValueVista}% Vista • -${promo.discountValuePrazo}% Prazo`
+                                        : `-R$ ${promo.discountValueVista.toFixed(2).replace('.', ',')} Vista • -R$ ${promo.discountValuePrazo.toFixed(2).replace('.', ',')} Prazo`)
+                                    : (promo.discountType === 'percentage'
+                                        ? `-${promo.discountValueVista ?? promo.discountValue}% OFF`
+                                        : `-R$ ${(promo.discountValueVista ?? promo.discountValue ?? 0).toFixed(2).replace('.', ',')}`)}
                                 </span>
+
+                                {promo.maxStock !== undefined && promo.maxStock !== null && Number(promo.maxStock) > 0 && (
+                                  <span className="text-[10px] font-black uppercase text-rose-400 px-2 py-0.5 bg-rose-400/10 rounded-md border border-rose-400/20 flex items-center gap-1">
+                                    <Package className="h-3 w-3" />
+                                    <span>Saldo ≤ {promo.maxStock} un</span>
+                                  </span>
+                                )}
                               </div>
 
                               <h4 className="text-base font-black text-white mt-1.5 line-clamp-1">{promo.title}</h4>
@@ -3081,9 +3476,19 @@ export const AdminPanel: React.FC = () => {
                             <div className="flex items-center justify-between">
                               <span className="font-bold">Produtos Participantes:</span>
                               <span className="font-black text-amber-400">
-                                {promo.productIds.length} {promo.productIds.length === 1 ? 'produto' : 'produtos'}
+                                {promo.productIds.length > 0
+                                  ? `${promo.productIds.length} ${promo.productIds.length === 1 ? 'produto selecionado' : 'produtos selecionados'}`
+                                  : `Automático por Saldo (${matchingProducts.length} elegíveis)`}
                               </span>
                             </div>
+                            {promo.maxStock !== undefined && promo.maxStock !== null && Number(promo.maxStock) > 0 && (
+                              <div className="flex items-center justify-between text-rose-400">
+                                <span className="font-bold">Limite de Saldo (Estoque):</span>
+                                <span className="font-black">
+                                  ≤ {promo.maxStock} {Number(promo.maxStock) === 1 ? 'unidade' : 'unidades'}
+                                </span>
+                              </div>
+                            )}
                           </div>
 
                           {/* Miniaturas de Produtos Participantes */}
@@ -3600,7 +4005,7 @@ export const AdminPanel: React.FC = () => {
 
             <form onSubmit={handleSavePromo} className="space-y-5 overflow-y-auto pr-1 flex-1">
               {/* Título & Descrição */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-xs font-bold mb-1 text-slate-300">Título da Promoção *</label>
                   <input
@@ -3613,6 +4018,20 @@ export const AdminPanel: React.FC = () => {
                       isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-100 border-slate-300'
                     }`}
                   />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold mb-1 text-slate-300">Nome Exibido nos Títulos</label>
+                  <input
+                    type="text"
+                    value={promoHeaderLabel}
+                    onChange={(e) => setPromoHeaderLabel(e.target.value)}
+                    placeholder="Ex: Semana do Consumidor"
+                    className={`w-full p-3 rounded-xl text-xs border focus:outline-none ${
+                      isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-100 border-slate-300'
+                    }`}
+                  />
+                  <p className="text-[10px] text-slate-500 mt-0.5">Usado no banner e cabeçalho da loja.</p>
                 </div>
 
                 <div>
@@ -3629,8 +4048,8 @@ export const AdminPanel: React.FC = () => {
                 </div>
               </div>
 
-              {/* Datas de Vigência & Regra de Desconto */}
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+              {/* Datas de Vigência & Regras de Desconto (À Vista e A Prazo) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                 <div>
                   <label className="block text-xs font-bold mb-1 text-slate-300">Data Inicial *</label>
                   <input
@@ -3672,143 +4091,648 @@ export const AdminPanel: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold mb-1 text-slate-300">
-                    {promoDiscountType === 'percentage' ? 'Desconto (%) *' : 'Desconto (R$) *'}
+                  <label className="block text-xs font-bold mb-1 text-slate-300 flex items-center justify-between">
+                    <span>{promoDiscountType === 'percentage' ? 'Desconto À Vista (%) *' : 'Desconto À Vista (R$) *'}</span>
+                    <span className="text-[10px] text-emerald-400 font-semibold">Pix</span>
                   </label>
-                  <input
-                    type="number"
-                    min="1"
-                    step={promoDiscountType === 'percentage' ? '1' : '0.5'}
-                    required
-                    value={promoDiscountValue}
-                    onChange={(e) => setPromoDiscountValue(Number(e.target.value))}
-                    className={`w-full p-3 rounded-xl text-xs border focus:outline-none ${
-                      isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-100 border-slate-300'
-                    }`}
-                  />
+                  <div className="relative">
+                    <input
+                      type="number"
+                      min="0"
+                      step={promoDiscountType === 'percentage' ? '1' : '0.5'}
+                      required
+                      value={promoDiscountValueVista}
+                      onChange={(e) => setPromoDiscountValueVista(Number(e.target.value))}
+                      className={`w-full p-3 rounded-xl text-xs border font-black text-emerald-500 focus:outline-none ${
+                        isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-300'
+                      }`}
+                    />
+                    <span className="absolute right-3 top-3 text-[10px] text-slate-500 font-bold">
+                      {promoDiscountType === 'percentage' ? '% À VISTA' : 'R$ À VISTA'}
+                    </span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold mb-1 text-slate-300 flex items-center justify-between">
+                    <span>{promoDiscountType === 'percentage' ? 'Desconto A Prazo (%) *' : 'Desconto A Prazo (R$) *'}</span>
+                    <span className="text-[10px] text-blue-400 font-semibold">Cartão / Carnê</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      min="0"
+                      step={promoDiscountType === 'percentage' ? '1' : '0.5'}
+                      required
+                      value={promoDiscountValuePrazo}
+                      onChange={(e) => setPromoDiscountValuePrazo(Number(e.target.value))}
+                      className={`w-full p-3 rounded-xl text-xs border font-black text-blue-500 focus:outline-none ${
+                        isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-300'
+                      }`}
+                    />
+                    <span className="absolute right-3 top-3 text-[10px] text-slate-500 font-bold">
+                      {promoDiscountType === 'percentage' ? '% A PRAZO' : 'R$ A PRAZO'}
+                    </span>
+                  </div>
                 </div>
               </div>
 
-              {/* SELEÇÃO DE PRODUTOS PARTICIPANTES */}
-              <div className="space-y-3 pt-2">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div>
-                    <label className="block text-xs font-black text-amber-400 uppercase tracking-wider">
-                      Produtos Participantes ({promoProductIds.length} selecionados)
-                    </label>
-                    <p className="text-[11px] text-slate-400">Marque os produtos que terão o desconto desta oferta.</p>
-                  </div>
-
+              {/* OPÇÃO DE SALDO / ESTOQUE MÁXIMO (COMO NO SALDÃO) */}
+              <div className={`p-4 rounded-2xl border space-y-3 ${
+                isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-slate-100/70 border-slate-200'
+              }`}>
+                <div className="flex items-center justify-between flex-wrap gap-2">
                   <div className="flex items-center space-x-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const matchingIds = products.filter(p => p.visible).map(p => String(p.id));
-                        setPromoProductIds(Array.from(new Set([...promoProductIds, ...matchingIds])));
-                      }}
-                      className="px-3 py-1.5 rounded-lg bg-amber-500/20 text-amber-400 font-bold text-[10px] uppercase border border-amber-500/30 cursor-pointer hover:bg-amber-500/30"
-                    >
-                      Selecionar Todos
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPromoProductIds([])}
-                      className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-400 font-bold text-[10px] uppercase border border-slate-700 cursor-pointer hover:bg-slate-700"
-                    >
-                      Limpar Seleção
-                    </button>
+                    <Package className="h-4 w-4 text-amber-400" />
+                    <div>
+                      <h4 className="text-xs font-black text-amber-400 uppercase tracking-wider">
+                        Estoque Máximo / Saldo para Entrar na Promoção
+                      </h4>
+                      <p className="text-[11px] text-slate-400">
+                        Defina o limite de saldo em estoque (como no Saldão de Calçados).
+                      </p>
+                    </div>
                   </div>
+                  <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider bg-slate-800/60 px-2 py-0.5 rounded-md">
+                    Opcional
+                  </span>
                 </div>
 
-                {/* Filtro de Busca de Produtos dentro da Modal */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
                   <div className="relative">
                     <input
-                      type="text"
-                      value={promoProductSearch}
-                      onChange={(e) => setPromoProductSearch(e.target.value)}
-                      placeholder="Buscar produto por nome, código ou SKU..."
-                      className={`w-full pl-9 pr-3 py-2 text-xs border rounded-xl focus:outline-none ${
-                        isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-100 border-slate-300'
+                      type="number"
+                      min="1"
+                      value={promoMaxStock}
+                      onChange={(e) => setPromoMaxStock(e.target.value === '' ? '' : Math.max(1, Number(e.target.value)))}
+                      className={`w-full p-3 rounded-xl text-xs border font-bold focus:outline-none ${
+                        isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-white border-slate-300 text-slate-900'
                       }`}
+                      placeholder="Ex: 2 (deixe vazio para sem limite)"
                     />
-                    <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-500" />
+                    <span className="absolute right-3 top-3 text-[10px] text-slate-500 font-bold">
+                      unidades ou menos
+                    </span>
                   </div>
 
-                  <select
-                    value={promoCategoryFilter}
-                    onChange={(e) => setPromoCategoryFilter(e.target.value)}
-                    className={`w-full p-2 text-xs border rounded-xl focus:outline-none ${
-                      isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-100 border-slate-300'
-                    }`}
-                  >
-                    <option value="TODAS">Todas as Categorias</option>
-                    <option value="CALÇADOS">Calçados</option>
-                    <option value="CONFECÇÕES">Confecções</option>
-                    <option value="ACESSÓRIOS">Acessórios</option>
-                    <option value="DIVERSOS">Diversos</option>
-                  </select>
+                  <div className="text-[11px] text-slate-400 leading-snug">
+                    {promoMaxStock !== '' && Number(promoMaxStock) > 0 ? (
+                      <span className="text-amber-300 font-bold">
+                        ⚡ Apenas produtos com saldo ≤ {promoMaxStock} {Number(promoMaxStock) === 1 ? 'unidade' : 'unidades'} entrarão na promoção.
+                      </span>
+                    ) : (
+                      <span>
+                        Sem limite de saldo ativo: a promoção será válida para todos os produtos participantes selecionados.
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* SEÇÃO DE PERSONALIZAÇÃO VISUAL DA TAG NA PROMOÇÃO */}
+              <div className={`p-4 sm:p-5 rounded-2xl border space-y-4 ${
+                isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-slate-50 border-slate-200'
+              }`}>
+                <div className="flex items-center space-x-2">
+                  <Palette className="h-5 w-5 text-amber-400" />
+                  <div>
+                    <h4 className="text-xs font-black text-amber-400 uppercase tracking-wider">
+                      Personalização Visual da Tag no Card (Nome e Cores)
+                    </h4>
+                    <p className="text-[11px] text-slate-400">
+                      Escolha o texto dos selos e a paleta de cores dessa campanha.
+                    </p>
+                  </div>
                 </div>
 
-                {/* Grid de Seleção de Produtos */}
-                <div className="max-h-60 overflow-y-auto border border-slate-800 rounded-2xl p-3 space-y-2 bg-slate-900/40">
-                  {products.filter(prod => {
-                    if (!prod.visible) return false;
-                    if (promoCategoryFilter !== 'TODAS') {
-                      const catUpper = (prod.category || prod.nome_grupo || '').toUpperCase();
-                      if (!catUpper.includes(promoCategoryFilter.toUpperCase())) return false;
-                    }
-                    if (promoProductSearch) {
-                      const q = promoProductSearch.toLowerCase().trim();
-                      const matchName = prod.name.toLowerCase().includes(q);
-                      const matchCode = String(prod.id).includes(q) || (prod.sku && prod.sku.toLowerCase().includes(q));
-                      if (!matchName && !matchCode) return false;
-                    }
-                    return true;
-                  }).map(prod => {
-                    const isSelected = promoProductIds.includes(String(prod.id)) || (prod.moblinkId && promoProductIds.includes(String(prod.moblinkId)));
-                    const calcPrice = calculateCampaignPrice(prod.price, {
-                      id: '', title: '', startDate: '', endDate: '',
-                      discountType: promoDiscountType,
-                      discountValue: promoDiscountValue,
-                      productIds: [], active: true
-                    });
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Nome da Tag */}
+                  <div>
+                    <label className="block text-xs font-bold mb-1 text-slate-300">
+                      Nome / Texto da Tag no Card
+                    </label>
+                    <input
+                      type="text"
+                      value={promoTagLabel}
+                      onChange={(e) => setPromoTagLabel(e.target.value)}
+                      placeholder="Ex: OFERTA, PROMOÇÃO, BLACK WEEK, QUEIMA"
+                      className={`w-full p-3 rounded-xl text-xs font-bold uppercase tracking-wider border focus:outline-none ${
+                        isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-300'
+                      }`}
+                    />
+                    <p className="text-[11px] text-slate-500 mt-1">
+                      Exibido no selo superior e acima do preço no card.
+                    </p>
+                  </div>
+
+                  {/* Presets de Cor */}
+                  <div>
+                    <label className="block text-xs font-bold mb-1 text-slate-300">
+                      Paletas de Cores Prontas
+                    </label>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {TAG_COLOR_PRESETS.map((preset) => {
+                        const isSelected = promoTagBgPreset === preset.id;
+                        return (
+                          <button
+                            key={preset.id}
+                            type="button"
+                            onClick={() => {
+                              setPromoTagBgPreset(preset.id);
+                              setPromoTagColor(preset.start);
+                              setPromoTagColorEnd(preset.end);
+                              setPromoTagTextColor(preset.text);
+                            }}
+                            className={`p-1.5 rounded-xl border text-[10px] font-bold flex items-center space-x-1.5 transition-all cursor-pointer ${
+                              isSelected
+                                ? 'border-amber-400 ring-2 ring-amber-400/30 shadow-md scale-[1.02]'
+                                : isDark ? 'border-slate-800 hover:border-slate-700 bg-slate-900/50 text-slate-300' : 'border-slate-200 hover:border-slate-300 bg-white text-slate-700'
+                            }`}
+                          >
+                            <span
+                              className="w-3.5 h-3.5 rounded-full shrink-0 shadow-xs"
+                              style={{ background: `linear-gradient(135deg, ${preset.start}, ${preset.end})` }}
+                            />
+                            <span className="truncate">{preset.name}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Seletores manuais de cor */}
+                <div className="pt-2 border-t border-slate-800/40">
+                  <div className="text-[11px] font-bold text-slate-400 mb-2 flex items-center space-x-1.5">
+                    <Sliders className="h-3.5 w-3.5 text-amber-400" />
+                    <span>Ajuste Fino de Cores (Hexadecimal ou Seletor)</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-400 mb-1">Cor Inicial do Gradiente</label>
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="color"
+                          value={promoTagColor}
+                          onChange={(e) => {
+                            setPromoTagColor(e.target.value);
+                            setPromoTagBgPreset('custom');
+                          }}
+                          className="w-9 h-9 rounded-lg cursor-pointer border border-slate-700 bg-transparent p-0.5"
+                        />
+                        <input
+                          type="text"
+                          value={promoTagColor}
+                          onChange={(e) => {
+                            setPromoTagColor(e.target.value);
+                            setPromoTagBgPreset('custom');
+                          }}
+                          className={`w-full p-2 rounded-lg text-xs font-mono border focus:outline-none ${
+                            isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-300'
+                          }`}
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-400 mb-1">Cor Final do Gradiente</label>
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="color"
+                          value={promoTagColorEnd}
+                          onChange={(e) => {
+                            setPromoTagColorEnd(e.target.value);
+                            setPromoTagBgPreset('custom');
+                          }}
+                          className="w-9 h-9 rounded-lg cursor-pointer border border-slate-700 bg-transparent p-0.5"
+                        />
+                        <input
+                          type="text"
+                          value={promoTagColorEnd}
+                          onChange={(e) => {
+                            setPromoTagColorEnd(e.target.value);
+                            setPromoTagBgPreset('custom');
+                          }}
+                          className={`w-full p-2 rounded-lg text-xs font-mono border focus:outline-none ${
+                            isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-300'
+                          }`}
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-400 mb-1">Cor do Texto</label>
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="color"
+                          value={promoTagTextColor}
+                          onChange={(e) => {
+                            setPromoTagTextColor(e.target.value);
+                            setPromoTagBgPreset('custom');
+                          }}
+                          className="w-9 h-9 rounded-lg cursor-pointer border border-slate-700 bg-transparent p-0.5"
+                        />
+                        <input
+                          type="text"
+                          value={promoTagTextColor}
+                          onChange={(e) => {
+                            setPromoTagTextColor(e.target.value);
+                            setPromoTagBgPreset('custom');
+                          }}
+                          className={`w-full p-2 rounded-lg text-xs font-mono border focus:outline-none ${
+                            isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-300'
+                          }`}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Prévia ao Vivo no Card */}
+                <div className="pt-3 border-t border-slate-800/40">
+                  <div className="text-[11px] font-bold text-slate-400 mb-2 flex items-center space-x-1.5">
+                    <Eye className="h-3.5 w-3.5 text-amber-400" />
+                    <span>Prévia em Tempo Real no Card</span>
+                  </div>
+
+                  {(() => {
+                    const sampleBase = 200;
+                    const isPct = promoDiscountType === 'percentage';
+                    const sampleVista = isPct 
+                      ? Math.round(sampleBase * (1 - (Number(promoDiscountValueVista) || 0) / 100) * 100) / 100
+                      : Math.max(0, sampleBase - (Number(promoDiscountValueVista) || 0));
+                    const samplePrazo = isPct 
+                      ? Math.round(sampleBase * (1 - (Number(promoDiscountValuePrazo) || 0) / 100) * 100) / 100
+                      : Math.max(0, sampleBase - (Number(promoDiscountValuePrazo) || 0));
+                    const lblVista = isPct ? `${promoDiscountValueVista}%` : `R$ ${Number(promoDiscountValueVista || 0).toFixed(2).replace('.', ',')}`;
+                    const lblPrazo = isPct ? `${promoDiscountValuePrazo}%` : `R$ ${Number(promoDiscountValuePrazo || 0).toFixed(2).replace('.', ',')}`;
 
                     return (
-                      <div
-                        key={prod.id}
-                        onClick={() => handleToggleProductInPromo(String(prod.id))}
-                        className={`p-2.5 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
-                          isSelected
-                            ? 'bg-amber-500/10 border-amber-500/40 text-white'
-                            : 'bg-slate-900/60 border-slate-800 hover:border-slate-700 text-slate-300'
-                        }`}
-                      >
-                        <div className="flex items-center space-x-3">
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={() => {}}
-                            className="h-4 w-4 text-amber-500 rounded border-slate-700 focus:ring-amber-400"
-                          />
-                          <div className="w-8 h-8 rounded-lg bg-white p-0.5 overflow-hidden shrink-0 border border-slate-800">
-                            <img src={prod.images?.[0] || prod.imageUrl || prod.foto_uri} alt={prod.name} className="w-full h-full object-contain" />
+                      <div className={`flex flex-col sm:flex-row items-center gap-4 p-3 rounded-xl border ${
+                        isDark ? 'bg-slate-900/60 border-slate-800/80' : 'bg-white border-slate-200'
+                      }`}>
+                        <div className={`w-52 rounded-2xl border p-2.5 relative shadow-md shrink-0 ${
+                          isDark ? 'border-slate-800 bg-slate-950' : 'border-slate-200 bg-white'
+                        }`}>
+                          <div className={`relative aspect-square w-full rounded-xl flex items-center justify-center overflow-hidden mb-2 ${
+                            isDark ? 'bg-slate-900' : 'bg-slate-100'
+                          }`}>
+                            <div className="absolute top-2 left-2 z-10">
+                              <span
+                                style={{
+                                  background: `linear-gradient(135deg, ${promoTagColor}, ${promoTagColorEnd})`,
+                                  color: promoTagTextColor,
+                                }}
+                                className="px-2 py-0.5 text-[9px] font-black rounded-full shadow-md uppercase tracking-wider animate-bounce flex items-center gap-1"
+                              >
+                                {(promoTagLabel.trim() || 'OFERTA').toUpperCase()} -{lblVista}
+                              </span>
+                            </div>
+                            <ShoppingBag className={`w-10 h-10 ${isDark ? 'text-slate-800' : 'text-slate-300'}`} />
                           </div>
-                          <div>
-                            <div className="text-xs font-bold line-clamp-1">{prod.name}</div>
-                            <div className="text-[10px] text-slate-500">{prod.category} • SKU: {prod.sku || prod.id}</div>
+
+                          <div className="space-y-1">
+                            <div className="text-[9px] font-bold text-slate-400 uppercase">Calçados</div>
+                            <div className={`text-xs font-black line-clamp-1 ${isDark ? 'text-white' : 'text-slate-800'}`}>Tênis Casual Exemplo</div>
+                            <div className="pt-0.5 flex items-center gap-1 flex-wrap">
+                              <span
+                                style={{
+                                  backgroundColor: `${promoTagColor}22`,
+                                  borderColor: `${promoTagColor}55`,
+                                  color: promoTagColor,
+                                }}
+                                className="text-[8.5px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-md border"
+                              >
+                                {promoDiscountValueVista !== promoDiscountValuePrazo
+                                  ? `${promoTagLabel.trim() || 'Oferta'} (${lblVista} À Vista • ${lblPrazo} A Prazo)`
+                                  : `${promoTagLabel.trim() || 'Oferta'} (${lblVista} OFF)`}
+                              </span>
+                              <span className="text-[9.5px] line-through text-slate-400">R$ 200,00</span>
+                            </div>
+                            <div className={`text-sm font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                              R$ {sampleVista.toFixed(2).replace('.', ',')}
+                            </div>
+                            <div className="text-[9.5px] text-slate-400">
+                              ou <strong>R$ {samplePrazo.toFixed(2).replace('.', ',')}</strong> em até 10x de <strong>R$ {(samplePrazo / 10).toFixed(2).replace('.', ',')}</strong>
+                            </div>
                           </div>
                         </div>
 
-                        <div className="text-right shrink-0">
-                          <div className="text-xs font-black text-amber-400">R$ {(calcPrice || 0).toFixed(2).replace('.', ',')}</div>
-                          <div className="text-[10px] text-slate-500 line-through">De: R$ {(prod.price || 0).toFixed(2).replace('.', ',')}</div>
+                        <div className="space-y-1.5 text-xs text-slate-400">
+                          <div>• <strong>À Vista (Pix):</strong> aplicado no preço principal e checkout Pix.</div>
+                          <div>• <strong>A Prazo (Cartão/Carnê):</strong> aplicado na simulação de parcelas e checkout a prazo.</div>
+                          <div>• <strong>Cores & Selo:</strong> o selo no canto e o badge de preço refletem a paleta escolhida.</div>
                         </div>
                       </div>
                     );
-                  })}
+                  })()}
                 </div>
               </div>
+
+              {/* SELEÇÃO DE PRODUTOS PARTICIPANTES COM CATEGORIAS E SUBCATEGORIAS DINÂMICAS */}
+              {(() => {
+                // Monta categorias e subcategorias dinâmicas baseadas na árvore real e nos produtos visíveis
+                const visibleProducts = products.filter(p => p.visible);
+
+                // Mapeamento de categorias reais com produtos existentes
+                const categoryList = (categories && categories.length > 0)
+                  ? categories.map(cat => ({
+                      id: cat.id,
+                      name: cat.name,
+                      count: visibleProducts.filter(p => isProductInCategory(p, cat.name)).length
+                    })).filter(c => c.count > 0)
+                  : Array.from(new Set(visibleProducts.map(p => p.category || p.nome_grupo || 'Diversos')))
+                      .map(name => ({
+                        id: name,
+                        name,
+                        count: visibleProducts.filter(p => isProductInCategory(p, name)).length
+                      })).filter(c => c.count > 0);
+
+                // Subcategorias disponíveis para a categoria atualmente selecionada (apenas as que têm produtos!)
+                let availableSubcategories: { name: string; count: number }[] = [];
+                if (promoCategoryFilter !== 'TODAS') {
+                  const prodsInCat = visibleProducts.filter(p => isProductInCategory(p, promoCategoryFilter));
+                  const selectedCategoryObj = categories?.find(c => 
+                    c.name.toUpperCase().trim() === promoCategoryFilter.toUpperCase().trim()
+                  );
+
+                  if (selectedCategoryObj?.subcategories && selectedCategoryObj.subcategories.length > 0) {
+                    availableSubcategories = selectedCategoryObj.subcategories
+                      .map(sub => ({
+                        name: sub.name,
+                        count: prodsInCat.filter(p => isSubcategoryMatch(p, sub.name)).length
+                      }))
+                      .filter(s => s.count > 0); // Oculta as que não tiverem produtos
+                  } else {
+                    const subNames = Array.from(new Set(prodsInCat.map(p => resolveProductSubcategoryName(p)).filter(Boolean)));
+                    availableSubcategories = subNames
+                      .map(name => ({
+                        name,
+                        count: prodsInCat.filter(p => isSubcategoryMatch(p, name)).length
+                      }))
+                      .filter(s => s.count > 0);
+                  }
+                }
+
+                // Produtos filtrados de acordo com os critérios: Busca, Categoria, Subcategoria e Saldo (se ativo)
+                const hasMaxStockFilter = promoMaxStock !== '' && Number(promoMaxStock) > 0;
+                const filteredProducts = visibleProducts.filter(prod => {
+                  if (promoCategoryFilter !== 'TODAS') {
+                    if (!isProductInCategory(prod, promoCategoryFilter)) return false;
+                  }
+                  if (promoSubcategoryFilter !== 'TODAS') {
+                    if (!isSubcategoryMatch(prod, promoSubcategoryFilter)) return false;
+                  }
+                  if (promoOnlySaldoFilter && hasMaxStockFilter) {
+                    const stock = getProductTotalStock(prod);
+                    if (stock <= 0 || stock > Number(promoMaxStock)) return false;
+                  }
+                  if (promoProductSearch) {
+                    const q = promoProductSearch.toLowerCase().trim();
+                    const matchName = (prod.name || '').toLowerCase().includes(q);
+                    const matchCode = String(prod.id).includes(q) || (prod.sku && prod.sku.toLowerCase().includes(q));
+                    const matchBrand = (prod.brand || '').toLowerCase().includes(q);
+                    if (!matchName && !matchCode && !matchBrand) return false;
+                  }
+                  return true;
+                });
+
+                const filteredIds = filteredProducts.map(p => String(p.id));
+                const allFilteredSelected = filteredIds.length > 0 && filteredIds.every(id => promoProductIds.includes(id));
+
+                // Produtos filtrados que atendem ao critério de saldo
+                const filteredWithSaldo = hasMaxStockFilter
+                  ? filteredProducts.filter(p => {
+                      const stock = getProductTotalStock(p);
+                      return stock > 0 && stock <= Number(promoMaxStock);
+                    })
+                  : [];
+                const filteredSaldoIds = filteredWithSaldo.map(p => String(p.id));
+                const allFilteredSaldoSelected = filteredSaldoIds.length > 0 && filteredSaldoIds.every(id => promoProductIds.includes(id));
+
+                return (
+                  <div className="space-y-3 pt-2">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div>
+                        <label className="block text-xs font-black text-amber-400 uppercase tracking-wider">
+                          Produtos Participantes ({promoProductIds.length} selecionados)
+                        </label>
+                        <p className="text-[11px] text-slate-400">
+                          Exibindo {filteredProducts.length} de {visibleProducts.length} produtos disponíveis.
+                        </p>
+                      </div>
+
+                      <div className="flex items-center space-x-2 flex-wrap gap-y-1.5">
+                        {hasMaxStockFilter && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (allFilteredSaldoSelected) {
+                                setPromoProductIds(prev => prev.filter(id => !filteredSaldoIds.includes(id)));
+                              } else {
+                                setPromoProductIds(prev => Array.from(new Set([...prev, ...filteredSaldoIds])));
+                              }
+                            }}
+                            className={`px-3 py-1.5 rounded-lg font-bold text-[10px] uppercase border cursor-pointer transition-all ${
+                              allFilteredSaldoSelected
+                                ? 'bg-rose-500/20 text-rose-300 border-rose-500/30 hover:bg-rose-500/30'
+                                : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/30'
+                            }`}
+                          >
+                            {allFilteredSaldoSelected ? `Desmarcar Saldo ≤ ${promoMaxStock}` : `Selecionar Saldo ≤ ${promoMaxStock} (${filteredWithSaldo.length})`}
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (allFilteredSelected) {
+                              // Desmarca apenas os produtos filtrados
+                              setPromoProductIds(prev => prev.filter(id => !filteredIds.includes(id)));
+                            } else {
+                              // Marca todos os produtos que estão no filtro atual
+                              setPromoProductIds(prev => Array.from(new Set([...prev, ...filteredIds])));
+                            }
+                          }}
+                          className={`px-3 py-1.5 rounded-lg font-bold text-[10px] uppercase border cursor-pointer transition-all ${
+                            allFilteredSelected
+                              ? 'bg-rose-500/20 text-rose-300 border-rose-500/30 hover:bg-rose-500/30'
+                              : 'bg-amber-500/20 text-amber-400 border-amber-500/30 hover:bg-amber-500/30'
+                          }`}
+                        >
+                          {allFilteredSelected ? 'Desmarcar Filtrados' : `Selecionar Filtrados (${filteredProducts.length})`}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPromoProductIds([])}
+                          className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-400 font-bold text-[10px] uppercase border border-slate-700 cursor-pointer hover:bg-slate-700"
+                        >
+                          Limpar Todos
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Filtros: Busca por texto + Categoria dinâmica + Subcategoria dinâmica */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={promoProductSearch}
+                          onChange={(e) => setPromoProductSearch(e.target.value)}
+                          placeholder="Buscar produto por nome, código ou SKU..."
+                          className={`w-full pl-9 pr-3 py-2 text-xs border rounded-xl focus:outline-none ${
+                            isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-100 border-slate-300'
+                          }`}
+                        />
+                        <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-500" />
+                      </div>
+
+                      {/* Seletor Dinâmico de Categoria */}
+                      <div>
+                        <select
+                          value={promoCategoryFilter}
+                          onChange={(e) => {
+                            setPromoCategoryFilter(e.target.value);
+                            setPromoSubcategoryFilter('TODAS'); // Reseta a subcategoria ao trocar de categoria
+                          }}
+                          className={`w-full p-2 text-xs border rounded-xl focus:outline-none ${
+                            isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-100 border-slate-300'
+                          }`}
+                        >
+                          <option value="TODAS">Todas as Categorias ({visibleProducts.length})</option>
+                          {categoryList.map(cat => (
+                            <option key={cat.id} value={cat.name}>
+                              {cat.name} ({cat.count})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Seletor Dinâmico de Subcategoria */}
+                      <div>
+                        <select
+                          disabled={promoCategoryFilter === 'TODAS' || availableSubcategories.length === 0}
+                          value={promoSubcategoryFilter}
+                          onChange={(e) => setPromoSubcategoryFilter(e.target.value)}
+                          className={`w-full p-2 text-xs border rounded-xl focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed ${
+                            isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-100 border-slate-300'
+                          }`}
+                        >
+                          <option value="TODAS">
+                            {promoCategoryFilter === 'TODAS' 
+                              ? 'Selecione uma Categoria primeiro' 
+                              : availableSubcategories.length === 0 
+                                ? 'Sem subcategorias com produtos' 
+                                : `Todas as Subcategorias`}
+                          </option>
+                          {availableSubcategories.map(sub => (
+                            <option key={sub.name} value={sub.name}>
+                              {sub.name} ({sub.count})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Filtro extra de Saldo (se Estoque Máximo estiver configurado) */}
+                    {hasMaxStockFilter && (
+                      <div className="flex items-center justify-between text-xs px-1">
+                        <label className="flex items-center space-x-2 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={promoOnlySaldoFilter}
+                            onChange={(e) => setPromoOnlySaldoFilter(e.target.checked)}
+                            className="h-3.5 w-3.5 text-amber-500 rounded border-slate-700 focus:ring-amber-400"
+                          />
+                          <span className="text-[11px] font-bold text-amber-400">
+                            Apenas produtos com Saldo ≤ {promoMaxStock} {Number(promoMaxStock) === 1 ? 'unidade' : 'unidades'}
+                          </span>
+                        </label>
+                        <span className="text-[10px] text-slate-400">
+                          {filteredWithSaldo.length} de {filteredProducts.length} produtos filtrados têm saldo ≤ {promoMaxStock}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Grid de Seleção de Produtos Filtrados */}
+                    <div className="max-h-60 overflow-y-auto border border-slate-800 rounded-2xl p-3 space-y-2 bg-slate-900/40">
+                      {filteredProducts.length === 0 ? (
+                        <div className="text-center py-6 text-xs text-slate-500">
+                          Nenhum produto encontrado com os filtros selecionados.
+                        </div>
+                      ) : (
+                        filteredProducts.map(prod => {
+                          const isSelected = promoProductIds.includes(String(prod.id)) || (prod.moblinkId && promoProductIds.includes(String(prod.moblinkId)));
+                          const isPct = promoDiscountType === 'percentage';
+                          const calcVista = isPct 
+                            ? Math.round(prod.price * (1 - (Number(promoDiscountValueVista) || 0) / 100) * 100) / 100
+                            : Math.max(0, prod.price - (Number(promoDiscountValueVista) || 0));
+                          const calcPrazo = isPct 
+                            ? Math.round(prod.price * (1 - (Number(promoDiscountValuePrazo) || 0) / 100) * 100) / 100
+                            : Math.max(0, prod.price - (Number(promoDiscountValuePrazo) || 0));
+
+                          const prodStock = getProductTotalStock(prod);
+                          const isStockEligible = hasMaxStockFilter ? (prodStock > 0 && prodStock <= Number(promoMaxStock)) : true;
+
+                          return (
+                            <div
+                              key={prod.id}
+                              onClick={() => handleToggleProductInPromo(String(prod.id))}
+                              className={`p-2.5 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
+                                isSelected
+                                  ? 'bg-amber-500/10 border-amber-500/40 text-white'
+                                  : 'bg-slate-900/60 border-slate-800 hover:border-slate-700 text-slate-300'
+                              }`}
+                            >
+                              <div className="flex items-center space-x-3 min-w-0">
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={() => {}}
+                                  className="h-4 w-4 text-amber-500 rounded border-slate-700 focus:ring-amber-400 shrink-0"
+                                />
+                                <div className="w-8 h-8 rounded-lg bg-white p-0.5 overflow-hidden shrink-0 border border-slate-800">
+                                  <img src={prod.images?.[0] || prod.imageUrl || prod.foto_uri} alt={prod.name} className="w-full h-full object-contain" />
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="text-xs font-bold line-clamp-1">{prod.name}</div>
+                                  <div className="flex items-center gap-1.5 flex-wrap text-[10px] text-slate-500 truncate mt-0.5">
+                                    <span>
+                                      {prod.category || 'Geral'}{resolveProductSubcategoryName(prod) ? ` • ${resolveProductSubcategoryName(prod)}` : ''} • SKU: {prod.sku || prod.id}
+                                    </span>
+                                    <span className={`px-1.5 py-0.2 rounded font-black text-[9px] ${
+                                      prodStock === 0
+                                        ? 'bg-rose-500/20 text-rose-400'
+                                        : hasMaxStockFilter && isStockEligible
+                                          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                          : hasMaxStockFilter
+                                            ? 'bg-slate-800 text-slate-400'
+                                            : 'bg-slate-800 text-slate-300'
+                                    }`}>
+                                      Saldo: {prodStock} un {hasMaxStockFilter && isStockEligible ? '✓' : ''}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="text-right shrink-0 pl-2">
+                                <div className="text-xs font-black text-emerald-400">
+                                  Pix: R$ {(calcVista || 0).toFixed(2).replace('.', ',')}
+                                </div>
+                                <div className="text-[10px] text-blue-400">
+                                  Prazo: R$ {(calcPrazo || 0).toFixed(2).replace('.', ',')}
+                                </div>
+                                <div className="text-[9px] text-slate-500 line-through">
+                                  De: R$ {(prod.price || 0).toFixed(2).replace('.', ',')}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Botões de Ação */}
               <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-800">

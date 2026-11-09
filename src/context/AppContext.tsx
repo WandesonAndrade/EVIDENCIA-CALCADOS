@@ -1829,23 +1829,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (saldaoCalc.isSaldao) {
       targetProduct = {
         ...product,
-        price: saldaoCalc.price,
+        price: saldaoCalc.pricePrazo,
         originalPrice: saldaoCalc.originalPrice,
-        precoVista: saldaoCalc.price,
-        preco_vista: saldaoCalc.price,
-        precoCartao: saldaoCalc.price,
-        preco_cartao: saldaoCalc.price,
+        precoVista: saldaoCalc.priceVista,
+        preco_vista: saldaoCalc.priceVista,
+        precoCartao: saldaoCalc.pricePrazo,
+        preco_cartao: saldaoCalc.pricePrazo,
+        precoCrediario: saldaoCalc.pricePrazo,
+        preco_crediario: saldaoCalc.pricePrazo,
       };
     } else if (applicablePromo) {
       const promoPrice = applicablePromo.promoPrice;
+      const priceVista = applicablePromo.priceVista ?? promoPrice;
+      const pricePrazo = applicablePromo.pricePrazo ?? promoPrice;
       targetProduct = {
         ...product,
-        price: promoPrice,
+        price: pricePrazo,
         originalPrice: applicablePromo.originalPrice,
-        precoVista: promoPrice,
-        preco_vista: promoPrice,
-        precoCartao: promoPrice,
-        preco_cartao: promoPrice,
+        precoVista: priceVista,
+        preco_vista: priceVista,
+        precoCartao: pricePrazo,
+        preco_cartao: pricePrazo,
+        precoCrediario: pricePrazo,
+        preco_crediario: pricePrazo,
       };
     }
 
