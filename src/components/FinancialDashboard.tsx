@@ -45,6 +45,9 @@ export interface OverdueInstallment {
   displayAmount: number;
   daysOverdue: number;
   hasInterest: boolean;
+  hasPenalty?: boolean;
+  penaltyAmount?: number;
+  penaltyPercentage?: number;
 }
 
 export interface OverdueClientGroup {
@@ -288,6 +291,9 @@ export const FinancialDashboard: React.FC = () => {
                   displayAmount: amountInfo.displayAmount,
                   daysOverdue: Math.max(daysOverdue, 1),
                   hasInterest: amountInfo.hasInterest,
+                  hasPenalty: amountInfo.hasPenalty,
+                  penaltyAmount: amountInfo.penaltyAmount,
+                  penaltyPercentage: amountInfo.penaltyPercentage,
                 });
               }
             }
@@ -1046,6 +1052,11 @@ export const FinancialDashboard: React.FC = () => {
                                           <p className={`text-xs font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>
                                             {inst.description}
                                           </p>
+                                          {inst.hasPenalty && (
+                                            <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-400 border border-rose-500/30" title={`Multa de ${inst.penaltyPercentage || 3}%: ${formatCurrency(inst.penaltyAmount || 0)}`}>
+                                              +{inst.penaltyPercentage || 3}% Multa
+                                            </span>
+                                          )}
                                           {inst.hasInterest && (
                                             <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30">
                                               + Juros ERP

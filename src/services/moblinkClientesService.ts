@@ -379,6 +379,9 @@ export interface InstallmentAmountResult {
   originalAmount: number;
   hasInterest: boolean;
   interestAmount: number;
+  hasPenalty: boolean;
+  penaltyAmount: number;
+  penaltyPercentage: number;
   isPaid: boolean;
   isOverdue: boolean;
   discountApplied: boolean;
@@ -390,7 +393,8 @@ export interface InstallmentAmountResult {
 }
 
 /**
- * Calcula o valor atualizado da parcela priorizando o campo `saldo_devedor` (com juros/encargos do ERP)
+ * Calcula o valor atualizado da parcela priorizando o campo `saldo_devedor` (com juros/encargos do ERP),
+ * somando 3% de multa por atraso quando vencida,
  * e aplicando desconto de pontualidade se elegível (até as 22h do dia do vencimento).
  */
 export function getInstallmentAmount(
@@ -428,6 +432,9 @@ export function getInstallmentAmount(
       originalAmount,
       hasInterest: false,
       interestAmount: 0,
+      hasPenalty: false,
+      penaltyAmount: 0,
+      penaltyPercentage: 0,
       isPaid,
       isOverdue: false,
       discountApplied: false,
@@ -444,7 +451,7 @@ export function getInstallmentAmount(
   const parsedSaldo = parseValor(inv.saldo);
   const saldoDevedor = parsedSaldoDevedor > 0 ? parsedSaldoDevedor : (parsedSaldo > 0 ? parsedSaldo : originalAmount);
 
-  // Cálculo de juros/encargos extras
+  // Cálculo de juros/encargos extras do ERP
   const explicitJuros = parseValor(inv.juros ?? inv.valor_juros);
   const computedInterest =
     saldoDevedor > originalAmount
@@ -466,6 +473,9 @@ export function getInstallmentAmount(
       originalAmount: baseValue,
       hasInterest: false,
       interestAmount: 0,
+      hasPenalty: false,
+      penaltyAmount: 0,
+      penaltyPercentage: 0,
       isPaid,
       isOverdue: false,
       discountApplied: true,
@@ -477,11 +487,31 @@ export function getInstallmentAmount(
     };
   }
 
+  // Parcela vencida: calcular multa por atraso (3% padrão ou valor configurado)
+  const penaltyPct = discountConfig?.latePenaltyPercentage !== undefined
+    ? Number(discountConfig.latePenaltyPercentage)
+    : 3; // 3% padrão
+  
+  let penaltyAmount = 0;
+  let finalOverdueAmount = saldoDevedor;
+  const hasPenalty = isOverdue && penaltyPct > 0;
+
+  if (hasPenalty) {
+    // Multa de 3% sobre o valor base/original da parcela
+    const baseForPenalty = originalAmount > 0 ? originalAmount : saldoDevedor;
+    penaltyAmount = Math.round((baseForPenalty * (penaltyPct / 100)) * 100) / 100;
+    // Soma multa + saldo devedor do ERP (com juros diários do ERP)
+    finalOverdueAmount = Math.round((saldoDevedor + penaltyAmount) * 100) / 100;
+  }
+
   return {
-    displayAmount: saldoDevedor,
+    displayAmount: finalOverdueAmount,
     originalAmount,
     hasInterest,
     interestAmount: computedInterest,
+    hasPenalty,
+    penaltyAmount,
+    penaltyPercentage: penaltyPct,
     isPaid,
     isOverdue,
     discountApplied: false,

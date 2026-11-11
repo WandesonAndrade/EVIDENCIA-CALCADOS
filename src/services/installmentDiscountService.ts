@@ -6,6 +6,7 @@ export const DEFAULT_INSTALLMENT_DISCOUNT_CONFIG: InstallmentDiscountConfig = {
   active: true,
   percentage: 10,
   cutoffHour: '22:00',
+  latePenaltyPercentage: 3,
   bannerTitle: 'Desconto de Pontualidade Evidência',
   bannerSubtitle: 'Pague até a data do vencimento e economize na sua parcela!',
   financeWhatsApp: '5599984125572',
@@ -54,6 +55,7 @@ export async function saveInstallmentDiscountConfig(
   const updated: InstallmentDiscountConfig = {
     ...newConfig,
     percentage: Math.max(0, Math.min(100, Number(newConfig.percentage) || 0)),
+    latePenaltyPercentage: Math.max(0, Math.min(100, Number(newConfig.latePenaltyPercentage ?? 3))),
     cutoffHour: newConfig.cutoffHour || '22:00',
     financeWhatsApp: (newConfig.financeWhatsApp || '5599984125572').replace(/\D/g, ''),
     updatedAt: new Date().toISOString(),

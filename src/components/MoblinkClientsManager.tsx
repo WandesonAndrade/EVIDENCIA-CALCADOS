@@ -1444,6 +1444,11 @@ export const MoblinkClientsManager: React.FC<MoblinkClientsManagerProps> = ({ is
                                                   A Vencer
                                                 </span>
                                               )}
+                                              {amountInfo.hasPenalty && (
+                                                <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-rose-500/25 text-rose-300 border border-rose-500/50" title={`Multa de ${amountInfo.penaltyPercentage}%: ${formatCurrency(amountInfo.penaltyAmount)}`}>
+                                                  +{amountInfo.penaltyPercentage}% Multa
+                                                </span>
+                                              )}
                                               {amountInfo.hasInterest && (
                                                 <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-amber-500/25 text-amber-300 border border-amber-500/50" title={`Inclui ${formatCurrency(amountInfo.interestAmount)} de juros/encargos do ERP`}>
                                                   + Juros ERP
@@ -1465,7 +1470,7 @@ export const MoblinkClientsManager: React.FC<MoblinkClientsManagerProps> = ({ is
                                             <span className={`text-[10px] font-black uppercase tracking-wider block ${
                                               isDark ? 'text-slate-400' : 'text-slate-600'
                                             }`}>
-                                              {isPaid ? 'Valor Pago' : (amountInfo.hasInterest ? 'Saldo a Pagar (c/ Juros)' : 'Saldo Devedor')}
+                                              {isPaid ? 'Valor Pago' : (amountInfo.hasPenalty || amountInfo.hasInterest ? 'Saldo a Pagar (c/ Encargos)' : 'Saldo Devedor')}
                                             </span>
                                             <span className={`font-black text-sm leading-tight block ${
                                               isPaid 
@@ -1476,7 +1481,7 @@ export const MoblinkClientsManager: React.FC<MoblinkClientsManagerProps> = ({ is
                                             }`}>
                                               {formatCurrency(amountInfo.displayAmount)}
                                             </span>
-                                            {amountInfo.hasInterest && (
+                                            {(amountInfo.hasPenalty || amountInfo.hasInterest) && (
                                               <span className={`text-[9px] font-bold block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                                                 Orig.: {formatCurrency(amountInfo.originalAmount)}
                                               </span>

@@ -461,13 +461,15 @@ export const MeuCrediario: React.FC = () => {
               <p className={`text-xs max-w-sm mx-auto ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                 Não encontramos contas em aberto para o CPF informado no ERP. Se você acabou de abrir o crediário na loja, aguarde o faturamento da compra.
               </p>
-              <button
-                type="button"
-                onClick={() => setViewState('cpf-form')}
-                className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-900 dark:bg-white text-white dark:text-slate-900 cursor-pointer"
-              >
-                Tentar outro CPF
-              </button>
+              {!activeUser?.cpf && (
+                <button
+                  type="button"
+                  onClick={() => setViewState('cpf-form')}
+                  className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-900 dark:bg-white text-white dark:text-slate-900 cursor-pointer"
+                >
+                  Tentar outro CPF
+                </button>
+              )}
             </div>
           )}
 
@@ -498,14 +500,6 @@ export const MeuCrediario: React.FC = () => {
                       {formatCurrency(totalPendingAll)}
                     </strong>
                   </div>
-
-                  <button
-                    type="button"
-                    onClick={() => setViewState('cpf-form')}
-                    className="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-600 transition-colors cursor-pointer"
-                  >
-                    Trocar CPF
-                  </button>
                 </div>
               </div>
 
@@ -652,9 +646,21 @@ export const MeuCrediario: React.FC = () => {
                                         Pago
                                       </span>
                                     ) : isOverdue ? (
-                                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/15 text-rose-500">
-                                        Vencida
-                                      </span>
+                                      <>
+                                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/15 text-rose-500">
+                                          Vencida
+                                        </span>
+                                        {amountInfo.hasPenalty && (
+                                          <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-500/20 text-rose-400 border border-rose-500/30" title={`Multa de ${amountInfo.penaltyPercentage}%: ${formatCurrency(amountInfo.penaltyAmount)}`}>
+                                            +{amountInfo.penaltyPercentage}% Multa ({formatCurrency(amountInfo.penaltyAmount)})
+                                          </span>
+                                        )}
+                                        {amountInfo.hasInterest && (
+                                          <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/30" title={`Juros diários ERP: ${formatCurrency(amountInfo.interestAmount)}`}>
+                                            + Juros ERP
+                                          </span>
+                                        )}
+                                      </>
                                     ) : amountInfo.discountApplied ? (
                                       <>
                                         <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black text-white flex items-center gap-1 shadow-2xs ${
@@ -677,6 +683,14 @@ export const MeuCrediario: React.FC = () => {
                                     <span className={isOverdue ? 'text-rose-500 font-semibold' : 'text-slate-400'}>
                                       Vencimento: <strong>{formatDate(dueDate)}</strong>
                                     </span>
+                                    {isOverdue && (amountInfo.hasPenalty || amountInfo.hasInterest) && (
+                                      <>
+                                        <span className="text-slate-300 dark:text-slate-700">•</span>
+                                        <span className="text-slate-400">
+                                          Valor original: {formatCurrency(amountInfo.originalAmount)}
+                                        </span>
+                                      </>
+                                    )}
                                     {amountInfo.discountApplied && (
                                       <>
                                         <span className="text-slate-300 dark:text-slate-700">•</span>
@@ -731,7 +745,9 @@ export const MeuCrediario: React.FC = () => {
                                           value: amountInfo.displayAmount,
                                           description: amountInfo.discountApplied
                                             ? `Parcela ${parcNum} - Carnê #${group.saleKey} (${amountInfo.discountPercentage}% desconto pontualidade)`
-                                            : `Parcela ${parcNum} - Carnê #${group.saleKey}`,
+                                            : isOverdue && amountInfo.hasPenalty
+                                              ? `Parcela ${parcNum} - Carnê #${group.saleKey} (c/ ${amountInfo.penaltyPercentage}% multa e encargos)`
+                                              : `Parcela ${parcNum} - Carnê #${group.saleKey}`,
                                         });
                                         setPixModalOpen(true);
                                       }}

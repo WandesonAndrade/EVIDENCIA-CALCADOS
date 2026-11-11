@@ -227,11 +227,12 @@ export interface ApplicablePromotionResult {
  */
 export const getProductTotalStock = (product: Product): number => {
   if (!product) return 0;
-  if (product.tamanhos_estoque && typeof product.tamanhos_estoque === 'object') {
-    const sum = Object.values(product.tamanhos_estoque).reduce(
+  const anyP = product as any;
+  if (anyP.tamanhos_estoque && typeof anyP.tamanhos_estoque === 'object') {
+    const sum: number = Object.values(anyP.tamanhos_estoque).reduce(
       (acc: number, val: any) => acc + (Number(val) || 0),
       0
-    );
+    ) as number;
     if (sum > 0) return sum;
   }
   return Number(
