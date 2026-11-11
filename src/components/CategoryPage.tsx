@@ -333,7 +333,16 @@ export const CategoryPage: React.FC = () => {
           bannerImage: 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?q=80&w=1600&auto=format&fit=crop',
           badgeText: `🏷️ ${specificPromo.discountType === 'percentage' ? `${specificPromo.discountValue}% OFF` : `R$ ${specificPromo.discountValue} OFF`}`,
           isDealsPage: true,
-          filter: (prod: Product) => (specificPromo.productIds || []).includes(prod.id)
+          filter: (prod: Product) => {
+            const prodIdStr = String(prod.id || '').trim();
+            const mobIdStr = prod.moblinkId ? String(prod.moblinkId).trim() : '';
+            const inList = Array.isArray(specificPromo.productIds) && specificPromo.productIds.some(id => {
+              const sId = String(id).trim();
+              return (prodIdStr !== '' && sId === prodIdStr) || (mobIdStr !== '' && sId === mobIdStr);
+            });
+            if (inList) return true;
+            return !!getApplicablePromotion(prod, [specificPromo]);
+          }
         };
       }
     }

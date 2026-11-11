@@ -2,6 +2,12 @@
 
 Este arquivo é a memória persistente do projeto (AG Kit), consolidando decisões de arquitetura, preferências do usuário e histórico de implementação.
 
+8. **Gestão de Ofertas e Campanhas Promocionais (Admin):**
+   - Módulo desacoplado em `src/components/admin/promotions/PromotionsManager.tsx`.
+   - Grid de estatísticas (Total de Campanhas, Em Andamento, Agendadas, Produtos Ofertados) com visual pastel moderno.
+   - Gerenciamento com abas por status (Todas, Em Andamento, Agendadas, Finalizadas) e cards com preview de produtos e toggle rápido de ativação.
+   - Campo explícito para **Subtítulo / Chamada da Promoção na Vitrine** (`description`), permitindo personalizar o texto de chamada ou usar o texto padrão gerado automaticamente (`Aproveite descontos especiais com X% À Vista • Y% A Prazo aplicados diretamente no carrinho.`).
+
 ---
 
 ## Informações Gerais
@@ -10,6 +16,12 @@ Este arquivo é a memória persistente do projeto (AG Kit), consolidando decisõ
 - **Branch Principal de Trabalho:** `dev`
 - **Stack:** React 19 + TypeScript + Vite + Tailwind CSS + Firebase (Firestore/Auth) + Node.js (Proxy `server.ts`)
 - **ERP:** MobLink
+
+8. **Gestão de Ofertas e Campanhas Promocionais (Admin):**
+   - Módulo desacoplado em `src/components/admin/promotions/PromotionsManager.tsx`.
+   - Grid de estatísticas (Total de Campanhas, Em Andamento, Agendadas, Produtos Ofertados) com visual pastel moderno.
+   - Gerenciamento com abas por status (Todas, Em Andamento, Agendadas, Finalizadas) e cards com preview de produtos e toggle rápido de ativação.
+   - Campo explícito para **Subtítulo / Chamada da Promoção na Vitrine** (`description`), permitindo personalizar o texto de chamada ou usar o texto padrão gerado automaticamente (`Aproveite descontos especiais com X% À Vista • Y% A Prazo aplicados diretamente no carrinho.`).
 
 ---
 
@@ -672,3 +684,43 @@ Este arquivo é a memória persistente do projeto (AG Kit), consolidando decisõ
       - Ícones e caixas 3D proporcionais no celular (`w-8.5 h-8.5 min-[390px]:w-9.5 min-[390px]:h-9.5 sm:w-14 sm:h-14`), reduzindo o tamanho sem perder a identidade visual 3D.
       - Padding reduzido no mobile (`p-2.5 min-[390px]:p-3 sm:p-5 lg:p-6`) e tipografia enxuta (`text-[11px]` e `text-[8.5px]`).
       - Altura total no celular reduzida em mais de 70% (de ~340px para apenas ~95px), deixando o catálogo e categorias com visibilidade imediata.
+
+55. **Seção de Promoções & Ofertas na Vitrine (`PromotionsSection.tsx` & `ProductList.tsx`) (Implementado):**
+    - **Objetivo**: Atender à solicitação de exibir uma seção dedicada para promoções e campanhas promocionais diretamente na vitrine principal da loja.
+    - **Arquitetura & Componentização**:
+      - Criado o componente modular `PromotionsSection.tsx` integrado no fluxo de vitrine do `ProductList.tsx` (posicionado logo após o Saldão e antes das Novidades).
+      - **Detecção Dinâmica de Campanhas e Ofertas**:
+        - Consulta campanhas ativas em `promotions` via `isCampaignActive(campaign)` e produtos associados via `getApplicablePromotion(prod, promotions)`.
+        - Identifica também produtos com flag `onSale` ou desconto de preço original (`originalPrice > price`).
+        - Se não houver campanhas cadastradas ainda no Firestore, adota fallback elegante exibindo calçados ativos da loja para que a vitrine nunca fique vazia.
+      - **Grid de Produtos Direta, Suporte Multi-Campanhas & Layout Limpo**:
+        - **Suporte Multi-Campanhas Ativas**: Quando houver múltiplas campanhas ativas em andamento (ex: "BLACK FRIDAY" e "BLACK"), o componente agora itera e renderiza cada campanha ativa como sua própria seção independente na vitrine, com seu próprio título, descrição, botão *"Ver todos de [Campanha] →"* e sua respectiva grade de 5 produtos participantes.
+        - **Filtro Estrito por Campanha**: O link direciona para `CategoryPage.tsx` com `promo:${campaign.id}`, agora suportando matching por `id`, `moblinkId` e `maxStock`.
+        - A pedido do usuário, foram removidos os cards/banners decorativos excedentes (o banner escuro com confiança e o badge flutuante "Ofertas da Semana"), mantendo a seção no padrão limpo e direto da vitrine (igual a "Novidades da Estação" e "Coleção Calçados").
+        - Exibe o cabeçalho com título da campanha/seção, descrição sutil, botão "Ver todos de [Campanha] →" e a grade responsiva de 5 colunas reutilizando `ProductCard`, com badges dinâmicos de promoção e cálculo de parcelamento e Pix.
+      - **Controle CMS**: Respeita a chave `offers` em `homeSections` (`enabled: false` oculta a seção caso o gestor desative no painel).
+      - Totalmente adaptável aos temas ativos (Tema Padrão Azul Evidência, Outubro Rosa e Black Friday).
+
+56. **Redesign da Tela de Gerenciamento de Ofertas e Campanhas Promocionais (`PromotionsManager.tsx` & `AdminPanel.tsx`) (Implementado):**
+    - **Fidelidade Total à Referência Visual de Design**:
+      - **Cabeçalho Principal**: Ícone de presente em degrade laranja vibrante (`Gift`) com divisória vertical sutil, título `Gerenciamento de Ofertas e Campanhas Promocionais`, subtítulo com ícone circular de foco e botão pílula `+ Nova Oferta Promocional` com sombra laranja e cantos `rounded-full`.
+      - **4 Cards de Métricas em Gradientes Pastel Suaves**:
+        1. *Total de Campanhas*: Fundo gradiente azul pastel suave (`#EEF5FF` a `#DCEBFF`), ícone circular azul com megafone (`Megaphone`), contador dinâmico e nota com seta `↗ Ofertas cadastradas no sistema`.
+        2. *Em Andamento*: Fundo gradiente verde mint (`#EAF9F1` a `#D5F5E3`), ícone circular verde com check (`Check`), contador e nota `Vigentes e ativas no site agora`.
+        3. *Agendadas*: Fundo gradiente pêssego/âmbar (`#FFF5EB` a `#FFE8D1`), ícone circular âmbar com relógio (`Clock`), contador e nota `Aguardando início do período`.
+        4. *Produtos Ofertados*: Fundo gradiente lilás/violeta (`#F5EEFB` a `#E9DBF8`), ícone circular violeta com tag (`Tag`), total de produtos distintos participantes e nota com seta `↗ Itens em oferta no catálogo`.
+      - **Container Principal "Campanhas Ativas"**:
+        - Card com cantos suaves `rounded-[32px]`, ícone de tag laranja, cabeçalho e abas segmentadas em pílulas (`Todas`, `Em Andamento`, `Agendadas`, `Finalizadas`) com botão ativo em azul marinho profundo (`#0B2545`).
+      - **Cards de Campanha (Grid de 2 Colunas)**:
+        - Borda superior de acento dinâmico (verde esmeralda para ativa, âmbar para agendada e neutra para finalizada).
+        - Badges superiores em pílula: `● EM ANDAMENTO` (verde) e `-XX% VISTA • -XX% PRAZO` (laranja).
+        - Botões de ação no canto superior direito: botão escuro de edição (`Edit3`) e botão vermelho suave de exclusão (`Trash2`).
+        - Bloco central com Banner Gráfico da campanha (com suporte a imagem personalizada ou banner dark neon com 3D tag) ao lado do título da campanha em negrito e contagem de dias com ícone de calendário.
+        - Faixa escura de metadados (`#0B1528`): 3 colunas com Período de Vigência, Produtos Participantes selecionados e Limite de Saldo de Estoque.
+        - Carrossel de miniaturas com fotos reais dos produtos em cards brancos arredondados e badge `+N outros`.
+        - Barra de rodapé com `Status no E-commerce: Ativa/Pausada` alternável em 1 clique e botão pill branco com borda azul `Ver Detalhes >`.
+    - **Modal Completo de Criação, Edição e Seleção de Produtos**:
+      - Título, vigência, descontos à vista/prazo e saldo máximo.
+      - Seleção de tema gráfico do banner ou URL personalizada.
+      - Filtros de produtos por categoria, subcategoria, saldo e busca, com seleção e desmarcação em lote e prévia de preços promocionais.
+

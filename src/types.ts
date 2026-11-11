@@ -176,6 +176,7 @@ export interface PromoCampaign {
   id: string;
   title: string;
   description?: string;
+  bannerUrl?: string;                // Imagem de capa / banner da campanha (opcional)
   startDate: string; // Formato YYYY-MM-DD ou YYYY-MM-DDTHH:mm
   endDate: string;   // Formato YYYY-MM-DD ou YYYY-MM-DDTHH:mm
   discountType: 'percentage' | 'fixed';

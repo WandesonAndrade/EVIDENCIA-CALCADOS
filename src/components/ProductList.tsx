@@ -17,6 +17,7 @@ import { SubcategoryCarousel } from "./products/storefront/SubcategoryCarousel";
 import { matchProductSearch } from "./products/utils/productFilterUtils";
 import { resolveProductSubcategoryName } from "./products/utils/categoryNavigationUtils";
 import { SaldaoBanner } from "./SaldaoBanner";
+import { PromotionsSection } from "./PromotionsSection";
 
 export { ProductCard, StorefrontProductCard };
 
@@ -675,6 +676,9 @@ export const ProductList: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* 1.8 SEÇÃO PROMOÇÕES (CAMPANHAS PROMOCIONAIS & OFERTAS ESPECIAIS) */}
+      <PromotionsSection onViewDetails={handleVerDetalhes} />
 
       {/* 2. SEÇÃO NOVIDADES */}
       {novidadesProducts.length > 0 && (
