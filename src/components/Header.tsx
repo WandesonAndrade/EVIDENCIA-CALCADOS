@@ -224,11 +224,12 @@ export const Header: React.FC = () => {
 
     const resultNavs: { name: string; key: string; isPromo?: boolean }[] = [];
 
-    resultNavs.push({ name: "Ofertas & Saldão", key: "OFERTAS", isPromo: true });
+    const dealsLabel = saldaoConfig?.enabled ? "Ofertas & Saldão" : "Ofertas & Promoções";
+    resultNavs.push({ name: dealsLabel, key: "OFERTAS", isPromo: true });
     resultNavs.push(...uniqueNavs);
 
     return resultNavs;
-  }, [categories, products]);
+  }, [categories, products, saldaoConfig]);
 
   return (
     <header

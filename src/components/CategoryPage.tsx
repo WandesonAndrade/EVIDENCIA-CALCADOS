@@ -250,6 +250,13 @@ export const CategoryPage: React.FC = () => {
   // ESTADO DA ABA/SEÇÃO NA PÁGINA UNIFICADA DE OFERTAS & SALDÃO ('all' | 'saldao' | 'promotions')
   const [offersSectionTab, setOffersSectionTab] = useState<'all' | 'saldao' | 'promotions'>('all');
 
+  // Se o Saldão estiver desativado e a aba selecionada for 'saldao', redireciona automaticamente para 'all'
+  useEffect(() => {
+    if (!saldaoConfig?.enabled && offersSectionTab === 'saldao') {
+      setOffersSectionTab('all');
+    }
+  }, [saldaoConfig?.enabled, offersSectionTab]);
+
   // ESTADOS DOS FILTROS (MARCA, GRADE/TAMANHO, PREÇO, OFERTAS, ORDENAÇÃO)
   const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
   const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
@@ -384,11 +391,14 @@ export const CategoryPage: React.FC = () => {
     );
 
     if (isSaldaoOrOfertas) {
+      const isSaldaoEnabled = Boolean(saldaoConfig?.enabled);
       return {
-        title: 'OFERTAS & SALDÃO DE CALÇADOS',
-        subtitle: saldaoConfig?.bannerText || 'Confira os calçados em Saldão de estoque baixo e todas as campanhas de ofertas ativas com os melhores descontos do catálogo!',
+        title: isSaldaoEnabled ? 'OFERTAS & SALDÃO DE CALÇADOS' : 'OFERTAS & PROMOÇÕES',
+        subtitle: (isSaldaoEnabled && saldaoConfig?.bannerText)
+          ? saldaoConfig.bannerText
+          : 'Confira todas as campanhas de ofertas ativas com os melhores descontos do catálogo!',
         bannerImage: 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?q=80&w=1600&auto=format&fit=crop',
-        badgeText: 'OFERTAS & SALDÃO',
+        badgeText: isSaldaoEnabled ? 'OFERTAS & SALDÃO' : 'OFERTAS & PROMOÇÕES',
         isDealsPage: true,
         filter: (prod: Product) => {
           const inSaldao = isSaldaoProduct(prod, saldaoConfig);
@@ -1558,16 +1568,19 @@ export const CategoryPage: React.FC = () => {
                       Ver Todas ({filteredItems.length})
                     </button>
 
-                    <button
-                      onClick={() => setOffersSectionTab('saldao')}
-                      className={`px-3.5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
-                        offersSectionTab === 'saldao'
-                          ? 'bg-rose-600 text-white shadow-xs'
-                          : 'bg-white text-[#003B73] border border-blue-900/10 hover:bg-rose-50'
-                      }`}
-                    >
-                      Saldão ({saldaoItems.length})
-                    </button>
+                    {/* SÓ RENDERIZA O BOTÃO DO SALDÃO SE ELE ESTIVER ATIVADO */}
+                    {saldaoConfig?.enabled && (
+                      <button
+                        onClick={() => setOffersSectionTab('saldao')}
+                        className={`px-3.5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                          offersSectionTab === 'saldao'
+                            ? 'bg-rose-600 text-white shadow-xs'
+                            : 'bg-white text-[#003B73] border border-blue-900/10 hover:bg-rose-50'
+                        }`}
+                      >
+                        Saldão ({saldaoItems.length})
+                      </button>
+                    )}
 
                     <button
                       onClick={() => setOffersSectionTab('promotions')}
@@ -1584,8 +1597,8 @@ export const CategoryPage: React.FC = () => {
                   </div>
                 </div>
 
-                {/* BLOCO DO SALDÃO DE CALÇADOS DE ESTOQUE BAIXO */}
-                {(offersSectionTab === 'all' || offersSectionTab === 'saldao') && (
+                {/* BLOCO DO SALDÃO DE CALÇADOS DE ESTOQUE BAIXO (APENAS SE ATIVADO) */}
+                {saldaoConfig?.enabled && (offersSectionTab === 'all' || offersSectionTab === 'saldao') && (
                   <div className="space-y-4">
                     <div className="p-5 rounded-2xl bg-gradient-to-r from-rose-500/10 via-amber-500/10 to-rose-500/10 border border-rose-500/25 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                       <div className="space-y-0.5">
@@ -1632,8 +1645,8 @@ export const CategoryPage: React.FC = () => {
                 )}
 
                 {/* BLOCO DE CAMPANHAS PROMOCIONAIS COM NOME DA OFERTA/CAMPANHA */}
-                {(offersSectionTab === 'all' || offersSectionTab === 'promotions') && (
-                  <div className="space-y-8 pt-6 border-t border-blue-900/10">
+                {(offersSectionTab === 'all' || offersSectionTab === 'promotions' || !saldaoConfig?.enabled) && (
+                  <div className={`space-y-8 ${saldaoConfig?.enabled ? 'pt-6 border-t border-blue-900/10' : ''}`}>
                     {activeCampaignsWithProducts.length > 0 ? (
                       activeCampaignsWithProducts.map(({ campaign, products: campProducts }) => {
                         const isPct = campaign.discountType === 'percentage';
