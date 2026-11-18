@@ -246,9 +246,6 @@ export const Cart: React.FC = () => {
                       <p className={`text-xs font-semibold mt-0.5 ${isDark ? 'text-amber-400' : 'text-slate-900'}`}>
                         Cartão: R$ {(getCartaoPrice(item.product) * item.quantity).toFixed(2).replace('.', ',')}
                       </p>
-                      <p className={`text-[11px] font-medium mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                        Crediário: R$ {(item.product.price * item.quantity).toFixed(2).replace('.', ',')}
-                      </p>
                       {item.product.originalPrice && item.product.originalPrice > getActiveDisplayPrice(item.product) && (
                         <p className="text-[10px] font-bold text-emerald-500 bg-emerald-500/10 px-1.5 py-0.5 rounded uppercase mt-1">
                           -{Math.round(((item.product.originalPrice - getActiveDisplayPrice(item.product)) / item.product.originalPrice) * 100)}% OFF

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useApp, DEFAULT_FEATURED_PROMO_CARDS } from "../context/AppContext";
 import { Product } from "../types";
-import { Eye, Heart, ArrowRight, ArrowUpDown, Truck, CreditCard, RefreshCw, ShoppingBag, Sparkles, ChevronLeft, ChevronRight, Tag, Search, X, Headphones, ShoppingCart, Clock, FileText, QrCode, ShieldCheck, Laptop, Footprints } from "lucide-react";
+import { Eye, Heart, ArrowRight, ArrowUpDown, Truck, CreditCard, RefreshCw, ShoppingBag, Sparkles, ChevronLeft, ChevronRight, Tag, Search, X, ShoppingCart, Clock, FileText, QrCode, ShieldCheck, Laptop, Footprints } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { scrollToSectionWithOffset } from "../lib/scrollUtils";
 import { normalizeCategoryName, normalizeSubcategoryName, isProductInCategory } from "../services/moblinkCategoriesService";
@@ -534,7 +534,7 @@ export const ProductList: React.FC = () => {
                     Entrega Rápida
                   </h4>
                   <p className={`text-[8.5px] min-[390px]:text-[9px] sm:text-[11px] font-medium leading-tight mt-0.5 ${isDark ? 'text-slate-400' : 'text-[#52708F]'}`}>
-                    Para todo o Brasil ou loja.
+                    Para todo o Brasil ou retirada na loja.
                   </p>
                 </div>
                 {/* Linha Divisória Vertical no Desktop */}
@@ -560,7 +560,7 @@ export const ProductList: React.FC = () => {
                       ? isOutubroRosa ? 'text-white group-hover:text-pink-300' : 'text-white'
                       : isOutubroRosa ? 'text-[#003B73] group-hover:text-[#BE185D]' : 'text-[#002B5B]'
                   }`}>
-                    <span>Parcele em até </span>
+                    <span>Parcelamento em até </span>
                     <span className={`text-xs min-[390px]:text-[13px] sm:text-base font-black ${
                       isOutubroRosa ? 'text-[#EC4899]' : 'text-[#006EDB] dark:text-[#38BDF8]'
                     }`}>
@@ -568,14 +568,45 @@ export const ProductList: React.FC = () => {
                     </span>
                   </h4>
                   <p className={`text-[8.5px] min-[390px]:text-[9px] sm:text-[11px] font-medium leading-tight mt-0.5 ${isDark ? 'text-slate-400' : 'text-[#52708F]'}`}>
-                    No cartão ou PIX.
+                    No cartão de crédito.
                   </p>
                 </div>
                 {/* Linha Divisória Vertical no Desktop */}
                 <div className="hidden lg:block absolute right-0 top-1/2 -translate-y-1/2 h-10 w-[1px] bg-slate-200/80 dark:bg-slate-800" />
               </div>
 
-              {/* Vantagem 3: Troca Simplificada */}
+              {/* Vantagem 3: Desconto no PIX */}
+              <div className="relative flex items-center space-x-2 min-[390px]:space-x-2.5 sm:space-x-4 p-0.5 sm:p-2 lg:px-5 lg:py-1 group transition-transform hover:scale-[1.01]">
+                <div className={`w-8.5 h-8.5 min-[390px]:w-9.5 min-[390px]:h-9.5 sm:w-14 sm:h-14 rounded-xl min-[390px]:rounded-2xl sm:rounded-[22px] shrink-0 flex items-center justify-center transition-all group-hover:scale-105 ${
+                  isDark 
+                    ? isOutubroRosa
+                      ? 'bg-gradient-to-b from-[#33081F] to-[#1C0311] border border-pink-500/40 text-pink-400 shadow-[0_4px_12px_rgba(236,72,153,0.2),inset_0_1px_1px_rgba(255,255,255,0.1)]'
+                      : 'bg-gradient-to-b from-[#1E293B] to-[#0F172A] border border-blue-500/30 text-blue-400 shadow-[0_4px_12px_rgba(0,110,219,0.2),inset_0_1px_1px_rgba(255,255,255,0.08)]' 
+                    : isOutubroRosa
+                      ? 'bg-gradient-to-b from-white via-[#FFF0F6] to-[#FCE7F3] border border-pink-200/80 text-[#EC4899] shadow-[0_4px_12px_rgba(236,72,153,0.15),0_1px_3px_rgba(0,0,0,0.03),inset_0_1px_1px_rgba(255,255,255,1)]'
+                      : 'bg-gradient-to-b from-[#FFFFFF] via-[#F0F7FF] to-[#DDEEFF] border border-blue-200/70 text-[#006EDB] shadow-[0_4px_12px_rgba(0,110,219,0.15),0_1px_3px_rgba(0,0,0,0.04),inset_0_1px_1px_rgba(255,255,255,1)]'
+                }`}>
+                  <svg className="h-4 w-4 sm:h-6 sm:w-6 fill-current" viewBox="0 0 24 24">
+                    <path d="M8.683 5.176l1.71 1.71c.57.57 1.493.57 2.063 0l1.71-1.71c.57-.57 1.493-.57 2.063 0l2.595 2.595c.57.57.57 1.493 0 2.063l-1.71 1.71c-.57.57-.57 1.493 0 2.063l1.71 1.71c.57.57.57 1.493 0 2.063l-2.595 2.595c-.57.57-1.493.57-2.063 0l-1.71-1.71c-.57-.57-1.493-.57-2.063 0l-1.71 1.71c-.57.57-1.493.57-2.063 0l-2.595-2.595c-.57-.57-.57-1.493 0-2.063l1.71-1.71c.57-.57.57-1.493 0-2.063l-1.71-1.71c-.57-.57-.57-1.493 0-2.063l2.595-2.595c.57-.57 1.493-.57 2.063 0zm3.313 5.378l-1.446 1.446 1.446 1.446 1.446-1.446-1.446-1.446z" />
+                  </svg>
+                </div>
+                <div className="text-left min-w-0 flex-1">
+                  <h4 className={`text-[11px] min-[390px]:text-xs sm:text-sm font-extrabold tracking-tight transition-colors leading-tight truncate sm:whitespace-normal ${
+                    isDark 
+                      ? isOutubroRosa ? 'text-white group-hover:text-pink-300' : 'text-white'
+                      : isOutubroRosa ? 'text-[#003B73] group-hover:text-[#BE185D]' : 'text-[#002B5B]'
+                  }`}>
+                    Desconto no PIX
+                  </h4>
+                  <p className={`text-[8.5px] min-[390px]:text-[9px] sm:text-[11px] font-medium leading-tight mt-0.5 ${isDark ? 'text-slate-400' : 'text-[#52708F]'}`}>
+                    Pague à vista e economize ainda mais!
+                  </p>
+                </div>
+                {/* Linha Divisória Vertical no Desktop */}
+                <div className="hidden lg:block absolute right-0 top-1/2 -translate-y-1/2 h-10 w-[1px] bg-slate-200/80 dark:bg-slate-800" />
+              </div>
+
+              {/* Vantagem 4: Troca Fácil */}
               <div className="relative flex items-center space-x-2 min-[390px]:space-x-2.5 sm:space-x-4 p-0.5 sm:p-2 lg:px-5 lg:py-1 group transition-transform hover:scale-[1.01]">
                 <div className={`w-8.5 h-8.5 min-[390px]:w-9.5 min-[390px]:h-9.5 sm:w-14 sm:h-14 rounded-xl min-[390px]:rounded-2xl sm:rounded-[22px] shrink-0 flex items-center justify-center transition-all group-hover:scale-105 ${
                   isDark 
@@ -600,42 +631,7 @@ export const ProductList: React.FC = () => {
                     Até 7 dias garantidos.
                   </p>
                 </div>
-                {/* Linha Divisória Vertical no Desktop */}
-                <div className="hidden lg:block absolute right-0 top-1/2 -translate-y-1/2 h-10 w-[1px] bg-slate-200/80 dark:bg-slate-800" />
               </div>
-
-              {/* Vantagem 4: Atendimento Humanizado */}
-              <a
-                href="https://wa.me/5599984684867"
-                target="_blank"
-                rel="noopener noreferrer"
-                title="Falar com Atendente no WhatsApp"
-                className="relative flex items-center space-x-2 min-[390px]:space-x-2.5 sm:space-x-4 p-0.5 sm:p-2 lg:px-5 lg:py-1 group transition-transform hover:scale-[1.01] cursor-pointer"
-              >
-                <div className={`w-8.5 h-8.5 min-[390px]:w-9.5 min-[390px]:h-9.5 sm:w-14 sm:h-14 rounded-xl min-[390px]:rounded-2xl sm:rounded-[22px] shrink-0 flex items-center justify-center transition-all group-hover:scale-105 ${
-                  isDark 
-                    ? isOutubroRosa
-                      ? 'bg-gradient-to-b from-[#33081F] to-[#1C0311] border border-pink-500/40 text-pink-400 shadow-[0_4px_12px_rgba(236,72,153,0.2),inset_0_1px_1px_rgba(255,255,255,0.1)]'
-                      : 'bg-gradient-to-b from-[#1E293B] to-[#0F172A] border border-blue-500/30 text-blue-400 shadow-[0_4px_12px_rgba(0,110,219,0.2),inset_0_1px_1px_rgba(255,255,255,0.08)]' 
-                    : isOutubroRosa
-                      ? 'bg-gradient-to-b from-white via-[#FFF0F6] to-[#FCE7F3] border border-pink-200/80 text-[#EC4899] shadow-[0_4px_12px_rgba(236,72,153,0.15),0_1px_3px_rgba(0,0,0,0.03),inset_0_1px_1px_rgba(255,255,255,1)]'
-                      : 'bg-gradient-to-b from-[#FFFFFF] via-[#F0F7FF] to-[#DDEEFF] border border-blue-200/70 text-[#006EDB] shadow-[0_4px_12px_rgba(0,110,219,0.15),0_1px_3px_rgba(0,0,0,0.04),inset_0_1px_1px_rgba(255,255,255,1)]'
-                }`}>
-                  <Headphones className="h-4 w-4 sm:h-6 sm:w-6 stroke-[2.3]" />
-                </div>
-                <div className="text-left min-w-0 flex-1">
-                  <h4 className={`text-[11px] min-[390px]:text-xs sm:text-sm font-extrabold tracking-tight transition-colors leading-tight truncate sm:whitespace-normal ${
-                    isDark 
-                      ? isOutubroRosa ? 'text-white group-hover:text-pink-300' : 'text-white'
-                      : isOutubroRosa ? 'text-[#003B73] group-hover:text-[#BE185D]' : 'text-[#002B5B]'
-                  }`}>
-                    Suporte Humano
-                  </h4>
-                  <p className={`text-[8.5px] min-[390px]:text-[9px] sm:text-[11px] font-medium leading-tight mt-0.5 ${isDark ? 'text-slate-400' : 'text-[#52708F]'}`}>
-                    Direto no WhatsApp.
-                  </p>
-                </div>
-              </a>
 
             </div>
           </div>

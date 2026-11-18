@@ -529,13 +529,6 @@ export const ProductDetail: React.FC = () => {
         ? Math.round(((p.originalPrice - p.price) / p.originalPrice) * 100)
         : 0);
 
-  // Regras de Preços por Modalidade (Respeita o valor do Saldão ou Oferta se ativo):
-  const precoCrediarioCalculado = saldaoCalc.isSaldao
-    ? saldaoCalc.pricePrazo
-    : applicablePromo
-      ? (applicablePromo.pricePrazo ?? applicablePromo.promoPrice)
-      : ((p as any).precoCrediario || (p as any).preco_crediario || p.price);
-
   const precoVistaVal = (p as any).precoVista ?? (p as any).preco_vista ?? (p as any).precoAvista ?? (p as any).priceCash ?? (p as any).pricePix;
   const precoVistaCalculado = saldaoCalc.isSaldao
     ? saldaoCalc.priceVista
@@ -1099,13 +1092,6 @@ export const ProductDetail: React.FC = () => {
                       ? isDark ? 'text-pink-300' : 'text-[#9D174D]'
                       : isDark ? 'text-slate-200' : 'text-[#003B73]'
                   }`}>R$ {precoCartaoCalculado.toFixed(2).replace('.', ',')}</span> (em até 10x sem juros)
-                </div>
-                <div>
-                  • <strong>Crediário da Loja:</strong> <span className={`font-bold ${
-                    isOutubroRosa
-                      ? isDark ? 'text-pink-300' : 'text-[#9D174D]'
-                      : isDark ? 'text-slate-200' : 'text-[#003B73]'
-                  }`}>R$ {precoCrediarioCalculado.toFixed(2).replace('.', ',')}</span> (em até 6x sem juros no Carnê)
                 </div>
               </div>
             </div>

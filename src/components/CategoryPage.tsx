@@ -147,21 +147,21 @@ const TAB_CONFIGS: Record<string, TabConfig> = {
   },
   'promoções': {
     title: 'Super Campanhas de Ofertas',
-    subtitle: 'Descontos especiais com condições exclusivas no Crediário Próprio Evidência.',
+    subtitle: 'Descontos especiais com parcelamento em até 10x sem juros no cartão ou 10% OFF no Pix.',
     bannerImage: 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?q=80&w=1600&auto=format&fit=crop',
     badgeText: 'CAMPANHA PROMOCIONAL',
     filter: (prod) => !!prod.onSale || (prod.originalPrice && prod.originalPrice > prod.price)
   },
   'promocoes': {
     title: 'Super Campanhas de Ofertas',
-    subtitle: 'Descontos especiais com condições exclusivas no Crediário Próprio Evidência.',
+    subtitle: 'Descontos especiais com parcelamento em até 10x sem juros no cartão ou 10% OFF no Pix.',
     bannerImage: 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?q=80&w=1600&auto=format&fit=crop',
     badgeText: 'CAMPANHA PROMOCIONAL',
     filter: (prod) => !!prod.onSale || (prod.originalPrice && prod.originalPrice > prod.price)
   },
   'ofertas': {
     title: 'Super Campanhas de Ofertas',
-    subtitle: 'Descontos especiais com condições exclusivas no Crediário Próprio Evidência.',
+    subtitle: 'Descontos especiais com parcelamento em até 10x sem juros no cartão ou 10% OFF no Pix.',
     bannerImage: 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?q=80&w=1600&auto=format&fit=crop',
     badgeText: 'CAMPANHA PROMOCIONAL',
     filter: (prod) => !!prod.onSale || (prod.originalPrice && prod.originalPrice > prod.price)
