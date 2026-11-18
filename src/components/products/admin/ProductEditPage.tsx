@@ -56,6 +56,9 @@ import { normalizeCategoryName } from '../../../services/moblinkCategoriesServic
 import { resolveProductBrand, KNOWN_FOOTWEAR_BRANDS } from '../../../utils/brandUtils';
 import { resolveProductGender, GENDER_OPTIONS } from '../../../utils/genderUtils';
 import { ProductAiAssistantModals } from './ai';
+import { KitItemComponent, Product } from '../../../types';
+import { KitComponentsSection } from './KitComponentsSection';
+import { computeKitStock, calculateKitPricing } from '../../../services/kitService';
 
 export interface ProductEditPageProps {
   selectedProduct: MoblinkRawProduct | null;
@@ -101,6 +104,18 @@ export interface ProductEditPageProps {
   handleInsertTemplate: (type: 'couro' | 'medidas' | 'cuidados') => void;
   preserveExistingImages: (existing: string[], newImgs: string[]) => string[];
   syncImageUpdateToFirestore: (newImageList: string[]) => Promise<string[] | void>;
+
+  // Suporte a Kits de Produtos
+  isKit?: boolean;
+  kitItems?: KitItemComponent[];
+  setKitItems?: React.Dispatch<React.SetStateAction<KitItemComponent[]>>;
+  kitPricingMode?: 'sum_with_discount' | 'item_discounts' | 'fixed_price';
+  setKitPricingMode?: (mode: 'sum_with_discount' | 'item_discounts' | 'fixed_price') => void;
+  kitTotalDiscountPercent?: number;
+  setKitTotalDiscountPercent?: (val: number) => void;
+  kitManualPrice?: number;
+  setKitManualPrice?: (val: number) => void;
+  allProductsForKit?: Product[];
 }
 
 export const ProductEditPage: React.FC<ProductEditPageProps> = ({
@@ -146,6 +161,16 @@ export const ProductEditPage: React.FC<ProductEditPageProps> = ({
   handleInsertTemplate,
   preserveExistingImages,
   syncImageUpdateToFirestore,
+  isKit = false,
+  kitItems = [],
+  setKitItems,
+  kitPricingMode = 'sum_with_discount',
+  setKitPricingMode,
+  kitTotalDiscountPercent = 0,
+  setKitTotalDiscountPercent,
+  kitManualPrice = 0,
+  setKitManualPrice,
+  allProductsForKit = [],
 }) => {
   if (!selectedProduct) return null;
 
@@ -279,14 +304,42 @@ export const ProductEditPage: React.FC<ProductEditPageProps> = ({
     return `${day}/${month}/${year} • ${hours}:${mins}`;
   }, []);
 
-  // Dados do ERP
-  const precoTabela = extractPrecoTabelaMoblink(selectedProduct);
-  const precoVista = extractPrecoVistaMoblink(selectedProduct);
-  const precoCartao = extractPrecoCartaoMoblink(selectedProduct);
-  const saldoEstoque = extractSaldoLojaMoblink(selectedProduct);
+  // Mapeamento e cálculo de Kits quando em modo isKit
+  const kitProductsMap = useMemo(() => {
+    const map = new Map<string, Product>();
+    (allProductsForKit || []).forEach((p) => map.set(p.id, p));
+    return map;
+  }, [allProductsForKit]);
+
+  const calculatedKitPricing = useMemo(() => {
+    if (!isKit) return null;
+    return calculateKitPricing(kitItems, kitPricingMode, kitTotalDiscountPercent, kitManualPrice);
+  }, [isKit, kitItems, kitPricingMode, kitTotalDiscountPercent, kitManualPrice]);
+
+  const calculatedKitStock = useMemo(() => {
+    if (!isKit) return null;
+    const dummyKit = {
+      id: String(selectedProduct?.id || 'temp'),
+      name: editName,
+      description: richDescription,
+      images,
+      items: kitItems,
+      pricingMode: kitPricingMode,
+      price: calculatedKitPricing?.finalPrice || 0,
+      visible: editVisible,
+      createdAt: ''
+    };
+    return computeKitStock(dummyKit, kitProductsMap);
+  }, [isKit, selectedProduct, editName, richDescription, images, kitItems, kitPricingMode, calculatedKitPricing, editVisible, kitProductsMap]);
+
+  // Dados do ERP (ou calculados para Kit)
+  const precoTabela = isKit ? (calculatedKitPricing?.originalTotal || 0) : extractPrecoTabelaMoblink(selectedProduct);
+  const precoVista = isKit ? (calculatedKitPricing?.finalPrice || 0) : extractPrecoVistaMoblink(selectedProduct);
+  const precoCartao = isKit ? (calculatedKitPricing?.finalPrice || 0) : extractPrecoCartaoMoblink(selectedProduct);
+  const saldoEstoque = isKit ? (calculatedKitStock?.stock || 0) : extractSaldoLojaMoblink(selectedProduct);
   const catInfo = extractClassificacaoCategoria(selectedProduct);
-  const categoriaNome = normalizeCategoryName(selectedProduct.category || selectedProduct.nome_grupo || selectedProduct.categoria || catInfo.category || 'Calçados');
-  const classificacaoCod = catInfo.classificacao || String(selectedProduct.classificacao || (selectedProduct as any).id_grupo || '').trim() || '002.001';
+  const categoriaNome = isKit ? 'Kits & Combos' : normalizeCategoryName(selectedProduct.category || selectedProduct.nome_grupo || selectedProduct.categoria || catInfo.category || 'Calçados');
+  const classificacaoCod = isKit ? 'KIT.001' : (catInfo.classificacao || String(selectedProduct.classificacao || (selectedProduct as any).id_grupo || '').trim() || '002.001');
 
   // Capa do produto
   const mainCoverImage = images[0] || selectedProduct.foto_uri || (selectedProduct as any).imageUrl || NO_PHOTO_SVG;
@@ -518,9 +571,28 @@ export const ProductEditPage: React.FC<ProductEditPageProps> = ({
         </div>
 
         {/* ========================================================= */}
+        {/* COMPOSIÇÃO DE KITS (QUANDO isKit = true)                   */}
+        {/* ========================================================= */}
+        {isKit && (
+          <KitComponentsSection
+            kitItems={kitItems}
+            setKitItems={setKitItems}
+            kitPricingMode={kitPricingMode}
+            setKitPricingMode={setKitPricingMode}
+            kitTotalDiscountPercent={kitTotalDiscountPercent}
+            setKitTotalDiscountPercent={setKitTotalDiscountPercent}
+            kitManualPrice={kitManualPrice}
+            setKitManualPrice={setKitManualPrice}
+            allProductsForKit={allProductsForKit}
+            currentKitId={selectedProduct ? String(selectedProduct.id) : undefined}
+          />
+        )}
+
+        {/* ========================================================= */}
         {/* PAINEL DE GRADE & VARIAÇÕES DE ESTOQUE (MOBLINK ERP)      */}
         {/* ========================================================= */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800/90 rounded-2xl p-5 sm:p-6 shadow-xs space-y-4">
+        {!isKit && (
+          <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800/90 rounded-2xl p-5 sm:p-6 shadow-xs space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800/80 pb-3">
             <div className="flex items-center gap-2.5">
               <div className="w-6 h-6 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
@@ -686,6 +758,7 @@ export const ProductEditPage: React.FC<ProductEditPageProps> = ({
             </div>
           )}
         </div>
+        )}
 
         {/* ========================================================= */}
         {/* SEÇÃO 1: APRESENTAÇÃO & VISIBILIDADE NA VITRINE           */}

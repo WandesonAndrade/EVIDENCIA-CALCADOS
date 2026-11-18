@@ -155,6 +155,11 @@ export interface Product {
   cor?: string;
   isSaldao?: boolean;
   shippingBoxId?: string;
+  isKit?: boolean;
+  kitItems?: KitItemComponent[];
+  kitPricingMode?: 'sum_with_discount' | 'item_discounts' | 'fixed_price';
+  kitTotalDiscountPercent?: number;
+  kitOriginalTotal?: number;
 }
 
 export interface SaldaoConfig {
@@ -193,6 +198,34 @@ export interface PromoCampaign {
   productIds: string[];
   active: boolean;
   createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface KitItemComponent {
+  productId: string;
+  productName?: string;
+  productImage?: string;
+  quantity: number;
+  selectedSize?: string | number; // Tamanho fixo selecionado pelo admin
+  unitPrice?: number;            // Preço original do produto
+  itemDiscountPercent?: number;  // Desconto individual no item (%)
+  itemPrice?: number;            // Preço final do item após desconto individual
+}
+
+export interface KitProduct {
+  id: string;
+  name: string;
+  description: string;
+  images: string[];
+  items: KitItemComponent[];
+  pricingMode: 'sum_with_discount' | 'item_discounts' | 'fixed_price';
+  totalDiscountPercent?: number;  // Desconto geral sobre a soma (%)
+  originalTotal?: number;         // Soma dos preços normais
+  price: number;                  // Preço final de venda do Kit
+  category?: string;
+  subcategory?: string;
+  visible: boolean;
+  createdAt: string;
   updatedAt?: string;
 }
 
