@@ -156,14 +156,14 @@ export const KitProductPicker: React.FC<KitProductPickerProps> = ({
     const itemPrice = Math.max(0, subtotal - subtotal * (itemDiscountPercent / 100));
 
     const newItem: KitItemComponent = {
-      productId: selectedProduct.id,
-      productName: selectedProduct.name,
-      productImage: selectedProduct.images?.[0] || selectedProduct.imageUrl || '',
+      productId: String(selectedProduct.id),
+      productName: selectedProduct.name || (selectedProduct as any).nome || 'Produto',
+      productImage: selectedProduct.images?.[0] || selectedProduct.imageUrl || (selectedProduct as any).foto_uri || '',
       quantity: Math.max(1, quantity),
-      selectedSize: selectedSize || undefined,
       unitPrice,
       itemDiscountPercent,
-      itemPrice
+      itemPrice,
+      ...(selectedSize ? { selectedSize: String(selectedSize) } : {})
     };
 
     onAddItem(newItem);

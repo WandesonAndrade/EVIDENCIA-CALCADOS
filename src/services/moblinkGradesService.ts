@@ -137,7 +137,10 @@ export const getProdutoGradesFromApi = async (
     variacoes: [],
   };
 
-  if (!productId) return emptyResult;
+  const strId = String(productId || '').trim();
+  if (!strId || strId.toLowerCase().startsWith('kit_') || strId.toLowerCase().startsWith('kit-')) {
+    return emptyResult;
+  }
 
   try {
     // 1. Tenta a rota direta oficial do MobLink ERP com token Bearer

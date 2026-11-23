@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore, doc, getDocFromServer, collection, getDocs, setDoc } from 'firebase/firestore';
+import { initializeFirestore, getFirestore, doc, getDocFromServer, collection, getDocs, setDoc } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { Product } from '../types';
 
@@ -32,9 +32,9 @@ const firebaseConfig = {
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 
-// Initialize Firestore with named database instance from env or default
+// Initialize Firestore with named database instance and ignoreUndefinedProperties
 const firestoreDbId = getEnvVar('VITE_FIRESTORE_DATABASE_ID') || "ai-studio-09694ade-3353-47cf-8db0-531b70401d1b";
-export const db = getFirestore(app, firestoreDbId);
+export const db = initializeFirestore(app, { ignoreUndefinedProperties: true }, firestoreDbId);
 
 // Initialize Storage
 export const storage = getStorage(app);

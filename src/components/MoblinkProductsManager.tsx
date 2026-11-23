@@ -1075,11 +1075,12 @@ export const MoblinkProductsManager: React.FC<MoblinkProductsManagerProps> = ({
 
   useEffect(() => {
     let isMounted = true;
-    if (selectedProduct) {
+    const isKit = isEditingKit || String(selectedProduct?.id || "").toLowerCase().startsWith("kit_");
+    if (selectedProduct && !isKit) {
       const mobId = String(
         selectedProduct.id || (selectedProduct as any).moblinkId || "",
       );
-      if (mobId) {
+      if (mobId && !mobId.toLowerCase().startsWith("kit_")) {
         setIsLoadingProductGrade(true);
         getProdutoGradesFromApi(mobId)
           .then((res) => {
@@ -2328,8 +2329,14 @@ export const MoblinkProductsManager: React.FC<MoblinkProductsManagerProps> = ({
       if (!auth.currentUser) {
         await firebaseAuthService.ensureAdminFirebaseSession();
       }
-      const docRef = doc(db, "products", targetId);
-      await setDoc(docRef, updatedProd, { merge: true });
+      const isKitTarget = isEditingKit || targetId.toLowerCase().startsWith("kit_");
+      if (isKitTarget) {
+        const docRef = doc(db, "kits", targetId);
+        await setDoc(docRef, { images: finalImagesList, updatedAt: new Date().toISOString() }, { merge: true });
+      } else {
+        const docRef = doc(db, "products", targetId);
+        await setDoc(docRef, updatedProd, { merge: true });
+      }
       console.log(
         `[MoblinkProductsManager] Foto salva no Firebase Firestore instantaneamente para produto ${targetId}:`,
         finalImagesList,

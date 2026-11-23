@@ -139,11 +139,21 @@ export function calculateKitPricing(
     const itemPrice = Math.max(0, subtotal - discountAmount);
     discountedTotalFromItems += itemPrice;
 
-    return {
-      ...item,
+    const processed: KitItemComponent = {
+      productId: String(item.productId || ''),
+      productName: item.productName || 'Produto',
+      productImage: item.productImage || '',
+      quantity: qty,
+      unitPrice,
       itemDiscountPercent,
       itemPrice
     };
+
+    if (item.selectedSize !== undefined && item.selectedSize !== null && item.selectedSize !== '') {
+      processed.selectedSize = String(item.selectedSize);
+    }
+
+    return processed;
   });
 
   let finalPrice = 0;
@@ -175,31 +185,83 @@ export function calculateKitPricing(
 }
 
 /**
- * Salva ou atualiza um Kit no Firestore na coleção `kits`
+ * Remove recursivamente todas as propriedades com valor `undefined` de um objeto ou array,
+ * evitando rejeição do Firestore ("Unsupported field value: undefined").
  */
-export async function saveKit(kit: Partial<KitProduct> & { name: string; items: KitItemComponent[] }): Promise<string> {
+export function removeUndefinedDeep<T>(obj: T): T {
+  if (obj === null || obj === undefined) {
+    return obj;
+  }
+  if (Array.isArray(obj)) {
+    return obj.map((item) => removeUndefinedDeep(item)) as unknown as T;
+  }
+  if (typeof obj === 'object') {
+    const cleaned: any = {};
+    for (const [key, value] of Object.entries(obj)) {
+      if (value !== undefined) {
+        cleaned[key] = removeUndefinedDeep(value);
+      }
+    }
+    return cleaned as T;
+  }
+  return obj;
+}
+
+/**
+ * Sanitiza e prepara o payload de um Kit para gravação no Firestore,
+ * garantindo valores padrão, tipos válidos e eliminando qualquer campo undefined.
+ */
+export function prepareKitPayloadForFirestore(
+  kit: Partial<KitProduct> & { name: string; items?: KitItemComponent[] }
+): KitProduct {
   const kitId = kit.id || `kit_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
   const now = new Date().toISOString();
 
-  const payload: KitProduct = {
+  const cleanedItems: KitItemComponent[] = (kit.items || []).map((item) => {
+    const cleanItem: KitItemComponent = {
+      productId: String(item.productId || ''),
+      productName: item.productName || 'Produto',
+      productImage: item.productImage || '',
+      quantity: item.quantity > 0 ? item.quantity : 1,
+      unitPrice: typeof item.unitPrice === 'number' ? item.unitPrice : 0,
+      itemDiscountPercent: typeof item.itemDiscountPercent === 'number' ? item.itemDiscountPercent : 0,
+      itemPrice: typeof item.itemPrice === 'number' ? item.itemPrice : 0
+    };
+
+    if (item.selectedSize !== undefined && item.selectedSize !== null && item.selectedSize !== '') {
+      cleanItem.selectedSize = String(item.selectedSize);
+    }
+
+    return cleanItem;
+  });
+
+  const rawPayload: KitProduct = {
     id: kitId,
-    name: kit.name.trim(),
-    description: kit.description?.trim() || '',
-    images: kit.images || [],
-    items: kit.items,
+    name: (kit.name || '').trim(),
+    description: (kit.description || '').trim(),
+    images: Array.isArray(kit.images) ? kit.images.filter((img) => typeof img === 'string' && img.trim() !== '') : [],
+    items: cleanedItems,
     pricingMode: kit.pricingMode || 'sum_with_discount',
-    totalDiscountPercent: kit.totalDiscountPercent ?? 0,
-    originalTotal: kit.originalTotal ?? 0,
-    price: kit.price ?? 0,
-    category: kit.category || 'Kits',
+    totalDiscountPercent: typeof kit.totalDiscountPercent === 'number' ? kit.totalDiscountPercent : 0,
+    originalTotal: typeof kit.originalTotal === 'number' ? kit.originalTotal : 0,
+    price: typeof kit.price === 'number' ? kit.price : 0,
+    category: kit.category || 'Kits & Combos',
     subcategory: kit.subcategory || '',
-    visible: kit.visible ?? true,
+    visible: kit.visible !== false,
     createdAt: kit.createdAt || now,
     updatedAt: now
   };
 
-  await setDoc(doc(db, KITS_COLLECTION, kitId), payload, { merge: true });
-  return kitId;
+  return removeUndefinedDeep(rawPayload);
+}
+
+/**
+ * Salva ou atualiza um Kit no Firestore na coleção `kits`
+ */
+export async function saveKit(kit: Partial<KitProduct> & { name: string; items: KitItemComponent[] }): Promise<string> {
+  const payload = prepareKitPayloadForFirestore(kit);
+  await setDoc(doc(db, KITS_COLLECTION, payload.id), payload, { merge: true });
+  return payload.id;
 }
 
 /**

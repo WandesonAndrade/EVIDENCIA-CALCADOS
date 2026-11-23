@@ -1,4 +1,4 @@
-import { computeKitStock, calculateKitPricing } from '../src/services/kitService';
+import { computeKitStock, calculateKitPricing, prepareKitPayloadForFirestore, removeUndefinedDeep } from '../src/services/kitService';
 import { KitProduct, Product } from '../src/types';
 
 function assert(condition: boolean, msg: string) {
@@ -129,4 +129,32 @@ const pricingIndividual = calculateKitPricing(itemsPrecoIndividual, 'item_discou
 assert(pricingIndividual.originalTotal === 250, `Total original individual deve ser 250. Obtido: ${pricingIndividual.originalTotal}`);
 assert(pricingIndividual.finalPrice === 215, `Preço final individual (80 + 135) deve ser 215. Obtido: ${pricingIndividual.finalPrice}`);
 
-console.log('\n🎉 Todos os testes de cálculo de estoque e precificação passaram com sucesso!');
+// Teste 6: Sanitização de Payload do Kit - Remoção estrita de campos undefined
+function hasUndefinedDeep(obj: any): boolean {
+  if (obj === undefined) return true;
+  if (obj === null || typeof obj !== 'object') return false;
+  if (Array.isArray(obj)) return obj.some(hasUndefinedDeep);
+  return Object.values(obj).some(hasUndefinedDeep);
+}
+
+const kitComUndefined = {
+  id: 'kit_1795442314660',
+  name: 'Kit Escolar Infantil',
+  description: undefined,
+  items: [
+    {
+      productId: 'prod-1',
+      quantity: 1,
+      selectedSize: undefined, // Simula a seleção sem tamanho fixo
+      productName: undefined
+    }
+  ]
+};
+
+const sanitizedPayload = prepareKitPayloadForFirestore(kitComUndefined as any);
+assert(!hasUndefinedDeep(sanitizedPayload), 'Payload preparado para o Firestore NÃO deve conter campos undefined em nenhum nível');
+assert(sanitizedPayload.id === 'kit_1795442314660', 'ID do kit deve ser preservado');
+assert(sanitizedPayload.items.length === 1, 'Itens do kit devem ser preservados');
+assert(!('selectedSize' in sanitizedPayload.items[0]), 'selectedSize undefined deve ser omitido do objeto do item');
+
+console.log('\n🎉 Todos os testes de cálculo de estoque, precificação e sanitização Firestore passaram com sucesso!');
