@@ -1041,18 +1041,9 @@ export const ProductDetail: React.FC = () => {
                           )}
                         </div>
                         <div className="min-w-0 flex-1">
-                          <h5 className="text-[11px] font-bold text-slate-800 dark:text-slate-200 leading-snug line-clamp-2">
-                            {formattedTitle}
+                          <h5 className="text-xs font-bold text-slate-800 dark:text-slate-200 leading-snug line-clamp-2">
+                            {itemQty > 1 ? `${itemQty}x ` : ''}{formattedTitle}
                           </h5>
-                          <div className="flex items-center gap-2 mt-0.5 text-[10px] text-slate-400">
-                            <span>{itemQty} {itemQty > 1 ? 'unidades' : 'unidade'}</span>
-                            {kitItem.selectedSize ? (
-                              <span>• Tam: {kitItem.selectedSize}</span>
-                            ) : (
-                              <span>• Tamanho único</span>
-                            )}
-                            {refCode && <span>• Ref: {refCode}</span>}
-                          </div>
                         </div>
                       </div>
                     );
