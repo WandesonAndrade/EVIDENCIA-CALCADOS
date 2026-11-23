@@ -443,10 +443,10 @@ export const ProductDetail: React.FC = () => {
         .filter((c) => c.selectedSize)
         .map((c) => `${c.selectedSize}`)
         .join(', ');
-      const variationText = summarySizes ? `Kit (Tam: ${summarySizes})` : 'Kit Completo';
+      const variationText = summarySizes ? `Tam: ${summarySizes}` : 'Tamanho Único';
 
       addToCart(p, variationText, kitChoices);
-      setMessage('Kit adicionado ao carrinho com sucesso!');
+      setMessage('Produto adicionado à sacola com sucesso!');
       setTimeout(() => {
         setMessage('');
         setCurrentView('cart');
@@ -511,7 +511,7 @@ export const ProductDetail: React.FC = () => {
         .filter((c) => c.selectedSize)
         .map((c) => `${c.selectedSize}`)
         .join(', ');
-      variationText = summarySizes ? `Kit (Tam: ${summarySizes})` : 'Kit Completo';
+      variationText = summarySizes ? `Tam: ${summarySizes}` : 'Tamanho Único';
     } else if (hasGrade) {
       const descrLinha = fetchedGrade?.descr_linha || 'Tamanho';
       const descrColuna = fetchedGrade?.descr_coluna || 'Cor';
@@ -979,7 +979,11 @@ export const ProductDetail: React.FC = () => {
               )}
             </div>
             {(() => {
-              const rawDesc = p.description || p.descricao || p.descricao_completa || '';
+              const rawDesc = p.description || p.descricao || p.descricao_completa || (
+                isKit
+                  ? `Kit completo reunindo ${(p.kitItems || []).length} produtos selecionados em um combo exclusivo. Praticidade, qualidade e estilo em uma única compra.`
+                  : ''
+              );
               const hasHtml = /<[a-z][\s\S]*>/i.test(rawDesc);
               if (hasHtml) {
                 return (
@@ -999,6 +1003,67 @@ export const ProductDetail: React.FC = () => {
                 </div>
               );
             })()}
+
+            {/* CONTEÚDO DO KIT & ITENS INCLUSOS (LADO ESQUERDO: ESPECIFICAÇÃO DO PRODUTO ÚNICO) */}
+            {isKit && (p.kitItems || []).length > 0 && (
+              <div className="pt-4 border-t border-slate-200/80 dark:border-slate-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Layers className="w-4 h-4 text-[#0071E3]" />
+                    <h4 className={`text-xs font-black uppercase tracking-wider ${isDark ? 'text-white' : 'text-[#003B73]'}`}>
+                      Conteúdo da Embalagem / Itens Inclusos ({(p.kitItems || []).length} peças)
+                    </h4>
+                  </div>
+                  <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200/60 dark:border-emerald-800/40 px-2 py-0.5 rounded-full flex items-center gap-1">
+                    <Check className="w-2.5 h-2.5 stroke-[3]" /> Combo Completo
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {(p.kitItems || []).map((kitItem, idx) => {
+                    const compProd = products.find(prod => String(prod.id) === String(kitItem.productId) || (prod.moblinkId && String(prod.moblinkId) === String(kitItem.productId)));
+                    const { title: formattedTitle, reference: refCode } = formatKitItemDisplayName(kitItem.productName || compProd?.name);
+                    const itemQty = kitItem.quantity > 0 ? kitItem.quantity : 1;
+                    const itemImage = kitItem.productImage || compProd?.images?.[0] || compProd?.imageUrl || (compProd as any)?.foto_uri;
+
+                    return (
+                      <div
+                        key={`${kitItem.productId}-${idx}`}
+                        className={`p-2.5 rounded-xl border flex items-center gap-2.5 ${
+                          isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-slate-50 border-slate-200/80'
+                        }`}
+                      >
+                        <div className="w-12 h-12 rounded-lg bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 shrink-0 overflow-hidden flex items-center justify-center p-0.5 shadow-2xs">
+                          {itemImage ? (
+                            <img src={itemImage} alt={formattedTitle} className="w-full h-full object-contain" />
+                          ) : (
+                            <span className="text-base">📦</span>
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <h5 className="text-[11px] font-bold text-slate-800 dark:text-slate-200 leading-snug line-clamp-2">
+                            {formattedTitle}
+                          </h5>
+                          <div className="flex items-center gap-2 mt-0.5 text-[10px] text-slate-400">
+                            <span>{itemQty} {itemQty > 1 ? 'unidades' : 'unidade'}</span>
+                            {kitItem.selectedSize ? (
+                              <span>• Tam: {kitItem.selectedSize}</span>
+                            ) : (
+                              <span>• Tamanho único</span>
+                            )}
+                            {refCode && <span>• Ref: {refCode}</span>}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <p className="text-[10px] text-slate-400 font-medium flex items-center gap-1.5 pt-0.5">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  Todos os itens acima acompanham este produto e serão entregues juntos no mesmo pedido.
+                </p>
+              </div>
+            )}
           </div>
         </div>
 
@@ -1221,174 +1286,102 @@ export const ProductDetail: React.FC = () => {
 
             {/* SELETOR DE TAMANHOS / COMPOSIÇÃO DO KIT */}
             {isKit ? (
-              <div className="space-y-3 pt-3 border-t border-blue-900/10 dark:border-slate-800">
-                {/* Cabeçalho Rico */}
-                <div className="flex items-center justify-between pb-1">
-                  <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-lg bg-blue-100 dark:bg-blue-950/80 text-[#0071E3] flex items-center justify-center shrink-0">
-                      <Layers className="w-4 h-4 stroke-[2.5]" />
-                    </div>
-                    <div>
-                      <label className={`text-xs font-black uppercase tracking-wider ${isDark ? 'text-white' : 'text-[#003B73]'}`}>
-                        Composição do Kit ({(p.kitItems || []).length} itens)
-                      </label>
-                      <p className="text-[10px] text-slate-400 font-medium">
-                        Produtos reunidos em um único combo com desconto
-                      </p>
-                    </div>
+              <div className="space-y-2.5 pt-1 border-t border-blue-900/10 dark:border-slate-800">
+                {(p.kitItems || []).some(it => it.allowCustomerSize) ? (
+                  /* Caso haja algum item com escolha de tamanho pelo cliente (ex: calçado) */
+                  <div className="space-y-3">
+                    {(p.kitItems || []).filter(it => it.allowCustomerSize).map((kitItem) => {
+                      const compProd = products.find(prod => String(prod.id) === String(kitItem.productId) || (prod.moblinkId && String(prod.moblinkId) === String(kitItem.productId)));
+                      const availableSizes = compProd?.sizes || (compProd?.stockBySize ? Object.keys(compProd.stockBySize) : []);
+                      const chosenSize = kitSelectedSizes[kitItem.productId] || '';
+                      const { title: formattedTitle } = formatKitItemDisplayName(kitItem.productName || compProd?.name);
+
+                      return (
+                        <div key={kitItem.productId} className="space-y-1.5">
+                          <div className="flex justify-between items-center text-xs">
+                            <label className={`font-extrabold ${isDark ? 'text-white' : 'text-[#003B73]'}`}>
+                              Selecione o Tamanho ({formattedTitle}):
+                            </label>
+                            {chosenSize && (
+                              <span className="text-xs text-emerald-700 dark:text-emerald-400 font-extrabold flex items-center gap-1">
+                                <CheckCircle2 className="h-3.5 w-3.5" /> Tam {chosenSize}
+                              </span>
+                            )}
+                          </div>
+                          {availableSizes.length > 0 ? (
+                            <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
+                              {availableSizes.map((size) => {
+                                const isSelected = chosenSize === String(size);
+                                return (
+                                  <motion.button
+                                    key={String(size)}
+                                    type="button"
+                                    whileHover={{ scale: 1.03 }}
+                                    whileTap={{ scale: 0.97 }}
+                                    onClick={() => {
+                                      setKitSelectedSizes(prev => ({
+                                        ...prev,
+                                        [kitItem.productId]: String(size)
+                                      }));
+                                    }}
+                                    className={`h-10 rounded-xl border text-xs font-black transition-all cursor-pointer flex items-center justify-center ${
+                                      isSelected
+                                        ? 'bg-[#003B73] border-[#003B73] text-white shadow-md'
+                                        : isDark
+                                        ? 'border-slate-800 text-slate-300 bg-slate-950 hover:border-slate-700'
+                                        : 'border-blue-900/15 text-[#003B73] bg-white hover:bg-[#EEF8FF]'
+                                    }`}
+                                  >
+                                    <span>{size}</span>
+                                  </motion.button>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <input
+                              type="text"
+                              placeholder="Digite o tamanho desejado (ex: 36)"
+                              value={chosenSize}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setKitSelectedSizes(prev => ({
+                                  ...prev,
+                                  [kitItem.productId]: val
+                                }));
+                              }}
+                              className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-bold"
+                            />
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
-                  <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/70 border border-emerald-200 dark:border-emerald-800/60 px-2.5 py-1 rounded-full shrink-0 flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                    Combo Completo
-                  </span>
-                </div>
-
-                {/* Lista de Itens do Kit Redesenhada */}
-                <div className="space-y-2.5">
-                  {(p.kitItems || []).map((kitItem, idx) => {
-                    const compProd = products.find(prod => String(prod.id) === String(kitItem.productId) || (prod.moblinkId && String(prod.moblinkId) === String(kitItem.productId)));
-                    const availableSizes = compProd?.sizes || (compProd?.stockBySize ? Object.keys(compProd.stockBySize) : []);
-                    const chosenSize = kitSelectedSizes[kitItem.productId] || '';
-                    const { title: formattedTitle, reference: refCode } = formatKitItemDisplayName(kitItem.productName || compProd?.name);
-                    const itemUnitPrice = kitItem.unitPrice || compProd?.price || (compProd as any)?.preco_vista || 0;
-                    const itemQty = kitItem.quantity > 0 ? kitItem.quantity : 1;
-                    const itemImage = kitItem.productImage || compProd?.images?.[0] || compProd?.imageUrl || (compProd as any)?.foto_uri;
-
-                    return (
-                      <div
-                        key={`${kitItem.productId}-${idx}`}
-                        className={`p-3 rounded-2xl border transition-all duration-200 ${
+                ) : (
+                  /* Caso padrão: Kit de Tamanho Único (ex: mochila + estojo + lancheira) */
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between items-center text-xs">
+                      <label className={`font-extrabold ${isDark ? 'text-white' : 'text-[#003B73]'}`}>
+                        Tamanho / Opção:
+                      </label>
+                      <span className="text-xs text-emerald-700 dark:text-emerald-400 font-extrabold flex items-center gap-1">
+                        <CheckCircle2 className="h-3.5 w-3.5" /> Tamanho Único
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        className={`h-10 px-4 rounded-xl border text-xs font-black flex items-center gap-2 cursor-default ${
                           isDark
-                            ? 'bg-slate-900/70 border-slate-800 hover:border-slate-700'
-                            : 'bg-white border-slate-200/90 shadow-xs hover:border-blue-200 hover:shadow-md'
+                            ? 'bg-slate-800/80 border-slate-700 text-white'
+                            : 'bg-blue-50/80 border-[#0071E3]/30 text-[#003B73]'
                         }`}
                       >
-                        <div className="flex items-start gap-3">
-                          {/* Miniatura com Badge Numérico de Posição */}
-                          <div className="relative w-14 h-14 sm:w-16 sm:h-16 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800 overflow-hidden shrink-0 flex items-center justify-center p-1 shadow-2xs">
-                            {itemImage ? (
-                              <img
-                                src={itemImage}
-                                alt={formattedTitle}
-                                className="w-full h-full object-contain"
-                              />
-                            ) : (
-                              <span className="text-xl">📦</span>
-                            )}
-                            <span className="absolute top-1 left-1 w-4 h-4 rounded-full bg-[#0071E3] text-white text-[9px] font-black flex items-center justify-center shadow-xs">
-                              {idx + 1}
-                            </span>
-                          </div>
-
-                          {/* Informações Ricas do Item */}
-                          <div className="min-w-0 flex-1 space-y-1">
-                            <div className="flex items-start justify-between gap-1.5">
-                              <div>
-                                <h4 className="text-xs font-bold text-slate-800 dark:text-slate-100 leading-snug line-clamp-2">
-                                  {formattedTitle}
-                                </h4>
-                                {refCode && (
-                                  <span className="text-[9px] font-mono text-slate-400 font-bold">
-                                    Ref: {refCode}
-                                  </span>
-                                )}
-                              </div>
-                              <span className="text-[9.5px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200/60 dark:border-emerald-800/40 px-2 py-0.5 rounded-full shrink-0 flex items-center gap-1">
-                                <Check className="w-2.5 h-2.5 stroke-[3]" />
-                                Incluso
-                              </span>
-                            </div>
-
-                            {/* Tags de Quantidade, Preço Avulso e Status do Tamanho */}
-                            <div className="flex items-center gap-2 flex-wrap text-[10.5px] pt-0.5">
-                              {itemQty > 1 ? (
-                                <span className="font-bold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded text-[10px]">
-                                  Qtd: {itemQty} un
-                                </span>
-                              ) : null}
-
-                              {/* Status de Tamanho com Visual Aprimorado */}
-                              {kitItem.allowCustomerSize ? (
-                                <span className={`text-[10px] font-black px-2 py-0.5 rounded-md border ${
-                                  chosenSize
-                                    ? 'bg-blue-50 text-[#0071E3] border-blue-200 dark:bg-blue-950/60 dark:border-blue-800 dark:text-blue-300'
-                                    : 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/60 dark:border-amber-800 dark:text-amber-300 animate-pulse'
-                                }`}>
-                                  {chosenSize ? `✓ Tam: ${chosenSize}` : '⚠️ Escolha o tamanho'}
-                                </span>
-                              ) : kitItem.selectedSize ? (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-bold text-[10px]">
-                                  Tam: {kitItem.selectedSize}
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-medium text-[10px]">
-                                  Tamanho Único
-                                </span>
-                              )}
-
-                              {itemUnitPrice > 0 && (
-                                <span className="text-[10px] text-slate-400">
-                                  Valor avulso: <strong className="font-semibold text-slate-600 dark:text-slate-300">R$ {itemUnitPrice.toFixed(2).replace('.', ',')}</strong>
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Seletor de tamanhos se allowCustomerSize for true */}
-                        {kitItem.allowCustomerSize && (
-                          <div className="mt-2.5 pt-2 border-t border-slate-200/80 dark:border-slate-800">
-                            <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                              Selecione o tamanho para este item:
-                            </span>
-                            {availableSizes.length > 0 ? (
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                {availableSizes.map((size) => {
-                                  const isSelected = chosenSize === String(size);
-                                  return (
-                                    <button
-                                      key={String(size)}
-                                      type="button"
-                                      onClick={() => {
-                                        setKitSelectedSizes(prev => ({
-                                          ...prev,
-                                          [kitItem.productId]: String(size)
-                                        }));
-                                      }}
-                                      className={`px-3 py-1 text-xs font-black rounded-lg border transition-all cursor-pointer ${
-                                        isSelected
-                                          ? 'bg-[#0071E3] text-white border-[#0071E3] shadow-xs'
-                                          : isDark
-                                          ? 'bg-slate-800 text-slate-300 border-slate-700 hover:border-slate-600'
-                                          : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
-                                      }`}
-                                    >
-                                      Tam {size}
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            ) : (
-                              <input
-                                type="text"
-                                placeholder="Digite seu tamanho (ex: 36)"
-                                value={chosenSize}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  setKitSelectedSizes(prev => ({
-                                    ...prev,
-                                    [kitItem.productId]: val
-                                  }));
-                                }}
-                                className="w-full px-2.5 py-1 text-xs rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-bold"
-                              />
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
+                        <span>Tamanho Único</span>
+                        <span className="text-[10px] font-bold text-slate-400">({(p.kitItems || []).length} peças inclusas)</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="space-y-2.5 pt-1 border-t border-blue-900/10 dark:border-slate-800">
