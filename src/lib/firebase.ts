@@ -32,9 +32,16 @@ const firebaseConfig = {
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 
-// Initialize Firestore with named database instance and ignoreUndefinedProperties
+// Initialize Firestore with named database instance, auto-detect long polling and ignoreUndefinedProperties
 const firestoreDbId = getEnvVar('VITE_FIRESTORE_DATABASE_ID') || "ai-studio-09694ade-3353-47cf-8db0-531b70401d1b";
-export const db = initializeFirestore(app, { ignoreUndefinedProperties: true }, firestoreDbId);
+export const db = initializeFirestore(
+  app,
+  {
+    ignoreUndefinedProperties: true,
+    experimentalAutoDetectLongPolling: true,
+  },
+  firestoreDbId
+);
 
 // Initialize Storage
 export const storage = getStorage(app);
