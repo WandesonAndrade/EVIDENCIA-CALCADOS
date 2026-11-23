@@ -19,7 +19,7 @@ export function calculateProductPriceDetails(
   const saldaoCalc = getSaldaoProductPrice(product, saldaoConfig);
   const applicablePromo = getApplicablePromotion(product, promotions);
 
-  let mainPrice = saldaoCalc.isSaldao ? saldaoCalc.pricePrazo : saldaoCalc.price;
+  let mainPrice = saldaoCalc.isSaldao ? saldaoCalc.pricePrazo : (saldaoCalc.price ?? product.price ?? 0);
   let originalPrice = saldaoCalc.isSaldao
     ? saldaoCalc.originalPrice
     : product.originalPrice && product.originalPrice > product.price
@@ -27,7 +27,7 @@ export function calculateProductPriceDetails(
       : null;
 
   if (!saldaoCalc.isSaldao && applicablePromo) {
-    mainPrice = applicablePromo.pricePrazo ?? applicablePromo.promoPrice;
+    mainPrice = applicablePromo.pricePrazo ?? applicablePromo.promoPrice ?? mainPrice;
     originalPrice = applicablePromo.originalPrice;
   }
 
@@ -42,13 +42,13 @@ export function calculateProductPriceDetails(
         : 0;
 
   const rawPix = saldaoCalc.isSaldao
-    ? saldaoCalc.priceVista
+    ? (saldaoCalc.priceVista ?? mainPrice)
     : applicablePromo
       ? (applicablePromo.priceVista ?? mainPrice)
-      : mainPrice * 0.9;
-  const pixPrice = rawPix.toFixed(2).replace('.', ',');
+      : (product.precoVista ?? product.preco_vista ?? (mainPrice * 0.9));
+  const pixPrice = (rawPix || 0).toFixed(2).replace('.', ',');
   const parcelas = 10;
-  const valorParcela = (mainPrice / parcelas).toFixed(2).replace('.', ',');
+  const valorParcela = ((mainPrice || 0) / parcelas).toFixed(2).replace('.', ',');
 
   return {
     mainPrice,
@@ -182,7 +182,7 @@ export const ProductPriceDisplay: React.FC<ProductPriceDisplayProps> = ({
                 : isDark ? 'text-slate-200' : 'text-[#003B73]'
             }
           >
-            R$ {mainPrice.toFixed(2).replace('.', ',')}
+            R$ {(mainPrice || 0).toFixed(2).replace('.', ',')}
           </strong>{' '}
           em até{' '}
           <strong

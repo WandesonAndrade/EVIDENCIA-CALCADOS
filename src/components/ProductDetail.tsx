@@ -1093,7 +1093,7 @@ export const ProductDetail: React.FC = () => {
                     ? isDark ? 'text-pink-400' : 'text-[#BE185D]'
                     : isDark ? 'text-white' : 'text-[#003B73]'
                 }`}>
-                  R$ {precoVistaCalculado.toFixed(2).replace('.', ',')}
+                  R$ {(precoVistaCalculado || 0).toFixed(2).replace('.', ',')}
                 </span>
                 {saldaoCalc.isSaldao ? (
                   <span 
@@ -1137,9 +1137,9 @@ export const ProductDetail: React.FC = () => {
                 )}
               </div>
 
-              {(saldaoCalc.isSaldao || (p.originalPrice && p.originalPrice > p.price)) && (
+              {((saldaoCalc.isSaldao && typeof saldaoCalc.originalPrice === 'number') || (p.originalPrice && p.originalPrice > p.price)) && (
                 <div className="text-xs line-through text-[#52708F]">
-                  De: R$ {saldaoCalc.originalPrice.toFixed(2).replace('.', ',')}
+                  De: R$ {((saldaoCalc.isSaldao ? saldaoCalc.originalPrice : p.originalPrice) || 0).toFixed(2).replace('.', ',')}
                 </div>
               )}
 
@@ -1150,7 +1150,7 @@ export const ProductDetail: React.FC = () => {
                     isOutubroRosa
                       ? isDark ? 'text-pink-300' : 'text-[#9D174D]'
                       : isDark ? 'text-slate-200' : 'text-[#003B73]'
-                  }`}>R$ {precoCartaoCalculado.toFixed(2).replace('.', ',')}</span> (em até 10x sem juros)
+                  }`}>R$ {(precoCartaoCalculado || 0).toFixed(2).replace('.', ',')}</span> (em até 10x sem juros)
                 </div>
               </div>
             </div>
