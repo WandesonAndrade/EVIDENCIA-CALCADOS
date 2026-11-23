@@ -274,11 +274,15 @@ export const KitEditorModal: React.FC<KitEditorModalProps> = ({
                             {item.productName}
                           </p>
                           <div className="flex items-center gap-2 text-[10px] text-slate-500 mt-0.5">
-                            {item.selectedSize && (
+                            {item.allowCustomerSize ? (
+                              <span className="px-1.5 py-0.2 rounded bg-blue-50 dark:bg-blue-950 text-[#0071E3] font-bold">
+                                👤 Escolha do cliente na vitrine
+                              </span>
+                            ) : item.selectedSize ? (
                               <span className="px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 font-bold">
                                 Tam: {item.selectedSize}
                               </span>
-                            )}
+                            ) : null}
                             <span>Preço un: R$ {(item.unitPrice || 0).toFixed(2)}</span>
                             {item.itemDiscountPercent ? (
                               <span className="font-bold text-emerald-600">

@@ -32,6 +32,7 @@ export const KitProductPicker: React.FC<KitProductPickerProps> = ({
   // Estados de seleção de item para inclusão
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedSize, setSelectedSize] = useState<string>('');
+  const [allowCustomerSize, setAllowCustomerSize] = useState<boolean>(false);
   const [quantity, setQuantity] = useState<number>(1);
   const [itemDiscount, setItemDiscount] = useState<number>(0);
 
@@ -141,8 +142,11 @@ export const KitProductPicker: React.FC<KitProductPickerProps> = ({
 
     const availableSizes = prod.sizes || (prod.stockBySize ? Object.keys(prod.stockBySize) : []);
     if (availableSizes.length > 0) {
-      setSelectedSize(String(availableSizes[0]));
+      // Padrão amigável: se o produto possui grade de numerações, o cliente escolhe o tamanho na vitrine
+      setAllowCustomerSize(true);
+      setSelectedSize('');
     } else {
+      setAllowCustomerSize(false);
       setSelectedSize('');
     }
   };
@@ -163,7 +167,9 @@ export const KitProductPicker: React.FC<KitProductPickerProps> = ({
       unitPrice,
       itemDiscountPercent,
       itemPrice,
-      ...(selectedSize ? { selectedSize: String(selectedSize) } : {})
+      ...(allowCustomerSize
+        ? { allowCustomerSize: true }
+        : (selectedSize ? { selectedSize: String(selectedSize) } : {}))
     };
 
     onAddItem(newItem);
@@ -463,36 +469,40 @@ export const KitProductPicker: React.FC<KitProductPickerProps> = ({
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-2 border-t border-slate-100 dark:border-slate-800">
-            {/* Tamanho Fixo */}
+            {/* Regra de Tamanho */}
             <div>
               <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
-                Tamanho Fixo
+                Regra de Tamanho
               </label>
-              {selectedProduct.sizes && selectedProduct.sizes.length > 0 ? (
-                <select
-                  value={selectedSize}
-                  onChange={(e) => setSelectedSize(e.target.value)}
-                  className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 font-bold"
-                >
-                  <option value="">Qualquer tamanho (estoque total)</option>
-                  {selectedProduct.sizes.map((s) => {
-                    const stock = selectedProduct.stockBySize?.[String(s)] ?? selectedProduct.sizeStockMap?.[String(s)];
-                    return (
-                      <option key={String(s)} value={String(s)}>
-                        Tam: {s} {stock !== undefined ? `(${stock} un)` : ''}
-                      </option>
-                    );
-                  })}
-                </select>
-              ) : (
-                <input
-                  type="text"
-                  placeholder="Único / Sem grade"
-                  value={selectedSize}
-                  onChange={(e) => setSelectedSize(e.target.value)}
-                  className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 font-semibold"
-                />
-              )}
+              <select
+                value={allowCustomerSize ? '__CUSTOMER__' : selectedSize}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === '__CUSTOMER__') {
+                    setAllowCustomerSize(true);
+                    setSelectedSize('');
+                  } else {
+                    setAllowCustomerSize(false);
+                    setSelectedSize(val);
+                  }
+                }}
+                className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 font-bold"
+              >
+                <option value="__CUSTOMER__">👤 Cliente escolhe na vitrine</option>
+                <option value="">Sem restrição / Tamanho único</option>
+                {selectedProduct.sizes && selectedProduct.sizes.length > 0 && (
+                  <optgroup label="Tamanho Fixo Obrigatório">
+                    {selectedProduct.sizes.map((s) => {
+                      const stock = selectedProduct.stockBySize?.[String(s)] ?? selectedProduct.sizeStockMap?.[String(s)];
+                      return (
+                        <option key={String(s)} value={String(s)}>
+                          Fixar Tam: {s} {stock !== undefined ? `(${stock} un)` : ''}
+                        </option>
+                      );
+                    })}
+                  </optgroup>
+                )}
+              </select>
             </div>
 
             {/* Quantidade no Kit */}

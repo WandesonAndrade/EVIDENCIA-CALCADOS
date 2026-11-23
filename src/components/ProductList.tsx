@@ -394,6 +394,15 @@ export const ProductList: React.FC = () => {
     });
   }, [products]);
 
+  // Produtos exibidos na Seção 'Kits & Combos Especiais'
+  const kitsProducts = useMemo(() => {
+    return products.filter((prod) => {
+      const isAvailable = (prod.stock !== undefined ? prod.stock > 0 : (prod.saldo_loja ?? 0) > 0);
+      if (!prod.visible || !isAvailable || !hasProductValidPhoto(prod)) return false;
+      return Boolean(prod.isKit || prod.category === 'Kits & Combos' || String(prod.id || '').startsWith('kit_'));
+    });
+  }, [products]);
+
   return (
     <section
       id="catalog-products-section"
@@ -1138,6 +1147,57 @@ export const ProductList: React.FC = () => {
           {/* Grid de 5 Colunas para Acessórios */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
             {acessoriosProducts.slice(0, 5).map((product) => (
+              <ProductCard
+                key={product.id}
+                product={product}
+                theme={theme}
+                isFavorite={favorites.includes(product.id)}
+                onToggleFavorite={toggleFavorite}
+                onViewDetails={handleVerDetalhes}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 8. SEÇÃO KITS & COMBOS ESPECIAIS */}
+      {kitsProducts.length > 0 && (
+        <div className="space-y-6">
+          <div className={`flex flex-col sm:flex-row sm:items-end justify-between gap-3 border-b pb-3 ${
+            navTokens.sectionDivider
+          }`}>
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-100 text-[#0071E3] dark:bg-blue-950 dark:text-blue-300">
+                  Economize Mais
+                </span>
+              </div>
+              <h2 className={`text-2xl sm:text-3xl font-black tracking-tight ${isDark ? "text-white" : "text-[#003B73]"}`}>
+                Kits & Combos Especiais
+              </h2>
+              <p className={`text-xs sm:text-sm font-medium mt-0.5 ${isDark ? "text-slate-400" : "text-[#52708F]"}`}>
+                Conjuntos coordenados e combos exclusivos com descontos imperdíveis.
+              </p>
+            </div>
+            <button 
+              onClick={() => {
+                if (setSelectedSubcategory) setSelectedSubcategory('TODAS');
+                if (setSelectedMenuTab) setSelectedMenuTab('kits');
+                if (setSelectedCategory) setSelectedCategory('KITS & COMBOS', 'TODAS');
+                if (setCurrentView) setCurrentView('category-page');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className={`text-xs font-extrabold ${
+                `${navTokens.seeAllTextLight} ${navTokens.seeAllHover} ${navTokens.seeAllTextDark}`
+              } transition-colors cursor-pointer shrink-0`}
+            >
+              Ver todos os kits →
+            </button>
+          </div>
+
+          {/* Grid de 5 Colunas para Kits */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+            {kitsProducts.slice(0, 5).map((product) => (
               <ProductCard
                 key={product.id}
                 product={product}

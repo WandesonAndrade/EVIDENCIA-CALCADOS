@@ -63,7 +63,12 @@ export const ProductBadges: React.FC<ProductBadgesProps> = ({
   if (position === 'corner') {
     return (
       <div className="absolute top-2 min-[390px]:top-2.5 left-2 min-[390px]:left-2.5 flex flex-col gap-1 z-10">
-        {saldaoCalc.isSaldao ? (
+        {product.isKit ? (
+          <span className="px-2 min-[390px]:px-2.5 py-0.5 min-[390px]:py-1 text-[9px] min-[390px]:text-[10px] font-black bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-full shadow-md uppercase tracking-wider flex items-center gap-1">
+            <Layers className="w-3 h-3 stroke-[2.5]" />
+            KIT ESPECIAL
+          </span>
+        ) : saldaoCalc.isSaldao ? (
           <span
             style={saldaoCustomStyle}
             className={`px-2 min-[390px]:px-2.5 py-0.5 min-[390px]:py-1 text-[9px] min-[390px]:text-[10px] font-black ${
@@ -101,6 +106,12 @@ export const ProductBadges: React.FC<ProductBadgesProps> = ({
   // Inline mode (usado em listas ou cards detalhados)
   return (
     <div className="flex items-center gap-1.5 flex-wrap">
+      {product.isKit && (
+        <span className="px-2 py-0.5 text-[9px] font-black bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-md uppercase inline-flex items-center gap-1">
+          <Layers className="h-2.5 w-2.5" />
+          Kit Especial
+        </span>
+      )}
       {saldaoCalc.isSaldao && (
         <span
           style={saldaoCustomStyle}

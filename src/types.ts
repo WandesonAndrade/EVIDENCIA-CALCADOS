@@ -95,6 +95,7 @@ export interface Product {
   precoCrediario?: number;
   preco_crediario?: number;
   originalPrice?: number;
+  createdAt?: string;
   updatedAt?: string;
   onSale?: boolean;
   category: string;
@@ -207,6 +208,8 @@ export interface KitItemComponent {
   productImage?: string;
   quantity: number;
   selectedSize?: string | number; // Tamanho fixo selecionado pelo admin
+  allowCustomerSize?: boolean;    // Se true, o cliente pode selecionar o tamanho na vitrine
+  customerSelectedSize?: string | number; // Tamanho escolhido pelo cliente ao comprar
   unitPrice?: number;            // Preço original do produto
   itemDiscountPercent?: number;  // Desconto individual no item (%)
   itemPrice?: number;            // Preço final do item após desconto individual
@@ -291,6 +294,13 @@ export interface CartItem {
   product: Product;
   selectedSize: number | string;
   quantity: number;
+  kitComponentsChoices?: Array<{
+    productId: string;
+    productName?: string;
+    selectedSize?: string | number;
+    quantity?: number;
+    image?: string;
+  }>;
 }
 
 export interface OrderItem {
@@ -301,6 +311,14 @@ export interface OrderItem {
   selectedSize: number | string;
   image: string;
   originalPrice?: number;
+  isKit?: boolean;
+  kitComponents?: Array<{
+    productId: string;
+    productName: string;
+    quantity: number;
+    selectedSize?: string | number;
+    image?: string;
+  }>;
 }
 
 export type OrderStatus = 'Pendente' | 'Confirmado' | 'Em Preparação' | 'Em Trânsito' | 'Entregue' | 'Cancelado';

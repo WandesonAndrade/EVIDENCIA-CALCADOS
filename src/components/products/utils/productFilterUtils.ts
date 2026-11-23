@@ -130,6 +130,9 @@ export function matchProductCategory(
   }
 
   const target = selectedCategory.trim().toUpperCase();
+  if (target === 'KITS & COMBOS' || target === 'KITS' || target === 'KITS-E-COMBOS') {
+    return Boolean(product.isKit || product.category === 'Kits & Combos' || String(product.id || '').startsWith('kit_'));
+  }
   let targetCode = '';
 
   const matchedCat = (dbCategories || []).find(
@@ -206,10 +209,11 @@ export function filterStorefrontProducts(
       return false;
     }
 
-    // Regra rígida do e-commerce: apenas produtos visíveis, com estoque real, foto válida e classificação definida
+    // Regra rígida do e-commerce: apenas produtos visíveis, com estoque real, foto válida e classificação definida (Kits possuem classificação própria KIT.001)
     const isAvailable = prod.stock !== undefined ? prod.stock > 0 : (prod.saldo_loja ?? 0) > 0;
+    const isKit = Boolean(prod.isKit || (prod.id && String(prod.id).startsWith('kit_')));
     const catInfo = extractClassificacaoCategoria(prod);
-    const isUnclassified = catInfo.category === 'Sem Classificação Definida' || !catInfo.isDefined;
+    const isUnclassified = !isKit && (catInfo.category === 'Sem Classificação Definida' || !catInfo.isDefined);
 
     if (!prod.visible || !isAvailable || !hasProductValidPhoto(prod) || isUnclassified) {
       return false;

@@ -125,11 +125,15 @@ export const KitComponentsSection: React.FC<KitComponentsSectionProps> = ({
                         {item.productName}
                       </p>
                       <div className="flex items-center gap-2 text-[10px] text-slate-500 mt-0.5">
-                        {item.selectedSize && (
+                        {item.allowCustomerSize ? (
+                          <span className="px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-950 text-[#0071E3] border border-blue-200 dark:border-blue-800 font-bold">
+                            👤 Escolha do cliente na vitrine
+                          </span>
+                        ) : item.selectedSize ? (
                           <span className="px-1.5 py-0.5 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-bold">
                             Tam: {item.selectedSize}
                           </span>
-                        )}
+                        ) : null}
                         <span>Preço un: R$ {(item.unitPrice || 0).toFixed(2)}</span>
                         {item.itemDiscountPercent ? (
                           <span className="font-bold text-emerald-600">

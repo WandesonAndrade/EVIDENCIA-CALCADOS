@@ -66,7 +66,7 @@ export function computeKitStock(
     let availableStock = 0;
 
     if (prod) {
-      if (item.selectedSize !== undefined && item.selectedSize !== null && item.selectedSize !== '') {
+      if (!item.allowCustomerSize && item.selectedSize !== undefined && item.selectedSize !== null && item.selectedSize !== '') {
         const sizeKey = String(item.selectedSize);
         // Se o produto possui grade ou mapa de tamanhos, o tamanho selecionado DEVE existir
         const hasSizeMaps = Boolean(prod.stockBySize || prod.sizeStockMap);
@@ -80,6 +80,7 @@ export function computeKitStock(
           availableStock = Math.max(0, prod.stock ?? prod.saldo_loja ?? 0);
         }
       } else {
+        // Sem tamanho fixo ou com escolha livre de tamanho pelo cliente na vitrine
         availableStock = Math.max(0, prod.stock ?? prod.saldo_loja ?? 0);
       }
     }
@@ -149,8 +150,14 @@ export function calculateKitPricing(
       itemPrice
     };
 
+    if (item.allowCustomerSize) {
+      processed.allowCustomerSize = true;
+    }
     if (item.selectedSize !== undefined && item.selectedSize !== null && item.selectedSize !== '') {
       processed.selectedSize = String(item.selectedSize);
+    }
+    if (item.customerSelectedSize !== undefined && item.customerSelectedSize !== null && item.customerSelectedSize !== '') {
+      processed.customerSelectedSize = String(item.customerSelectedSize);
     }
 
     return processed;
@@ -228,8 +235,14 @@ export function prepareKitPayloadForFirestore(
       itemPrice: typeof item.itemPrice === 'number' ? item.itemPrice : 0
     };
 
+    if (item.allowCustomerSize) {
+      cleanItem.allowCustomerSize = true;
+    }
     if (item.selectedSize !== undefined && item.selectedSize !== null && item.selectedSize !== '') {
       cleanItem.selectedSize = String(item.selectedSize);
+    }
+    if (item.customerSelectedSize !== undefined && item.customerSelectedSize !== null && item.customerSelectedSize !== '') {
+      cleanItem.customerSelectedSize = String(item.customerSelectedSize);
     }
 
     return cleanItem;
@@ -262,6 +275,78 @@ export async function saveKit(kit: Partial<KitProduct> & { name: string; items: 
   const payload = prepareKitPayloadForFirestore(kit);
   await setDoc(doc(db, KITS_COLLECTION, payload.id), payload, { merge: true });
   return payload.id;
+}
+
+/**
+ * Converte um KitProduct em um objeto Product virtual para integração fluida com
+ * a vitrine, busca, carrinhos, filtros e páginas de detalhe sem alterar o catálogo do ERP.
+ */
+export function kitToProduct(
+  kit: KitProduct,
+  productsMap: Map<string, Product> | Record<string, Product>
+): Product {
+  const stockResult = computeKitStock(kit, productsMap);
+  const pricingResult = calculateKitPricing(
+    kit.items || [],
+    kit.pricingMode,
+    kit.totalDiscountPercent,
+    kit.price
+  );
+
+  let finalImages = (kit.images || []).filter((img) => typeof img === 'string' && img.trim() !== '');
+  if (finalImages.length === 0) {
+    const getProduct = (id: string): Product | undefined => {
+      if (productsMap instanceof Map) return productsMap.get(id);
+      return productsMap[id];
+    };
+    for (const item of kit.items || []) {
+      const p = getProduct(item.productId);
+      const itemImg = p?.images?.[0] || p?.imageUrl || (p as any)?.foto_uri || item.productImage;
+      if (itemImg && !finalImages.includes(itemImg)) {
+        finalImages.push(itemImg);
+      }
+    }
+  }
+
+  const finalPrice = pricingResult.finalPrice;
+  const originalPrice = pricingResult.originalTotal > finalPrice ? pricingResult.originalTotal : undefined;
+
+  return {
+    id: kit.id,
+    name: kit.name,
+    description: kit.description || '',
+    price: finalPrice,
+    originalPrice,
+    precoVista: finalPrice,
+    preco_vista: finalPrice,
+    precoCartao: finalPrice,
+    preco_cartao: finalPrice,
+    category: kit.category || 'Kits & Combos',
+    subcategory: kit.subcategory || '',
+    images: finalImages,
+    stock: stockResult.stock,
+    saldo_loja: stockResult.stock,
+    stockControl: true,
+    visible: kit.visible !== false,
+    crediarioProprio: false,
+    classificacao: 'KIT.001',
+    isKit: true,
+    kitItems: pricingResult.processedItems,
+    kitPricingMode: kit.pricingMode,
+    kitTotalDiscountPercent: kit.totalDiscountPercent,
+    kitOriginalTotal: pricingResult.originalTotal,
+    sizes: ['Kit'],
+    createdAt: kit.createdAt,
+    updatedAt: kit.updatedAt
+  };
+}
+
+/**
+ * Verifica se um produto ou identificador representa um Kit
+ */
+export function isKitProduct(item: any): boolean {
+  if (!item) return false;
+  return Boolean(item.isKit || String(item.id || '').toLowerCase().startsWith('kit_'));
 }
 
 /**

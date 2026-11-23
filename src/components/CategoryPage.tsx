@@ -384,6 +384,25 @@ export const CategoryPage: React.FC = () => {
       };
     }
 
+    const isKitSection = (
+      cleanTabKey === 'kits' ||
+      cleanTabKey === 'kits-e-combos' ||
+      cleanTabKey === 'kits & combos' ||
+      cleanCatKey === 'kits' ||
+      cleanCatKey === 'kits-e-combos' ||
+      cleanCatKey === 'kits & combos'
+    );
+
+    if (isKitSection) {
+      return {
+        title: 'KITS & COMBOS ESPECIAIS',
+        subtitle: 'Conjuntos completos e combos inteligentes com descontos exclusivos para você economizar.',
+        bannerImage: 'https://images.unsplash.com/photo-1549298916-b41d501d3772?q=80&w=1600&auto=format&fit=crop',
+        badgeText: '📦 COMBOS EXCLUSIVOS',
+        filter: (prod: Product) => Boolean(prod.isKit || prod.category === 'Kits & Combos' || String(prod.id || '').startsWith('kit_'))
+      };
+    }
+
     const isSaldaoOrOfertas = (
       cleanTabKey.includes('saldão') || cleanTabKey.includes('saldao') || cleanTabKey.includes('oferta') || cleanTabKey.includes('promoção') || cleanTabKey.includes('promocao') ||
       cleanSubKey.includes('saldão') || cleanSubKey.includes('saldao') || cleanSubKey.includes('oferta') || cleanSubKey.includes('promoção') || cleanSubKey.includes('promocao') ||

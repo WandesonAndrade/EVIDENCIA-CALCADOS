@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Product, CartItem, Order, PaymentStatus, OrderStatus, UserProfile, UserRole, CrediarioStatus, Category, MoblinkConfig, MoblinkSyncLog, MoblinkSyncLogItem, EvidenciaAuthSession, HeroBanner, HomeSectionConfig, AboutConfig, ContactConfig, StoreConfig, ViewMode, SaldaoConfig, PromoCampaign, Seller, StoreThemeId, FeaturedPromoCard, InstallmentDiscountConfig } from '../types';
+import { Product, CartItem, Order, OrderItem, PaymentStatus, OrderStatus, UserProfile, UserRole, CrediarioStatus, Category, MoblinkConfig, MoblinkSyncLog, MoblinkSyncLogItem, EvidenciaAuthSession, HeroBanner, HomeSectionConfig, AboutConfig, ContactConfig, StoreConfig, ViewMode, SaldaoConfig, PromoCampaign, Seller, StoreThemeId, FeaturedPromoCard, InstallmentDiscountConfig, KitProduct } from '../types';
+import { subscribeToKits, kitToProduct, isKitProduct } from '../services/kitService';
 import { loadSaldaoConfig, saveSaldaoConfig, DEFAULT_SALDAO_CONFIG, getSaldaoProductPrice } from '../services/saldaoService';
 import { loadThemeConfig, saveThemeConfig, DEFAULT_THEME_CONFIG } from '../services/themeService';
 import { getStoreThemeTokens, StoreThemeTokens } from '../theme/storeThemes';
@@ -37,6 +38,7 @@ import { extractStreetName } from '../utils/addressUtils';
 
 interface AppContextProps {
   products: Product[];
+  kits?: KitProduct[];
   isLoadingProducts: boolean;
   categories: Category[];
   isLoadingCategories: boolean;
@@ -44,7 +46,7 @@ interface AppContextProps {
   deleteCategory: (categoryId: string) => Promise<void>;
   updateCategory: (categoryId: string, updatedFields: Partial<Category>) => Promise<void>;
   cart: CartItem[];
-  addToCart: (product: Product, size: number | string) => void;
+  addToCart: (product: Product, size: number | string, kitChoices?: Array<{ productId: string; productName?: string; selectedSize?: string | number; quantity?: number; image?: string; }>) => void;
   removeFromCart: (productId: string, size: number | string) => void;
   updateCartQuantity: (productId: string, size: number | string, quantity: number) => void;
   clearCart: () => void;
@@ -417,10 +419,40 @@ const saveLocalUser = (uid: string, profile: UserProfile) => {
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [products, setProducts] = useState<Product[]>(() => getLocalProducts());
+  const [kits, setKits] = useState<KitProduct[]>([]);
   const productsRef = useRef<Product[]>(products);
   useEffect(() => {
     productsRef.current = products;
   }, [products]);
+
+  // Listener em tempo real para os Kits & Combos cadastrados no Firestore
+  useEffect(() => {
+    const unsub = subscribeToKits((fetchedKits) => {
+      setKits(fetchedKits);
+    });
+    return () => unsub();
+  }, []);
+
+  // Converte kits reais do Firestore em produtos virtuais ricos para a vitrine
+  const virtualKitProducts = useMemo(() => {
+    if (!kits || kits.length === 0) return [];
+    const productsMap = new Map<string, Product>();
+    for (const p of products) {
+      productsMap.set(String(p.id), p);
+      if (p.moblinkId) productsMap.set(String(p.moblinkId), p);
+    }
+    return kits
+      .filter((k) => k.visible !== false)
+      .map((k) => kitToProduct(k, productsMap));
+  }, [kits, products]);
+
+  // Catálogo unificado com produtos regulares e kits virtuais
+  const combinedProducts = useMemo(() => {
+    if (virtualKitProducts.length === 0) return products;
+    const kitIds = new Set(virtualKitProducts.map((k) => k.id));
+    const regular = products.filter((p) => !kitIds.has(p.id));
+    return [...virtualKitProducts, ...regular];
+  }, [products, virtualKitProducts]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(true);
   const [categories, setCategories] = useState<Category[]>(() => getLocalCategories());
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
@@ -1820,23 +1852,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [currentView, selectedProduct, selectedCategory, selectedSubcategory]);
 
   // Helper Cart Actions
-  const addToCart = (product: Product, size: number | string) => {
-    const saldaoCalc = getSaldaoProductPrice(product, saldaoConfig);
-    const applicablePromo = getApplicablePromotion(product, promotions);
+  const addToCart = (
+    product: Product, 
+    size: number | string,
+    kitChoices?: Array<{
+      productId: string;
+      productName?: string;
+      selectedSize?: string | number;
+      quantity?: number;
+      image?: string;
+    }>
+  ) => {
+    const isKit = Boolean(product.isKit || isKitProduct(product));
+    const saldaoCalc = isKit ? { isSaldao: false } : getSaldaoProductPrice(product, saldaoConfig);
+    const applicablePromo = isKit ? null : getApplicablePromotion(product, promotions);
 
     let targetProduct: Product = product;
 
     if (saldaoCalc.isSaldao) {
       targetProduct = {
         ...product,
-        price: saldaoCalc.pricePrazo,
-        originalPrice: saldaoCalc.originalPrice,
-        precoVista: saldaoCalc.priceVista,
-        preco_vista: saldaoCalc.priceVista,
-        precoCartao: saldaoCalc.pricePrazo,
-        preco_cartao: saldaoCalc.pricePrazo,
-        precoCrediario: saldaoCalc.pricePrazo,
-        preco_crediario: saldaoCalc.pricePrazo,
+        price: (saldaoCalc as any).pricePrazo,
+        originalPrice: (saldaoCalc as any).originalPrice,
+        precoVista: (saldaoCalc as any).priceVista,
+        preco_vista: (saldaoCalc as any).priceVista,
+        precoCartao: (saldaoCalc as any).pricePrazo,
+        preco_cartao: (saldaoCalc as any).pricePrazo,
+        precoCrediario: (saldaoCalc as any).pricePrazo,
+        preco_crediario: (saldaoCalc as any).pricePrazo,
       };
     } else if (applicablePromo) {
       const promoPrice = applicablePromo.promoPrice;
@@ -1856,17 +1899,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     setCart((prevCart) => {
-      const existingIndex = prevCart.findIndex(
-        (item) => String(item.product.id) === String(product.id) && String(item.selectedSize) === String(size)
-      );
+      const existingIndex = prevCart.findIndex((item) => {
+        if (String(item.product.id) !== String(product.id)) return false;
+        if (String(item.selectedSize) !== String(size)) return false;
+        if (kitChoices && item.kitComponentsChoices) {
+          return JSON.stringify(item.kitComponentsChoices) === JSON.stringify(kitChoices);
+        }
+        return true;
+      });
 
       if (existingIndex > -1) {
         const updated = [...prevCart];
         updated[existingIndex].quantity += 1;
         updated[existingIndex].product = targetProduct;
+        if (kitChoices) {
+          updated[existingIndex].kitComponentsChoices = kitChoices;
+        }
         return updated;
       } else {
-        return [...prevCart, { product: targetProduct, selectedSize: size, quantity: 1 }];
+        return [
+          ...prevCart, 
+          { 
+            product: targetProduct, 
+            selectedSize: size, 
+            quantity: 1,
+            ...(kitChoices ? { kitComponentsChoices: kitChoices } : {})
+          }
+        ];
       }
     });
   };
@@ -2311,15 +2370,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ? 'Retirada na Loja: Rua Afonso Pena, 295 - Centro, Caxias - MA'
       : (options?.deliveryAddress || `${currentUser?.endereco || ''}, Nº ${currentUser?.numero || ''} - ${currentUser?.bairro || ''}, ${currentUser?.cidade || ''}/${currentUser?.uf || ''}`);
 
-    const orderItems = targetItems.map((item) => ({
-      productId: item.product.id,
-      name: item.product.name,
-      price: getCalculatedPrice(item, paymentMethod),
-      quantity: item.quantity,
-      selectedSize: item.selectedSize,
-      image: item.product.images?.[0] || item.product.foto_uri || NO_PHOTO_SVG,
-      originalPrice: item.product.originalPrice && item.product.originalPrice > getCalculatedPrice(item, paymentMethod) ? item.product.originalPrice : undefined
-    }));
+    const orderItems: OrderItem[] = targetItems.map((item) => {
+      const isKit = Boolean(item.product.isKit || isKitProduct(item.product) || item.kitComponentsChoices || item.product.kitItems);
+      const kitComponents = isKit
+        ? (item.kitComponentsChoices || item.product.kitItems || []).map((comp: any) => ({
+            productId: String(comp.productId),
+            productName: String(comp.productName || 'Produto componente'),
+            quantity: Number(comp.quantity || 1),
+            selectedSize: comp.selectedSize || comp.customerSelectedSize,
+            image: comp.image || comp.productImage
+          }))
+        : undefined;
+
+      return {
+        productId: item.product.id,
+        name: item.product.name,
+        price: getCalculatedPrice(item, paymentMethod),
+        quantity: item.quantity,
+        selectedSize: item.selectedSize,
+        image: item.product.images?.[0] || item.product.foto_uri || NO_PHOTO_SVG,
+        originalPrice: item.product.originalPrice && item.product.originalPrice > getCalculatedPrice(item, paymentMethod) ? item.product.originalPrice : undefined,
+        ...(isKit ? { isKit: true, kitComponents } : {})
+      };
+    });
 
     const paymentMethodStr = (paymentMethod === 'Cartão de Crédito' && installments > 1)
       ? `Cartão de Crédito (${installments}x de R$ ${(grandTotal / installments).toFixed(2).replace('.', ',')} sem juros)`
@@ -2348,6 +2421,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     orderItems.forEach((item) => {
       const sizeStr = item.selectedSize && item.selectedSize !== 0 && item.selectedSize !== 'Único' ? ` (Tamanho: ${item.selectedSize})` : '';
       message += `- ${item.name}${sizeStr} x${item.quantity} - R$ ${(item.price * item.quantity).toFixed(2).replace('.', ',')}\n`;
+      if (item.isKit && item.kitComponents && item.kitComponents.length > 0) {
+        item.kitComponents.forEach((comp) => {
+          const compSize = comp.selectedSize ? ` [Tam: ${comp.selectedSize}]` : '';
+          message += `   ↳ ${comp.quantity * item.quantity}x ${comp.productName}${compSize}\n`;
+        });
+      }
     });
     
     message += `\n💳 *Forma de Pagamento:* ${paymentMethodStr}\n`;
@@ -2423,14 +2502,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     saveLocalOrders(updatedLocalOrders);
     setOrders(updatedLocalOrders);
 
-    // Update stock locally
+    // Update stock locally (deduz estoque diretamente dos produtos normais ou dos componentes se for Kit)
     const currentLocalProducts = getLocalProducts();
-    const updatedLocalProducts = currentLocalProducts.map(prod => {
-      const cartItem = targetItems.find(item => item.product.id === prod.id);
-      if (cartItem && prod.stockControl) {
+    const stockDecrements = new Map<string, number>();
+
+    targetItems.forEach((item) => {
+      const isKit = Boolean(item.product.isKit || isKitProduct(item.product) || item.kitComponentsChoices || item.product.kitItems);
+      if (isKit) {
+        const components = item.kitComponentsChoices || item.product.kitItems || [];
+        components.forEach((comp: any) => {
+          const compId = String(comp.productId);
+          const qtyToDeduct = Number(comp.quantity || 1) * item.quantity;
+          stockDecrements.set(compId, (stockDecrements.get(compId) || 0) + qtyToDeduct);
+        });
+      } else if (item.product.stockControl) {
+        const pId = String(item.product.id);
+        stockDecrements.set(pId, (stockDecrements.get(pId) || 0) + item.quantity);
+      }
+    });
+
+    const updatedLocalProducts = currentLocalProducts.map((prod) => {
+      const decrement = stockDecrements.get(String(prod.id));
+      if (decrement && prod.stockControl) {
+        const newStock = Math.max(0, (prod.stock ?? prod.saldo_loja ?? 0) - decrement);
         return {
           ...prod,
-          stock: Math.max(0, prod.stock - cartItem.quantity)
+          stock: newStock,
+          saldo_loja: newStock
         };
       }
       return prod;
@@ -2442,11 +2540,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const sanitizedOrder = cleanUndefinedProperties(newOrder);
       await setDoc(doc(db, 'orders', orderId), sanitizedOrder);
-      for (const item of targetItems) {
-        if (item.product.stockControl) {
-          const prodRef = doc(db, 'products', item.product.id);
-          const newStock = Math.max(0, item.product.stock - item.quantity);
-          await setDoc(prodRef, { stock: newStock }, { merge: true });
+      for (const [prodId, qtyToDeduct] of stockDecrements.entries()) {
+        const existingProd = currentLocalProducts.find((p) => String(p.id) === prodId);
+        if (existingProd && existingProd.stockControl) {
+          const prodRef = doc(db, 'products', prodId);
+          const currentVal = existingProd.stock ?? existingProd.saldo_loja ?? 0;
+          const newStock = Math.max(0, currentVal - qtyToDeduct);
+          await setDoc(prodRef, { stock: newStock, saldo_loja: newStock }, { merge: true });
         }
       }
     } catch (error) {
@@ -3112,7 +3212,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   return (
     <AppContext.Provider
       value={{
-        products,
+        products: combinedProducts,
+        kits,
         isLoadingProducts,
         categories,
         isLoadingCategories,

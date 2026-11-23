@@ -175,15 +175,18 @@ export const ProductDetail: React.FC = () => {
 
   const isDark = theme === 'dark';
 
+  const [kitSelectedSizes, setKitSelectedSizes] = useState<Record<string, string>>({});
+
   const p: Product = selectedProduct || ({} as Product);
+  const isKit = Boolean(p?.isKit || (p?.id && String(p.id).startsWith('kit_')));
   const allProductImages = React.useMemo(() => {
     return (p?.images && p.images.length > 0)
       ? p.images.filter(Boolean) 
       : (p?.foto_uri ? [p.foto_uri] : (p?.imageUrl ? [p.imageUrl] : []));
   }, [p]);
 
-  const idGrade = p?.id_grade ?? p?.gradeId ?? null;
-  const hasGrade = idGrade !== null && idGrade !== undefined && idGrade !== '' && idGrade !== 0 && idGrade !== '0';
+  const idGrade = isKit ? null : (p?.id_grade ?? p?.gradeId ?? null);
+  const hasGrade = !isKit && idGrade !== null && idGrade !== undefined && idGrade !== '' && idGrade !== 0 && idGrade !== '0';
 
   useEffect(() => {
     if (p?.id) {
@@ -193,7 +196,7 @@ export const ProductDetail: React.FC = () => {
 
   // 2. Sincronização AUTOMÁTICA do produto e estoque 100% em Tempo Real direto do ERP MobLink no momento do acesso
   useEffect(() => {
-    if (!p?.id) return;
+    if (!p?.id || isKit) return;
     let isMounted = true;
     setSelectedLinhaOption(null);
     setSelectedColunaOption(null);
@@ -418,6 +421,38 @@ export const ProductDetail: React.FC = () => {
   };
 
   const handleAddToCart = () => {
+    if (isKit) {
+      const requiredItems = (p.kitItems || []).filter((it) => it.allowCustomerSize);
+      for (const req of requiredItems) {
+        if (!kitSelectedSizes[req.productId]) {
+          setMessage(`Por favor, selecione o tamanho para "${req.productName}".`);
+          return;
+        }
+      }
+
+      const kitChoices = (p.kitItems || []).map((it) => ({
+        productId: it.productId,
+        productName: it.productName,
+        quantity: it.quantity,
+        selectedSize: it.allowCustomerSize ? kitSelectedSizes[it.productId] : it.selectedSize,
+        image: it.productImage
+      }));
+
+      const summarySizes = kitChoices
+        .filter((c) => c.selectedSize)
+        .map((c) => `${c.selectedSize}`)
+        .join(', ');
+      const variationText = summarySizes ? `Kit (Tam: ${summarySizes})` : 'Kit Completo';
+
+      addToCart(p, variationText, kitChoices);
+      setMessage('Kit adicionado ao carrinho com sucesso!');
+      setTimeout(() => {
+        setMessage('');
+        setCurrentView('cart');
+      }, 1200);
+      return;
+    }
+
     if (hasGrade) {
       const descrLinha = fetchedGrade?.descr_linha || 'Tamanho';
       const descrColuna = fetchedGrade?.descr_coluna || 'Cor';
@@ -452,7 +487,31 @@ export const ProductDetail: React.FC = () => {
 
   const handleInstantBuy = () => {
     let variationText = 'Único';
-    if (hasGrade) {
+    let kitChoices: any[] | undefined = undefined;
+
+    if (isKit) {
+      const requiredItems = (p.kitItems || []).filter((it) => it.allowCustomerSize);
+      for (const req of requiredItems) {
+        if (!kitSelectedSizes[req.productId]) {
+          setMessage(`⚠️ Selecione o tamanho para "${req.productName}" antes de prosseguir.`);
+          return;
+        }
+      }
+
+      kitChoices = (p.kitItems || []).map((it) => ({
+        productId: it.productId,
+        productName: it.productName,
+        quantity: it.quantity,
+        selectedSize: it.allowCustomerSize ? kitSelectedSizes[it.productId] : it.selectedSize,
+        image: it.productImage
+      }));
+
+      const summarySizes = kitChoices
+        .filter((c) => c.selectedSize)
+        .map((c) => `${c.selectedSize}`)
+        .join(', ');
+      variationText = summarySizes ? `Kit (Tam: ${summarySizes})` : 'Kit Completo';
+    } else if (hasGrade) {
       const descrLinha = fetchedGrade?.descr_linha || 'Tamanho';
       const descrColuna = fetchedGrade?.descr_coluna || 'Cor';
 
@@ -487,7 +546,7 @@ export const ProductDetail: React.FC = () => {
     }
 
     // Add to cart and redirect to checkout
-    addToCart(p, variationText);
+    addToCart(p, variationText, kitChoices);
     setCurrentView('checkout');
   };
 
@@ -1159,49 +1218,162 @@ export const ProductDetail: React.FC = () => {
               )}
             </div>
 
-            {/* SELETOR DE TAMANHOS */}
-            <div className="space-y-2.5 pt-1 border-t border-blue-900/10 dark:border-slate-800">
-              <div className="flex justify-between items-center text-xs">
-                <label className={`font-extrabold ${isDark ? 'text-white' : 'text-[#003B73]'}`}>
-                  Selecione a Numeração / Tamanho:
-                </label>
-                {selectedLinhaOption && (
-                  <span className={`text-xs ${
-                    isOutubroRosa ? 'text-[#BE185D] dark:text-pink-300' : 'text-emerald-700 dark:text-emerald-400'
-                  } font-extrabold flex items-center gap-1`}>
-                    <CheckCircle2 className="h-3.5 w-3.5" /> Tamanho {selectedLinhaOption}
+            {/* SELETOR DE TAMANHOS / COMPOSIÇÃO DO KIT */}
+            {isKit ? (
+              <div className="space-y-3 pt-2 border-t border-blue-900/10 dark:border-slate-800">
+                <div className="flex items-center justify-between">
+                  <label className={`text-xs font-black uppercase tracking-wider ${isDark ? 'text-white' : 'text-[#003B73]'}`}>
+                    Composição do Kit ({(p.kitItems || []).length} itens)
+                  </label>
+                  <span className="text-[10px] font-bold text-slate-400">
+                    Combo Completo
                   </span>
-                )}
-              </div>
+                </div>
 
-              <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
-                {linhaOptions.map((sizeOpt) => {
-                  const isSelected = selectedLinhaOption === sizeOpt;
+                <div className="space-y-2.5">
+                  {(p.kitItems || []).map((kitItem, idx) => {
+                    const compProd = products.find(prod => String(prod.id) === String(kitItem.productId) || (prod.moblinkId && String(prod.moblinkId) === String(kitItem.productId)));
+                    const availableSizes = compProd?.sizes || (compProd?.stockBySize ? Object.keys(compProd.stockBySize) : []);
+                    const chosenSize = kitSelectedSizes[kitItem.productId] || '';
 
-                  return (
-                    <motion.button
-                      key={String(sizeOpt)}
-                      whileHover={{ scale: 1.03 }}
-                      whileTap={{ scale: 0.97 }}
-                      onClick={() => setSelectedLinhaOption(sizeOpt)}
-                      className={`h-10 rounded-xl border text-xs font-black transition-all cursor-pointer flex items-center justify-center ${
-                        isSelected
-                          ? isOutubroRosa
-                            ? 'bg-[#BE185D] border-[#BE185D] text-white shadow-md shadow-pink-600/30'
-                            : 'bg-[#003B73] border-[#003B73] text-white shadow-md'
-                          : isDark
-                          ? 'border-slate-800 text-slate-300 bg-slate-950 hover:border-slate-700'
-                          : isOutubroRosa
-                          ? 'border-pink-900/15 text-[#9D174D] bg-white hover:bg-[#FFF0F5]'
-                          : 'border-blue-900/15 text-[#003B73] bg-white hover:bg-[#EEF8FF]'
-                      }`}
-                    >
-                      <span>{sizeOpt}</span>
-                    </motion.button>
-                  );
-                })}
+                    return (
+                      <div
+                        key={`${kitItem.productId}-${idx}`}
+                        className={`p-3 rounded-2xl border transition-all ${
+                          isDark ? 'bg-slate-950/60 border-slate-800' : 'bg-slate-50/80 border-slate-200/80'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 overflow-hidden shrink-0 flex items-center justify-center p-1">
+                            {kitItem.productImage || compProd?.images?.[0] ? (
+                              <img
+                                src={kitItem.productImage || compProd?.images?.[0]}
+                                alt=""
+                                className="w-full h-full object-contain"
+                              />
+                            ) : (
+                              <span className="text-xl">📦</span>
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-black truncate text-slate-800 dark:text-slate-200">
+                              {kitItem.quantity > 1 ? `${kitItem.quantity}x ` : ''}{kitItem.productName}
+                            </p>
+                            <div className="flex items-center gap-2 mt-0.5 text-[10px] text-slate-500">
+                              {kitItem.allowCustomerSize ? (
+                                <span className="text-blue-600 dark:text-blue-400 font-bold">
+                                  {chosenSize ? `Tam selecionado: ${chosenSize}` : 'Escolha o tamanho abaixo:'}
+                                </span>
+                              ) : kitItem.selectedSize ? (
+                                <span className="px-1.5 py-0.5 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-bold">
+                                  Tamanho: {kitItem.selectedSize}
+                                </span>
+                              ) : (
+                                <span className="text-slate-400 font-medium">Tamanho único</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Seletor de tamanhos se allowCustomerSize for true */}
+                        {kitItem.allowCustomerSize && (
+                          <div className="mt-2.5 pt-2 border-t border-slate-200/60 dark:border-slate-800/60">
+                            <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                              Selecione o tamanho para este item:
+                            </span>
+                            {availableSizes.length > 0 ? (
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                {availableSizes.map((size) => {
+                                  const isSelected = chosenSize === String(size);
+                                  return (
+                                    <button
+                                      key={String(size)}
+                                      type="button"
+                                      onClick={() => {
+                                        setKitSelectedSizes(prev => ({
+                                          ...prev,
+                                          [kitItem.productId]: String(size)
+                                        }));
+                                      }}
+                                      className={`px-2.5 py-1 text-xs font-black rounded-lg border transition-all cursor-pointer ${
+                                        isSelected
+                                          ? 'bg-[#0071E3] text-white border-[#0071E3] shadow-xs'
+                                          : isDark
+                                          ? 'bg-slate-900 text-slate-300 border-slate-800 hover:border-slate-700'
+                                          : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                                      }`}
+                                    >
+                                      Tam: {size}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <input
+                                type="text"
+                                placeholder="Digite seu tamanho (ex: 36)"
+                                value={chosenSize}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setKitSelectedSizes(prev => ({
+                                    ...prev,
+                                    [kitItem.productId]: val
+                                  }));
+                                }}
+                                className="w-full px-2.5 py-1 text-xs rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-bold"
+                              />
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="space-y-2.5 pt-1 border-t border-blue-900/10 dark:border-slate-800">
+                <div className="flex justify-between items-center text-xs">
+                  <label className={`font-extrabold ${isDark ? 'text-white' : 'text-[#003B73]'}`}>
+                    Selecione a Numeração / Tamanho:
+                  </label>
+                  {selectedLinhaOption && (
+                    <span className={`text-xs ${
+                      isOutubroRosa ? 'text-[#BE185D] dark:text-pink-300' : 'text-emerald-700 dark:text-emerald-400'
+                    } font-extrabold flex items-center gap-1`}>
+                      <CheckCircle2 className="h-3.5 w-3.5" /> Tamanho {selectedLinhaOption}
+                    </span>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
+                  {linhaOptions.map((sizeOpt) => {
+                    const isSelected = selectedLinhaOption === sizeOpt;
+
+                    return (
+                      <motion.button
+                        key={String(sizeOpt)}
+                        whileHover={{ scale: 1.03 }}
+                        whileTap={{ scale: 0.97 }}
+                        onClick={() => setSelectedLinhaOption(sizeOpt)}
+                        className={`h-10 rounded-xl border text-xs font-black transition-all cursor-pointer flex items-center justify-center ${
+                          isSelected
+                            ? isOutubroRosa
+                              ? 'bg-[#BE185D] border-[#BE185D] text-white shadow-md shadow-pink-600/30'
+                              : 'bg-[#003B73] border-[#003B73] text-white shadow-md'
+                            : isDark
+                            ? 'border-slate-800 text-slate-300 bg-slate-950 hover:border-slate-700'
+                            : isOutubroRosa
+                            ? 'border-pink-900/15 text-[#9D174D] bg-white hover:bg-[#FFF0F5]'
+                            : 'border-blue-900/15 text-[#003B73] bg-white hover:bg-[#EEF8FF]'
+                        }`}
+                      >
+                        <span>{sizeOpt}</span>
+                      </motion.button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* MENSAGENS DE ALERTA */}
             <AnimatePresence>
