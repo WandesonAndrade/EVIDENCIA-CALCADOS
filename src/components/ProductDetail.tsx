@@ -178,7 +178,11 @@ export const ProductDetail: React.FC = () => {
 
   const [kitSelectedSizes, setKitSelectedSizes] = useState<Record<string, string>>({});
 
-  const p: Product = selectedProduct || ({} as Product);
+  // Kits: se o produto selecionado perdeu a composição (ex: sobrescrito por documento incompleto), recupera do catálogo unificado
+  const liveKit = (selectedProduct && String(selectedProduct.id).startsWith('kit_') && !(selectedProduct.kitItems && selectedProduct.kitItems.length > 0))
+    ? products.find(prod => prod.id === selectedProduct.id && prod.kitItems && prod.kitItems.length > 0)
+    : undefined;
+  const p: Product = liveKit || selectedProduct || ({} as Product);
   const isKit = Boolean(p?.isKit || (p?.id && String(p.id).startsWith('kit_')));
   const allProductImages = React.useMemo(() => {
     return (p?.images && p.images.length > 0)

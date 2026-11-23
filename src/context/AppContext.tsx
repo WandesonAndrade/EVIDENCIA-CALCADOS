@@ -1807,18 +1807,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   useEffect(() => {
-    if (products.length > 0) {
+    if (combinedProducts.length > 0) {
       const urlParams = new URLSearchParams(window.location.search);
       const productId = urlParams.get('product') || urlParams.get('p');
       if (productId) {
-        const prod = products.find(p => p.id === productId);
+        // Usa o catálogo unificado (produtos + kits virtuais) como fonte da verdade.
+        // Evita sobrescrever o kit aberto por um documento antigo/incompleto da coleção "products".
+        const prod = combinedProducts.find(p => p.id === productId);
         if (prod) {
-          setSelectedProduct(prod);
+          setSelectedProduct((prev) => {
+            if (prev && prev.id === productId && !isKitProduct(prod)) return prev;
+            return prod;
+          });
           setCurrentView('product-detail');
         }
       }
     }
-  }, [products]);
+  }, [combinedProducts]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
