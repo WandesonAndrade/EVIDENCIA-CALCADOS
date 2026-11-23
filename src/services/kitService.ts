@@ -350,6 +350,73 @@ export function isKitProduct(item: any): boolean {
 }
 
 /**
+ * Formata o nome cru do produto vindo do ERP para um formato comercial elegante e legível (Title Case)
+ * Ex: "MALA COM RODAS ALCAS 17 EMILY VICK COLLEGE 1 - 21110" -> { title: "Mala com Rodas e Alças 17 Emily Vick College 1", reference: "21110" }
+ */
+export function formatKitItemDisplayName(rawName: string = ''): { title: string; reference?: string } {
+  if (!rawName) return { title: 'Produto' };
+
+  let clean = rawName.trim();
+  let reference: string | undefined = undefined;
+
+  // Extrai código de referência no final (ex: " - 21110" ou " REF 1234")
+  const refMatch = clean.match(/\s+[-/]\s*(\d{4,8})\b\s*$/i);
+  if (refMatch) {
+    reference = refMatch[1];
+    clean = clean.replace(refMatch[0], '').trim();
+  }
+
+  // Se o nome estiver predominantemente em MAIÚSCULAS, converte para Title Case inteligente
+  if (clean === clean.toUpperCase() && clean.length > 3) {
+    const minorWords = new Set(['de', 'da', 'do', 'das', 'dos', 'e', 'em', 'com', 'para', 'por', 'sem', 'ou', 'a', 'o']);
+    const specialTokens: Record<string, string> = {
+      'alcas': 'Alças',
+      'alca': 'Alça',
+      'tenis': 'Tênis',
+      'sandalia': 'Sandália',
+      'sandalias': 'Sandálias',
+      'calcado': 'Calçado',
+      'calcados': 'Calçados',
+      'lancheira': 'Lancheira',
+      'estojo': 'Estojo',
+      'mala': 'Mala',
+      'mochila': 'Mochila',
+      'bolsa': 'Bolsa',
+      'box': 'Box',
+      'college': 'College',
+      'kids': 'Kids',
+      'baby': 'Baby',
+      'scarpin': 'Scarpin',
+      'rasteira': 'Rasteira',
+      'papete': 'Papete',
+      'bota': 'Bota',
+      'chinelo': 'Chinelo',
+      'mocassim': 'Mocassim',
+      'sapato': 'Sapato'
+    };
+
+    const words = clean.toLowerCase().split(/\s+/);
+    const formattedWords = words.map((w, index) => {
+      const lower = w.toLowerCase();
+      if (specialTokens[lower]) {
+        return specialTokens[lower];
+      }
+      if (index > 0 && minorWords.has(lower)) {
+        return lower;
+      }
+      if (/^\d/.test(w)) {
+        return w.toUpperCase();
+      }
+      return w.charAt(0).toUpperCase() + w.slice(1);
+    });
+
+    clean = formattedWords.join(' ');
+  }
+
+  return { title: clean, reference };
+}
+
+/**
  * Deleta um kit do Firestore
  */
 export async function deleteKit(kitId: string): Promise<void> {
