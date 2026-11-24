@@ -12,7 +12,7 @@ import { collection, onSnapshot, doc, setDoc, getDoc, query, where, deleteDoc, w
 import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { evidenciaAuthService } from '../lib/evidenciaAuth';
 import { firebaseAuthService } from '../services/firebaseAuthService';
-import { loginWithCpfAndEmail, registerClient, requestPasswordResetByCpf } from '../features/cpf-auth';
+import { loginWithCpfAndEmail, registerClient, requestPasswordResetByCpf, isFictitiousEmail } from '../features/cpf-auth';
 import { userDataService } from '../services/userDataService';
 import { orderService } from '../services/orderService';
 import { getProdutosMoblink, extractPrecoTabelaMoblink, extractPrecoVistaMoblink, extractPrecoCartaoMoblink, parseValor, extractSaldoLojaMoblink, sanitizeProductForFirestore, cleanUndefinedFields, filterProductsRequiringSync, hasProductChanged, extractClassificacaoCategoria, isIgnoredClassification } from '../services/moblinkProductsService';
@@ -61,6 +61,9 @@ interface AppContextProps {
   loginWithCpf: (cpf: string, senha: string) => Promise<UserProfile>;
   registerWithCpf: (cpf: string, senha: string, name: string, telefone?: string, emailReal?: string) => Promise<UserProfile>;
   requestPasswordReset: (cpf: string) => Promise<{ success: boolean; message: string; maskedEmail?: string }>;
+  needsEmailMigration: boolean;
+  setNeedsEmailMigration: (needs: boolean) => void;
+  checkEmailMigrationStatus: () => Promise<boolean>;
   loginAdmin: (email: string, password?: string) => Promise<UserProfile>;
   registerTeamMember: (name: string, email: string, role: UserRole, tempPassword?: string) => Promise<UserProfile>;
   changeAdminPassword: (newPassword: string, activeProfile: UserProfile) => Promise<UserProfile>;
@@ -478,6 +481,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     return null;
   });
+  const [needsEmailMigration, setNeedsEmailMigration] = useState<boolean>(false);
 
   useEffect(() => {
     if (currentAdminUser && !auth.currentUser) {
@@ -1099,6 +1103,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     const unsubscribe = firebaseAuthService.subscribeAuthState(async (fbUser) => {
       if (fbUser) {
+        // Detecta se a conta possui e-mail fictício/provisório baseado em CPF
+        const isFictitious = isFictitiousEmail(fbUser.email);
+        setNeedsEmailMigration(isFictitious);
+
         try {
           isRestoringEngagementRef.current = true;
           const fullProfile = await firebaseAuthService.fetchOrSyncUserProfile(fbUser);
@@ -1151,6 +1159,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }, 500);
         }
       } else {
+        setNeedsEmailMigration(false);
         // Quando o Firebase Auth está deslogado, limpa sessões online (não simulações locais offline)
         const savedUser = localStorage.getItem('evidencia_user');
         if (savedUser) {
@@ -2078,6 +2087,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return await requestPasswordResetByCpf(cpf);
   };
 
+  const checkEmailMigrationStatus = async (): Promise<boolean> => {
+    if (auth.currentUser) {
+      try {
+        await auth.currentUser.reload();
+      } catch {}
+      const isFictitious = isFictitiousEmail(auth.currentUser.email);
+      setNeedsEmailMigration(isFictitious);
+      return isFictitious;
+    }
+    setNeedsEmailMigration(false);
+    return false;
+  };
+
   const loginAdmin = async (email: string, password?: string): Promise<UserProfile> => {
     const adminProfile = await firebaseAuthService.loginAdminWithEmailPassword(email, password || 'admin123');
     setCurrentAdminUser(adminProfile);
@@ -2116,6 +2138,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     restoredUidRef.current = null;
     setCurrentUser(null);
     setCurrentAdminUser(null);
+    setNeedsEmailMigration(false);
     setOrders([]);
     setCart([]);
     setFavorites([]);
@@ -3251,6 +3274,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         loginWithCpf,
         registerWithCpf,
         requestPasswordReset,
+        needsEmailMigration,
+        setNeedsEmailMigration,
+        checkEmailMigrationStatus,
         loginAdmin,
         registerTeamMember,
         changeAdminPassword,

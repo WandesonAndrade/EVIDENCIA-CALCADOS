@@ -40,3 +40,11 @@ export interface CpfAuthFailure {
 }
 
 export type CpfAuthResult<T> = CpfAuthSuccess<T> | CpfAuthFailure;
+
+export type EmailMigrationStep = 'input' | 'reauth' | 'sent';
+
+export interface EmailMigrationResult {
+  success: boolean;
+  requiresReauth?: boolean;
+  message?: string;
+}

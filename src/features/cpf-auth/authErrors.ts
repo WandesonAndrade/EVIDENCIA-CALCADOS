@@ -25,6 +25,10 @@ export function getFriendlyAuthErrorMessage(error: any): string {
       return 'Não foi possível conectar aos servidores. Verifique sua conexão com a internet.';
     case 'auth/user-disabled':
       return 'Esta conta foi desativada. Entre em contato com a equipe de atendimento.';
+    case 'auth/requires-recent-login':
+      return 'Por motivos de segurança, é necessário confirmar sua senha atual antes de alterar seu e-mail.';
+    case 'auth/operation-not-allowed':
+      return 'Operação não habilitada nas configurações do sistema. Contate o suporte.';
     case 'permission-denied':
       return 'Acesso negado no banco de dados. Verifique suas permissões.';
     case 'unavailable':

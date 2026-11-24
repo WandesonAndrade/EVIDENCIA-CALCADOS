@@ -754,3 +754,21 @@ Este arquivo é a memória persistente do projeto (AG Kit), consolidando decisõ
       - Suíte automatizada em `tests/test-cpf-auth.ts` cobrindo 19 cenários de validação de CPF e mapeamento de erros, 100% aprovada.
       - Validação de tipagem TypeScript `npx tsc --noEmit` com 0 erros.
       - Build de produção (`npm run build`) validado com sucesso.
+
+58. **Fluxo de Migração Obrigatória de E-mail Fictício/Sintético para E-mail Real (Implementado):**
+    - **Detecção Pós-Login Automática**:
+      - `isFictitiousEmail`: detecta e-mails terminados em `@evidenciacalcados.com.br` e no legado `@evidencia.com` gerados por CPF.
+      - Listener `subscribeAuthState` no `AppContext.tsx` monitora `onAuthStateChanged` e ativa o estado reativo `needsEmailMigration: true` sempre que a conta logada possuir e-mail fictício.
+    - **Modal de Transição Obrigatório (`EmailMigrationModal.tsx`)**:
+      - Bloqueia completamente a navegação da aplicação (`fixed inset-0 z-[999]` com backdrop escuro e blur).
+      - Mensagem explicativa amigável: *"Para a sua segurança, precisamos que você cadastre um e-mail real para recuperação de conta e notificações de pedidos."*
+      - Etapa 1 (`input`): campo de texto para o Novo E-mail Real com validação estrita anti-fictício (`validateRealEmail`) e botão para envio do link.
+      - Etapa 2 (`reauth`): ativada caso o Firebase Auth dispare `auth/requires-recent-login`. Solicita a senha atual do cliente, reautentica via `reauthenticateWithCredential` (`EmailAuthProvider.credential`) e reaplica a atualização.
+      - Etapa 3 (`sent`): feedback de confirmação instruindo o cliente a abrir a caixa de entrada/spam e clicar no link enviado por `verifyBeforeUpdateEmail`, com botão para verificar ativação imediata (`reload`) e opção de corrigir e-mail digitado errado.
+      - Botão de escape seguro: permite sair da conta (`logout`) a qualquer momento.
+    - **Atualização Firestore**:
+      - Atualiza `email` e `emailReal` no documento `users/{uid}`, marcando `pendingEmailVerification: true` e `emailMigrationRequestedAt`.
+    - **Testes & Qualidade**:
+      - `tests/test-email-migration.ts`: 15 testes automatizados cobrindo detecção de domínios, rejeição de domínios fictícios e mapeamento de erros de reautenticação (100% de aprovação).
+      - `tests/test-cpf-auth.ts`: 19 testes automatizados de validação de CPF e erros (100% de aprovação).
+      - `npx tsc --noEmit` com 0 erros e `npm run build` bem-sucedido.

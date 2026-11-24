@@ -15,6 +15,7 @@ import { AuthScreen } from './components/AuthScreen';
 import { Footer } from './components/Footer';
 import { CategoryPage } from './components/CategoryPage';
 import { CompleteProfileModal } from './components/CompleteProfileModal';
+import { EmailMigrationModal } from './components/EmailMigrationModal';
 import { FavoritesList } from './components/FavoritesList';
 import { FloatingAssistant } from './components/FloatingAssistant';
 import { LoadingSpinner } from './components/common/LoadingSpinner';
@@ -68,7 +69,7 @@ export const isProfileIncomplete = (user: any): boolean => {
 
 
 const AppContent: React.FC = () => {
-  const { currentView, currentUser, currentAdminUser, theme, homeSections } = useApp();
+  const { currentView, currentUser, currentAdminUser, theme, homeSections, needsEmailMigration, setNeedsEmailMigration } = useApp();
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
   const heroSection = homeSections?.find(s => s.id === 'hero');
@@ -215,6 +216,12 @@ const AppContent: React.FC = () => {
 
       {/* Complete Profile Modal */}
       <CompleteProfileModal isOpen={isProfileModalOpen} onClose={() => setIsProfileModalOpen(false)} />
+
+      {/* Modal Obrigatório de Migração de E-mail para Contas com CPF */}
+      <EmailMigrationModal 
+        isOpen={Boolean(needsEmailMigration && currentUser)} 
+        onSuccess={() => setNeedsEmailMigration(false)} 
+      />
     </div>
   );
 };
