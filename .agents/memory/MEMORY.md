@@ -724,3 +724,33 @@ Este arquivo é a memória persistente do projeto (AG Kit), consolidando decisõ
       - Seleção de tema gráfico do banner ou URL personalizada.
       - Filtros de produtos por categoria, subcategoria, saldo e busca, com seleção e desmarcação em lote e prévia de preços promocionais.
 
+
+57. **Fluxo Completo de Cadastro, Login e Redefinição de Senha por CPF com Firebase v9+ Modular (Implementado):**
+    - **Módulo Dedicado (`src/features/cpf-auth/`)**:
+      - `cpfUtils.ts`: Funções utilitárias puras `cleanCpf`, `formatCpf` e `isValidCpf` (validação com cálculo de dígitos verificadores e rejeição de sequências).
+      - `authErrors.ts`: Mapeamento amigável de erros do Firebase Auth e Firestore para pt-BR (`getFriendlyAuthErrorMessage`).
+      - `cpfAuthService.ts`: Funções modulares para verificação de pré-cadastro (`checkCpfPreRegistration`), cadastro seguro com e-mail real e rollback atômico (`registerClient`), login nativo por e-mail real com fallback legado (`loginWithCpfAndEmail`) e recuperação de senha (`requestPasswordResetByCpf`).
+      - `types.ts` & `index.ts`: Tipagem forte TypeScript para status, documentos de clientes pré-cadastrados (`PreRegisteredClient`), usuários (`UserAuthDoc`) e retornos padronizados.
+    - **1. Fluxo de Cadastro (Onboarding)**:
+      - Formulário progressivo que inicia solicitando apenas o CPF.
+      - Consulta na coleção `pre_registered_clients/{cpf}`.
+      - Se encontrado com status `"pending"`: identifica como cliente pré-cadastrado da loja física, pré-preenche o nome completo em modo somente leitura com badge visual de cliente pré-cadastrado, e exibe os campos restantes: E-mail Real, Senha e Telefone (opcional).
+      - Se não for pré-cadastrado: permite criar novo cadastro normalmente no site (conforme alinhamento de negócio), solicitando Nome Completo, E-mail Real e Senha.
+      - Ao submeter ("Finalizar Cadastro"): cria a conta no Firebase Auth com `createUserWithEmailAndPassword`, atualiza o perfil em `users/{uid}` com `name, cpf, email, emailReal, createdAt, role: 'customer'`, e quando for cliente pré-cadastrado, atualiza `pre_registered_clients/{cpf}` marcando `status: "registered"` e `claimedBy: uid`.
+      - Se a gravação no banco falhar após criação no Auth, executa rollback de segurança excluindo o usuário criado (`deleteUser`) para evitar contas órfãs.
+      - Se o e-mail já estiver em uso (`auth/email-already-in-use`), aborta a operação sem alterar o documento em `pre_registered_clients`.
+    - **2. Fluxo de Login por CPF e Senha**:
+      - Consulta o e-mail real vinculado ao CPF na coleção `users` utilizando o endpoint backend seguro `POST /api/auth/resolve-cpf` (`server.ts`) com fallback client-side para o Firestore.
+      - Efetua login nativo via `signInWithEmailAndPassword(auth, emailReal, senha)`.
+      - Se o CPF não tiver e-mail real cadastrado (contas legadas com e-mail sintético), ativa fallback transparente para o login anterior sem bloquear o acesso de clientes existentes.
+    - **3. Fluxo de Redefinição de Senha**:
+      - Passo dedicado "Recuperar Senha" na tela de autenticação (`AuthScreen.tsx`).
+      - Usuário informa apenas o CPF.
+      - O sistema localiza o e-mail real associado e dispara `sendPasswordResetEmail(auth, emailReal)` nativo do Firebase.
+      - Exibe feedback amigável mascarando o e-mail (ex: `wa*****@gmail.com`) ou mensagem genérica de segurança caso o CPF não conste na base.
+    - **Segurança & Firestore Rules**:
+      - Adicionada regra em `firestore.rules` para `pre_registered_clients/{cpf}`: leitura pública para verificação no onboarding, atualização restrita ao usuário que reivindica a conta (`claimedBy == request.auth.uid` ou equipe), e criação/exclusão exclusivas da equipe administrativa.
+    - **Testes & Qualidade**:
+      - Suíte automatizada em `tests/test-cpf-auth.ts` cobrindo 19 cenários de validação de CPF e mapeamento de erros, 100% aprovada.
+      - Validação de tipagem TypeScript `npx tsc --noEmit` com 0 erros.
+      - Build de produção (`npm run build`) validado com sucesso.

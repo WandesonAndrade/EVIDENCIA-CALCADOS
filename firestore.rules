@@ -38,6 +38,19 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    // Regra para Clientes Pré-Cadastrados da Loja Física (Onboarding)
+    match /pre_registered_clients/{cpf} {
+      // Leitura permitida para checagem de onboarding
+      allow read: if true;
+      // Atualização permitida para o próprio usuário autenticado ao vincular seu cadastro ou equipe
+      allow update: if isAuth() && (
+        request.resource.data.claimedBy == request.auth.uid ||
+        isTeamMember()
+      );
+      // Criação e exclusão restritas à equipe
+      allow create, delete: if isTeamMember();
+    }
+
 
     // Regra para Solicitações de Crediário Próprio
     match /creditRequests/{requestId} {

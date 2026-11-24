@@ -13,12 +13,18 @@ import {
   LogOut, 
   Sparkles, 
   CheckCircle2, 
-  Loader2 
+  Loader2,
+  Mail 
 } from 'lucide-react';
 import { BrandLogo } from './BrandLogo';
 import { UserProfile } from '../types';
 import { FirstAccessModal } from './FirstAccessModal';
 import { emailLinkAuthService } from '../services/emailLinkAuthService';
+import { 
+  checkCpfPreRegistration, 
+  isValidCpf, 
+  getFriendlyAuthErrorMessage 
+} from '../features/cpf-auth';
 
 interface AuthScreenProps {
   mode?: 'customer' | 'admin';
@@ -30,6 +36,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
     currentAdminUser, 
     loginWithCpf, 
     registerWithCpf, 
+    requestPasswordReset,
     loginWithGoogle, 
     logout, 
     setCurrentView, 
@@ -48,11 +55,13 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
   const [showChoiceScreen, setShowChoiceScreen] = useState<boolean>(isUserCollaborator(activeUser));
 
   // --- CPF PROGRESSIVE AUTH STATES ---
-  const [step, setStep] = useState<'cpf' | 'password' | 'register'>('cpf');
+  const [step, setStep] = useState<'cpf' | 'password' | 'register' | 'forgot_password'>('cpf');
   const [cpf, setCpf] = useState('');
   const [senha, setSenha] = useState('');
   const [name, setName] = useState('');
+  const [emailReal, setEmailReal] = useState('');
   const [telefone, setTelefone] = useState('');
+  const [isPreRegistered, setIsPreRegistered] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [isFirstAccessOpen, setIsFirstAccessOpen] = useState(false);
   const [identifiedUserName, setIdentifiedUserName] = useState('');
@@ -119,25 +128,30 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
     setSuccessMessage('');
 
     const cpfLimpo = cpf.replace(/\D/g, '');
-    if (cpfLimpo.length !== 11) {
+    if (!isValidCpf(cpfLimpo)) {
       setErrorMessage('Por favor, digite um CPF válido contendo 11 dígitos.');
       return;
     }
 
     try {
       setIsLoading(true);
-      const { firebaseAuthService } = await import('../services/firebaseAuthService');
-      const checkResult = await firebaseAuthService.checkCpfStatus(cpfLimpo);
+      const checkResult = await checkCpfPreRegistration(cpfLimpo);
 
-      if (checkResult.status === 'has_account') {
+      if (checkResult.status === 'already_registered') {
         // Já tem cadastro no site -> Solicita senha
-        setIdentifiedUserName(checkResult.clientName || '');
+        setIdentifiedUserName(checkResult.name || '');
         setStep('password');
-      } else if (checkResult.status === 'erp_first_access') {
-        // Já tem cadastro na loja física (MobLink ERP) -> Vai para o fluxo do primeiro acesso
-        setIsFirstAccessOpen(true);
+      } else if (checkResult.status === 'pre_registered_pending') {
+        // Cliente pré-cadastrado da loja física -> Pré-preenche o nome e pede e-mail real e senha
+        setIdentifiedUserName(checkResult.name || '');
+        setName(checkResult.name || '');
+        setIsPreRegistered(true);
+        setStep('register');
+        setSuccessMessage('Cliente pré-cadastrado identificado! Confirme seu e-mail e crie sua senha.');
       } else {
-        // Não tem cadastro -> Vai para a etapa/página de criar cadastro
+        // Novo cliente do site -> Cadastra nome, e-mail e senha
+        setIsPreRegistered(false);
+        setName('');
         setStep('register');
       }
     } catch (error: any) {
@@ -172,7 +186,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
     }
   };
 
-  // 3. Etapa de Cadastro de Novo Cliente (exclusivo via CPF)
+  // 3. Etapa de Cadastro de Cliente (Onboarding pré-cadastrado ou novo)
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
@@ -184,6 +198,11 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
       return;
     }
 
+    if (!emailReal || !emailReal.includes('@')) {
+      setErrorMessage('Por favor, informe um e-mail válido.');
+      return;
+    }
+
     if (!senha || senha.length < 6) {
       setErrorMessage('Crie uma senha com no mínimo 6 caracteres.');
       return;
@@ -191,11 +210,35 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
 
     try {
       setIsLoading(true);
-      const newUser = await registerWithCpf(cpfLimpo, senha, name, telefone);
+      const newUser = await registerWithCpf(cpfLimpo, senha, name, telefone, emailReal);
       processPostAuth(newUser);
     } catch (error: any) {
       console.error("Erro ao criar cadastro:", error);
       setErrorMessage(error.message || 'Erro ao criar conta. Verifique os dados e tente novamente.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // 4. Etapa de Redefinição de Senha por CPF
+  const handleForgotPasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMessage('');
+    setSuccessMessage('');
+
+    const cpfLimpo = cpf.replace(/\D/g, '');
+    if (!isValidCpf(cpfLimpo)) {
+      setErrorMessage('Por favor, informe um CPF válido contendo 11 dígitos.');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      const res = await requestPasswordReset(cpfLimpo);
+      setSuccessMessage(res.message);
+    } catch (error: any) {
+      console.error("Erro ao recuperar senha:", error);
+      setErrorMessage(error.message || 'Erro ao solicitar redefinição de senha.');
     } finally {
       setIsLoading(false);
     }
@@ -374,12 +417,14 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
             <h2 className={`text-2xl sm:text-3xl font-black tracking-tight ${isDark ? 'text-white' : 'text-[#003B73]'}`}>
               {step === 'cpf' && 'Acesse ou Crie sua Conta'}
               {step === 'password' && `Olá, ${identifiedUserName || 'Cliente'}!`}
-              {step === 'register' && 'Criar Nova Conta'}
+              {step === 'register' && (isPreRegistered ? 'Finalizar Cadastro' : 'Criar Nova Conta')}
+              {step === 'forgot_password' && 'Recuperar Senha'}
             </h2>
             <p className={`text-xs sm:text-sm max-w-xs mx-auto leading-relaxed font-medium ${isDark ? 'text-slate-400' : 'text-[#52708F]'}`}>
               {step === 'cpf' && 'Digite seu CPF para continuar. Nós identificamos seu cadastro automaticamente.'}
               {step === 'password' && 'Digite sua senha para acessar sua conta:'}
-              {step === 'register' && 'Não encontramos um cadastro para este CPF. Preencha seus dados abaixo para se cadastrar:'}
+              {step === 'register' && (isPreRegistered ? 'Identificamos seu cadastro na loja física! Confirme seu e-mail e crie sua senha.' : 'Preencha seus dados para criar sua conta no site:')}
+              {step === 'forgot_password' && 'Digite seu CPF para receber as instruções de redefinição de senha no seu e-mail:'}
             </p>
           </div>
         </div>
@@ -498,10 +543,24 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
             >
               {isLoading ? 'Entrando...' : 'Entrar na Conta'}
             </button>
+
+            <div className="flex justify-end pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setStep('forgot_password');
+                  setErrorMessage('');
+                  setSuccessMessage('');
+                }}
+                className="text-xs font-semibold text-amber-500 hover:text-amber-400 hover:underline cursor-pointer"
+              >
+                Esqueceu sua senha? Recuperar por CPF
+              </button>
+            </div>
           </form>
         )}
 
-        {/* PASSO 3: NÃO POSSUI CADASTRO -> CRIAR CADASTRO */}
+        {/* PASSO 3: CADASTRO DE CLIENTE (ONBOARDING PRÉ-CADASTRADO OU NOVO) */}
         {step === 'register' && (
           <form onSubmit={handleRegisterSubmit} className="space-y-4 animate-fade-in">
             <div className="p-3 rounded-2xl bg-slate-100 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs">
@@ -511,8 +570,10 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
                 onClick={() => {
                   setStep('cpf');
                   setName('');
+                  setEmailReal('');
                   setTelefone('');
                   setSenha('');
+                  setIsPreRegistered(false);
                   setErrorMessage('');
                 }}
                 className="text-amber-500 font-bold hover:underline cursor-pointer"
@@ -520,6 +581,15 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
                 Trocar
               </button>
             </div>
+
+            {isPreRegistered && (
+              <div className="p-3.5 rounded-2xl bg-amber-400/10 border border-amber-400/30 text-amber-500 dark:text-amber-300 text-xs flex items-center gap-2.5">
+                <Sparkles className="h-4 w-4 shrink-0 text-amber-400" />
+                <span>
+                  <strong>Cliente Pré-Cadastrado:</strong> Localizamos seus dados da loja física. Confirme seu e-mail e defina sua senha para finalizar.
+                </span>
+              </div>
+            )}
 
             <div className="space-y-1.5">
               <label className={`block text-xs font-bold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
@@ -530,10 +600,35 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
                 <input
                   type="text"
                   required
-                  autoFocus
+                  autoFocus={!isPreRegistered}
+                  readOnly={isPreRegistered}
                   placeholder="Seu nome completo"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
+                  className={`w-full pl-10 pr-4 py-3 rounded-2xl border text-xs font-semibold transition-all outline-none ${
+                    isPreRegistered
+                      ? 'bg-slate-100/90 dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 cursor-not-allowed select-none'
+                      : isDark 
+                        ? 'bg-slate-950/80 border-slate-700 text-white focus:border-amber-400' 
+                        : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-slate-400'
+                  }`}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className={`block text-xs font-bold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                E-mail Real <span className="text-amber-500">*</span>
+              </label>
+              <div className="relative">
+                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <input
+                  type="email"
+                  required
+                  autoFocus={isPreRegistered}
+                  placeholder="seu@email.com"
+                  value={emailReal}
+                  onChange={(e) => setEmailReal(e.target.value)}
                   className={`w-full pl-10 pr-4 py-3 rounded-2xl border text-xs font-semibold transition-all outline-none ${
                     isDark 
                       ? 'bg-slate-950/80 border-slate-700 text-white focus:border-amber-400' 
@@ -541,6 +636,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
                   }`}
                 />
               </div>
+              <p className="text-[11px] text-slate-400">
+                Necessário para confirmação de compras e recuperação de senha.
+              </p>
             </div>
 
             <div className="space-y-1.5">
@@ -602,8 +700,65 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ mode = 'customer' }) => 
                   : 'bg-slate-900 text-white hover:bg-slate-800 shadow-slate-900/20'
               }`}
             >
-              {isLoading ? 'Criando Conta...' : 'Concluir Cadastro e Entrar'}
+              {isLoading ? 'Finalizando Cadastro...' : (isPreRegistered ? 'Finalizar Cadastro' : 'Concluir Cadastro e Entrar')}
             </button>
+          </form>
+        )}
+
+        {/* PASSO 4: REDEFINIÇÃO DE SENHA POR CPF */}
+        {step === 'forgot_password' && (
+          <form onSubmit={handleForgotPasswordSubmit} className="space-y-4 animate-fade-in">
+            <div className="space-y-1.5">
+              <label className={`block text-xs font-bold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                CPF Cadastrado <span className="text-amber-500">*</span>
+              </label>
+              <div className="relative">
+                <UserCheck className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <input
+                  type="text"
+                  required
+                  autoFocus
+                  maxLength={14}
+                  placeholder="000.000.000-00"
+                  value={cpf}
+                  onChange={(e) => setCpf(formatCPF(e.target.value))}
+                  className={`w-full pl-10 pr-4 py-3.5 rounded-2xl border text-sm font-semibold transition-all outline-none font-mono ${
+                    isDark 
+                      ? 'bg-slate-950/80 border-slate-700 text-white focus:border-amber-400' 
+                      : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-slate-400'
+                  }`}
+                />
+              </div>
+              <p className="text-[11px] text-slate-400">
+                Enviaremos um link seguro para o e-mail real associado a este CPF para você criar uma nova senha.
+              </p>
+            </div>
+
+            <button
+              type="submit"
+              disabled={isLoading}
+              className={`w-full py-3.5 px-6 rounded-2xl font-black text-xs uppercase tracking-wider transition-all shadow-md cursor-pointer disabled:opacity-50 active:scale-[0.98] ${
+                isDark
+                  ? 'bg-amber-400 text-slate-950 hover:bg-amber-300 shadow-amber-400/10'
+                  : 'bg-slate-900 text-white hover:bg-slate-800 shadow-slate-900/20'
+              }`}
+            >
+              {isLoading ? 'Enviando...' : 'Enviar Link de Redefinição'}
+            </button>
+
+            <div className="text-center pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setStep('password');
+                  setErrorMessage('');
+                  setSuccessMessage('');
+                }}
+                className="text-xs font-semibold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 cursor-pointer"
+              >
+                ← Voltar para a tela de login
+              </button>
+            </div>
           </form>
         )}
 

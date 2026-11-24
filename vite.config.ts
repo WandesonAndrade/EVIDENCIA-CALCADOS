@@ -31,7 +31,8 @@ export default defineConfig(() => {
               url.includes('/upload-photo') ||
               url.includes('/suggest-product-description') ||
               url.includes('/shipping') ||
-              url.includes('/auth-token')
+              url.includes('/auth-token') ||
+              url.includes('/auth/')
             ) {
               return req.url;
             }

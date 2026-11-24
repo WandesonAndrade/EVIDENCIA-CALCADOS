@@ -8,7 +8,7 @@ import multer from "multer";
 import { ShippingService } from "./src/services/shipping/shippingService.js";
 import { isUrbanCaxias } from "./src/utils/localDelivery.js";
 import { db } from "./src/lib/firebase.js";
-import { doc, getDoc, setDoc, updateDoc, collection, getDocs, query, where } from "firebase/firestore";
+import { doc, getDoc, setDoc, updateDoc, collection, getDocs, query, where, limit } from "firebase/firestore";
 import { createClient } from "@supabase/supabase-js";
 import { 
   optimizeBufferToWebP, 
@@ -170,6 +170,40 @@ app.get("/api/auth-token", async (req, res) => {
     const token = await getValidToken(force);
     return res.json({ success: true, token });
   } catch (err: any) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// Endpoint seguro para resolução de CPF -> E-mail no backend (Abordagem B)
+app.post("/api/auth/resolve-cpf", async (req, res) => {
+  res.setHeader("Content-Type", "application/json");
+  try {
+    const rawCpf = req.body?.cpf;
+    const cleanCpf = typeof rawCpf === "string" ? rawCpf.replace(/\D/g, "").slice(0, 11) : "";
+
+    if (!cleanCpf || cleanCpf.length !== 11) {
+      return res.status(400).json({ success: false, message: "CPF inválido." });
+    }
+
+    const usersCol = collection(db, "users");
+    const q = query(usersCol, where("cpf", "==", cleanCpf), limit(1));
+    const snap = await getDocs(q);
+
+    if (snap.empty) {
+      return res.json({ success: true, found: false });
+    }
+
+    const userData = snap.docs[0].data();
+    const realEmail = userData.emailReal || userData.email || "";
+
+    return res.json({
+      success: true,
+      found: true,
+      email: String(realEmail).trim().toLowerCase(),
+      name: userData.name || "",
+    });
+  } catch (err: any) {
+    console.error("[Backend Auth resolve-cpf Error]", err);
     return res.status(500).json({ success: false, message: err.message });
   }
 });

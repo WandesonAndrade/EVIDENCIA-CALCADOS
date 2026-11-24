@@ -12,6 +12,7 @@ import { collection, onSnapshot, doc, setDoc, getDoc, query, where, deleteDoc, w
 import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { evidenciaAuthService } from '../lib/evidenciaAuth';
 import { firebaseAuthService } from '../services/firebaseAuthService';
+import { loginWithCpfAndEmail, registerClient, requestPasswordResetByCpf } from '../features/cpf-auth';
 import { userDataService } from '../services/userDataService';
 import { orderService } from '../services/orderService';
 import { getProdutosMoblink, extractPrecoTabelaMoblink, extractPrecoVistaMoblink, extractPrecoCartaoMoblink, parseValor, extractSaldoLojaMoblink, sanitizeProductForFirestore, cleanUndefinedFields, filterProductsRequiringSync, hasProductChanged, extractClassificacaoCategoria, isIgnoredClassification } from '../services/moblinkProductsService';
@@ -58,7 +59,8 @@ interface AppContextProps {
   registerUser: (name: string, email: string, role: UserRole) => Promise<UserProfile>;
   loginUser: (email: string) => Promise<UserProfile | null>;
   loginWithCpf: (cpf: string, senha: string) => Promise<UserProfile>;
-  registerWithCpf: (cpf: string, senha: string, name: string, telefone?: string) => Promise<UserProfile>;
+  registerWithCpf: (cpf: string, senha: string, name: string, telefone?: string, emailReal?: string) => Promise<UserProfile>;
+  requestPasswordReset: (cpf: string) => Promise<{ success: boolean; message: string; maskedEmail?: string }>;
   loginAdmin: (email: string, password?: string) => Promise<UserProfile>;
   registerTeamMember: (name: string, email: string, role: UserRole, tempPassword?: string) => Promise<UserProfile>;
   changeAdminPassword: (newPassword: string, activeProfile: UserProfile) => Promise<UserProfile>;
@@ -2054,17 +2056,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const loginWithCpf = async (cpf: string, senha: string): Promise<UserProfile> => {
-    const profile = await firebaseAuthService.loginComCpf(cpf, senha);
+    const profile = await loginWithCpfAndEmail(cpf, senha);
     setCurrentUser(profile);
     localStorage.setItem('evidencia_user', JSON.stringify(profile));
     return profile;
   };
 
-  const registerWithCpf = async (cpf: string, senha: string, name: string, telefone?: string): Promise<UserProfile> => {
-    const profile = await firebaseAuthService.cadastrarComCpf(cpf, senha, name, telefone);
+  const registerWithCpf = async (cpf: string, senha: string, name: string, telefone?: string, emailReal?: string): Promise<UserProfile> => {
+    let profile: UserProfile;
+    if (emailReal) {
+      profile = await registerClient({ cpf, name, email: emailReal, password: senha, phone: telefone });
+    } else {
+      profile = await firebaseAuthService.cadastrarComCpf(cpf, senha, name, telefone);
+    }
     setCurrentUser(profile);
     localStorage.setItem('evidencia_user', JSON.stringify(profile));
     return profile;
+  };
+
+  const requestPasswordReset = async (cpf: string): Promise<{ success: boolean; message: string; maskedEmail?: string }> => {
+    return await requestPasswordResetByCpf(cpf);
   };
 
   const loginAdmin = async (email: string, password?: string): Promise<UserProfile> => {
@@ -3239,6 +3250,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         loginUser,
         loginWithCpf,
         registerWithCpf,
+        requestPasswordReset,
         loginAdmin,
         registerTeamMember,
         changeAdminPassword,
